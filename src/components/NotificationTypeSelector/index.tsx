@@ -205,13 +205,15 @@ const NotificationTypeSelector = ({
           !user ||
           (!user.settings?.watchlistSyncMovies &&
             !user.settings?.watchlistSyncTv &&
-            !user.settings?.watchlistSyncMusic) ||
+            !user.settings?.watchlistSyncMusic &&
+            !user.settings?.watchlistSyncBooks) ||
           !hasPermission(
             [
               Permission.AUTO_REQUEST,
               Permission.AUTO_REQUEST_MOVIE,
               Permission.AUTO_REQUEST_TV,
               Permission.AUTO_REQUEST_MUSIC,
+              Permission.AUTO_REQUEST_BOOK,
             ],
             { type: 'or' }
           ),

@@ -1453,6 +1453,8 @@
   "components.UserProfile.UserSettings.UserGeneralSettings.admin": "Admin",
   "components.UserProfile.UserSettings.UserGeneralSettings.applanguage": "Display Language",
   "components.UserProfile.UserSettings.UserGeneralSettings.bookrequestlimit": "Book Request Limit",
+  "components.UserProfile.UserSettings.UserGeneralSettings.bookwatchlistsync": "Auto-Request Books",
+  "components.UserProfile.UserSettings.UserGeneralSettings.bookwatchlistsynctip": "Automatically request books added to SeerrNG book watchlists when a supported book watchlist source is available.",
   "components.UserProfile.UserSettings.UserGeneralSettings.discordId": "Discord User ID",
   "components.UserProfile.UserSettings.UserGeneralSettings.discordIdTip": "The <FindDiscordIdLink>multi-digit ID number</FindDiscordIdLink> associated with your Discord user account",
   "components.UserProfile.UserSettings.UserGeneralSettings.discoverRegion": "Discover Region",

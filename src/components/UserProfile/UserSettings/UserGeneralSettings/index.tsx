@@ -78,6 +78,9 @@ const messages = defineMessages(
     musicwatchlistsync: 'Auto-Request Music',
     musicwatchlistsynctip:
       'Automatically request albums added to SeerrNG music watchlists when a supported music watchlist source is available.',
+    bookwatchlistsync: 'Auto-Request Books',
+    bookwatchlistsynctip:
+      'Automatically request books added to SeerrNG book watchlists when a supported book watchlist source is available.',
   }
 );
 
@@ -187,6 +190,7 @@ const UserGeneralSettings = () => {
           watchlistSyncMovies: data?.watchlistSyncMovies,
           watchlistSyncTv: data?.watchlistSyncTv,
           watchlistSyncMusic: data?.watchlistSyncMusic,
+          watchlistSyncBooks: data?.watchlistSyncBooks,
         }}
         validationSchema={UserGeneralSettingsSchema}
         enableReinitialize
@@ -218,6 +222,7 @@ const UserGeneralSettings = () => {
               watchlistSyncMovies: values.watchlistSyncMovies,
               watchlistSyncTv: values.watchlistSyncTv,
               watchlistSyncMusic: values.watchlistSyncMusic,
+              watchlistSyncBooks: values.watchlistSyncBooks,
             });
 
             if (currentUser?.id === user?.id && setLocale) {
@@ -769,6 +774,37 @@ const UserGeneralSettings = () => {
                         setFieldValue(
                           'watchlistSyncMusic',
                           !values.watchlistSyncMusic
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              {hasPermission(
+                [Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_BOOK],
+                { type: 'or' }
+              ) && (
+                <div className="form-row">
+                  <label
+                    htmlFor="watchlistSyncBooks"
+                    className="checkbox-label"
+                  >
+                    <span>
+                      {intl.formatMessage(messages.bookwatchlistsync)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.bookwatchlistsynctip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="watchlistSyncBooks"
+                      name="watchlistSyncBooks"
+                      onChange={() => {
+                        setFieldValue(
+                          'watchlistSyncBooks',
+                          !values.watchlistSyncBooks
                         );
                       }}
                     />

@@ -38,6 +38,7 @@ export interface UserSettings {
   watchlistSyncMovies?: boolean;
   watchlistSyncTv?: boolean;
   watchlistSyncMusic?: boolean;
+  watchlistSyncBooks?: boolean;
 }
 
 interface UserHookResponse {

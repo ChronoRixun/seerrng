@@ -75,6 +75,9 @@ export class UserSettings {
   @Column({ nullable: true })
   public watchlistSyncMusic?: boolean;
 
+  @Column({ nullable: true })
+  public watchlistSyncBooks?: boolean;
+
   @Column({
     type: 'text',
     nullable: true,

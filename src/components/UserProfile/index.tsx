@@ -453,7 +453,8 @@ const UserProfile = () => {
           (user.id === currentUser?.id &&
             (user.settings?.watchlistSyncMovies ||
               user.settings?.watchlistSyncTv ||
-              user.settings?.watchlistSyncMusic))) &&
+              user.settings?.watchlistSyncMusic ||
+              user.settings?.watchlistSyncBooks))) &&
         !watchlistError && (
           <>
             <div className="slider-header">
