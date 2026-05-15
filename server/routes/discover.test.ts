@@ -3,6 +3,15 @@ import { afterEach, before, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
+import { MediaType } from '@server/constants/media';
+import { UserType } from '@server/constants/user';
+import { getRepository } from '@server/datasource';
+import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
+import { User } from '@server/entity/User';
+import { Watchlist } from '@server/entity/Watchlist';
 import { getSettings } from '@server/lib/settings';
 import { checkUser } from '@server/middleware/auth';
 import { setupTestDb } from '@server/test/db';
@@ -162,6 +171,61 @@ describe('GET /discover/music', () => {
     assert.strictEqual(freshReleaseMock.mock.callCount(), 2);
     assert.strictEqual(res.body.results[0].title, 'Fallback Album');
   });
+
+  it('only exposes the current user watchlist state on music results', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: {
+        releases: [
+          {
+            artist_credit_name: 'Watched By Someone Else',
+            artist_mbids: ['artist-other-user'],
+            caa_id: 1,
+            caa_release_mbid: 'release-other-user',
+            listen_count: 1,
+            release_date: '2026-05-08',
+            release_group_mbid: 'album-other-user',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-other-user',
+            release_name: 'Other User Album',
+            release_tags: [],
+          },
+        ],
+      },
+    }));
+
+    const otherUser = await getRepository(User).save(
+      new User({
+        email: 'other-music-watchlist@example.com',
+        username: 'other-music-watchlist',
+        plexUsername: 'other-music-watchlist',
+        userType: UserType.LOCAL,
+        avatar: '',
+      })
+    );
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mbId: 'album-other-user',
+        mediaType: MediaType.MUSIC,
+      })
+    );
+    await getRepository(Watchlist).save(
+      new Watchlist({
+        mbId: 'album-other-user',
+        mediaType: MediaType.MUSIC,
+        title: 'Other User Album',
+        requestedBy: otherUser,
+        media,
+      })
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results[0].mediaInfo.watchlists.length, 0);
+  });
 });
 
 describe('GET /discover/books', () => {
@@ -190,5 +254,63 @@ describe('GET /discover/books', () => {
     assert.strictEqual(res.body.totalResults, 1);
     assert.strictEqual(res.body.results[0].mediaType, 'book');
     assert.strictEqual(res.body.results[0].title, 'Alpha Book');
+  });
+
+  it('only exposes the current user watchlist state on book results', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
+      numFound: 1,
+      start: 0,
+      docs: [
+        {
+          key: '/works/OL2W',
+          title: 'Other User Book',
+          author_name: ['Writer Two'],
+          author_key: ['OL2A'],
+          first_publish_year: 2025,
+          cover_i: 456,
+          isbn: ['9780000000002'],
+          edition_key: ['OL2M'],
+        },
+      ],
+    }));
+
+    const otherUser = await getRepository(User).save(
+      new User({
+        email: 'other-book-watchlist@example.com',
+        username: 'other-book-watchlist',
+        plexUsername: 'other-book-watchlist',
+        userType: UserType.LOCAL,
+        avatar: '',
+      })
+    );
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media,
+        provider: MediaIdentifierProvider.OPENLIBRARY,
+        value: 'OL2W',
+        canonical: true,
+      })
+    );
+    await getRepository(Watchlist).save(
+      new Watchlist({
+        externalId: 'OL2W',
+        mediaType: MediaType.BOOK,
+        title: 'Other User Book',
+        requestedBy: otherUser,
+        media,
+      })
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/books?query=other');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results[0].mediaInfo.watchlists.length, 0);
   });
 });

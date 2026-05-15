@@ -1,13 +1,13 @@
-import PlexTvAPI from '@server/api/plextv';
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
+import PlexTvAPI from '@server/api/plextv';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
-import Media from '@server/entity/Media';
 import type MediaEntity from '@server/entity/Media';
+import Media from '@server/entity/Media';
 import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
@@ -19,15 +19,15 @@ import type {
 } from '@server/interfaces/api/discoverInterfaces';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { mapOpenLibrarySearchDoc } from '@server/models/Book';
 import { mapProductionCompany } from '@server/models/Movie';
 import {
-  mapCollectionResult,
   mapAlbumResult,
+  mapCollectionResult,
   mapMovieResult,
   mapPersonResult,
   mapTvResult,
 } from '@server/models/Search';
-import { mapOpenLibrarySearchDoc } from '@server/models/Book';
 import { mapNetwork } from '@server/models/Tv';
 import { isCollection, isMovie, isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
@@ -978,6 +978,12 @@ discoverRoutes.get('/music', async (req, res, next) => {
           relations: { requests: true, watchlists: true },
         })
       : [];
+    relatedMedia.forEach((media) => {
+      media.watchlists =
+        media.watchlists?.filter(
+          (watchlist) => watchlist.requestedBy.id === req.user?.id
+        ) ?? [];
+    });
 
     const results = releases.map((release) =>
       mapAlbumResult(
@@ -1053,7 +1059,14 @@ discoverRoutes.get('/books', async (req, res, next) => {
     const mediaByOpenLibraryId = new Map<string, MediaEntity>(
       identifiers
         .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
-        .map((identifier) => [identifier.value, identifier.media])
+        .map((identifier) => {
+          identifier.media.watchlists =
+            identifier.media.watchlists?.filter(
+              (watchlist) => watchlist.requestedBy.id === req.user?.id
+            ) ?? [];
+
+          return [identifier.value, identifier.media];
+        })
     );
 
     return res.status(200).json({

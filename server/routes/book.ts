@@ -17,7 +17,8 @@ import { In } from 'typeorm';
 const bookRoutes = Router();
 
 const findBookMediaByOpenLibraryIds = async (
-  ids: string[]
+  ids: string[],
+  userId?: number
 ): Promise<Map<string, Media>> => {
   if (!ids.length) {
     return new Map();
@@ -28,13 +29,20 @@ const findBookMediaByOpenLibraryIds = async (
       provider: MediaIdentifierProvider.OPENLIBRARY,
       value: In(ids),
     },
-    relations: { media: true },
+    relations: { media: { requests: true, watchlists: true } },
   });
 
   return new Map(
     identifiers
       .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
-      .map((identifier) => [identifier.value, identifier.media])
+      .map((identifier) => {
+        identifier.media.watchlists =
+          identifier.media.watchlists?.filter(
+            (watchlist) => watchlist.requestedBy.id === userId
+          ) ?? [];
+
+        return [identifier.value, identifier.media];
+      })
   );
 };
 
@@ -54,7 +62,10 @@ bookRoutes.get('/search', async (req, res, next) => {
       limit: 20,
     });
     const ids = response.docs.map((doc) => doc.key.replace('/works/', ''));
-    const mediaByOpenLibraryId = await findBookMediaByOpenLibraryIds(ids);
+    const mediaByOpenLibraryId = await findBookMediaByOpenLibraryIds(
+      ids,
+      req.user?.id
+    );
 
     return res.status(200).json({
       page,

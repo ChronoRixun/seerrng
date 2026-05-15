@@ -292,13 +292,20 @@ searchRoutes.get('/', async (req, res, next) => {
                 provider: MediaIdentifierProvider.OPENLIBRARY,
                 value: In(bookIds),
               },
-              relations: { media: true },
+              relations: { media: { requests: true, watchlists: true } },
             })
           : [];
       const bookMediaMap = new Map(
         bookIdentifiers
           .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
-          .map((identifier) => [identifier.value, identifier.media])
+          .map((identifier) => {
+            identifier.media.watchlists =
+              identifier.media.watchlists?.filter(
+                (watchlist) => watchlist.requestedBy.id === req.user?.id
+              ) ?? [];
+
+            return [identifier.value, identifier.media];
+          })
       );
       const mappedBookResults = bookResults.docs.map((doc) =>
         mapOpenLibrarySearchDoc(
