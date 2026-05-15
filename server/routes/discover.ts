@@ -932,17 +932,16 @@ discoverRoutes.get('/music', async (req, res, next) => {
   const listenBrainz = new ListenBrainzAPI();
   const itemsPerPage = 20;
   const page = req.query.page ? Number(req.query.page) : 1;
-  const offset = (page - 1) * itemsPerPage;
   const days = req.query.days ? Number(req.query.days) : 7;
-  const sort = req.query.sortBy === 'release_date.asc' ? 'date' : 'release_date';
+  const sortAscending = req.query.sortBy === 'release_date.asc';
 
   try {
     let freshReleases;
     try {
       freshReleases = await listenBrainz.getFreshReleases({
         days,
-        sort,
-        offset,
+        sort: 'release_date',
+        offset: 0,
         count: itemsPerPage,
       });
     } catch (e) {
@@ -957,12 +956,21 @@ discoverRoutes.get('/music', async (req, res, next) => {
       });
       freshReleases = await listenBrainz.getFreshReleases({
         days: 7,
-        sort,
-        offset,
+        sort: 'release_date',
+        offset: 0,
         count: itemsPerPage,
       });
     }
-    const releases = freshReleases.payload.releases.slice(0, itemsPerPage);
+    const releases = freshReleases.payload.releases
+      .filter((release) => release.release_group_mbid && release.release_name)
+      .sort((a, b) => {
+        const left = a.release_date ?? '';
+        const right = b.release_date ?? '';
+        return sortAscending
+          ? left.localeCompare(right)
+          : right.localeCompare(left);
+      })
+      .slice(0, itemsPerPage);
     const mbIds = releases.map((release) => release.release_group_mbid);
     const relatedMedia = mbIds.length
       ? await getRepository(Media).find({
@@ -1004,8 +1012,8 @@ discoverRoutes.get('/music', async (req, res, next) => {
 
     return res.status(200).json({
       page,
-      totalPages: releases.length < itemsPerPage ? page : page + 1,
-      totalResults: offset + releases.length,
+      totalPages: 1,
+      totalResults: releases.length,
       results,
     });
   } catch (e) {
