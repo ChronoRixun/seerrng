@@ -1,4 +1,6 @@
 import RadarrAPI from '@server/api/servarr/radarr';
+import LidarrAPI from '@server/api/servarr/lidarr';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import TautulliAPI from '@server/api/tautulli';
 import TheMovieDb from '@server/api/themoviedb';
@@ -209,12 +211,18 @@ mediaRoutes.delete(
 
       const is4k = String(req.query.is4k) === 'true';
       const isMovie = media.mediaType === MediaType.MOVIE;
+      const isMusic = media.mediaType === MediaType.MUSIC;
+      const isBook = media.mediaType === MediaType.BOOK;
 
       let serviceSettings;
       if (isMovie) {
         serviceSettings = settings.radarr.find(
           (radarr) => radarr.isDefault && radarr.is4k === is4k
         );
+      } else if (isMusic) {
+        serviceSettings = settings.lidarr.find((lidarr) => lidarr.isDefault);
+      } else if (isBook) {
+        serviceSettings = settings.readarr.find((readarr) => readarr.isDefault);
       } else {
         serviceSettings = settings.sonarr.find(
           (sonarr) => sonarr.isDefault && sonarr.is4k === is4k
@@ -230,6 +238,14 @@ mediaRoutes.delete(
         if (isMovie) {
           serviceSettings = settings.radarr.find(
             (radarr) => radarr.id === specificServiceId
+          );
+        } else if (isMusic) {
+          serviceSettings = settings.lidarr.find(
+            (lidarr) => lidarr.id === specificServiceId
+          );
+        } else if (isBook) {
+          serviceSettings = settings.readarr.find(
+            (readarr) => readarr.id === specificServiceId
           );
         } else {
           serviceSettings = settings.sonarr.find(
@@ -259,6 +275,16 @@ mediaRoutes.delete(
           apiKey: serviceSettings?.apiKey,
           url: RadarrAPI.buildUrl(serviceSettings, '/api/v3'),
         });
+      } else if (isMusic) {
+        service = new LidarrAPI({
+          apiKey: serviceSettings?.apiKey,
+          url: LidarrAPI.buildUrl(serviceSettings, '/api/v1'),
+        });
+      } else if (isBook) {
+        service = new ReadarrAPI({
+          apiKey: serviceSettings?.apiKey,
+          url: ReadarrAPI.buildUrl(serviceSettings, '/api/v1'),
+        });
       } else {
         service = new SonarrAPI({
           apiKey: serviceSettings?.apiKey,
@@ -268,6 +294,16 @@ mediaRoutes.delete(
 
       if (isMovie) {
         await (service as RadarrAPI).removeMovie(media.tmdbId);
+      } else if (isMusic) {
+        if (!media.externalServiceId) {
+          throw new Error('Lidarr album ID not found');
+        }
+        await (service as LidarrAPI).removeAlbum(media.externalServiceId);
+      } else if (isBook) {
+        if (!media.externalServiceId) {
+          throw new Error('Readarr book ID not found');
+        }
+        await (service as ReadarrAPI).removeBook(media.externalServiceId);
       } else {
         const tmdb = new TheMovieDb();
         const series = await tmdb.getTvShow({ tvId: media.tmdbId });

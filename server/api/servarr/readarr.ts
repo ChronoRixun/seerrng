@@ -103,6 +103,19 @@ class ReadarrAPI extends ServarrBase<Record<string, unknown>> {
       });
     }
   }
+
+  public async removeBook(bookId: number): Promise<void> {
+    try {
+      await this.axios.delete(`/book/${bookId}`, {
+        params: {
+          deleteFiles: true,
+          addImportListExclusion: false,
+        },
+      });
+    } catch (e) {
+      throw new Error(`[Readarr] Failed to remove book: ${e.message}`);
+    }
+  }
 }
 
 export default ReadarrAPI;

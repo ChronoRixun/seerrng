@@ -7,9 +7,18 @@ import Media from '@server/entity/Media';
 import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
+import {
+  BlocklistedMediaError,
+  DuplicateMediaRequestError,
+  MediaRequest,
+  NoSeasonsAvailableError,
+  QuotaRestrictedError,
+  RequestPermissionError,
+} from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import logger from '@server/logger';
 import { DbAwareColumn, resolveDbType } from '@server/utils/DbColumnHelper';
+import { Permission } from '@server/lib/permissions';
 import {
   Column,
   Entity,
@@ -222,6 +231,7 @@ export class Watchlist {
       });
 
       await watchlistRepository.save(watchlist);
+      await this.requestBookFromWatchlist(watchlistRequest.externalId, user);
       return watchlist;
     }
 
@@ -306,5 +316,58 @@ export class Watchlist {
     }
 
     return watchlist;
+  }
+
+  private static async requestBookFromWatchlist(
+    openLibraryId: string,
+    user: User
+  ): Promise<void> {
+    if (
+      !user.settings?.watchlistSyncBooks ||
+      !user.hasPermission([Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_BOOK], {
+        type: 'or',
+      })
+    ) {
+      return;
+    }
+
+    try {
+      await MediaRequest.request(
+        {
+          mediaId: openLibraryId,
+          mediaType: MediaType.BOOK,
+          format: 'ebook',
+        },
+        user,
+        { isAutoRequest: true }
+      );
+    } catch (e) {
+      if (!(e instanceof Error)) {
+        return;
+      }
+
+      switch (e.constructor) {
+        case RequestPermissionError:
+        case DuplicateMediaRequestError:
+        case QuotaRestrictedError:
+        case NoSeasonsAvailableError:
+          logger.debug('Failed to create book request from watchlist', {
+            label: 'Watchlist',
+            userId: user.id,
+            openLibraryId,
+            errorMessage: e.message,
+          });
+          break;
+        case BlocklistedMediaError:
+          break;
+        default:
+          logger.error('Failed to create book request from watchlist', {
+            label: 'Watchlist',
+            userId: user.id,
+            openLibraryId,
+            errorMessage: e.message,
+          });
+      }
+    }
   }
 }
