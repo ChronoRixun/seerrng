@@ -3,6 +3,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import IssueBlock from '@app/components/IssueBlock';
 import IssueModal from '@app/components/IssueModal';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
@@ -16,6 +17,7 @@ import {
   ExclamationTriangleIcon,
   NoSymbolIcon,
 } from '@heroicons/react/24/outline';
+import { IssueStatus } from '@server/constants/issue';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
@@ -33,6 +35,7 @@ const messages = defineMessages('components.MusicDetails', {
   tracks: 'Tracks',
   noTracks: 'No tracks available.',
   reportissue: 'Report an Issue',
+  openissues: 'Open Issues',
 });
 
 const MusicDetails = () => {
@@ -78,6 +81,9 @@ const MusicDetails = () => {
   const canBlocklist =
     hasPermission(Permission.MANAGE_BLOCKLIST) &&
     data.mediaInfo?.status !== MediaStatus.BLOCKLISTED;
+  const openIssues =
+    data.mediaInfo?.issues?.filter((issue) => issue.status === IssueStatus.OPEN) ??
+    [];
 
   const blocklistAlbum = async () => {
     setIsBlocklisting(true);
@@ -211,6 +217,28 @@ const MusicDetails = () => {
       </div>
 
       <div className="mt-10">
+        {hasPermission([Permission.MANAGE_ISSUES, Permission.VIEW_ISSUES], {
+          type: 'or',
+        }) &&
+          openIssues.length > 0 && (
+            <div className="mb-10">
+              <h2 className="mb-4 text-2xl font-bold text-white">
+                {intl.formatMessage(messages.openissues)}
+              </h2>
+              <div className="overflow-hidden rounded-lg ring-1 ring-gray-800">
+                <ul>
+                  {openIssues.map((issue) => (
+                    <li
+                      key={`music-issue-${issue.id}`}
+                      className="border-b border-gray-800 last:border-b-0"
+                    >
+                      <IssueBlock issue={issue} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         <h2 className="mb-4 text-2xl font-bold text-white">
           {intl.formatMessage(messages.tracks)}
         </h2>

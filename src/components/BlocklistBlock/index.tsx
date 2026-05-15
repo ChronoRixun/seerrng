@@ -23,6 +23,7 @@ const messages = defineMessages('component.BlocklistBlock', {
 
 interface BlocklistBlockProps {
   tmdbId: number;
+  externalId?: string | null;
   mediaType: MediaType;
   onUpdate?: () => void;
   onDelete?: () => void;
@@ -30,6 +31,7 @@ interface BlocklistBlockProps {
 
 const BlocklistBlock = ({
   tmdbId,
+  externalId,
   mediaType,
   onUpdate,
   onDelete,
@@ -38,15 +40,19 @@ const BlocklistBlock = ({
   const intl = useIntl();
   const [isUpdating, setIsUpdating] = useState(false);
   const { addToast } = useToasts();
+  const blocklistId =
+    mediaType === 'music' || mediaType === 'book' ? externalId : tmdbId;
   const { data } = useSWR<Blocklist>(
-    `/api/v1/blocklist/${tmdbId}?mediaType=${mediaType}`
+    blocklistId
+      ? `/api/v1/blocklist/${blocklistId}?mediaType=${mediaType}`
+      : null
   );
 
-  const removeFromBlocklist = async (tmdbId: number, title?: string) => {
+  const removeFromBlocklist = async (id: number | string, title?: string) => {
     setIsUpdating(true);
 
     try {
-      await axios.delete(`/api/v1/blocklist/${tmdbId}?mediaType=${mediaType}`);
+      await axios.delete(`/api/v1/blocklist/${id}?mediaType=${mediaType}`);
 
       addToast(
         <span>
@@ -118,7 +124,12 @@ const BlocklistBlock = ({
           >
             <Button
               buttonType="danger"
-              onClick={() => removeFromBlocklist(data.tmdbId, data.title)}
+              onClick={() =>
+                removeFromBlocklist(
+                  data.externalId ?? data.tmdbId,
+                  data.title
+                )
+              }
               disabled={isUpdating}
             >
               <TrashIcon className="icon-sm" />

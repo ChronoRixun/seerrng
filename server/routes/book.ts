@@ -96,6 +96,13 @@ bookRoutes.get('/:id', async (req, res, next) => {
               requestedBy: true,
               modifiedBy: true,
             },
+            issues: {
+              createdBy: true,
+              modifiedBy: true,
+              comments: {
+                user: true,
+              },
+            },
           },
         },
       }),

@@ -29,6 +29,11 @@ musicRoutes.get('/:id', async (req, res, next) => {
         .leftJoinAndSelect('media.requests', 'requests')
         .leftJoinAndSelect('requests.requestedBy', 'requestedBy')
         .leftJoinAndSelect('requests.modifiedBy', 'modifiedBy')
+        .leftJoinAndSelect('media.issues', 'issues')
+        .leftJoinAndSelect('issues.createdBy', 'issueCreatedBy')
+        .leftJoinAndSelect('issues.modifiedBy', 'issueModifiedBy')
+        .leftJoinAndSelect('issues.comments', 'issueComments')
+        .leftJoinAndSelect('issueComments.user', 'issueCommentUser')
         .where({
           mbId: req.params.id,
           mediaType: MediaType.MUSIC,
