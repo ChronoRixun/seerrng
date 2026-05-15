@@ -1,4 +1,6 @@
+import LidarrAPI from '@server/api/servarr/lidarr';
 import RadarrAPI from '@server/api/servarr/radarr';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { MediaType } from '@server/constants/media';
 import { getSettings } from '@server/lib/settings';
@@ -27,6 +29,8 @@ export interface DownloadingItem {
 class DownloadTracker {
   private radarrServers: Record<number, DownloadingItem[]> = {};
   private sonarrServers: Record<number, DownloadingItem[]> = {};
+  private lidarrServers: Record<number, DownloadingItem[]> = {};
+  private readarrServers: Record<number, DownloadingItem[]> = {};
 
   public getMovieProgress(
     serverId: number,
@@ -54,14 +58,44 @@ class DownloadTracker {
     );
   }
 
+  public getMusicProgress(
+    serverId: number,
+    externalServiceId: number
+  ): DownloadingItem[] {
+    if (!this.lidarrServers[serverId]) {
+      return [];
+    }
+
+    return this.lidarrServers[serverId].filter(
+      (item) => item.externalId === externalServiceId
+    );
+  }
+
+  public getBookProgress(
+    serverId: number,
+    externalServiceId: number
+  ): DownloadingItem[] {
+    if (!this.readarrServers[serverId]) {
+      return [];
+    }
+
+    return this.readarrServers[serverId].filter(
+      (item) => item.externalId === externalServiceId
+    );
+  }
+
   public async resetDownloadTracker() {
     this.radarrServers = {};
     this.sonarrServers = {};
+    this.lidarrServers = {};
+    this.readarrServers = {};
   }
 
   public updateDownloads() {
     this.updateRadarrDownloads();
     this.updateSonarrDownloads();
+    this.updateLidarrDownloads();
+    this.updateReadarrDownloads();
   }
 
   private async updateRadarrDownloads() {
@@ -214,6 +248,167 @@ class DownloadTracker {
           matchingServers.forEach((ms) => {
             if (ms.syncEnabled) {
               this.sonarrServers[ms.id] = this.sonarrServers[server.id];
+            }
+          });
+        }
+      })
+    );
+  }
+
+  private async updateLidarrDownloads() {
+    const settings = getSettings();
+
+    const filteredServers = uniqWith(settings.lidarr, (lidarrA, lidarrB) => {
+      return (
+        lidarrA.hostname === lidarrB.hostname &&
+        lidarrA.port === lidarrB.port &&
+        lidarrA.baseUrl === lidarrB.baseUrl
+      );
+    });
+
+    Promise.all(
+      filteredServers.map(async (server) => {
+        if (server.syncEnabled) {
+          const lidarr = new LidarrAPI({
+            apiKey: server.apiKey,
+            url: LidarrAPI.buildUrl(server, '/api/v1'),
+          });
+
+          try {
+            await lidarr.refreshMonitoredDownloads();
+            const queueItems = await lidarr.getQueue();
+
+            this.lidarrServers[server.id] = queueItems
+              .filter((item) => item.albumId !== undefined)
+              .map((item) => ({
+                externalId: item.albumId,
+                estimatedCompletionTime: new Date(
+                  item.estimatedCompletionTime
+                ),
+                mediaType: MediaType.MUSIC,
+                size: item.size,
+                sizeLeft: item.sizeleft,
+                status: item.status,
+                timeLeft: item.timeleft,
+                title: item.title,
+                downloadId: item.downloadId,
+              }));
+
+            if (queueItems.length > 0) {
+              logger.debug(
+                `Found ${queueItems.length} item(s) in progress on Lidarr server: ${server.name}`,
+                { label: 'Download Tracker' }
+              );
+            }
+          } catch {
+            logger.error(
+              `Unable to get queue from Lidarr server: ${server.name}`,
+              {
+                label: 'Download Tracker',
+              }
+            );
+          }
+
+          const matchingServers = settings.lidarr.filter(
+            (ls) =>
+              ls.hostname === server.hostname &&
+              ls.port === server.port &&
+              ls.baseUrl === server.baseUrl &&
+              ls.id !== server.id
+          );
+
+          if (matchingServers.length > 0) {
+            logger.debug(
+              `Matching download data to ${matchingServers.length} other Lidarr server(s)`,
+              { label: 'Download Tracker' }
+            );
+          }
+
+          matchingServers.forEach((ms) => {
+            if (ms.syncEnabled) {
+              this.lidarrServers[ms.id] = this.lidarrServers[server.id];
+            }
+          });
+        }
+      })
+    );
+  }
+
+  private async updateReadarrDownloads() {
+    const settings = getSettings();
+
+    const filteredServers = uniqWith(settings.readarr, (readarrA, readarrB) => {
+      return (
+        readarrA.hostname === readarrB.hostname &&
+        readarrA.port === readarrB.port &&
+        readarrA.baseUrl === readarrB.baseUrl
+      );
+    });
+
+    Promise.all(
+      filteredServers.map(async (server) => {
+        if (server.syncEnabled) {
+          const readarr = new ReadarrAPI({
+            apiKey: server.apiKey,
+            url: ReadarrAPI.buildUrl(server, '/api/v1'),
+          });
+
+          try {
+            await readarr.refreshMonitoredDownloads();
+            const queueItems = await readarr.getQueue();
+
+            this.readarrServers[server.id] = queueItems
+              .filter(
+                (item): item is typeof item & { bookId: number } =>
+                  item.bookId !== undefined
+              )
+              .map((item) => ({
+                externalId: item.bookId,
+                estimatedCompletionTime: new Date(
+                  item.estimatedCompletionTime
+                ),
+                mediaType: MediaType.BOOK,
+                size: item.size,
+                sizeLeft: item.sizeleft,
+                status: item.status,
+                timeLeft: item.timeleft,
+                title: item.title,
+                downloadId: item.downloadId,
+              }));
+
+            if (queueItems.length > 0) {
+              logger.debug(
+                `Found ${queueItems.length} item(s) in progress on Readarr server: ${server.name}`,
+                { label: 'Download Tracker' }
+              );
+            }
+          } catch {
+            logger.error(
+              `Unable to get queue from Readarr server: ${server.name}`,
+              {
+                label: 'Download Tracker',
+              }
+            );
+          }
+
+          const matchingServers = settings.readarr.filter(
+            (rs) =>
+              rs.hostname === server.hostname &&
+              rs.port === server.port &&
+              rs.baseUrl === server.baseUrl &&
+              rs.id !== server.id
+          );
+
+          if (matchingServers.length > 0) {
+            logger.debug(
+              `Matching download data to ${matchingServers.length} other Readarr server(s)`,
+              { label: 'Download Tracker' }
+            );
+          }
+
+          matchingServers.forEach((ms) => {
+            if (ms.syncEnabled) {
+              this.readarrServers[ms.id] = this.readarrServers[server.id];
             }
           });
         }

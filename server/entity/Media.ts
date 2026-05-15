@@ -447,6 +447,34 @@ class Media {
         );
       }
     }
+
+    if (this.mediaType === MediaType.MUSIC) {
+      if (
+        this.externalServiceId !== undefined &&
+        this.externalServiceId !== null &&
+        this.serviceId !== undefined &&
+        this.serviceId !== null
+      ) {
+        this.downloadStatus = downloadTracker.getMusicProgress(
+          this.serviceId,
+          this.externalServiceId
+        );
+      }
+    }
+
+    if (this.mediaType === MediaType.BOOK) {
+      if (
+        this.externalServiceId !== undefined &&
+        this.externalServiceId !== null &&
+        this.serviceId !== undefined &&
+        this.serviceId !== null
+      ) {
+        this.downloadStatus = downloadTracker.getBookProgress(
+          this.serviceId,
+          this.externalServiceId
+        );
+      }
+    }
   }
 }
 

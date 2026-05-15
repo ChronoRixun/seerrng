@@ -50,7 +50,11 @@ export interface ReadarrBook extends ReadarrBookLookupResult {
   };
 }
 
-class ReadarrAPI extends ServarrBase<Record<string, unknown>> {
+type ReadarrQueueItem = {
+  bookId?: number;
+};
+
+class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
     super({
       url,
