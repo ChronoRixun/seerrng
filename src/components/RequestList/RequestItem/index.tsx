@@ -842,7 +842,14 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                     <TrashIcon />
                     <span>
                       {intl.formatMessage(messages.removearr, {
-                        arr: request.type === 'movie' ? 'Radarr' : 'Sonarr',
+                        arr:
+                          request.type === 'movie'
+                            ? 'Radarr'
+                            : request.type === 'music'
+                              ? 'Lidarr'
+                              : request.type === 'book'
+                                ? 'Readarr'
+                                : 'Sonarr',
                       })}
                     </span>
                   </ConfirmButton>
