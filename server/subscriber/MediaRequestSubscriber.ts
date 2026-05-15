@@ -1324,6 +1324,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           media.serviceId = readarrSettings.id;
         }
 
+        await mediaRepository.save(media);
+
         const resultIsbn = result.editions
           ?.find((edition) => edition.isbn13)
           ?.isbn13?.replace(/[^0-9X]/gi, '')
@@ -1392,8 +1394,6 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         );
       }
 
-      await mediaRepository.save(media);
-
       const requestRepository = getRepository(MediaRequest);
       entity.status = MediaRequestStatus.COMPLETED;
       await requestRepository.save(entity);
@@ -1415,7 +1415,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       entity.status = MediaRequestStatus.FAILED;
       await requestRepository.save(entity);
 
-      logger.warn('Something went wrong sending book request to Readarr', {
+      logger.warn('Something went wrong sending book request to Bookshelf', {
         label: 'Media Request',
         requestId: entity.id,
         mediaId: entity.media.id,
