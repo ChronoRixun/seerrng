@@ -55,7 +55,13 @@ export interface ReadarrBook extends ReadarrBookLookupResult {
 
 type ReadarrQueueItem = {
   bookId?: number;
+  book?: {
+    id?: number;
+  };
 };
+
+const normalizeIsbn = (isbn?: string): string | undefined =>
+  isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
 
 class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
@@ -101,16 +107,35 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
   public async addBook(options: ReadarrBookOptions): Promise<ReadarrBookLookupResult> {
     try {
       const existingBooks = await this.get<ReadarrBook[]>('/book');
-      const existingBook = existingBooks.find(
-        (book) =>
-          book.foreignBookId === options.foreignBookId ||
-          book.editions?.some((edition) =>
-            options.editions?.some(
-              (optionEdition) =>
-                !!edition.isbn13 && edition.isbn13 === optionEdition.isbn13
-            )
-          )
+      const optionEditionIds = new Set(
+        options.editions
+          ?.map((edition) => edition.foreignEditionId)
+          .filter(Boolean)
       );
+      const optionIsbns = new Set(
+        options.editions
+          ?.map((edition) => normalizeIsbn(edition.isbn13))
+          .filter(Boolean)
+      );
+      const existingBook = existingBooks.find((book) => {
+        if (
+          book.foreignBookId &&
+          options.foreignBookId &&
+          book.foreignBookId === options.foreignBookId
+        ) {
+          return true;
+        }
+
+        return book.editions?.some((edition) => {
+          const editionIsbn = normalizeIsbn(edition.isbn13);
+
+          return (
+            (!!edition.foreignEditionId &&
+              optionEditionIds.has(edition.foreignEditionId)) ||
+            (!!editionIsbn && optionIsbns.has(editionIsbn))
+          );
+        });
+      });
 
       if (existingBook?.monitored) {
         logger.info(

@@ -75,6 +75,72 @@ describe('ReadarrAPI.addBook', () => {
     assert.strictEqual(postMock.mock.calls.length, 0);
   });
 
+  it('matches existing books with normalized ISBNs', async () => {
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
+    mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'get',
+      async () => [
+        existingBook({
+          editions: [
+            {
+              foreignEditionId: 'other-edition-id',
+              title: 'Test Book',
+              isbn13: '978-0-000-00000-1',
+              monitored: true,
+            },
+          ],
+        }),
+      ]
+    );
+    const postMock = mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'post',
+      async () => existingBook({ id: 10 })
+    );
+
+    const result = await api.addBook(bookOptions);
+
+    assert.strictEqual(result.id, 9);
+    assert.strictEqual(postMock.mock.calls.length, 0);
+  });
+
+  it('matches existing books with foreign edition IDs', async () => {
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
+    mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'get',
+      async () => [
+        existingBook({
+          foreignBookId: 'different-book-id',
+          editions: [
+            {
+              foreignEditionId: 'edition-foreign-id',
+              title: 'Test Book',
+              monitored: true,
+            },
+          ],
+        }),
+      ]
+    );
+    const postMock = mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'post',
+      async () => existingBook({ id: 10 })
+    );
+
+    const result = await api.addBook(bookOptions);
+
+    assert.strictEqual(result.id, 9);
+    assert.strictEqual(postMock.mock.calls.length, 0);
+  });
+
   it('monitors and searches an existing unmonitored book', async () => {
     const api = new ReadarrAPI({ url: 'http://localhost:8787/api/v1', apiKey: 'key' });
     const updatedBook = existingBook({ monitored: true });

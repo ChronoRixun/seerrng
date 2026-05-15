@@ -358,12 +358,16 @@ class DownloadTracker {
             const queueItems = await readarr.getQueue();
 
             this.readarrServers[server.id] = queueItems
-              .filter(
-                (item): item is typeof item & { bookId: number } =>
-                  item.bookId !== undefined
-              )
               .map((item) => ({
-                externalId: item.bookId,
+                item,
+                bookId: item.bookId ?? item.book?.id,
+              }))
+              .filter(
+                (queueItem): queueItem is typeof queueItem & { bookId: number } =>
+                  queueItem.bookId !== undefined
+              )
+              .map(({ item, bookId }) => ({
+                externalId: bookId,
                 estimatedCompletionTime: new Date(item.estimatedCompletionTime),
                 mediaType: MediaType.BOOK,
                 size: item.size,
