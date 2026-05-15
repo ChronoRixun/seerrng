@@ -17,7 +17,6 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import { MediaRequestStatus } from '@server/constants/media';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import axios from 'axios';
 import Link from 'next/link';
@@ -54,7 +53,7 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
   const { profile, rootFolder, server, languageProfile } =
     useRequestOverride(request);
   const bookId = request.media?.identifiers?.find(
-    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+    (identifier) => identifier.provider === 'openlibrary'
   )?.value;
 
   const updateRequest = async (type: 'approve' | 'decline'): Promise<void> => {

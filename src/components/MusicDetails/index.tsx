@@ -21,7 +21,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaStatus, MediaType } from '@server/constants/media';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
 import axios from 'axios';
 import Link from 'next/link';
@@ -103,7 +102,7 @@ const MusicDetails = () => {
     try {
       await axios.post('/api/v1/blocklist', {
         externalId: data.mbId,
-        externalProvider: MediaIdentifierProvider.MUSICBRAINZ,
+        externalProvider: 'musicbrainz',
         mediaType: MediaType.MUSIC,
         title: data.title,
       });

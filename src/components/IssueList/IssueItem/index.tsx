@@ -9,7 +9,6 @@ import defineMessages from '@app/utils/defineMessages';
 import { EyeIcon } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaType } from '@server/constants/media';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type Issue from '@server/entity/Issue';
 import type { BookDetails } from '@server/models/Book';
 import type { MovieDetails } from '@server/models/Movie';
@@ -58,7 +57,7 @@ const IssueItem = ({ issue }: IssueItemProps) => {
     triggerOnce: true,
   });
   const bookId = issue.media.identifiers?.find(
-    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+    (identifier) => identifier.provider === 'openlibrary'
   )?.value;
   const url =
     issue.media.mediaType === MediaType.MOVIE

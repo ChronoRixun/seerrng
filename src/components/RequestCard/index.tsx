@@ -20,7 +20,6 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { MovieDetails } from '@server/models/Movie';
@@ -74,7 +73,7 @@ const isBook = (
 
 const getBookId = (request: NonFunctionProperties<MediaRequest>) =>
   request.media.identifiers?.find(
-    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+    (identifier) => identifier.provider === 'openlibrary'
   )?.value;
 
 const RequestCardPlaceholder = () => {

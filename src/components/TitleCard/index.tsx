@@ -22,7 +22,6 @@ import {
   StarIcon,
 } from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { Watchlist } from '@server/entity/Watchlist';
 import type { MediaType } from '@server/models/Search';
 import axios from 'axios';
@@ -204,8 +203,8 @@ const TitleCard = ({
           await axios.post('/api/v1/blocklist', {
             externalId: id,
             externalProvider: isAlbum
-              ? MediaIdentifierProvider.MUSICBRAINZ
-              : MediaIdentifierProvider.OPENLIBRARY,
+              ? 'musicbrainz'
+              : 'openlibrary',
             mediaType: isAlbum ? 'music' : 'book',
             title,
             user: user?.id,

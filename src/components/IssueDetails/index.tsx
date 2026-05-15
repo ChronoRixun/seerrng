@@ -25,7 +25,6 @@ import { ArrowPathIcon } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaType } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type Issue from '@server/entity/Issue';
 import type { BookDetails } from '@server/models/Book';
 import type { MovieDetails } from '@server/models/Movie';
@@ -104,7 +103,7 @@ const IssueDetails = () => {
     `/api/v1/issue/${router.query.issueId}`
   );
   const bookId = issueData?.media.identifiers?.find(
-    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+    (identifier) => identifier.provider === 'openlibrary'
   )?.value;
   const detailUrl =
     issueData?.media.mediaType === MediaType.MOVIE

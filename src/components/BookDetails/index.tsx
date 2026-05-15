@@ -21,7 +21,6 @@ import {
 } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaStatus, MediaType } from '@server/constants/media';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import axios from 'axios';
 import { useRouter } from 'next/router';
@@ -104,7 +103,7 @@ const BookDetails = () => {
     try {
       await axios.post('/api/v1/blocklist', {
         externalId: data.id,
-        externalProvider: MediaIdentifierProvider.OPENLIBRARY,
+        externalProvider: 'openlibrary',
         mediaType: MediaType.BOOK,
         title: data.title,
       });
