@@ -749,6 +749,47 @@ describe('POST /request', () => {
   });
 });
 
+describe('PUT /request/:requestId', () => {
+  it('rejects attempts to change the media type of an existing request', async () => {
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const mediaRequest = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'ebook',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.MOVIE,
+      serverId: 123,
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /media type cannot be changed/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: mediaRequest.id },
+    });
+    assert.strictEqual(persisted.type, MediaType.BOOK);
+    assert.strictEqual(persisted.serverId, null);
+  });
+});
+
 describe('POST /request/:requestId/:status', () => {
   const cases = [
     { action: 'approve', expected: MediaRequestStatus.APPROVED },

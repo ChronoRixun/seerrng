@@ -1,5 +1,5 @@
-import RadarrAPI from '@server/api/servarr/radarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
+import RadarrAPI from '@server/api/servarr/radarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import {
@@ -594,9 +594,16 @@ requestRoutes.put<{ requestId: string }>(
         return next({ status: 404, message: 'Request not found.' });
       }
 
+      if (req.body.mediaType && req.body.mediaType !== request.type) {
+        return next({
+          status: 400,
+          message: 'Request media type cannot be changed.',
+        });
+      }
+
       if (
         (request.requestedBy.id !== req.user?.id ||
-          (req.body.mediaType !== 'tv' &&
+          (request.type !== MediaType.TV &&
             !req.user?.hasPermission(Permission.REQUEST_ADVANCED))) &&
         !req.user?.hasPermission(Permission.MANAGE_REQUESTS)
       ) {
@@ -626,20 +633,17 @@ requestRoutes.put<{ requestId: string }>(
         });
       }
 
-      if (req.body.mediaType === MediaType.MOVIE) {
+      if (request.type === MediaType.MOVIE) {
         request.serverId = req.body.serverId;
         request.profileId = req.body.profileId;
         request.rootFolder = req.body.rootFolder;
         request.tags = req.body.tags;
         request.requestedBy = requestUser as User;
-        if (req.body.mediaType === MediaType.BOOK) {
-          request.bookFormat = req.body.format ?? request.bookFormat ?? 'ebook';
-        }
 
         await requestRepository.save(request);
       } else if (
-        req.body.mediaType === MediaType.MUSIC ||
-        req.body.mediaType === MediaType.BOOK
+        request.type === MediaType.MUSIC ||
+        request.type === MediaType.BOOK
       ) {
         request.serverId = req.body.serverId;
         request.profileId = req.body.profileId;
@@ -647,12 +651,12 @@ requestRoutes.put<{ requestId: string }>(
         request.rootFolder = req.body.rootFolder;
         request.tags = req.body.tags;
         request.requestedBy = requestUser as User;
-        if (req.body.mediaType === MediaType.BOOK) {
+        if (request.type === MediaType.BOOK) {
           request.bookFormat = req.body.format ?? request.bookFormat ?? 'ebook';
         }
 
         await requestRepository.save(request);
-      } else if (req.body.mediaType === MediaType.TV) {
+      } else if (request.type === MediaType.TV) {
         const mediaRepository = getRepository(Media);
         request.serverId = req.body.serverId;
         request.profileId = req.body.profileId;
