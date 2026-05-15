@@ -24,10 +24,10 @@ import { Fragment, useEffect, useRef } from 'react';
 import { useIntl } from 'react-intl';
 
 export const menuMessages = defineMessages('components.Layout.Sidebar', {
-  dashboard: 'Discover',
+  dashboard: 'Video',
   browsemovies: 'Movies',
   browsemusic: 'Music',
-  browsebooks: 'Books',
+  browsebooks: 'Books / Audiobooks',
   browsetv: 'Series',
   requests: 'Requests',
   blocklist: 'Blocklist',

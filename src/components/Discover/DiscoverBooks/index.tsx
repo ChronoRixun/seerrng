@@ -8,7 +8,7 @@ import type { BookResult } from '@server/models/Book';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Discover.DiscoverBooks', {
-  books: 'Books',
+  books: 'Books / Audiobooks',
 });
 
 const DiscoverBooks = () => {

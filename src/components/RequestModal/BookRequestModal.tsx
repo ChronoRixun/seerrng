@@ -33,6 +33,10 @@ const messages = defineMessages('components.RequestModal.Book', {
   requestfrom: "{username}'s request is pending approval.",
   requesterror: 'Something went wrong while submitting the request.',
   editerror: 'Something went wrong while editing the request.',
+  format: 'Format',
+  ebook: 'Ebook',
+  audiobook: 'Audiobook',
+  both: 'Both',
 });
 
 interface BookRequestModalProps {
@@ -54,6 +58,9 @@ const BookRequestModal = ({
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [bookFormat, setBookFormat] = useState<'ebook' | 'audiobook' | 'both'>(
+    editRequest?.bookFormat ?? 'ebook'
+  );
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
   const { data, error } = useSWR<BookDetails>(`/api/v1/book/${bookId}`, {
@@ -94,7 +101,7 @@ const BookRequestModal = ({
         mediaType: MediaType.BOOK,
         isbn13: data?.isbn13,
         authorId: data?.authorId,
-        format: 'ebook',
+        format: bookFormat,
         ...overrideParams,
       });
 
@@ -126,6 +133,7 @@ const BookRequestModal = ({
   }, [
     addToast,
     bookId,
+    bookFormat,
     data?.authorId,
     data?.id,
     data?.isbn13,
@@ -179,6 +187,7 @@ const BookRequestModal = ({
         rootFolder: requestOverrides?.folder,
         userId: requestOverrides?.user?.id,
         tags: requestOverrides?.tags,
+        format: bookFormat,
       });
 
       if (alsoApproveRequest) {
@@ -317,6 +326,26 @@ const BookRequestModal = ({
           />
         </div>
       )}
+      <div className="mt-6">
+        <label htmlFor="bookFormat" className="text-label">
+          {intl.formatMessage(messages.format)}
+        </label>
+        <select
+          id="bookFormat"
+          name="bookFormat"
+          value={bookFormat}
+          onChange={(e) =>
+            setBookFormat(e.target.value as 'ebook' | 'audiobook' | 'both')
+          }
+          className="border-gray-700 bg-gray-800"
+        >
+          <option value="ebook">{intl.formatMessage(messages.ebook)}</option>
+          <option value="audiobook">
+            {intl.formatMessage(messages.audiobook)}
+          </option>
+          <option value="both">{intl.formatMessage(messages.both)}</option>
+        </select>
+      </div>
       {(quota?.book?.limit ?? 0) > 0 && (
         <QuotaDisplay mediaType="book" quota={quota?.book} />
       )}

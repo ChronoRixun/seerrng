@@ -389,6 +389,7 @@ export class MediaRequest {
         profileId: requestBody.profileId ?? defaultReadarr?.activeProfileId,
         rootFolder: requestBody.rootFolder ?? defaultReadarr?.activeDirectory,
         tags: requestBody.tags ?? defaultReadarr?.tags,
+        bookFormat: requestBody.format ?? 'ebook',
         isAutoRequest: options.isAutoRequest ?? false,
       });
 
@@ -851,6 +852,9 @@ export class MediaRequest {
 
   @Column({ nullable: true })
   public languageProfileId: number;
+
+  @Column({ nullable: true, type: 'varchar' })
+  public bookFormat?: 'ebook' | 'audiobook' | 'both' | null;
 
   @Column({
     type: 'text',

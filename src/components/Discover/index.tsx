@@ -35,7 +35,7 @@ import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
 const messages = defineMessages('components.Discover', {
-  discover: 'Discover',
+  discover: 'Video',
   emptywatchlist:
     'Media added to your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink> will appear here.',
   resettodefault: 'Reset to Default',
@@ -47,7 +47,7 @@ const messages = defineMessages('components.Discover', {
   resetsuccess: 'Sucessfully reset discover customization settings.',
   resetfailed:
     'Something went wrong resetting the discover customization settings.',
-  customizediscover: 'Customize Discover',
+  customizediscover: 'Customize Video',
   stopediting: 'Stop Editing',
   createnewslider: 'Create New Slider',
 });

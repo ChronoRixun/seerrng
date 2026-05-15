@@ -630,6 +630,9 @@ requestRoutes.put<{ requestId: string }>(
         request.rootFolder = req.body.rootFolder;
         request.tags = req.body.tags;
         request.requestedBy = requestUser as User;
+        if (req.body.mediaType === MediaType.BOOK) {
+          request.bookFormat = req.body.format ?? request.bookFormat ?? 'ebook';
+        }
 
         await requestRepository.save(request);
       } else if (

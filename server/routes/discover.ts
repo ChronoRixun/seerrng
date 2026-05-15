@@ -7,6 +7,10 @@ import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import type MediaEntity from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import { User } from '@server/entity/User';
 import { Watchlist } from '@server/entity/Watchlist';
 import type {
@@ -1009,12 +1013,32 @@ discoverRoutes.get('/books', async (req, res, next) => {
       page,
       limit: itemsPerPage,
     });
+    const ids = books.docs.map((doc) => doc.key.replace('/works/', ''));
+    const identifiers = ids.length
+      ? await getRepository(MediaIdentifier).find({
+          where: {
+            provider: MediaIdentifierProvider.OPENLIBRARY,
+            value: In(ids),
+          },
+          relations: { media: { requests: true, watchlists: true } },
+        })
+      : [];
+    const mediaByOpenLibraryId = new Map<string, MediaEntity>(
+      identifiers
+        .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
+        .map((identifier) => [identifier.value, identifier.media])
+    );
 
     return res.status(200).json({
       page,
       totalPages: Math.ceil(books.numFound / itemsPerPage),
       totalResults: books.numFound,
-      results: books.docs.map((doc) => mapOpenLibrarySearchDoc(doc)),
+      results: books.docs.map((doc) =>
+        mapOpenLibrarySearchDoc(
+          doc,
+          mediaByOpenLibraryId.get(doc.key.replace('/works/', ''))
+        )
+      ),
     });
   } catch (e) {
     logger.error('Failed to fetch book discovery results', {
