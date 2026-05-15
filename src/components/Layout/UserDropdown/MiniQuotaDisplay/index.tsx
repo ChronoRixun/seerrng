@@ -12,6 +12,7 @@ const messages = defineMessages(
     movierequests: 'Movie Requests',
     seriesrequests: 'Series Requests',
     musicrequests: 'Music Requests',
+    bookrequests: 'Book Requests',
   }
 );
 
@@ -31,94 +32,59 @@ const MiniQuotaDisplay = ({ userId }: MiniQuotaDisplayProps) => {
     return <SmallLoadingSpinner />;
   }
 
+  const quotaItems = [
+    {
+      key: 'movie',
+      label: intl.formatMessage(messages.movierequests),
+      quota: data?.movie,
+    },
+    {
+      key: 'tv',
+      label: intl.formatMessage(messages.seriesrequests),
+      quota: data?.tv,
+    },
+    {
+      key: 'music',
+      label: intl.formatMessage(messages.musicrequests),
+      quota: data?.music,
+    },
+    {
+      key: 'book',
+      label: intl.formatMessage(messages.bookrequests),
+      quota: data?.book,
+    },
+  ].filter((item) => (item.quota?.limit ?? 0) !== 0);
+
   return (
     <>
-      {((data?.movie.limit ?? 0) !== 0 ||
-        (data?.tv.limit ?? 0) !== 0 ||
-        (data?.music.limit ?? 0) !== 0) && (
-        <div className="flex">
-          <div className="flex basis-1/3 flex-col space-y-2">
-            <div className="text-sm text-gray-200">
-              {intl.formatMessage(messages.movierequests)}
+      {quotaItems.length > 0 && (
+        <div className="grid grid-cols-2 gap-4">
+          {quotaItems.map(({ key, label, quota }) => (
+            <div key={key} className="flex flex-col space-y-2">
+              <div className="text-sm text-gray-200">{label}</div>
+              <div className="flex h-full items-center space-x-2 text-gray-200">
+                {(quota?.limit ?? 0) > 0 ? (
+                  <>
+                    <ProgressCircle
+                      className="h-8 w-8"
+                      progress={Math.round(
+                        ((quota?.remaining ?? 0) / (quota?.limit ?? 1)) * 100
+                      )}
+                      useHeatLevel
+                    />
+                    <span className="text-lg font-bold text-gray-200">
+                      {quota?.remaining} / {quota?.limit}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <InfinityIcon className="w-7" />
+                    <span className="font-bold">Unlimited</span>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex h-full items-center space-x-2 text-gray-200">
-              {(data?.movie.limit ?? 0) > 0 ? (
-                <>
-                  <ProgressCircle
-                    className="h-8 w-8"
-                    progress={Math.round(
-                      ((data?.movie.remaining ?? 0) /
-                        (data?.movie.limit ?? 1)) *
-                        100
-                    )}
-                    useHeatLevel
-                  />
-                  <span className="text-lg font-bold">
-                    {data?.movie.remaining} / {data?.movie.limit}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <InfinityIcon className="w-7" />
-                  <span className="font-bold">Unlimited</span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex basis-1/3 flex-col space-y-2">
-            <div className="text-sm text-gray-200">
-              {intl.formatMessage(messages.seriesrequests)}
-            </div>
-            <div className="flex h-full items-center space-x-2 text-gray-200">
-              {(data?.tv.limit ?? 0) > 0 ? (
-                <>
-                  <ProgressCircle
-                    className="h-8 w-8"
-                    progress={Math.round(
-                      ((data?.tv.remaining ?? 0) / (data?.tv.limit ?? 1)) * 100
-                    )}
-                    useHeatLevel
-                  />
-                  <span className="text-lg font-bold text-gray-200">
-                    {data?.tv.remaining} / {data?.tv.limit}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <InfinityIcon className="w-7" />
-                  <span className="font-bold">Unlimited</span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex basis-1/3 flex-col space-y-2">
-            <div className="text-sm text-gray-200">
-              {intl.formatMessage(messages.musicrequests)}
-            </div>
-            <div className="flex h-full items-center space-x-2 text-gray-200">
-              {(data?.music.limit ?? 0) > 0 ? (
-                <>
-                  <ProgressCircle
-                    className="h-8 w-8"
-                    progress={Math.round(
-                      ((data?.music.remaining ?? 0) /
-                        (data?.music.limit ?? 1)) *
-                        100
-                    )}
-                    useHeatLevel
-                  />
-                  <span className="text-lg font-bold text-gray-200">
-                    {data?.music.remaining} / {data?.music.limit}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <InfinityIcon className="w-7" />
-                  <span className="font-bold">Unlimited</span>
-                </>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </>

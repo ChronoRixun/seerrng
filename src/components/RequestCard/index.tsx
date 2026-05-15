@@ -47,6 +47,8 @@ const messages = defineMessages('components.RequestCard', {
   cancelrequest: 'Cancel Request',
   deleterequest: 'Delete Request',
   unknowntitle: 'Unknown Title',
+  music: 'Music',
+  book: 'Book',
 });
 
 const isMovie = (
@@ -124,7 +126,11 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
                   requestData?.type
                     ? requestData?.type === 'movie'
                       ? globalMessages.movie
-                      : globalMessages.tvshow
+                      : requestData?.type === 'tv'
+                        ? globalMessages.tvshow
+                        : requestData?.type === 'music'
+                          ? messages.music
+                          : messages.book
                     : globalMessages.request
                 ),
               })}
@@ -739,16 +745,18 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               ? `/movie/${requestData.media.tmdbId}`
               : request.type === 'tv'
                 ? `/tv/${requestData.media.tmdbId}`
-                : `/music/${requestData.media.mbId}`
+                : request.type === 'music'
+                  ? `/music/${requestData.media.mbId}`
+                  : `/book/${getBookId(requestData)}`
           }
           className="w-20 flex-shrink-0 scale-100 transform-gpu cursor-pointer overflow-hidden rounded-md shadow-sm transition duration-300 hover:scale-105 hover:shadow-md sm:w-28"
         >
           <CachedImage
-            type={isMusic(title) ? 'music' : 'tmdb'}
+            type={isMusic(title) || isBook(title) ? 'music' : 'tmdb'}
             src={
-              isMusic(title) && title.posterPath
+              (isMusic(title) || isBook(title)) && title.posterPath
                 ? title.posterPath
-                : !isMusic(title) && title.posterPath
+                : !isMusic(title) && !isBook(title) && title.posterPath
                 ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
                 : '/images/seerr_poster_not_found.png'
             }

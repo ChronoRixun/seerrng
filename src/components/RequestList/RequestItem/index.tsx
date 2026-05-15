@@ -53,6 +53,7 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   removearr: 'Remove from {arr}',
   profileName: 'Profile',
   music: 'Music',
+  book: 'Book',
 });
 
 const isMovie = (
@@ -118,7 +119,9 @@ const RequestItemError = ({
                     ? globalMessages.movie
                     : requestData?.type === 'tv'
                       ? globalMessages.tvshow
-                      : messages.music
+                      : requestData?.type === 'music'
+                        ? messages.music
+                        : messages.book
                   : globalMessages.request
               ),
             })}
