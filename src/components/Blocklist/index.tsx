@@ -24,7 +24,9 @@ import type {
   BlocklistItem,
   BlocklistResultsResponse,
 } from '@server/interfaces/api/blocklistInterfaces';
+import type { BookDetails } from '@server/models/Book';
 import type { MovieDetails } from '@server/models/Movie';
+import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
@@ -55,8 +57,22 @@ enum Filter {
   BLOCKLISTEDTAGS = 'blocklistedTags',
 }
 
-const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
-  return (movie as MovieDetails).title !== undefined;
+type BlocklistTitle = MovieDetails | TvDetails | MusicDetails | BookDetails;
+
+const isMusic = (title: BlocklistTitle): title is MusicDetails => {
+  return (title as MusicDetails).mediaType === 'album';
+};
+
+const isBook = (title: BlocklistTitle): title is BookDetails => {
+  return (title as BookDetails).mediaType === 'book';
+};
+
+const isMovie = (movie: BlocklistTitle): movie is MovieDetails => {
+  return (
+    !isMusic(movie) &&
+    !isBook(movie) &&
+    (movie as MovieDetails).title !== undefined
+  );
 };
 
 const Blocklist = () => {
@@ -282,10 +298,14 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
   const url =
     item.mediaType === 'movie'
       ? `/api/v1/movie/${item.tmdbId}`
-      : `/api/v1/tv/${item.tmdbId}`;
-  const { data: title, error } = useSWR<MovieDetails | TvDetails>(
-    inView ? url : null
-  );
+      : item.mediaType === 'tv'
+        ? `/api/v1/tv/${item.tmdbId}`
+        : item.mediaType === 'music' && item.externalId
+          ? `/api/v1/music/${item.externalId}`
+          : item.mediaType === 'book' && item.externalId
+            ? `/api/v1/book/${item.externalId}`
+            : null;
+  const { data: title, error } = useSWR<BlocklistTitle>(inView ? url : null);
 
   if (!title && !error) {
     return (
@@ -301,7 +321,11 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
 
     try {
       await axios.delete(
-        `/api/v1/blocklist/${tmdbId}?mediaType=${item.mediaType}`
+        `/api/v1/blocklist/${
+          item.mediaType === 'music' || item.mediaType === 'book'
+            ? item.externalId
+            : tmdbId
+        }?mediaType=${item.mediaType}`
       );
 
       addToast(
@@ -326,7 +350,7 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
 
   return (
     <div className="relative flex w-full flex-col justify-between overflow-hidden rounded-xl bg-gray-800 py-4 text-gray-400 shadow-md ring-1 ring-gray-700 xl:h-28 xl:flex-row">
-      {title && title.backdropPath && (
+      {title && !isMusic(title) && !isBook(title) && title.backdropPath && (
         <div className="absolute inset-0 z-0 w-full bg-cover bg-center xl:w-2/3">
           <CachedImage
             type="tmdb"
@@ -350,14 +374,20 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
             href={
               item.mediaType === 'movie'
                 ? `/movie/${item.tmdbId}`
-                : `/tv/${item.tmdbId}`
+                : item.mediaType === 'tv'
+                  ? `/tv/${item.tmdbId}`
+                  : item.mediaType === 'music'
+                    ? `/music/${item.externalId}`
+                    : `/book/${item.externalId}`
             }
             className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
           >
             <CachedImage
-              type="tmdb"
+              type={title && (isMusic(title) || isBook(title)) ? 'music' : 'tmdb'}
               src={
-                title?.posterPath
+                title && (isMusic(title) || isBook(title)) && title.posterPath
+                  ? title.posterPath
+                  : title?.posterPath && !isMusic(title) && !isBook(title)
                   ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
                   : '/images/seerr_poster_not_found.png'
               }
@@ -373,18 +403,31 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
               {title &&
                 (isMovie(title)
                   ? title.releaseDate
-                  : title.firstAirDate
+                  : isMusic(title)
+                    ? title.releaseDate
+                    : isBook(title)
+                      ? title.firstPublishYear?.toString()
+                      : title.firstAirDate
                 )?.slice(0, 4)}
             </div>
             <Link
               href={
                 item.mediaType === 'movie'
                   ? `/movie/${item.tmdbId}`
-                  : `/tv/${item.tmdbId}`
+                  : item.mediaType === 'tv'
+                    ? `/tv/${item.tmdbId}`
+                    : item.mediaType === 'music'
+                      ? `/music/${item.externalId}`
+                      : `/book/${item.externalId}`
               }
             >
               <span className="mr-2 min-w-0 truncate text-lg font-bold text-white hover:underline xl:text-xl">
-                {title && (isMovie(title) ? title.title : title.name)}
+                {title &&
+                  (isMovie(title)
+                    ? title.title
+                    : isMusic(title) || isBook(title)
+                      ? title.title
+                      : title.name)}
               </span>
             </Link>
           </div>
@@ -451,10 +494,22 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
                   {intl.formatMessage(globalMessages.movie)}
                 </div>
               </div>
-            ) : (
+            ) : item.mediaType === 'tv' ? (
               <div className="pointer-events-none z-40 self-start rounded-full border border-purple-600 bg-purple-600/80 shadow-md">
                 <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
                   {intl.formatMessage(globalMessages.tvshow)}
+                </div>
+              </div>
+            ) : item.mediaType === 'music' ? (
+              <div className="pointer-events-none z-40 self-start rounded-full border border-emerald-500 bg-emerald-600/80 shadow-md">
+                <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
+                  Music
+                </div>
+              </div>
+            ) : (
+              <div className="pointer-events-none z-40 self-start rounded-full border border-amber-500 bg-amber-600/80 shadow-md">
+                <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
+                  Books
                 </div>
               </div>
             )}
@@ -467,7 +522,12 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
             onClick={() =>
               removeFromBlocklist(
                 item.tmdbId,
-                title && (isMovie(title) ? title.title : title.name)
+                title &&
+                  (isMovie(title)
+                    ? title.title
+                    : isMusic(title) || isBook(title)
+                      ? title.title
+                      : title.name)
               )
             }
             confirmText={intl.formatMessage(

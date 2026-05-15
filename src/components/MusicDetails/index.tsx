@@ -1,10 +1,12 @@
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
+import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import IssueModal from '@app/components/IssueModal';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
+import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -12,9 +14,12 @@ import defineMessages from '@app/utils/defineMessages';
 import {
   ArrowDownTrayIcon,
   ExclamationTriangleIcon,
+  NoSymbolIcon,
 } from '@heroicons/react/24/outline';
-import { MediaStatus } from '@server/constants/media';
+import { MediaStatus, MediaType } from '@server/constants/media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
+import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
@@ -33,9 +38,11 @@ const messages = defineMessages('components.MusicDetails', {
 const MusicDetails = () => {
   const router = useRouter();
   const intl = useIntl();
+  const { addToast } = useToasts();
   const { hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
+  const [isBlocklisting, setIsBlocklisting] = useState(false);
 
   const {
     data,
@@ -68,6 +75,40 @@ const MusicDetails = () => {
     hasPermission([Permission.MANAGE_ISSUES, Permission.CREATE_ISSUES], {
       type: 'or',
     });
+  const canBlocklist =
+    hasPermission(Permission.MANAGE_BLOCKLIST) &&
+    data.mediaInfo?.status !== MediaStatus.BLOCKLISTED;
+
+  const blocklistAlbum = async () => {
+    setIsBlocklisting(true);
+
+    try {
+      await axios.post('/api/v1/blocklist', {
+        externalId: data.mbId,
+        externalProvider: MediaIdentifierProvider.MUSICBRAINZ,
+        mediaType: MediaType.MUSIC,
+        title: data.title,
+      });
+
+      addToast(
+        <span>
+          {intl.formatMessage(globalMessages.blocklistSuccess, {
+            title: data.title,
+            strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+          })}
+        </span>,
+        { appearance: 'success', autoDismiss: true }
+      );
+      revalidate();
+    } catch {
+      addToast(intl.formatMessage(globalMessages.blocklistError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    } finally {
+      setIsBlocklisting(false);
+    }
+  };
 
   return (
     <>
@@ -134,7 +175,7 @@ const MusicDetails = () => {
             )}
             {data.type && <span>{data.type}</span>}
           </div>
-          {(canShowRequest || canReportIssue) && (
+          {(canShowRequest || canReportIssue || canBlocklist) && (
             <div className="mt-6 flex max-w-xs flex-wrap gap-2">
               {canShowRequest && (
               <Button
@@ -153,6 +194,16 @@ const MusicDetails = () => {
                   <ExclamationTriangleIcon />
                   <span>{intl.formatMessage(messages.reportissue)}</span>
                 </Button>
+              )}
+              {canBlocklist && (
+                <ConfirmButton
+                  onClick={blocklistAlbum}
+                  confirmText={intl.formatMessage(globalMessages.areyousure)}
+                  className={isBlocklisting ? 'pointer-events-none opacity-50' : ''}
+                >
+                  <NoSymbolIcon />
+                  <span>{intl.formatMessage(globalMessages.blocklist)}</span>
+                </ConfirmButton>
               )}
             </div>
           )}

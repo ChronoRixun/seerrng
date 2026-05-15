@@ -3,6 +3,9 @@ import { MediaStatus, MediaType } from '@server/constants/media';
 import dataSource, { getRepository } from '@server/datasource';
 import { Blocklist } from '@server/entity/Blocklist';
 import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import type { BlocklistResultsResponse } from '@server/interfaces/api/blocklistInterfaces';
 import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
@@ -14,7 +17,9 @@ import { z } from 'zod';
 const blocklistRoutes = Router();
 
 export const blocklistAdd = z.object({
-  tmdbId: z.coerce.number(),
+  tmdbId: z.coerce.number().optional(),
+  externalId: z.string().optional(),
+  externalProvider: z.nativeEnum(MediaIdentifierProvider).optional(),
   mediaType: z.nativeEnum(MediaType),
   title: z.coerce.string().optional(),
   user: z.coerce.number(),
@@ -27,6 +32,26 @@ const blocklistGet = z.object({
   search: z.string().optional(),
   filter: z.enum(['all', 'manual', 'blocklistedTags']).optional(),
 });
+
+const getBlocklistLookup = (id: string, mediaType: MediaType) => {
+  if (mediaType === MediaType.MOVIE || mediaType === MediaType.TV) {
+    return {
+      tmdbId: Number(id),
+      mediaType,
+    };
+  }
+
+  return {
+    externalId: id,
+    mediaType,
+  };
+};
+
+const isSupportedBlocklistType = (mediaType: unknown): mediaType is MediaType =>
+  mediaType === MediaType.MOVIE ||
+  mediaType === MediaType.TV ||
+  mediaType === MediaType.MUSIC ||
+  mediaType === MediaType.BOOK;
 
 blocklistRoutes.get(
   '/',
@@ -92,7 +117,7 @@ blocklistRoutes.get(
   }),
   async (req, res, next) => {
     const mediaType = req.query.mediaType;
-    if (mediaType !== MediaType.MOVIE && mediaType !== MediaType.TV) {
+    if (!isSupportedBlocklistType(mediaType)) {
       return next({
         status: 400,
         message: 'Invalid or missing mediaType query parameter.',
@@ -103,10 +128,7 @@ blocklistRoutes.get(
       const blocklisteRepository = getRepository(Blocklist);
 
       const blocklistItem = await blocklisteRepository.findOneOrFail({
-        where: {
-          tmdbId: Number(req.params.id),
-          mediaType,
-        },
+        where: getBlocklistLookup(req.params.id, mediaType),
       });
 
       return res.status(200).send(blocklistItem);
@@ -130,6 +152,20 @@ blocklistRoutes.post(
   async (req, res, next) => {
     try {
       const values = blocklistAdd.parse(req.body);
+      if (
+        (values.mediaType === MediaType.MOVIE ||
+          values.mediaType === MediaType.TV) &&
+        values.tmdbId === undefined
+      ) {
+        return next({ status: 400, message: 'Missing tmdbId.' });
+      }
+      if (
+        (values.mediaType === MediaType.MUSIC ||
+          values.mediaType === MediaType.BOOK) &&
+        !values.externalId
+      ) {
+        return next({ status: 400, message: 'Missing externalId.' });
+      }
 
       await Blocklist.addToBlocklist({
         blocklistRequest: values,
@@ -268,7 +304,7 @@ blocklistRoutes.delete(
   }),
   async (req, res, next) => {
     const mediaType = req.query.mediaType;
-    if (mediaType !== MediaType.MOVIE && mediaType !== MediaType.TV) {
+    if (!isSupportedBlocklistType(mediaType)) {
       return next({
         status: 400,
         message: 'Invalid or missing mediaType query parameter.',
@@ -279,24 +315,42 @@ blocklistRoutes.delete(
       const blocklisteRepository = getRepository(Blocklist);
 
       const blocklistItem = await blocklisteRepository.findOneOrFail({
-        where: {
-          tmdbId: Number(req.params.id),
-          mediaType,
-        },
+        where: getBlocklistLookup(req.params.id, mediaType),
       });
 
       await blocklisteRepository.remove(blocklistItem);
 
       const mediaRepository = getRepository(Media);
 
-      const mediaItem = await mediaRepository.findOneOrFail({
-        where: {
-          tmdbId: Number(req.params.id),
-          mediaType: req.query.mediaType as MediaType,
-        },
-      });
+      let mediaItem: Media | null = null;
+      if (mediaType === MediaType.MUSIC) {
+        mediaItem = await mediaRepository.findOne({
+          where: { mbId: req.params.id, mediaType },
+        });
+      } else if (mediaType === MediaType.BOOK) {
+        const identifier = await getRepository(MediaIdentifier).findOne({
+          where: {
+            provider:
+              blocklistItem.externalProvider ??
+              MediaIdentifierProvider.OPENLIBRARY,
+            value: req.params.id,
+          },
+          relations: { media: true },
+        });
+        mediaItem =
+          identifier?.media.mediaType === mediaType ? identifier.media : null;
+      } else {
+        mediaItem = await mediaRepository.findOne({
+          where: {
+            tmdbId: Number(req.params.id),
+            mediaType,
+          },
+        });
+      }
 
-      await mediaRepository.remove(mediaItem);
+      if (mediaItem) {
+        await mediaRepository.remove(mediaItem);
+      }
 
       return res.status(204).send();
     } catch (e) {

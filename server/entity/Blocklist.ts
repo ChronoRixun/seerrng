@@ -1,6 +1,9 @@
 import { MediaStatus, type MediaType } from '@server/constants/media';
 import dataSource from '@server/datasource';
 import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import { User } from '@server/entity/User';
 import type { BlocklistItem } from '@server/interfaces/api/blocklistInterfaces';
 import { DbAwareColumn } from '@server/utils/DbColumnHelper';
@@ -19,6 +22,7 @@ import type { ZodNumber, ZodOptional, ZodString } from 'zod';
 
 @Entity()
 @Unique(['tmdbId', 'mediaType'])
+@Index(['externalId', 'mediaType'], { unique: true })
 export class Blocklist implements BlocklistItem {
   @PrimaryGeneratedColumn()
   public id: number;
@@ -32,6 +36,13 @@ export class Blocklist implements BlocklistItem {
   @Column()
   @Index()
   public tmdbId: number;
+
+  @Column({ nullable: true, type: 'varchar' })
+  @Index()
+  public externalId?: string | null;
+
+  @Column({ nullable: true, type: 'varchar' })
+  public externalProvider?: MediaIdentifierProvider | null;
 
   @ManyToOne(() => User, (user) => user.id, {
     eager: true,
@@ -62,24 +73,56 @@ export class Blocklist implements BlocklistItem {
       blocklistRequest: {
         mediaType: MediaType;
         title?: ZodOptional<ZodString>['_output'];
-        tmdbId: ZodNumber['_output'];
+        tmdbId?: ZodNumber['_output'];
+        externalId?: string;
+        externalProvider?: MediaIdentifierProvider;
         blocklistedTags?: string;
       };
     },
     entityManager?: EntityManager
   ): Promise<void> {
     const em = entityManager ?? dataSource;
+    const tmdbId = blocklistRequest.tmdbId ?? 0;
     const blocklist = new this({
       ...blocklistRequest,
+      tmdbId,
     });
 
     const mediaRepository = em.getRepository(Media);
-    let media = await mediaRepository.findOne({
-      where: {
-        tmdbId: blocklistRequest.tmdbId,
-        mediaType: blocklistRequest.mediaType,
-      },
-    });
+    let media: Media | null = null;
+
+    if (blocklistRequest.mediaType === 'music' && blocklistRequest.externalId) {
+      media = await mediaRepository.findOne({
+        where: {
+          mbId: blocklistRequest.externalId,
+          mediaType: blocklistRequest.mediaType,
+        },
+      });
+    } else if (
+      blocklistRequest.mediaType === 'book' &&
+      blocklistRequest.externalId
+    ) {
+      const identifier = await em.getRepository(MediaIdentifier).findOne({
+        where: {
+          provider:
+            blocklistRequest.externalProvider ??
+            MediaIdentifierProvider.OPENLIBRARY,
+          value: blocklistRequest.externalId,
+        },
+        relations: { media: true },
+      });
+      media =
+        identifier?.media.mediaType === blocklistRequest.mediaType
+          ? identifier.media
+          : null;
+    } else {
+      media = await mediaRepository.findOne({
+        where: {
+          tmdbId,
+          mediaType: blocklistRequest.mediaType,
+        },
+      });
+    }
 
     const blocklistRepository = em.getRepository(this);
 
@@ -87,10 +130,26 @@ export class Blocklist implements BlocklistItem {
 
     if (!media) {
       media = new Media({
-        tmdbId: blocklistRequest.tmdbId,
+        tmdbId,
+        mbId:
+          blocklistRequest.mediaType === 'music'
+            ? blocklistRequest.externalId
+            : undefined,
         status: MediaStatus.BLOCKLISTED,
         status4k: MediaStatus.BLOCKLISTED,
         mediaType: blocklistRequest.mediaType,
+        identifiers:
+          blocklistRequest.mediaType === 'book' && blocklistRequest.externalId
+            ? [
+                new MediaIdentifier({
+                  provider:
+                    blocklistRequest.externalProvider ??
+                    MediaIdentifierProvider.OPENLIBRARY,
+                  value: blocklistRequest.externalId,
+                  canonical: true,
+                }),
+              ]
+            : undefined,
         blocklist: Promise.resolve(blocklist),
       });
 

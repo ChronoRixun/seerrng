@@ -22,6 +22,7 @@ import {
   StarIcon,
 } from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { Watchlist } from '@server/entity/Watchlist';
 import type { MediaType } from '@server/models/Search';
 import axios from 'axios';
@@ -199,6 +200,16 @@ const TitleCard = ({
       try {
         if (mediaType === 'collection') {
           await axios.post(`/api/v1/blocklist/collection/${id}`);
+        } else if (isAlbum || isBook) {
+          await axios.post('/api/v1/blocklist', {
+            externalId: id,
+            externalProvider: isAlbum
+              ? MediaIdentifierProvider.MUSICBRAINZ
+              : MediaIdentifierProvider.OPENLIBRARY,
+            mediaType: isAlbum ? 'music' : 'book',
+            title,
+            user: user?.id,
+          });
         } else {
           await axios.post('/api/v1/blocklist', {
             tmdbId: id,
@@ -280,7 +291,9 @@ const TitleCard = ({
           }
         } else {
           const res = await axios.delete(
-            `/api/v1/blocklist/${id}?mediaType=${mediaType}`
+            `/api/v1/blocklist/${id}?mediaType=${
+              isAlbum ? 'music' : mediaType
+            }`
           );
 
           if (res.status === 204) {
@@ -366,9 +379,10 @@ const TitleCard = ({
     ) &&
     !isArtist;
 
-  const showHideButton = hasPermission([Permission.MANAGE_BLOCKLIST], {
-    type: 'or',
-  }) && canUseVideoActions;
+  const showHideButton =
+    hasPermission([Permission.MANAGE_BLOCKLIST], {
+      type: 'or',
+    }) && (canUseVideoActions || isAlbum || isBook);
 
   return (
     <div
@@ -543,7 +557,11 @@ const TitleCard = ({
                       buttonType={'ghost'}
                       className="z-40"
                       buttonSize={'sm'}
-                      onClick={() => setShowBlocklistModal(true)}
+                      onClick={() =>
+                        canUseVideoActions
+                          ? setShowBlocklistModal(true)
+                          : onClickHideItemBtn()
+                      }
                     >
                       <EyeSlashIcon className={'h-3'} />
                     </Button>

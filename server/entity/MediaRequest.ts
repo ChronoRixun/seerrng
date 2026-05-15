@@ -9,6 +9,7 @@ import {
   MediaType,
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
+import { Blocklist } from '@server/entity/Blocklist';
 import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
@@ -158,6 +159,21 @@ export class MediaRequest {
     if (requestBody.mediaType === MediaType.MUSIC) {
       const album = await listenbrainz.getAlbum(requestBody.mediaId.toString());
       const musicMbId = album.release_group_mbid;
+      const blocklistedAlbum = await getRepository(Blocklist).findOne({
+        where: {
+          externalId: musicMbId,
+          mediaType: MediaType.MUSIC,
+        },
+      });
+
+      if (blocklistedAlbum) {
+        logger.warn('Request for music blocked due to being blocklisted', {
+          mbId: musicMbId,
+          label: 'Media Request',
+        });
+
+        throw new BlocklistedMediaError('This album is blocklisted.');
+      }
 
       let media = await mediaRepository.findOne({
         where: { mbId: musicMbId, mediaType: MediaType.MUSIC },
@@ -304,6 +320,31 @@ export class MediaRequest {
             ]
           : []),
       ];
+      const blocklistedBook = await getRepository(Blocklist).findOne({
+        where: [
+          {
+            externalId: openLibraryId,
+            mediaType: MediaType.BOOK,
+          },
+          ...(requestIsbn
+            ? [
+                {
+                  externalId: requestIsbn,
+                  mediaType: MediaType.BOOK,
+                },
+              ]
+            : []),
+        ],
+      });
+
+      if (blocklistedBook) {
+        logger.warn('Request for book blocked due to being blocklisted', {
+          openLibraryId,
+          label: 'Media Request',
+        });
+
+        throw new BlocklistedMediaError('This book is blocklisted.');
+      }
 
       const existingIdentifier = await mediaIdentifierRepository.findOne({
         where: identifierCandidates.map((identifier) => ({
