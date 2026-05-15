@@ -144,6 +144,7 @@ export interface MainSettings {
     movie: Quota;
     tv: Quota;
     music: Quota;
+    book: Quota;
   };
   hideAvailable: boolean;
   hideBlocklisted: boolean;
@@ -418,6 +419,7 @@ class Settings {
           movie: {},
           tv: {},
           music: {},
+          book: {},
         },
         hideAvailable: false,
         hideBlocklisted: false,

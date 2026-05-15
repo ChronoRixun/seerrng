@@ -59,6 +59,7 @@ const messages = defineMessages(
     movierequestlimit: 'Movie Request Limit',
     seriesrequestlimit: 'Series Request Limit',
     musicrequestlimit: 'Music Request Limit',
+    bookrequestlimit: 'Book Request Limit',
     enableOverride: 'Override Global Limit',
     applanguage: 'Display Language',
     languageDefault: 'Default ({language})',
@@ -87,6 +88,7 @@ const UserGeneralSettings = () => {
   const [movieQuotaEnabled, setMovieQuotaEnabled] = useState(false);
   const [tvQuotaEnabled, setTvQuotaEnabled] = useState(false);
   const [musicQuotaEnabled, setMusicQuotaEnabled] = useState(false);
+  const [bookQuotaEnabled, setBookQuotaEnabled] = useState(false);
   const router = useRouter();
   const {
     user,
@@ -139,6 +141,9 @@ const UserGeneralSettings = () => {
     setMusicQuotaEnabled(
       data?.musicQuotaLimit != undefined && data?.musicQuotaDays != undefined
     );
+    setBookQuotaEnabled(
+      data?.bookQuotaLimit != undefined && data?.bookQuotaDays != undefined
+    );
   }, [data]);
 
   if (!data && !error) {
@@ -177,6 +182,8 @@ const UserGeneralSettings = () => {
           tvQuotaDays: data?.tvQuotaDays,
           musicQuotaLimit: data?.musicQuotaLimit,
           musicQuotaDays: data?.musicQuotaDays,
+          bookQuotaLimit: data?.bookQuotaLimit,
+          bookQuotaDays: data?.bookQuotaDays,
           watchlistSyncMovies: data?.watchlistSyncMovies,
           watchlistSyncTv: data?.watchlistSyncTv,
           watchlistSyncMusic: data?.watchlistSyncMusic,
@@ -206,6 +213,8 @@ const UserGeneralSettings = () => {
               musicQuotaDays: musicQuotaEnabled
                 ? values.musicQuotaDays
                 : null,
+              bookQuotaLimit: bookQuotaEnabled ? values.bookQuotaLimit : null,
+              bookQuotaDays: bookQuotaEnabled ? values.bookQuotaDays : null,
               watchlistSyncMovies: values.watchlistSyncMovies,
               watchlistSyncTv: values.watchlistSyncTv,
               watchlistSyncMusic: values.watchlistSyncMusic,
@@ -594,6 +603,46 @@ const UserGeneralSettings = () => {
                             limitOverride={
                               !musicQuotaEnabled
                                 ? data?.globalMusicQuotaLimit
+                                : undefined
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <label htmlFor="bookQuotaLimit" className="text-label">
+                        <span>
+                          {intl.formatMessage(messages.bookrequestlimit)}
+                        </span>
+                      </label>
+                      <div className="form-input-area">
+                        <div className="flex flex-col">
+                          <div className="mb-4 flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={bookQuotaEnabled}
+                              onChange={() => setBookQuotaEnabled((s) => !s)}
+                            />
+                            <span className="ml-2 text-gray-300">
+                              {intl.formatMessage(messages.enableOverride)}
+                            </span>
+                          </div>
+                          <QuotaSelector
+                            isDisabled={!bookQuotaEnabled}
+                            dayFieldName="bookQuotaDays"
+                            limitFieldName="bookQuotaLimit"
+                            mediaType="book"
+                            onChange={setFieldValue}
+                            defaultDays={values.bookQuotaDays}
+                            defaultLimit={values.bookQuotaLimit}
+                            dayOverride={
+                              !bookQuotaEnabled
+                                ? data?.globalBookQuotaDays
+                                : undefined
+                            }
+                            limitOverride={
+                              !bookQuotaEnabled
+                                ? data?.globalBookQuotaLimit
                                 : undefined
                             }
                           />

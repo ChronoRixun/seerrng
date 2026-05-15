@@ -14,12 +14,16 @@ export interface UserSettingsGeneralResponse {
   tvQuotaDays?: number;
   musicQuotaLimit?: number;
   musicQuotaDays?: number;
+  bookQuotaLimit?: number;
+  bookQuotaDays?: number;
   globalMovieQuotaDays?: number;
   globalMovieQuotaLimit?: number;
   globalTvQuotaLimit?: number;
   globalTvQuotaDays?: number;
   globalMusicQuotaDays?: number;
   globalMusicQuotaLimit?: number;
+  globalBookQuotaDays?: number;
+  globalBookQuotaLimit?: number;
   watchlistSyncMovies?: boolean;
   watchlistSyncTv?: boolean;
   watchlistSyncMusic?: boolean;

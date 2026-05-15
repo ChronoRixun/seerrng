@@ -59,12 +59,16 @@ userSettingsRoutes.get<{ id: string }, UserSettingsGeneralResponse>(
         tvQuotaDays: user.tvQuotaDays,
         musicQuotaLimit: user.musicQuotaLimit,
         musicQuotaDays: user.musicQuotaDays,
+        bookQuotaLimit: user.bookQuotaLimit,
+        bookQuotaDays: user.bookQuotaDays,
         globalMovieQuotaDays: defaultQuotas.movie.quotaDays,
         globalMovieQuotaLimit: defaultQuotas.movie.quotaLimit,
         globalTvQuotaDays: defaultQuotas.tv.quotaDays,
         globalTvQuotaLimit: defaultQuotas.tv.quotaLimit,
         globalMusicQuotaDays: defaultQuotas.music.quotaDays,
         globalMusicQuotaLimit: defaultQuotas.music.quotaLimit,
+        globalBookQuotaDays: defaultQuotas.book.quotaDays,
+        globalBookQuotaLimit: defaultQuotas.book.quotaLimit,
         watchlistSyncMovies: user.settings?.watchlistSyncMovies,
         watchlistSyncTv: user.settings?.watchlistSyncTv,
         watchlistSyncMusic: user.settings?.watchlistSyncMusic,
@@ -124,6 +128,8 @@ userSettingsRoutes.post<
       user.tvQuotaLimit = req.body.tvQuotaLimit;
       user.musicQuotaDays = req.body.musicQuotaDays;
       user.musicQuotaLimit = req.body.musicQuotaLimit;
+      user.bookQuotaDays = req.body.bookQuotaDays;
+      user.bookQuotaLimit = req.body.bookQuotaLimit;
     }
 
     if (!user.settings) {

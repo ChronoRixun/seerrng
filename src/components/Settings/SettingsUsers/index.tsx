@@ -39,6 +39,7 @@ const messages = defineMessages('components.Settings.SettingsUsers', {
   movieRequestLimitLabel: 'Global Movie Request Limit',
   tvRequestLimitLabel: 'Global Series Request Limit',
   musicRequestLimitLabel: 'Global Music Request Limit',
+  bookRequestLimitLabel: 'Global Book Request Limit',
   defaultPermissions: 'Default Permissions',
   defaultPermissionsTip: 'Initial permissions assigned to new users',
   disabledMediaServerLoginWarning:
@@ -117,6 +118,8 @@ const SettingsUsers = () => {
             tvQuotaDays: data?.defaultQuotas.tv.quotaDays ?? 7,
             musicQuotaLimit: data?.defaultQuotas.music.quotaLimit ?? 0,
             musicQuotaDays: data?.defaultQuotas.music.quotaDays ?? 7,
+            bookQuotaLimit: data?.defaultQuotas.book.quotaLimit ?? 0,
+            bookQuotaDays: data?.defaultQuotas.book.quotaDays ?? 7,
             defaultPermissions: data?.defaultPermissions ?? 0,
           }}
           validationSchema={schema}
@@ -139,6 +142,10 @@ const SettingsUsers = () => {
                   music: {
                     quotaLimit: values.musicQuotaLimit,
                     quotaDays: values.musicQuotaDays,
+                  },
+                  book: {
+                    quotaLimit: values.bookQuotaLimit,
+                    quotaDays: values.bookQuotaDays,
                   },
                 },
                 defaultPermissions: values.defaultPermissions,
@@ -295,6 +302,21 @@ const SettingsUsers = () => {
                       mediaType="music"
                       defaultDays={values.musicQuotaDays}
                       defaultLimit={values.musicQuotaLimit}
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="applicationTitle" className="text-label">
+                    {intl.formatMessage(messages.bookRequestLimitLabel)}
+                  </label>
+                  <div className="form-input-area">
+                    <QuotaSelector
+                      onChange={setFieldValue}
+                      dayFieldName="bookQuotaDays"
+                      limitFieldName="bookQuotaLimit"
+                      mediaType="book"
+                      defaultDays={values.bookQuotaDays}
+                      defaultLimit={values.bookQuotaLimit}
                     />
                   </div>
                 </div>

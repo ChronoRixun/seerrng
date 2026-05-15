@@ -12,6 +12,7 @@ const messages = defineMessages('components.RequestModal.QuotaDisplay', {
   movielimit: '{limit, plural, one {movie} other {movies}}',
   seasonlimit: '{limit, plural, one {season} other {seasons}}',
   musiclimit: '{limit, plural, one {album} other {albums}}',
+  booklimit: '{limit, plural, one {book} other {books}}',
   allowedRequests:
     'You are allowed to request <strong>{limit}</strong> {type}{days, plural, =0 {} one { every day} other { every <strong>{days}</strong> days}}.',
   allowedRequestsUser:
@@ -23,6 +24,7 @@ const messages = defineMessages('components.RequestModal.QuotaDisplay', {
   movie: 'movie',
   season: 'season',
   music: 'album',
+  book: 'book',
   notenoughseasonrequests: 'Not enough season requests remaining',
   requiredquota:
     'You need to have at least <strong>{seasons}</strong> {seasons, plural, one {season request} other {season requests}} remaining in order to submit a request for this series.',
@@ -32,7 +34,7 @@ const messages = defineMessages('components.RequestModal.QuotaDisplay', {
 
 interface QuotaDisplayProps {
   quota?: QuotaStatus;
-  mediaType: 'movie' | 'tv' | 'music';
+  mediaType: 'movie' | 'tv' | 'music' | 'book';
   userOverride?: number | null;
   remaining?: number;
   overLimit?: number;
@@ -84,6 +86,8 @@ const QuotaDisplay = ({
                       ? messages.movie
                       : mediaType === 'music'
                         ? messages.music
+                        : mediaType === 'book'
+                          ? messages.book
                         : messages.season
                   ),
                   strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
@@ -126,7 +130,9 @@ const QuotaDisplay = ({
                     ? messages.movielimit
                     : mediaType === 'music'
                       ? messages.musiclimit
-                    : messages.seasonlimit,
+                      : mediaType === 'book'
+                        ? messages.booklimit
+                        : messages.seasonlimit,
                   { limit: quota?.limit }
                 ),
                 strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
