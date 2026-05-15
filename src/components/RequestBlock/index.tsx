@@ -78,20 +78,33 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
 
   return (
     <div className="block">
-      <RequestModal
-        show={showEditModal}
-        tmdbId={request.media.tmdbId}
-        type={request.type === 'tv' ? 'tv' : 'movie'}
-        is4k={request.is4k}
-        editRequest={request}
-        onCancel={() => setShowEditModal(false)}
-        onComplete={() => {
-          if (onUpdate) {
-            onUpdate();
+      {request.media && (
+        <RequestModal
+          show={showEditModal}
+          tmdbId={request.type === 'music' ? undefined : request.media.tmdbId}
+          mbId={
+            request.type === 'music'
+              ? request.media.mbId ?? undefined
+              : undefined
           }
-          setShowEditModal(false);
-        }}
-      />
+          type={
+            request.type === 'music'
+              ? 'music'
+              : request.type === 'tv'
+                ? 'tv'
+                : 'movie'
+          }
+          is4k={request.is4k}
+          editRequest={request}
+          onCancel={() => setShowEditModal(false)}
+          onComplete={() => {
+            if (onUpdate) {
+              onUpdate();
+            }
+            setShowEditModal(false);
+          }}
+        />
+      )}
       <div className="px-4 py-3 text-gray-300">
         <div className="flex items-center justify-between">
           <div className="mr-6 min-w-0 flex-1 flex-col items-center text-sm leading-5">
@@ -260,7 +273,7 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
             </Tooltip>
           </div>
         </div>
-        {(request.seasons ?? []).length > 0 && (
+        {request.type === 'tv' && (request.seasons ?? []).length > 0 && (
           <div className="mt-2 flex flex-col text-sm">
             <div className="mb-1 font-medium">
               {intl.formatMessage(messages.seasons, {
