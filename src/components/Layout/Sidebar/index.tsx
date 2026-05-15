@@ -10,6 +10,7 @@ import {
   ExclamationTriangleIcon,
   EyeSlashIcon,
   FilmIcon,
+  BookOpenIcon,
   MusicalNoteIcon,
   SparklesIcon,
   TvIcon,
@@ -26,6 +27,7 @@ export const menuMessages = defineMessages('components.Layout.Sidebar', {
   dashboard: 'Discover',
   browsemovies: 'Movies',
   browsemusic: 'Music',
+  browsebooks: 'Books',
   browsetv: 'Series',
   requests: 'Requests',
   blocklist: 'Blocklist',
@@ -78,6 +80,12 @@ const SidebarLinks: SidebarLinkProps[] = [
     messagesKey: 'browsemusic',
     svgIcon: <MusicalNoteIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/discover\/music$/,
+  },
+  {
+    href: '/discover/books',
+    messagesKey: 'browsebooks',
+    svgIcon: <BookOpenIcon className="mr-3 h-6 w-6" />,
+    activeRegExp: /^\/discover\/books$/,
   },
   {
     href: '/requests',

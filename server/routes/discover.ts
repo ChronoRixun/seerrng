@@ -1,5 +1,6 @@
 import PlexTvAPI from '@server/api/plextv';
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
@@ -22,6 +23,7 @@ import {
   mapPersonResult,
   mapTvResult,
 } from '@server/models/Search';
+import { mapOpenLibrarySearchDoc } from '@server/models/Book';
 import { mapNetwork } from '@server/models/Tv';
 import { isCollection, isMovie, isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
@@ -989,6 +991,37 @@ discoverRoutes.get('/music', async (req, res, next) => {
       errorMessage: e instanceof Error ? e.message : 'Unknown error',
     });
     return next({ status: 500, message: 'Unable to fetch music discovery.' });
+  }
+});
+
+discoverRoutes.get('/books', async (req, res, next) => {
+  const openLibrary = new OpenLibraryAPI();
+  const itemsPerPage = 20;
+  const page = req.query.page ? Number(req.query.page) : 1;
+  const query =
+    typeof req.query.query === 'string' && req.query.query.trim()
+      ? req.query.query.trim()
+      : 'subject:fiction';
+
+  try {
+    const books = await openLibrary.searchBooks({
+      query,
+      page,
+      limit: itemsPerPage,
+    });
+
+    return res.status(200).json({
+      page,
+      totalPages: Math.ceil(books.numFound / itemsPerPage),
+      totalResults: books.numFound,
+      results: books.docs.map((doc) => mapOpenLibrarySearchDoc(doc)),
+    });
+  } catch (e) {
+    logger.error('Failed to fetch book discovery results', {
+      label: 'Discover Books',
+      errorMessage: e instanceof Error ? e.message : 'Unknown error',
+    });
+    return next({ status: 500, message: 'Unable to fetch book discovery.' });
   }
 });
 
