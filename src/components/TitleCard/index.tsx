@@ -471,7 +471,13 @@ const TitleCard = ({
             <div className="absolute inset-0 flex h-full w-full flex-col items-center p-2">
               <div className="relative aspect-square w-full overflow-hidden rounded ring-1 ring-gray-700">
                 <CachedImage
-                  type={displayImage?.startsWith('http') ? 'music' : 'tmdb'}
+                  type={
+                    displayImage?.startsWith('http')
+                      ? isBook
+                        ? 'book'
+                        : 'music'
+                      : 'tmdb'
+                  }
                   className="h-full w-full object-contain"
                   alt=""
                   src={displayImage ?? '/images/seerr_poster_not_found_logo_top.png'}

@@ -164,7 +164,7 @@ const BookDetails = () => {
         <div className="w-full max-w-xs flex-shrink-0">
           <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
             <CachedImage
-              type="music"
+              type="book"
               src={data.posterPath ?? '/images/seerr_poster_not_found_logo_top.png'}
               alt=""
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
