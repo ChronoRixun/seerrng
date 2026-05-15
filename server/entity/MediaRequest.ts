@@ -304,8 +304,11 @@ export class MediaRequest {
           entries: [],
         })),
       ]);
+      const normalizedRequestIsbn = requestBody.isbn13
+        ?.replace(/[^0-9X]/gi, '')
+        .toUpperCase();
       const requestIsbn = (
-        requestBody.isbn13 ??
+        normalizedRequestIsbn ??
         editions.entries.find((edition) => edition.isbn_13?.[0])?.isbn_13?.[0] ??
         editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0]
       )?.replace(/[^0-9X]/gi, '').toUpperCase();
@@ -459,11 +462,11 @@ export class MediaRequest {
         }
       }
 
-      if (requestBody.isbn13 && requestBody.isbn13 !== requestIsbn) {
+      if (normalizedRequestIsbn && normalizedRequestIsbn !== requestIsbn) {
         const hasRequestIsbn = media.identifiers?.some(
           (identifier) =>
             identifier.provider === MediaIdentifierProvider.ISBN &&
-            identifier.value === requestBody.isbn13
+            identifier.value === normalizedRequestIsbn
         );
 
         if (!hasRequestIsbn) {
@@ -471,7 +474,7 @@ export class MediaRequest {
             new MediaIdentifier({
               media,
               provider: MediaIdentifierProvider.ISBN,
-              value: requestBody.isbn13,
+              value: normalizedRequestIsbn,
               canonical: false,
             })
           );

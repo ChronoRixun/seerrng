@@ -216,6 +216,142 @@ describe('PUT /request/:requestId (movie)', () => {
 });
 
 describe('POST /request', () => {
+  it('creates a pending music request with the resolved MusicBrainz release group', async (t) => {
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () =>
+        ({
+          release_group_mbid: 'release-group-id',
+          release_group_metadata: {
+            release_group: {
+              name: 'Kind of Blue',
+            },
+            artist: {
+              name: 'Miles Davis',
+            },
+          },
+        } as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>)
+    );
+    t.after(() => getAlbumMock.mock.restore());
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.MUSIC,
+      mediaId: 'listenbrainz-release-id',
+      serverId: 10,
+      profileId: 20,
+      metadataProfileId: 30,
+      rootFolder: '/music',
+      tags: [1, 2],
+    });
+
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.type, MediaType.MUSIC);
+    assert.strictEqual(res.body.status, MediaRequestStatus.PENDING);
+    assert.strictEqual(res.body.media.mbId, 'release-group-id');
+    assert.strictEqual(res.body.serverId, 10);
+    assert.strictEqual(res.body.profileId, 20);
+    assert.strictEqual(res.body.metadataProfileId, 30);
+    assert.strictEqual(res.body.rootFolder, '/music');
+    assert.deepStrictEqual(res.body.tags, [1, 2]);
+
+    const savedMedia = await getRepository(Media).findOneOrFail({
+      where: { mbId: 'release-group-id', mediaType: MediaType.MUSIC },
+      relations: { requests: true },
+    });
+    assert.strictEqual(savedMedia.status, MediaStatus.PENDING);
+    assert.strictEqual(savedMedia.requests.length, 1);
+  });
+
+  it('creates a pending book request with normalized identifiers and format', async (t) => {
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async () =>
+        ({
+          key: '/works/OL45804W',
+          title: 'The Left Hand of Darkness',
+        } as Awaited<ReturnType<OpenLibraryAPI['getWork']>>)
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async () =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: '/books/OL1M',
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        } as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>)
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.BOOK,
+      mediaId: '/works/OL45804W',
+      editionId: '/books/OL1M',
+      isbn13: '978-0-441-47812-5',
+      format: 'audiobook',
+      serverId: 11,
+      profileId: 22,
+      metadataProfileId: 33,
+      rootFolder: '/books',
+      tags: [4, 5],
+    });
+
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.type, MediaType.BOOK);
+    assert.strictEqual(res.body.status, MediaRequestStatus.PENDING);
+    assert.strictEqual(res.body.bookFormat, 'audiobook');
+    assert.strictEqual(res.body.serverId, 11);
+    assert.strictEqual(res.body.profileId, 22);
+    assert.strictEqual(res.body.metadataProfileId, 33);
+    assert.strictEqual(res.body.rootFolder, '/books');
+    assert.deepStrictEqual(res.body.tags, [4, 5]);
+
+    const savedMedia = await getRepository(Media).findOneOrFail({
+      where: { id: res.body.media.id },
+      relations: { identifiers: true, requests: true },
+    });
+    assert.strictEqual(savedMedia.mediaType, MediaType.BOOK);
+    assert.strictEqual(savedMedia.status, MediaStatus.PENDING);
+    assert.strictEqual(savedMedia.requests.length, 1);
+    assert.deepStrictEqual(
+      savedMedia.identifiers
+        .map((identifier) => ({
+          provider: identifier.provider,
+          value: identifier.value,
+          canonical: identifier.canonical,
+        }))
+        .sort((a, b) => a.provider.localeCompare(b.provider)),
+      [
+        {
+          provider: MediaIdentifierProvider.ISBN,
+          value: '9780441478125',
+          canonical: false,
+        },
+        {
+          provider: MediaIdentifierProvider.OPENLIBRARY,
+          value: 'OL45804W',
+          canonical: true,
+        },
+        {
+          provider: MediaIdentifierProvider.OPENLIBRARY_EDITION,
+          value: 'OL1M',
+          canonical: false,
+        },
+      ].sort((a, b) => a.provider.localeCompare(b.provider))
+    );
+  });
+
   it('blocks music requests when the release group external id is blocklisted', async (t) => {
     const getAlbumMock = mock.method(
       ListenBrainzAPI.prototype,
