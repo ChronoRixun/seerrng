@@ -1,3 +1,4 @@
+import logger from '@server/logger';
 import ServarrBase from './base';
 
 export interface ReadarrMetadataProfile {
@@ -15,6 +16,7 @@ export interface ReadarrBookLookupResult {
   metadataProfileId?: number;
   rootFolderPath?: string;
   monitored?: boolean;
+  tags?: number[];
   authorTitle?: string;
   author?: {
     foreignAuthorId?: string;
@@ -98,6 +100,62 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
 
   public async addBook(options: ReadarrBookOptions): Promise<ReadarrBookLookupResult> {
     try {
+      const existingBooks = await this.get<ReadarrBook[]>('/book');
+      const existingBook = existingBooks.find(
+        (book) =>
+          book.foreignBookId === options.foreignBookId ||
+          book.editions?.some((edition) =>
+            options.editions?.some(
+              (optionEdition) =>
+                !!edition.isbn13 && edition.isbn13 === optionEdition.isbn13
+            )
+          )
+      );
+
+      if (existingBook?.monitored) {
+        logger.info(
+          'Book is already monitored in Bookshelf/Readarr. Skipping add and returning success',
+          {
+            label: 'Readarr',
+            bookId: existingBook.id,
+            bookTitle: existingBook.title,
+          }
+        );
+        return existingBook;
+      }
+
+      if (existingBook) {
+        logger.info(
+          'Book exists in Bookshelf/Readarr but is not monitored. Updating monitored status.',
+          {
+            label: 'Readarr',
+            bookId: existingBook.id,
+            bookTitle: existingBook.title,
+          }
+        );
+
+        const updatedBook = await this.axios.put<ReadarrBook>(
+          `/book/${existingBook.id}`,
+          {
+            ...existingBook,
+            monitored: true,
+            qualityProfileId:
+              options.qualityProfileId ?? existingBook.qualityProfileId,
+            metadataProfileId:
+              options.metadataProfileId ?? existingBook.metadataProfileId,
+            rootFolderPath: options.rootFolderPath ?? existingBook.rootFolderPath,
+            tags: options.tags ?? existingBook.tags,
+          }
+        );
+
+        await this.post('/command', {
+          name: 'BookSearch',
+          bookIds: [updatedBook.data.id],
+        });
+
+        return updatedBook.data;
+      }
+
       return await this.post<ReadarrBookLookupResult>(
         '/book',
         options as unknown as Record<string, unknown>
