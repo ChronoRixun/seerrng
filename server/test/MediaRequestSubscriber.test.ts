@@ -1,0 +1,322 @@
+import assert from 'node:assert/strict';
+import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
+
+import OpenLibraryAPI from '@server/api/openlibrary';
+import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
+import LidarrAPI from '@server/api/servarr/lidarr';
+import type {
+  ReadarrBookLookupResult,
+  ReadarrBookOptions,
+} from '@server/api/servarr/readarr';
+import ReadarrAPI from '@server/api/servarr/readarr';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  MediaType,
+} from '@server/constants/media';
+import { getRepository } from '@server/datasource';
+import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
+import { MediaRequest } from '@server/entity/MediaRequest';
+import { User } from '@server/entity/User';
+import notificationManager from '@server/lib/notifications';
+import { getSettings } from '@server/lib/settings';
+import { resetTestDb, seedTestDb } from '@server/utils/seedTestDb';
+import { MediaRequestSubscriber } from '@server/subscriber/MediaRequestSubscriber';
+
+async function getRequester() {
+  return getRepository(User).findOneOrFail({
+    where: { email: 'friend@seerr.dev' },
+  });
+}
+
+async function createApprovedRequest(media: Media, requestedBy: User) {
+  mock.method(MediaRequest, 'sendNotification', async () => undefined);
+
+  const request = await getRepository(MediaRequest).save(
+    new MediaRequest({
+      type: media.mediaType,
+      status: MediaRequestStatus.PENDING,
+      media,
+      requestedBy,
+      is4k: false,
+    })
+  );
+
+  request.status = MediaRequestStatus.APPROVED;
+  request.media = media;
+  request.requestedBy = requestedBy;
+
+  return request;
+}
+
+describe('MediaRequestSubscriber service dispatch', () => {
+  before(async () => {
+    await seedTestDb();
+  });
+
+  beforeEach(async () => {
+    await resetTestDb();
+  });
+
+  afterEach(() => {
+    mock.restoreAll();
+    const settings = getSettings();
+    settings.lidarr = [];
+    settings.readarr = [];
+  });
+
+  it('sends approved music requests to Lidarr and completes the request', async () => {
+    const settings = getSettings();
+    settings.lidarr = [
+      {
+        id: 10,
+        name: 'Lidarr',
+        hostname: 'lidarr.local',
+        port: 8686,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 7,
+        activeProfileName: 'Lossless',
+        activeMetadataProfileId: 8,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/music',
+        tags: [3],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'release-group-id',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+
+    const searchMock = mock.method(
+      LidarrAPI.prototype,
+      'searchAlbumByMusicBrainzId',
+      async () =>
+        [
+          {
+            id: 1,
+            mbId: 'release-group-id',
+            media_type: 'music',
+            album: {
+              title: 'Kind of Blue',
+              disambiguation: '',
+              overview: 'Album overview',
+              artistId: 2,
+              foreignAlbumId: 'release-group-id',
+              duration: 2700,
+              albumType: 'Album',
+              mediumCount: 1,
+              ratings: { votes: 1, value: 10 },
+              releaseDate: '1959-08-17',
+              genres: ['Jazz'],
+              images: [],
+              links: [],
+              artist: {
+                id: 2,
+                status: 'continuing',
+                ended: false,
+                artistName: 'Miles Davis',
+                foreignArtistId: 'artist-id',
+                tadbId: 0,
+                discogsId: 0,
+                overview: 'Artist overview',
+                artistType: 'Person',
+                disambiguation: '',
+                links: [],
+                images: [],
+                genres: ['Jazz'],
+                cleanName: 'milesdavis',
+                sortName: 'davis miles',
+                tags: [],
+                added: '2026-01-01T00:00:00Z',
+                ratings: { votes: 1, value: 10 },
+              },
+            },
+          },
+        ] as unknown as Awaited<
+          ReturnType<LidarrAPI['searchAlbumByMusicBrainzId']>
+        >
+    );
+    let addPayload: LidarrAlbumOptions | undefined;
+    mock.method(
+      LidarrAPI.prototype,
+      'addAlbum',
+      async (payload: LidarrAlbumOptions) => {
+        addPayload = payload;
+
+        return {
+          id: 44,
+          titleSlug: 'kind-of-blue',
+        } as Awaited<ReturnType<LidarrAPI['addAlbum']>>;
+      }
+    );
+
+    await new MediaRequestSubscriber().sendToLidarr(request);
+
+    assert.strictEqual(
+      searchMock.mock.calls[0].arguments[0],
+      'release-group-id'
+    );
+    assert.equal(addPayload?.profileId, 7);
+    assert.equal(addPayload?.artist.metadataProfileId, 8);
+    assert.equal(addPayload?.artist.rootFolderPath, '/music');
+    assert.deepStrictEqual(addPayload?.artist.tags, [3]);
+
+    const savedMedia = await getRepository(Media).findOneByOrFail({
+      id: media.id,
+    });
+    assert.equal(savedMedia.externalServiceId, 44);
+    assert.equal(savedMedia.externalServiceSlug, 'kind-of-blue');
+    assert.equal(savedMedia.serviceId, 10);
+
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: request.id,
+    });
+    assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+  });
+
+  it('resolves approved book requests through ISBN before title and stores Readarr identifiers', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 20,
+        name: 'Bookshelf',
+        hostname: 'bookshelf.local',
+        port: 8787,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Books',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/books',
+        tags: [4],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.OPENLIBRARY,
+            value: 'OL45804W',
+            canonical: true,
+          }),
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780441478125',
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
+      key: '/works/OL45804W',
+      title: 'The Left Hand of Darkness',
+    }));
+
+    const lookupTerms: string[] = [];
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async (term: string) => {
+      lookupTerms.push(term);
+
+      if (term === '9780441478125') {
+        return [];
+      }
+
+      return [
+        {
+          title: 'The Left Hand of Darkness',
+          foreignBookId: 'readarr-work-id',
+          titleSlug: 'left-hand-darkness',
+          editions: [
+            {
+              foreignEditionId: 'edition-id',
+              title: 'The Left Hand of Darkness',
+              isbn13: '9780441478125',
+              monitored: true,
+            },
+          ],
+        },
+      ] as ReadarrBookLookupResult[];
+    });
+    let addPayload: ReadarrBookOptions | undefined;
+    mock.method(
+      ReadarrAPI.prototype,
+      'addBook',
+      async (payload: ReadarrBookOptions) => {
+        addPayload = payload;
+
+        return {
+          ...payload,
+          id: 55,
+          titleSlug: 'left-hand-darkness',
+        };
+      }
+    );
+    mock.method(notificationManager, 'sendNotification', () => undefined);
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    assert.deepStrictEqual(lookupTerms, [
+      '9780441478125',
+      'isbn:9780441478125',
+    ]);
+    assert.equal(addPayload?.qualityProfileId, 11);
+    assert.equal(addPayload?.metadataProfileId, 12);
+    assert.equal(addPayload?.rootFolderPath, '/books');
+    assert.deepStrictEqual(addPayload?.tags, [4]);
+
+    const savedMedia = await getRepository(Media).findOneByOrFail({
+      id: media.id,
+    });
+    assert.equal(savedMedia.externalServiceId, 55);
+    assert.equal(savedMedia.externalServiceSlug, 'left-hand-darkness');
+    assert.equal(savedMedia.serviceId, 20);
+
+    const identifiers = await getRepository(MediaIdentifier).find({
+      where: { media: { id: media.id } },
+    });
+    assert.ok(
+      identifiers.some(
+        (identifier) =>
+          identifier.provider === MediaIdentifierProvider.READARR &&
+          identifier.value === 'readarr-work-id'
+      )
+    );
+
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: request.id,
+    });
+    assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+  });
+});
