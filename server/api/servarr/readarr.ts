@@ -8,6 +8,7 @@ export interface ReadarrMetadataProfile {
 export interface ReadarrBookLookupResult {
   id?: number;
   title: string;
+  titleSlug?: string;
   foreignBookId: string;
   foreignEditionId?: string;
   qualityProfileId?: number;

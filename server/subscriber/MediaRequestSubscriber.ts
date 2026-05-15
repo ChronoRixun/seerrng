@@ -1279,7 +1279,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       });
 
       media.externalServiceId = result.id ?? null;
-      media.externalServiceSlug = result.foreignBookId;
+      media.externalServiceSlug = result.titleSlug ?? result.foreignBookId;
       media.serviceId = readarrSettings.id;
       await mediaRepository.save(media);
 
