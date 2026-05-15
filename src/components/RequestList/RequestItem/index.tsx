@@ -53,6 +53,10 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   unknowntitle: 'Unknown Title',
   removearr: 'Remove from {arr}',
   profileName: 'Profile',
+  bookFormat: 'Format',
+  ebook: 'Ebook',
+  audiobook: 'Audiobook',
+  both: 'Both',
   music: 'Music',
   book: 'Book',
 });
@@ -815,6 +819,22 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                 </span>
                 <span className="flex truncate text-sm text-gray-300">
                   {request.profileName}
+                </span>
+              </div>
+            )}
+            {requestData.type === 'book' && requestData.bookFormat && (
+              <div className="card-field">
+                <span className="card-field-name">
+                  {intl.formatMessage(messages.bookFormat)}
+                </span>
+                <span className="flex truncate text-sm text-gray-300">
+                  {intl.formatMessage(
+                    requestData.bookFormat === 'audiobook'
+                      ? messages.audiobook
+                      : requestData.bookFormat === 'both'
+                        ? messages.both
+                        : messages.ebook
+                  )}
                 </span>
               </div>
             )}
