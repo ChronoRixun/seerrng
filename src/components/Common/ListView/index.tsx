@@ -1,3 +1,4 @@
+import ArtistCard from '@app/components/ArtistCard';
 import PersonCard from '@app/components/PersonCard';
 import TitleCard from '@app/components/TitleCard';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
@@ -7,6 +8,8 @@ import globalMessages from '@app/i18n/globalMessages';
 import { MediaStatus } from '@server/constants/media';
 import type { WatchlistItem } from '@server/interfaces/api/discoverInterfaces';
 import type {
+  AlbumResult,
+  ArtistResult,
   CollectionResult,
   MovieResult,
   PersonResult,
@@ -15,7 +18,14 @@ import type {
 import { useIntl } from 'react-intl';
 
 type ListViewProps = {
-  items?: (TvResult | MovieResult | PersonResult | CollectionResult)[];
+  items?: (
+    | TvResult
+    | MovieResult
+    | PersonResult
+    | CollectionResult
+    | ArtistResult
+    | AlbumResult
+  )[];
   plexItems?: WatchlistItem[];
   isEmpty?: boolean;
   isLoading?: boolean;
@@ -68,8 +78,8 @@ const ListView = ({
           ?.filter((title) => {
             if (!blocklistVisibility)
               return (
-                (title as TvResult | MovieResult).mediaInfo?.status !==
-                MediaStatus.BLOCKLISTED
+                (title as TvResult | MovieResult | AlbumResult).mediaInfo
+                  ?.status !== MediaStatus.BLOCKLISTED
               );
             return title;
           })
@@ -139,6 +149,53 @@ const ListView = ({
                     personId={title.id}
                     name={title.name}
                     profilePath={title.profilePath}
+                    canExpand
+                  />
+                );
+                break;
+              case 'album':
+                titleCard = (
+                  <TitleCard
+                    key={title.id}
+                    id={title.id}
+                    isAddedToWatchlist={
+                      title.mediaInfo?.watchlists?.length ?? 0
+                    }
+                    image={title.posterPath}
+                    status={title.mediaInfo?.status}
+                    title={title.title}
+                    artist={title['artist-credit']?.[0]?.name}
+                    type={title['primary-type']}
+                    year={
+                      title.releaseDate ??
+                      title['first-release-date']?.split('-')[0]
+                    }
+                    mediaType={title.mediaType}
+                    inProgress={
+                      (title.mediaInfo?.downloadStatus ?? []).length > 0
+                    }
+                    needsCoverArt={title.needsCoverArt}
+                    canExpand
+                  />
+                );
+                break;
+              case 'artist':
+                titleCard = title.tmdbPersonId ? (
+                  <PersonCard
+                    key={title.id}
+                    personId={title.tmdbPersonId}
+                    name={title.name}
+                    profilePath={title.artistThumb ?? undefined}
+                    subName={title.disambiguation}
+                    canExpand
+                  />
+                ) : (
+                  <ArtistCard
+                    key={title.id}
+                    artistId={title.id}
+                    name={title.name}
+                    artistThumb={title.artistThumb}
+                    subName={title.disambiguation}
                     canExpand
                   />
                 );

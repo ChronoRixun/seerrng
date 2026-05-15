@@ -15,7 +15,7 @@ export interface BaseSearchResult<T> {
 }
 
 interface BaseMedia {
-  id: number;
+  id: number | string;
   mediaType: string;
   mediaInfo?: {
     status: MediaStatus;
@@ -94,7 +94,7 @@ const useDiscover = <
     }
   );
 
-  const resultIds: Set<number> = new Set<number>();
+  const resultIds = new Set<number | string>();
 
   const isLoadingInitialData = !data && !error;
   const isLoadingMore =

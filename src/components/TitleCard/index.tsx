@@ -31,17 +31,20 @@ import { useIntl } from 'react-intl';
 import { mutate } from 'swr';
 
 interface TitleCardProps {
-  id: number;
+  id: number | string;
   image?: string;
   summary?: string;
   year?: string;
   title: string;
+  artist?: string;
+  type?: string;
   userScore?: number;
   mediaType: MediaType;
   status?: MediaStatus;
   canExpand?: boolean;
   inProgress?: boolean;
   isAddedToWatchlist?: number | boolean;
+  needsCoverArt?: boolean;
   mutateParent?: () => void;
 }
 
@@ -61,6 +64,8 @@ const TitleCard = ({
   summary,
   year,
   title,
+  artist,
+  type,
   status,
   mediaType,
   isAddedToWatchlist = false,
@@ -300,19 +305,46 @@ const TitleCard = ({
 
   const closeModal = useCallback(() => setShowRequestModal(false), []);
 
-  const showRequestButton = hasPermission(
-    [
-      Permission.REQUEST,
-      mediaType === 'movie' || mediaType === 'collection'
-        ? Permission.REQUEST_MOVIE
-        : Permission.REQUEST_TV,
-    ],
-    { type: 'or' }
-  );
+  const isAlbum = mediaType === 'album';
+  const isArtist = mediaType === 'artist';
+  const videoMediaType =
+    mediaType === 'movie' || mediaType === 'collection' || mediaType === 'tv';
+  const numericId = typeof id === 'number' ? id : Number(id);
+  const canUseVideoActions = videoMediaType && Number.isFinite(numericId);
+  const detailHref =
+    mediaType === 'movie'
+      ? `/movie/${id}`
+      : mediaType === 'collection'
+        ? `/collection/${id}`
+        : mediaType === 'tv'
+          ? `/tv/${id}`
+          : mediaType === 'album'
+            ? `/music/${id}`
+            : `/artist/${id}`;
+  const displayImage = image?.startsWith('http')
+    ? image
+    : image
+      ? `https://image.tmdb.org/t/p/w300_and_h450_face${image}`
+      : undefined;
+
+  const showRequestButton =
+    canUseVideoActions &&
+    hasPermission(
+      [
+        Permission.REQUEST,
+        mediaType === 'movie' || mediaType === 'collection'
+          ? Permission.REQUEST_MOVIE
+          : mediaType === 'tv'
+            ? Permission.REQUEST_TV
+            : Permission.REQUEST_MUSIC,
+      ],
+      { type: 'or' }
+    ) &&
+    !isArtist;
 
   const showHideButton = hasPermission([Permission.MANAGE_BLOCKLIST], {
     type: 'or',
-  });
+  }) && canUseVideoActions;
 
   return (
     <div
@@ -320,34 +352,38 @@ const TitleCard = ({
       data-testid="title-card"
       ref={cardRef}
     >
-      <RequestModal
-        tmdbId={id}
-        show={showRequestModal}
-        type={
-          mediaType === 'movie'
-            ? 'movie'
-            : mediaType === 'collection'
-              ? 'collection'
-              : 'tv'
-        }
-        onComplete={requestComplete}
-        onUpdating={requestUpdating}
-        onCancel={closeModal}
-      />
-      <BlocklistModal
-        tmdbId={id}
-        type={
-          mediaType === 'movie'
-            ? 'movie'
-            : mediaType === 'collection'
-              ? 'collection'
-              : 'tv'
-        }
-        show={showBlocklistModal}
-        onCancel={closeBlocklistModal}
-        onComplete={onClickHideItemBtn}
-        isUpdating={isUpdating}
-      />
+      {canUseVideoActions && (
+        <>
+          <RequestModal
+            tmdbId={numericId}
+            show={showRequestModal}
+            type={
+              mediaType === 'movie'
+                ? 'movie'
+                : mediaType === 'collection'
+                  ? 'collection'
+                  : 'tv'
+            }
+            onComplete={requestComplete}
+            onUpdating={requestUpdating}
+            onCancel={closeModal}
+          />
+          <BlocklistModal
+            tmdbId={numericId}
+            type={
+              mediaType === 'movie'
+                ? 'movie'
+                : mediaType === 'collection'
+                  ? 'collection'
+                  : 'tv'
+            }
+            show={showBlocklistModal}
+            onCancel={closeBlocklistModal}
+            onComplete={onClickHideItemBtn}
+            isUpdating={isUpdating}
+          />
+        </>
+      )}
       <div
         className={`relative transform-gpu cursor-default overflow-hidden rounded-xl bg-gray-800 bg-cover outline-none ring-1 transition duration-300 ${
           showDetail
@@ -373,24 +409,47 @@ const TitleCard = ({
         tabIndex={0}
       >
         <div className="absolute inset-0 h-full w-full overflow-hidden">
-          <CachedImage
-            type="tmdb"
-            className="absolute inset-0 h-full w-full"
-            alt=""
-            src={
-              image
-                ? `https://image.tmdb.org/t/p/w300_and_h450_face${image}`
-                : `/images/seerr_poster_not_found_logo_top.png`
-            }
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            fill
-          />
+          {isAlbum ? (
+            <div className="absolute inset-0 flex h-full w-full flex-col items-center p-2">
+              <div className="relative aspect-square w-full overflow-hidden rounded ring-1 ring-gray-700">
+                <CachedImage
+                  type="music"
+                  className="h-full w-full object-contain"
+                  alt=""
+                  src={displayImage ?? '/images/seerr_poster_not_found_logo_top.png'}
+                  fill
+                />
+              </div>
+              <div className="mt-2 w-full min-w-0 text-center">
+                <div className="truncate font-bold text-white">{title}</div>
+                {artist && (
+                  <div className="truncate text-xs text-gray-300">{artist}</div>
+                )}
+                {type && (
+                  <div className="mt-1 truncate text-xs text-gray-500">
+                    {type}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <CachedImage
+              type={displayImage?.startsWith('http') ? 'music' : 'tmdb'}
+              className="absolute inset-0 h-full w-full"
+              alt=""
+              src={displayImage ?? '/images/seerr_poster_not_found_logo_top.png'}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              fill
+            />
+          )}
           <div className="absolute left-0 right-0 flex items-center justify-between p-2">
             <div
               className={`pointer-events-none z-40 self-start rounded-full border shadow-md ${
                 mediaType === 'movie' || mediaType === 'collection'
                   ? 'border-blue-500 bg-blue-600/80'
-                  : 'border-purple-600 bg-purple-600/80'
+                  : isAlbum
+                    ? 'border-emerald-500 bg-emerald-600/80'
+                    : 'border-purple-600 bg-purple-600/80'
               }`}
             >
               <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
@@ -398,7 +457,11 @@ const TitleCard = ({
                   ? intl.formatMessage(globalMessages.movie)
                   : mediaType === 'collection'
                     ? intl.formatMessage(globalMessages.collection)
-                    : intl.formatMessage(globalMessages.tvshow)}
+                    : mediaType === 'tv'
+                      ? intl.formatMessage(globalMessages.tvshow)
+                      : isAlbum
+                        ? 'Album'
+                        : 'Artist'}
               </div>
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
@@ -495,13 +558,7 @@ const TitleCard = ({
           >
             <div className="absolute inset-0 overflow-hidden rounded-xl">
               <Link
-                href={
-                  mediaType === 'movie'
-                    ? `/movie/${id}`
-                    : mediaType === 'collection'
-                      ? `/collection/${id}`
-                      : `/tv/${id}`
-                }
+                href={detailHref}
                 className="absolute inset-0 h-full w-full cursor-pointer overflow-hidden text-left"
                 style={{
                   background:
