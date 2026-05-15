@@ -92,11 +92,26 @@ const BookDetails = () => {
     [Permission.REQUEST, Permission.REQUEST_BOOK],
     { type: 'or' }
   );
+  const hasEbookServiceLink =
+    data.mediaInfo?.serviceId !== null &&
+    data.mediaInfo?.serviceId !== undefined &&
+    data.mediaInfo.externalServiceId !== null &&
+    data.mediaInfo.externalServiceId !== undefined;
+  const hasAudiobookServiceLink =
+    data.mediaInfo?.audiobookServiceId !== null &&
+    data.mediaInfo?.audiobookServiceId !== undefined &&
+    data.mediaInfo.audiobookExternalServiceId !== null &&
+    data.mediaInfo.audiobookExternalServiceId !== undefined;
+  const hasMissingBookFormat =
+    !!data.mediaInfo &&
+    data.mediaInfo.status !== MediaStatus.BLOCKLISTED &&
+    (!hasEbookServiceLink || !hasAudiobookServiceLink);
   const canShowRequest =
     canRequest &&
     (!data.mediaInfo?.status ||
       data.mediaInfo.status === MediaStatus.UNKNOWN ||
-      data.mediaInfo.status === MediaStatus.DELETED);
+      data.mediaInfo.status === MediaStatus.DELETED ||
+      hasMissingBookFormat);
   const canReportIssue =
     !!data.mediaInfo?.id &&
     data.mediaInfo.status === MediaStatus.AVAILABLE &&
@@ -269,7 +284,10 @@ const BookDetails = () => {
                   status={data.mediaInfo.status}
                   mediaType="book"
                   externalId={data.id}
-                  serviceUrl={data.mediaInfo.serviceUrl}
+                  serviceUrl={
+                    data.mediaInfo.serviceUrl ??
+                    data.mediaInfo.audiobookServiceUrl
+                  }
                 />
               )}
           </div>
