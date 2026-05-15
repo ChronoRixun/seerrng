@@ -1388,6 +1388,22 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       let lookupTerm: string | undefined;
 
       for (const serviceType of targetFormats) {
+        if (
+          serviceType === 'ebook' &&
+          media.serviceId !== null &&
+          media.externalServiceId !== null
+        ) {
+          continue;
+        }
+
+        if (
+          serviceType === 'audiobook' &&
+          media.audiobookServiceId !== null &&
+          media.audiobookExternalServiceId !== null
+        ) {
+          continue;
+        }
+
         lookupTerm = await dispatchFormat(
           serviceType,
           entity.bookFormat !== 'both' || serviceType === 'ebook'

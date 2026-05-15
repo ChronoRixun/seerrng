@@ -1485,6 +1485,82 @@ components:
         name:
           type: string
           example: 720p/1080p
+    ServiceRootFolder:
+      type: object
+      properties:
+        id:
+          type: number
+          example: 1
+        path:
+          type: string
+          example: /media/library
+        freeSpace:
+          type: number
+        totalSpace:
+          type: number
+    ServiceTag:
+      type: object
+      properties:
+        id:
+          type: number
+          example: 1
+        label:
+          type: string
+          example: requested
+    LidarrSettings:
+      allOf:
+        - $ref: '#/components/schemas/RadarrSettings'
+        - type: object
+          properties:
+            activeMetadataProfileId:
+              type: number
+              example: 1
+            activeMetadataProfileName:
+              type: string
+              example: Standard
+            tags:
+              type: array
+              items:
+                type: number
+    ReadarrSettings:
+      allOf:
+        - $ref: '#/components/schemas/LidarrSettings'
+        - type: object
+          properties:
+            serviceType:
+              type: string
+              enum: [ebook, audiobook]
+              example: ebook
+    ServarrServiceDetails:
+      type: object
+      properties:
+        server:
+          oneOf:
+            - $ref: '#/components/schemas/RadarrSettings'
+            - $ref: '#/components/schemas/SonarrSettings'
+            - $ref: '#/components/schemas/LidarrSettings'
+            - $ref: '#/components/schemas/ReadarrSettings'
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceProfile'
+        metadataProfiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceProfile'
+        rootFolders:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceRootFolder'
+        languageProfiles:
+          nullable: true
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceProfile'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceTag'
     PageInfo:
       type: object
       properties:
@@ -6487,6 +6563,17 @@ paths:
       responses:
         '200':
           description: Artist details returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  releaseGroups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicResult'
+                  pagination:
+                    type: object
   /book/search:
     get:
       summary: Search books
@@ -6549,6 +6636,12 @@ paths:
       responses:
         '200':
           description: Lidarr services returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LidarrSettings'
   /service/lidarr/{lidarrId}:
     get:
       summary: Get Lidarr service details
@@ -6563,6 +6656,10 @@ paths:
       responses:
         '200':
           description: Lidarr service details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServarrServiceDetails'
   /service/readarr:
     get:
       summary: Get Bookshelf service summaries
@@ -6571,6 +6668,12 @@ paths:
       responses:
         '200':
           description: Bookshelf services returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadarrSettings'
   /service/readarr/{readarrId}:
     get:
       summary: Get Bookshelf service details
@@ -6585,6 +6688,10 @@ paths:
       responses:
         '200':
           description: Bookshelf service details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServarrServiceDetails'
   /settings/lidarr:
     get:
       summary: Get Lidarr settings
@@ -6593,6 +6700,12 @@ paths:
       responses:
         '200':
           description: Lidarr settings returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LidarrSettings'
     post:
       summary: Create Lidarr settings
       tags:
@@ -6602,10 +6715,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/LidarrSettings'
       responses:
         '201':
           description: Lidarr settings created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LidarrSettings'
   /settings/lidarr/test:
     post:
       summary: Test Lidarr settings
@@ -6616,10 +6733,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/LidarrSettings'
       responses:
         '200':
           description: Lidarr connection details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServarrServiceDetails'
   /settings/lidarr/{lidarrId}:
     put:
       summary: Update Lidarr settings
@@ -6634,6 +6755,10 @@ paths:
       responses:
         '200':
           description: Lidarr settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LidarrSettings'
     delete:
       summary: Delete Lidarr settings
       tags:
@@ -6647,6 +6772,10 @@ paths:
       responses:
         '200':
           description: Lidarr settings deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LidarrSettings'
   /settings/readarr:
     get:
       summary: Get Bookshelf settings
@@ -6655,6 +6784,12 @@ paths:
       responses:
         '200':
           description: Bookshelf settings returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadarrSettings'
     post:
       summary: Create Bookshelf settings
       tags:
@@ -6664,10 +6799,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/ReadarrSettings'
       responses:
         '201':
           description: Bookshelf settings created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadarrSettings'
   /settings/readarr/test:
     post:
       summary: Test Bookshelf settings
@@ -6678,10 +6817,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/ReadarrSettings'
       responses:
         '200':
           description: Bookshelf connection details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServarrServiceDetails'
   /settings/readarr/{readarrId}:
     put:
       summary: Update Bookshelf settings
@@ -6696,6 +6839,10 @@ paths:
       responses:
         '200':
           description: Bookshelf settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadarrSettings'
     delete:
       summary: Delete Bookshelf settings
       tags:
@@ -6709,6 +6856,10 @@ paths:
       responses:
         '200':
           description: Bookshelf settings deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadarrSettings'
   /request:
     get:
       summary: Get all requests
