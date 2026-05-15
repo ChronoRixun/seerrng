@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import { before, beforeEach, describe, it, mock } from 'node:test';
 
+import ListenBrainzAPI from '@server/api/listenbrainz';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import {
   MediaRequestStatus,
   MediaStatus,
   MediaType,
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
+import { Blocklist } from '@server/entity/Blocklist';
 import Media from '@server/entity/Media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import { getSettings } from '@server/lib/settings';
@@ -210,6 +214,90 @@ describe('PUT /request/:requestId (movie)', () => {
     assert.strictEqual(saved.serverId, 3);
     assert.strictEqual(saved.profileId, 7);
     assert.strictEqual(saved.rootFolder, '/updated/movies');
+  });
+});
+
+describe('POST /request', () => {
+  it('blocks music requests when the release group external id is blocklisted', async (t) => {
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () =>
+        ({
+          release_group_mbid: 'blocklisted-release-group',
+        } as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>)
+    );
+    t.after(() => getAlbumMock.mock.restore());
+
+    await getRepository(Blocklist).save(
+      new Blocklist({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        externalId: 'blocklisted-release-group',
+        externalProvider: MediaIdentifierProvider.MUSICBRAINZ,
+        title: 'Blocked Album',
+      })
+    );
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.MUSIC,
+      mediaId: 'listenbrainz-release-id',
+    });
+
+    assert.strictEqual(res.status, 403);
+    assert.match(res.body.message, /album is blocklisted/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
+  it('blocks book requests when the discovered ISBN is blocklisted', async (t) => {
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async () =>
+        ({
+          key: '/works/OL123W',
+          title: 'Blocked Book',
+        } as Awaited<ReturnType<OpenLibraryAPI['getWork']>>)
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async () =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: '/books/OL1M',
+              isbn_13: ['9780000000001'],
+            },
+          ],
+        } as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>)
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+    });
+
+    await getRepository(Blocklist).save(
+      new Blocklist({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        externalId: '9780000000001',
+        externalProvider: MediaIdentifierProvider.ISBN,
+        title: 'Blocked Book',
+      })
+    );
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.BOOK,
+      mediaId: 'OL123W',
+    });
+
+    assert.strictEqual(res.status, 403);
+    assert.match(res.body.message, /book is blocklisted/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
   });
 });
 
