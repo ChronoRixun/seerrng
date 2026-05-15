@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { before, beforeEach, describe, it, mock } from 'node:test';
+import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
@@ -23,12 +23,6 @@ import session from 'express-session';
 import request from 'supertest';
 import authRoutes from './auth';
 import requestRoutes from './request';
-
-const sendNotificationMock = mock.method(
-  MediaRequest,
-  'sendNotification',
-  async () => undefined
-).mock;
 
 let app: Express;
 
@@ -66,7 +60,11 @@ before(async () => {
 });
 
 beforeEach(() => {
-  sendNotificationMock.resetCalls();
+  mock.method(MediaRequest, 'sendNotification', async () => undefined);
+});
+
+afterEach(() => {
+  mock.restoreAll();
 });
 
 setupTestDb();
