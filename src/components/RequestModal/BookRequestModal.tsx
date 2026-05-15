@@ -292,6 +292,7 @@ const BookRequestModal = ({
             requestUser={editRequest.requestedBy}
             defaultOverrides={{
               folder: editRequest.rootFolder,
+              metadataProfile: editRequest.metadataProfileId,
               profile: editRequest.profileId,
               server: editRequest.serverId,
               tags: editRequest.tags,
