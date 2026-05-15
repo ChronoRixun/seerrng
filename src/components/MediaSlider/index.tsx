@@ -68,17 +68,19 @@ const MediaSlider = ({
   if (settings.currentSettings.hideAvailable) {
     titles = titles.filter(
       (i) =>
-        (i.mediaType === 'movie' || i.mediaType === 'tv') &&
-        i.mediaInfo?.status !== MediaStatus.AVAILABLE &&
-        i.mediaInfo?.status !== MediaStatus.PARTIALLY_AVAILABLE
+        !('mediaInfo' in i) ||
+        !i.mediaInfo ||
+        (i.mediaInfo.status !== MediaStatus.AVAILABLE &&
+          i.mediaInfo.status !== MediaStatus.PARTIALLY_AVAILABLE)
     );
   }
 
   if (settings.currentSettings.hideBlocklisted) {
     titles = titles.filter(
       (i) =>
-        (i.mediaType === 'movie' || i.mediaType === 'tv') &&
-        i.mediaInfo?.status !== MediaStatus.BLOCKLISTED
+        !('mediaInfo' in i) ||
+        !i.mediaInfo ||
+        i.mediaInfo.status !== MediaStatus.BLOCKLISTED
     );
   }
 
