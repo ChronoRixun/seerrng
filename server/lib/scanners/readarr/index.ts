@@ -1,5 +1,8 @@
 import type { ReadarrBook } from '@server/api/servarr/readarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
+import { MediaStatus, MediaType } from '@server/constants/media';
+import { getRepository } from '@server/datasource';
+import Media from '@server/entity/Media';
 import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type {
   RunnableScanner,
@@ -22,6 +25,8 @@ class ReadarrScanner
   private servers: ReadarrSettings[];
   private currentServer: ReadarrSettings;
   private readarrApi: ReadarrAPI;
+  private scannedIdentifierKeys: Set<string> = new Set();
+  private didScan = false;
 
   constructor() {
     super('Readarr Scan', { bundleSize: 50 });
@@ -40,6 +45,8 @@ class ReadarrScanner
   public async run(): Promise<void> {
     const settings = getSettings();
     const sessionId = this.startRun();
+    this.scannedIdentifierKeys.clear();
+    this.didScan = false;
 
     try {
       this.servers = uniqWith(settings.readarr, (readarrA, readarrB) => {
@@ -64,12 +71,18 @@ class ReadarrScanner
           });
 
           this.items = await this.readarrApi.getBooks();
+          this.didScan = true;
           await this.loop(this.processReadarrBook.bind(this), { sessionId });
         } else {
           this.log(`Sync not enabled. Skipping Readarr server: ${server.name}`);
         }
       }
 
+      if (!this.servers.every((server) => server.syncEnabled)) {
+        this.didScan = false;
+      }
+
+      await this.cleanupOrphanedBooks();
       this.log('Readarr scan complete', 'info');
     } catch (e) {
       this.log('Scan interrupted', 'error', { errorMessage: e.message });
@@ -80,10 +93,6 @@ class ReadarrScanner
 
   private async processReadarrBook(readarrBook: ReadarrBook): Promise<void> {
     try {
-      if (!readarrBook.monitored) {
-        return;
-      }
-
       const identifier =
         readarrBook.editions?.find((edition) => edition.isbn13)?.isbn13 ??
         readarrBook.foreignBookId;
@@ -128,8 +137,32 @@ class ReadarrScanner
           value: string;
         } => !!item && !(item.provider === provider && item.value === identifier)
       );
+
+      [
+        { provider, value: identifier },
+        ...secondaryIdentifiers,
+      ].forEach((item) =>
+        this.scannedIdentifierKeys.add(`${item.provider}:${item.value}`)
+      );
+
       const hasFile = (readarrBook.statistics?.bookFileCount ?? 0) > 0;
       const totalBooks = readarrBook.statistics?.totalBookCount ?? 1;
+
+      if (!readarrBook.monitored) {
+        await this.processBook(provider, identifier, {
+          serviceId: this.currentServer.id,
+          externalServiceId: readarrBook.id,
+          externalServiceSlug: readarrBook.titleSlug ?? readarrBook.foreignBookId,
+          title: readarrBook.title,
+          mediaAddedAt: readarrBook.added
+            ? new Date(readarrBook.added)
+            : undefined,
+          hasFile: false,
+          secondaryIdentifiers,
+          processing: false,
+        });
+        return;
+      }
 
       await this.processBook(provider, identifier, {
         serviceId: this.currentServer.id,
@@ -152,6 +185,41 @@ class ReadarrScanner
         errorMessage: e.message,
         title: readarrBook.title,
       });
+    }
+  }
+
+  private async cleanupOrphanedBooks(): Promise<void> {
+    const mediaRepository = getRepository(Media);
+
+    if (!this.didScan) {
+      this.log(
+        'Skipping orphaned book cleanup: not all Readarr servers were scanned.',
+        'info'
+      );
+      return;
+    }
+
+    const processingBooks = await mediaRepository.find({
+      where: { mediaType: MediaType.BOOK, status: MediaStatus.PROCESSING },
+      relations: { identifiers: true },
+    });
+
+    for (const media of processingBooks) {
+      const identifierKeys = (media.identifiers ?? []).map(
+        (identifier) => `${identifier.provider}:${identifier.value}`
+      );
+
+      if (
+        identifierKeys.length > 0 &&
+        !identifierKeys.some((key) => this.scannedIdentifierKeys.has(key))
+      ) {
+        media.status = MediaStatus.UNKNOWN;
+        await mediaRepository.save(media);
+        this.log(
+          `Book ${identifierKeys[0]} not found in any Readarr server. Status reset to UNKNOWN.`,
+          'info'
+        );
+      }
     }
   }
 }

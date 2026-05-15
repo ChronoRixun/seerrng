@@ -1,5 +1,8 @@
 import type { LidarrAlbum } from '@server/api/servarr/lidarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
+import { MediaStatus, MediaType } from '@server/constants/media';
+import { getRepository } from '@server/datasource';
+import Media from '@server/entity/Media';
 import type {
   RunnableScanner,
   StatusBase,
@@ -21,6 +24,8 @@ class LidarrScanner
   private servers: LidarrSettings[];
   private currentServer: LidarrSettings;
   private lidarrApi: LidarrAPI;
+  private scannedMbIds: Set<string> = new Set();
+  private didScan = false;
 
   constructor() {
     super('Lidarr Scan', { bundleSize: 50 });
@@ -39,6 +44,8 @@ class LidarrScanner
   public async run(): Promise<void> {
     const settings = getSettings();
     const sessionId = this.startRun();
+    this.scannedMbIds.clear();
+    this.didScan = false;
 
     try {
       this.servers = uniqWith(settings.lidarr, (lidarrA, lidarrB) => {
@@ -63,12 +70,18 @@ class LidarrScanner
           });
 
           this.items = await this.lidarrApi.getAlbums();
+          this.didScan = true;
           await this.loop(this.processLidarrAlbum.bind(this), { sessionId });
         } else {
           this.log(`Sync not enabled. Skipping Lidarr server: ${server.name}`);
         }
       }
 
+      if (!this.servers.every((server) => server.syncEnabled)) {
+        this.didScan = false;
+      }
+
+      await this.cleanupOrphanedAlbums();
       this.log('Lidarr scan complete', 'info');
     } catch (e) {
       this.log('Scan interrupted', 'error', { errorMessage: e.message });
@@ -79,10 +92,6 @@ class LidarrScanner
 
   private async processLidarrAlbum(lidarrAlbum: LidarrAlbum): Promise<void> {
     try {
-      if (!lidarrAlbum.monitored) {
-        return;
-      }
-
       const mbId = lidarrAlbum.foreignAlbumId;
       if (!mbId) {
         this.log(
@@ -92,6 +101,20 @@ class LidarrScanner
             title: lidarrAlbum.title,
           }
         );
+        return;
+      }
+
+      this.scannedMbIds.add(mbId);
+
+      if (!lidarrAlbum.monitored) {
+        await this.processMusic(mbId, {
+          serviceId: this.currentServer.id,
+          externalServiceId: lidarrAlbum.id,
+          externalServiceSlug: mbId,
+          title: lidarrAlbum.title,
+          processing: false,
+          hasFile: false,
+        });
         return;
       }
 
@@ -111,6 +134,33 @@ class LidarrScanner
         errorMessage: e.message,
         title: lidarrAlbum.title,
       });
+    }
+  }
+
+  private async cleanupOrphanedAlbums(): Promise<void> {
+    const mediaRepository = getRepository(Media);
+
+    if (!this.didScan) {
+      this.log(
+        'Skipping orphaned album cleanup: not all Lidarr servers were scanned.',
+        'info'
+      );
+      return;
+    }
+
+    const processingAlbums = await mediaRepository.find({
+      where: { mediaType: MediaType.MUSIC, status: MediaStatus.PROCESSING },
+    });
+
+    for (const media of processingAlbums) {
+      if (media.mbId && !this.scannedMbIds.has(media.mbId)) {
+        media.status = MediaStatus.UNKNOWN;
+        await mediaRepository.save(media);
+        this.log(
+          `Album ${media.mbId} not found in any Lidarr server. Status reset to UNKNOWN.`,
+          'info'
+        );
+      }
     }
   }
 }
