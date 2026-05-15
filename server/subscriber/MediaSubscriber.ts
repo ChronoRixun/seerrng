@@ -13,6 +13,37 @@ import { EventSubscriber, In } from 'typeorm';
 
 @EventSubscriber()
 export class MediaSubscriber implements EntitySubscriberInterface<Media> {
+  private isBookRequestSatisfied(media: Media, request: MediaRequest): boolean {
+    if (media.status === MediaStatus.DELETED) {
+      return true;
+    }
+
+    if (media.status !== MediaStatus.AVAILABLE) {
+      return false;
+    }
+
+    const hasEbook =
+      media.serviceId !== null &&
+      media.serviceId !== undefined &&
+      media.externalServiceId !== null &&
+      media.externalServiceId !== undefined;
+    const hasAudiobook =
+      media.audiobookServiceId !== null &&
+      media.audiobookServiceId !== undefined &&
+      media.audiobookExternalServiceId !== null &&
+      media.audiobookExternalServiceId !== undefined;
+
+    if (request.bookFormat === 'audiobook') {
+      return hasAudiobook;
+    }
+
+    if (request.bookFormat === 'both') {
+      return hasEbook && hasAudiobook;
+    }
+
+    return hasEbook;
+  }
+
   private async updateChildRequestStatus(event: Media, is4k: boolean) {
     const requestRepository = getRepository(MediaRequest);
 
@@ -23,7 +54,9 @@ export class MediaSubscriber implements EntitySubscriberInterface<Media> {
     for (const request of requests) {
       if (
         request.is4k === is4k &&
-        request.status === MediaRequestStatus.PENDING
+        request.status === MediaRequestStatus.PENDING &&
+        (event.mediaType !== MediaType.BOOK ||
+          this.isBookRequestSatisfied(event, request))
       ) {
         request.status = MediaRequestStatus.APPROVED;
         await requestRepository.save(request);
@@ -64,10 +97,11 @@ export class MediaSubscriber implements EntitySubscriberInterface<Media> {
             event[request.is4k ? 'status4k' : 'status'] ===
               MediaStatus.DELETED) &&
           (event.mediaType === MediaType.MOVIE ||
-            event.mediaType === MediaType.MUSIC ||
-            event.mediaType === MediaType.BOOK)
+            event.mediaType === MediaType.MUSIC)
         ) {
           shouldComplete = true;
+        } else if (event.mediaType === MediaType.BOOK) {
+          shouldComplete = this.isBookRequestSatisfied(event, request);
         } else if (event.mediaType === 'tv') {
           const allSeasonResults = await Promise.all(
             request.seasons.map(async (requestSeason) => {
