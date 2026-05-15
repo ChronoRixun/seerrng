@@ -271,7 +271,7 @@ const IssueDetails = () => {
       {backdropPath && (
         <div className="media-page-bg-image">
           <CachedImage
-            type={isMusic(data) || isBook(data) ? 'music' : 'tmdb'}
+            type={isBook(data) ? 'book' : isMusic(data) ? 'music' : 'tmdb'}
             alt=""
             src={backdropPath}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -290,7 +290,7 @@ const IssueDetails = () => {
       <div className="media-header">
         <div className="media-poster">
           <CachedImage
-            type={isMusic(data) || isBook(data) ? 'music' : 'tmdb'}
+            type={isBook(data) ? 'book' : isMusic(data) ? 'music' : 'tmdb'}
             src={posterPath ?? '/images/seerr_poster_not_found.png'}
             alt=""
             sizes="100vw"

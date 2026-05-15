@@ -385,7 +385,13 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
             className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
           >
             <CachedImage
-              type={title && (isMusic(title) || isBook(title)) ? 'music' : 'tmdb'}
+              type={
+                title && isBook(title)
+                  ? 'book'
+                  : title && isMusic(title)
+                    ? 'music'
+                    : 'tmdb'
+              }
               src={
                 title && (isMusic(title) || isBook(title)) && title.posterPath
                   ? title.posterPath

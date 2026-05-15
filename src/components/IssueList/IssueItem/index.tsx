@@ -177,7 +177,7 @@ const IssueItem = ({ issue }: IssueItemProps) => {
             className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
           >
             <CachedImage
-              type={isMusic(title) || isBook(title) ? 'music' : 'tmdb'}
+              type={isBook(title) ? 'book' : isMusic(title) ? 'music' : 'tmdb'}
               src={
                 (isMusic(title) || isBook(title)) && title.posterPath
                   ? title.posterPath

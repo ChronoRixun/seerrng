@@ -536,7 +536,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
             >
               <CachedImage
                 type={
-                  isMusic(title) || isBook(title) ? 'music' : 'tmdb'
+                  isBook(title) ? 'book' : isMusic(title) ? 'music' : 'tmdb'
                 }
                 src={
                   (isMusic(title) || isBook(title)) && title.posterPath
