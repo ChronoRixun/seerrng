@@ -1,3 +1,5 @@
+import type { MediaType } from '@server/constants/media';
+
 export interface GenreSliderItem {
   id: number;
   name: string;
@@ -8,7 +10,7 @@ export interface WatchlistItem {
   id: number;
   ratingKey: string;
   tmdbId: number;
-  mediaType: 'movie' | 'tv';
+  mediaType: MediaType;
   title: string;
 }
 

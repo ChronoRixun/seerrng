@@ -10,7 +10,12 @@ export type AvailableCacheIds =
   | 'plexguid'
   | 'plextv'
   | 'plexwatchlist'
-  | 'tvdb';
+  | 'tvdb'
+  | 'lidarr'
+  | 'musicbrainz'
+  | 'listenbrainz'
+  | 'coverartarchive'
+  | 'tadb';
 
 const DEFAULT_TTL = 300;
 const DEFAULT_CHECK_PERIOD = 120;
@@ -73,6 +78,23 @@ class CacheManager {
     plexwatchlist: new Cache('plexwatchlist', 'Plex Watchlist'),
     tvdb: new Cache('tvdb', 'The TVDB API', {
       stdTtl: 21600,
+      checkPeriod: 60 * 30,
+    }),
+    lidarr: new Cache('lidarr', 'Lidarr API'),
+    musicbrainz: new Cache('musicbrainz', 'MusicBrainz API', {
+      stdTtl: 21600,
+      checkPeriod: 60 * 30,
+    }),
+    listenbrainz: new Cache('listenbrainz', 'ListenBrainz API', {
+      stdTtl: 21600,
+      checkPeriod: 60 * 30,
+    }),
+    coverartarchive: new Cache('coverartarchive', 'Cover Art Archive API', {
+      stdTtl: 43200,
+      checkPeriod: 60 * 30,
+    }),
+    tadb: new Cache('tadb', 'TheAudioDB API', {
+      stdTtl: 43200,
       checkPeriod: 60 * 30,
     }),
   };

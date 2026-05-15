@@ -234,6 +234,12 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
                 ?.profiles?.find((profile) => profile.id === r.profileId)?.name,
             };
           }
+          default: {
+            return {
+              ...r,
+              profileName: undefined,
+            };
+          }
         }
       });
 
@@ -261,6 +267,12 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
                     server.id ===
                     (r.is4k ? r.media.serviceId4k : r.media.serviceId)
                 ),
+              };
+            }
+            default: {
+              return {
+                ...r,
+                canRemove: false,
               };
             }
           }

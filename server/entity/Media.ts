@@ -185,6 +185,10 @@ class Media {
   @Column({ nullable: true, type: 'varchar' })
   public jellyfinMediaId4k?: string | null;
 
+  @Column({ nullable: true, type: 'varchar' })
+  @Index()
+  public mbId?: string | null;
+
   public serviceUrl?: string;
   public serviceUrl4k?: string;
   public downloadStatus?: DownloadingItem[] = [];

@@ -29,6 +29,9 @@ export enum Permission {
   WATCHLIST_VIEW = 134217728,
   MANAGE_BLOCKLIST = 268435456,
   VIEW_BLOCKLIST = 1073741824,
+  AUTO_APPROVE_MUSIC = 2147483648,
+  REQUEST_MUSIC = 4294967296,
+  AUTO_REQUEST_MUSIC = 8589934592,
 }
 
 export interface PermissionCheckOptions {
@@ -49,26 +52,30 @@ export const hasPermission = (
   value: number,
   options: PermissionCheckOptions = { type: 'and' }
 ): boolean => {
-  let total = 0;
-
   // If we are not checking any permissions, bail out and return true
   if (permissions === 0) {
     return true;
   }
 
+  const bigValue = BigInt(value);
+
   if (Array.isArray(permissions)) {
-    if (value & Permission.ADMIN) {
+    if (bigValue & BigInt(Permission.ADMIN)) {
       return true;
     }
     switch (options.type) {
       case 'and':
-        return permissions.every((permission) => !!(value & permission));
+        return permissions.every(
+          (permission) => !!(bigValue & BigInt(permission))
+        );
       case 'or':
-        return permissions.some((permission) => !!(value & permission));
+        return permissions.some(
+          (permission) => !!(bigValue & BigInt(permission))
+        );
     }
-  } else {
-    total = permissions;
   }
 
-  return !!(value & Permission.ADMIN) || !!(value & total);
+  const bigTotal = BigInt(permissions);
+
+  return !!(bigValue & BigInt(Permission.ADMIN)) || !!(bigValue & bigTotal);
 };
