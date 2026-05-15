@@ -302,6 +302,7 @@ const BookRequestModal = ({
           <AdvancedRequester
             type="book"
             is4k={false}
+            bookFormat={bookFormat}
             requestUser={editRequest.requestedBy}
             defaultOverrides={{
               folder: editRequest.rootFolder,
@@ -400,6 +401,7 @@ const BookRequestModal = ({
         <AdvancedRequester
           type="book"
           is4k={false}
+          bookFormat={bookFormat}
           onChange={(overrides) => setRequestOverrides(overrides)}
         />
       )}

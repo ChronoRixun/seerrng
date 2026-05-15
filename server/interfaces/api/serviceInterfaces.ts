@@ -15,6 +15,7 @@ export interface ServiceCommonServer {
   activeAnimeLanguageProfileId?: number;
   activeTags: number[];
   activeAnimeTags?: number[];
+  serviceType?: 'ebook' | 'audiobook';
 }
 
 export interface ServiceCommonServerWithDetails {

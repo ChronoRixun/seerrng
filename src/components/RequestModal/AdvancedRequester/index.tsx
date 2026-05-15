@@ -55,6 +55,7 @@ interface AdvancedRequesterProps {
   type: 'movie' | 'tv' | 'music' | 'book';
   is4k: boolean;
   isAnime?: boolean;
+  bookFormat?: 'ebook' | 'audiobook' | 'both';
   defaultOverrides?: RequestOverrides;
   requestUser?: User;
   onChange: (overrides: RequestOverrides) => void;
@@ -64,6 +65,7 @@ const AdvancedRequester = ({
   type,
   is4k = false,
   isAnime = false,
+  bookFormat,
   defaultOverrides,
   requestUser,
   onChange,
@@ -124,6 +126,7 @@ const AdvancedRequester = ({
   const [selectedUser, setSelectedUser] = useState<User | null>(
     requestUser ?? null
   );
+  const bookServiceType = bookFormat === 'audiobook' ? 'audiobook' : 'ebook';
 
   const { data: userData } = useSWR<UserResultsResponse>(
     currentHasPermission([Permission.MANAGE_REQUESTS, Permission.MANAGE_USERS])
@@ -167,9 +170,18 @@ const AdvancedRequester = ({
   }, [filteredUserData]);
 
   useEffect(() => {
-    let defaultServer = data?.find(
-      (server) => server.isDefault && is4k === server.is4k
-    );
+    let defaultServer = data?.find((server) => {
+      const formatMatches =
+        type !== 'book' || (server.serviceType ?? 'ebook') === bookServiceType;
+
+      return server.isDefault && is4k === server.is4k && formatMatches;
+    });
+
+    if (!defaultServer && type === 'book') {
+      defaultServer = data?.find(
+        (server) => (server.serviceType ?? 'ebook') === bookServiceType
+      );
+    }
 
     if (!defaultServer && (data ?? []).length > 0) {
       defaultServer = data?.[0];
@@ -182,7 +194,7 @@ const AdvancedRequester = ({
     ) {
       setSelectedServer(defaultServer.id);
     }
-  }, [data]);
+  }, [data, bookServiceType, type]);
 
   useEffect(() => {
     if (serverData) {

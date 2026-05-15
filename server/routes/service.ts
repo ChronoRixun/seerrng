@@ -201,6 +201,7 @@ serviceRoutes.get('/readarr', async (_req, res) => {
       activeProfileId: readarr.activeProfileId,
       activeMetadataProfileId: readarr.activeMetadataProfileId,
       activeTags: readarr.tags ?? [],
+      serviceType: readarr.serviceType ?? 'ebook',
     })
   );
 
@@ -244,6 +245,7 @@ serviceRoutes.get<{ readarrId: string }>(
           activeProfileId: readarrSettings.activeProfileId,
           activeMetadataProfileId: readarrSettings.activeMetadataProfileId,
           activeTags: readarrSettings.tags,
+          serviceType: readarrSettings.serviceType ?? 'ebook',
         },
         profiles: profiles.map((profile) => ({
           id: profile.id,
