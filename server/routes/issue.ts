@@ -53,6 +53,7 @@ issueRoutes.get<Record<string, string>, IssueResultsResponse>(
       .createQueryBuilder('issue')
       .leftJoinAndSelect('issue.createdBy', 'createdBy')
       .leftJoinAndSelect('issue.media', 'media')
+      .leftJoinAndSelect('media.identifiers', 'identifiers')
       .leftJoinAndSelect('issue.modifiedBy', 'modifiedBy')
       .leftJoinAndSelect('issue.comments', 'comments')
       .where('issue.status IN (:...issueStatus)', {
@@ -233,6 +234,7 @@ issueRoutes.get<{ issueId: string }>(
         .leftJoinAndSelect('issue.createdBy', 'createdBy')
         .leftJoinAndSelect('comments.user', 'user')
         .leftJoinAndSelect('issue.media', 'media')
+        .leftJoinAndSelect('media.identifiers', 'identifiers')
         .where('issue.id = :issueId', { issueId: Number(req.params.issueId) })
         .getOneOrFail();
 
