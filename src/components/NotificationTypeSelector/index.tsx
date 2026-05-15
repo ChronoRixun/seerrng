@@ -31,9 +31,9 @@ const messages = defineMessages('components.NotificationTypeSelector', {
     'Get notified when your media requests become available.',
   mediafailed: 'Request Processing Failed',
   mediafailedDescription:
-    'Send notifications when media requests fail to be added to Radarr, Sonarr, Lidarr, or Readarr.',
+    'Send notifications when media requests fail to be added to Radarr, Sonarr, Lidarr, or Bookshelf.',
   usermediafailedDescription:
-    'Get notified when media requests fail to be added to Radarr, Sonarr, Lidarr, or Readarr.',
+    'Get notified when media requests fail to be added to Radarr, Sonarr, Lidarr, or Bookshelf.',
   mediadeclined: 'Request Declined',
   mediadeclinedDescription:
     'Send notifications when media requests are declined.',

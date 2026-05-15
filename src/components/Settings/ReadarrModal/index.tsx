@@ -12,8 +12,8 @@ import { useIntl } from 'react-intl';
 import * as Yup from 'yup';
 
 const messages = defineMessages('components.Settings.ReadarrModal', {
-  createreadarr: 'Add New Readarr Server',
-  editreadarr: 'Edit Readarr Server',
+  createreadarr: 'Add New Bookshelf Server',
+  editreadarr: 'Edit Bookshelf Server',
   validationNameRequired: 'You must provide a server name',
   validationHostnameRequired: 'You must provide a valid hostname or IP address',
   validationPortRequired: 'You must provide a valid port number',
@@ -25,8 +25,8 @@ const messages = defineMessages('components.Settings.ReadarrModal', {
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
   validationBaseUrlLeadingSlash: 'Base URL must have a leading slash',
   validationBaseUrlTrailingSlash: 'Base URL must not end in a trailing slash',
-  toastReadarrTestSuccess: 'Readarr connection established successfully!',
-  toastReadarrTestFailure: 'Failed to connect to Readarr.',
+  toastReadarrTestSuccess: 'Bookshelf connection established successfully!',
+  toastReadarrTestFailure: 'Failed to connect to Bookshelf.',
   add: 'Add Server',
   defaultserver: 'Default Server',
   servername: 'Server Name',
@@ -53,6 +53,8 @@ const messages = defineMessages('components.Settings.ReadarrModal', {
   serviceType: 'Book Format',
   ebook: 'Ebook',
   audiobook: 'Audiobook',
+  compatibilityNote:
+    'Bookshelf is the recommended book backend. Readarr-compatible servers can also be used.',
 });
 
 interface TestResponse {
@@ -327,6 +329,9 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
             }
           >
             <div className="mb-6">
+              <p className="description">
+                {intl.formatMessage(messages.compatibilityNote)}
+              </p>
               <div className="form-row">
                 <label htmlFor="isDefault" className="checkbox-label">
                   {intl.formatMessage(messages.defaultserver)}

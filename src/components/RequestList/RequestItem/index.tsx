@@ -866,7 +866,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                             : request.type === 'music'
                               ? 'Lidarr'
                               : request.type === 'book'
-                                ? 'Readarr'
+                                ? 'Bookshelf'
                                 : 'Sonarr',
                       })}
                     </span>

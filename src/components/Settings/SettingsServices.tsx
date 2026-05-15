@@ -40,7 +40,7 @@ const messages = defineMessages('components.Settings', {
   radarrsettings: 'Radarr Settings',
   sonarrsettings: 'Sonarr Settings',
   lidarrsettings: 'Lidarr Settings',
-  readarrsettings: 'Readarr Settings',
+  readarrsettings: 'Bookshelf Settings',
   videoServiceSettingsDescription:
     'Configure your {serverType} server(s) below. You can connect multiple {serverType} servers, but only two of them can be marked as defaults (one non-4K and one 4K). Administrators are able to override the server used to process new requests prior to approval.',
   musicServiceSettingsDescription:
@@ -55,7 +55,7 @@ const messages = defineMessages('components.Settings', {
   addradarr: 'Add Radarr Server',
   addsonarr: 'Add Sonarr Server',
   addlidarr: 'Add Lidarr Server',
-  addreadarr: 'Add Readarr Server',
+  addreadarr: 'Add Bookshelf Server',
   noDefaultServer:
     'At least one {serverType} server must be marked as default in order for {mediaType} requests to be processed.',
   noDefaultNon4kServer:
@@ -410,7 +410,7 @@ const SettingsServices = () => {
                   ? 'Sonarr'
                   : deleteServerModal.type === 'lidarr'
                     ? 'Lidarr'
-                    : 'Readarr',
+                    : 'Bookshelf',
           })}
         >
           {intl.formatMessage(messages.deleteserverconfirm)}
@@ -650,7 +650,7 @@ const SettingsServices = () => {
         </h3>
         <p className="description">
           {intl.formatMessage(messages.musicServiceSettingsDescription, {
-            serverType: 'Readarr',
+            serverType: 'Bookshelf',
           })}
         </p>
       </div>
@@ -662,7 +662,7 @@ const SettingsServices = () => {
               (!readarrData.some((readarr) => readarr.isDefault) ? (
                 <Alert
                   title={intl.formatMessage(messages.noDefaultServer, {
-                    serverType: 'Readarr',
+                    serverType: 'Bookshelf',
                     mediaType: intl.formatMessage(messages.mediaTypeBook),
                   })}
                 />

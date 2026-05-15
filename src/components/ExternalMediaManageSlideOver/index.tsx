@@ -60,7 +60,7 @@ const ExternalMediaManageSlideOver = ({
   const intl = useIntl();
   const { hasPermission } = useUser();
   const mediaInfo = data.mediaInfo;
-  const arrName = mediaType === MediaType.MUSIC ? 'Lidarr' : 'Readarr';
+  const arrName = mediaType === MediaType.MUSIC ? 'Lidarr' : 'Bookshelf';
   const externalId =
     mediaType === MediaType.MUSIC ? (data as MusicDetails).mbId : data.id;
   const mediaLabel = intl.formatMessage(

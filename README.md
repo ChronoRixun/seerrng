@@ -24,9 +24,9 @@ SeerrNG is targeting first-class request and availability workflows for:
 
 - Movies and TV via the inherited Radarr/Sonarr integrations.
 - Music via Lidarr, MusicBrainz, ListenBrainz, and Cover Art Archive.
-- Books via Readarr, Hardcover/ISBN identifiers, and library backends where practical.
+- Books via [Bookshelf](https://github.com/pennydreadful/bookshelf) (Readarr-compatible), Hardcover/ISBN identifiers, and library backends where practical.
 
-The implementation priority is to stabilize music first, then add books behind a clean identifier and format model instead of forcing everything through movie/TV-shaped IDs.
+The implementation priority is to stabilize music first, then add books behind a clean identifier and format model instead of forcing everything through movie/TV-shaped IDs. Bookshelf is the recommended book automation backend; SeerrNG currently talks to it through the Readarr-compatible API surface so standard Readarr-compatible installs can still be tested.
 
 ## Legal Use
 

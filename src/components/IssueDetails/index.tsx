@@ -238,7 +238,7 @@ const IssueDetails = () => {
         ? 'Sonarr'
         : issueData.media.mediaType === MediaType.MUSIC
           ? 'Lidarr'
-          : 'Readarr';
+          : 'Bookshelf';
 
   return (
     <div

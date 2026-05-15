@@ -58,7 +58,7 @@ const messages = defineMessages('components.Settings.SettingsNetwork', {
   dnsCacheForceMaxTtl: 'DNS Cache Maximum TTL',
   apiRequestTimeout: 'API Request Timeout',
   apiRequestTimeoutTip:
-    'Maximum time (in seconds) to wait for responses from external services like Radarr, Sonarr, Lidarr, or Readarr. Set to 0 for no timeout.',
+    'Maximum time (in seconds) to wait for responses from external services like Radarr, Sonarr, Lidarr, or Bookshelf. Set to 0 for no timeout.',
   validationApiRequestTimeout: 'You must provide a valid timeout value',
 });
 

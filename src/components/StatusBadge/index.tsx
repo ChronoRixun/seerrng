@@ -127,7 +127,7 @@ const StatusBadge = ({
           mediaType === 'music'
             ? 'Lidarr'
             : mediaType === 'book'
-              ? 'Readarr'
+              ? 'Bookshelf'
               : mediaType === 'movie'
                 ? 'Radarr'
                 : 'Sonarr',
