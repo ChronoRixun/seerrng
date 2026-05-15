@@ -277,13 +277,39 @@ export class MediaRequest {
       const openLibraryId = requestBody.mediaId
         .toString()
         .replace(/^\/?works\//, '');
-      await openLibrary.getWork(openLibraryId);
-
-      const existingIdentifier = await mediaIdentifierRepository.findOne({
-        where: {
+      const [, editions] = await Promise.all([
+        openLibrary.getWork(openLibraryId),
+        openLibrary.getWorkEditions(openLibraryId).catch(() => ({
+          size: 0,
+          entries: [],
+        })),
+      ]);
+      const requestIsbn =
+        requestBody.isbn13 ??
+        editions.entries.find((edition) => edition.isbn_13?.[0])?.isbn_13?.[0] ??
+        editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0];
+      const identifierCandidates = [
+        {
           provider: MediaIdentifierProvider.OPENLIBRARY,
           value: openLibraryId,
+          canonical: true,
         },
+        ...(requestIsbn
+          ? [
+              {
+                provider: MediaIdentifierProvider.ISBN,
+                value: requestIsbn,
+                canonical: false,
+              },
+            ]
+          : []),
+      ];
+
+      const existingIdentifier = await mediaIdentifierRepository.findOne({
+        where: identifierCandidates.map((identifier) => ({
+          provider: identifier.provider,
+          value: identifier.value,
+        })),
         relations: {
           media: {
             requests: true,
@@ -300,13 +326,14 @@ export class MediaRequest {
           status: MediaStatus.PENDING,
           status4k: MediaStatus.UNKNOWN,
           mediaType: MediaType.BOOK,
-          identifiers: [
-            new MediaIdentifier({
-              provider: MediaIdentifierProvider.OPENLIBRARY,
-              value: openLibraryId,
-              canonical: true,
-            }),
-          ],
+          identifiers: identifierCandidates.map(
+            (identifier) =>
+              new MediaIdentifier({
+                provider: identifier.provider,
+                value: identifier.value,
+                canonical: identifier.canonical,
+              })
+          ),
         });
       } else if (media.status === MediaStatus.BLOCKLISTED) {
         logger.warn('Request for book blocked due to being blocklisted', {
@@ -345,16 +372,35 @@ export class MediaRequest {
         );
       }
 
-      await mediaRepository.save(media);
+      media = await mediaRepository.save(media);
 
-      if (requestBody.isbn13) {
-        const hasIsbn = media.identifiers?.some(
+      for (const identifier of identifierCandidates) {
+        const hasIdentifier = media.identifiers?.some(
+          (existing) =>
+            existing.provider === identifier.provider &&
+            existing.value === identifier.value
+        );
+
+        if (!hasIdentifier) {
+          await mediaIdentifierRepository.save(
+            new MediaIdentifier({
+              media,
+              provider: identifier.provider,
+              value: identifier.value,
+              canonical: identifier.canonical,
+            })
+          );
+        }
+      }
+
+      if (requestBody.isbn13 && requestBody.isbn13 !== requestIsbn) {
+        const hasRequestIsbn = media.identifiers?.some(
           (identifier) =>
             identifier.provider === MediaIdentifierProvider.ISBN &&
             identifier.value === requestBody.isbn13
         );
 
-        if (!hasIsbn) {
+        if (!hasRequestIsbn) {
           await mediaIdentifierRepository.save(
             new MediaIdentifier({
               media,
