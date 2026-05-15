@@ -19,12 +19,14 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { RequestResultsResponse } from '@server/interfaces/api/requestInterfaces';
 import type { MovieDetails } from '@server/models/Movie';
 import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
+import type { BookDetails } from '@server/models/Book';
 import axios from 'axios';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -54,7 +56,7 @@ const messages = defineMessages('components.RequestList.RequestItem', {
 });
 
 const isMovie = (
-  media: MovieDetails | TvDetails | MusicDetails
+  media: MovieDetails | TvDetails | MusicDetails | BookDetails
 ): media is MovieDetails => {
   return (
     (media as MovieDetails).title !== undefined &&
@@ -63,10 +65,21 @@ const isMovie = (
 };
 
 const isMusic = (
-  media: MovieDetails | TvDetails | MusicDetails
+  media: MovieDetails | TvDetails | MusicDetails | BookDetails
 ): media is MusicDetails => {
   return (media as MusicDetails).artist !== undefined;
 };
+
+const isBook = (
+  media: MovieDetails | TvDetails | MusicDetails | BookDetails
+): media is BookDetails => {
+  return (media as BookDetails).mediaType === 'book';
+};
+
+const getBookId = (request: NonFunctionProperties<MediaRequest>) =>
+  request.media.identifiers?.find(
+    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+  )?.value;
 
 interface RequestItemErrorProps {
   requestData?: NonFunctionProperties<MediaRequest>;
@@ -342,11 +355,13 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
       ? `/api/v1/movie/${request.media.tmdbId}`
       : request.type === 'tv'
         ? `/api/v1/tv/${request.media.tmdbId}`
-        : `/api/v1/music/${request.media.mbId}`;
+        : request.type === 'music'
+          ? `/api/v1/music/${request.media.mbId}`
+          : `/api/v1/book/${getBookId(request)}`;
   const { data: title, error } = useSWR<
-    MovieDetails | TvDetails | MusicDetails
+    MovieDetails | TvDetails | MusicDetails | BookDetails
   >(
-    inView ? url : null
+    inView && !url.endsWith('/undefined') ? url : null
   );
   const { data: requestData, mutate: revalidate } = useSWR<
     NonFunctionProperties<MediaRequest>
@@ -444,14 +459,23 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
     <>
       <RequestModal
         show={showEditModal}
-        tmdbId={request.type === 'music' ? undefined : request.media.tmdbId}
-        mbId={request.type === 'music' ? request.media.mbId ?? undefined : undefined}
+        tmdbId={
+          request.type === 'music' || request.type === 'book'
+            ? undefined
+            : request.media.tmdbId
+        }
+        mbId={
+          request.type === 'music' ? request.media.mbId ?? undefined : undefined
+        }
+        bookId={request.type === 'book' ? getBookId(request) : undefined}
         type={
           request.type === 'music'
             ? 'music'
-            : request.type === 'tv'
-              ? 'tv'
-              : 'movie'
+            : request.type === 'book'
+              ? 'book'
+              : request.type === 'tv'
+                ? 'tv'
+                : 'movie'
         }
         is4k={request.is4k}
         editRequest={request}
@@ -462,7 +486,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
         }}
       />
       <div className="relative flex w-full flex-col justify-between overflow-hidden rounded-xl bg-gray-800 py-2 text-gray-400 shadow-md ring-1 ring-gray-700 xl:h-28 xl:flex-row">
-        {!isMusic(title) && title.backdropPath && (
+        {!isMusic(title) && !isBook(title) && title.backdropPath && (
           <div className="absolute inset-0 z-0 w-full bg-cover bg-center xl:w-2/3">
             <CachedImage
               type="tmdb"
@@ -488,16 +512,20 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   ? `/movie/${requestData.media.tmdbId}`
                   : requestData.type === 'tv'
                     ? `/tv/${requestData.media.tmdbId}`
-                    : `/music/${requestData.media.mbId}`
+                    : requestData.type === 'music'
+                      ? `/music/${requestData.media.mbId}`
+                      : `/book/${getBookId(requestData)}`
               }
               className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
             >
               <CachedImage
-                type={isMusic(title) ? 'music' : 'tmdb'}
+                type={
+                  isMusic(title) || isBook(title) ? 'music' : 'tmdb'
+                }
                 src={
-                  isMusic(title) && title.posterPath
+                  (isMusic(title) || isBook(title)) && title.posterPath
                     ? title.posterPath
-                    : !isMusic(title) && title.posterPath
+                    : !isMusic(title) && !isBook(title) && title.posterPath
                     ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
                     : '/images/seerr_poster_not_found.png'
                 }
@@ -514,7 +542,9 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   ? title.releaseDate
                   : isMusic(title)
                     ? title.releaseDate
-                    : title.firstAirDate
+                    : isBook(title)
+                      ? title.firstPublishYear?.toString()
+                      : title.firstAirDate
                 )?.slice(0, 4)}
               </div>
               <Link
@@ -523,7 +553,9 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   ? `/movie/${requestData.media.tmdbId}`
                   : requestData.type === 'tv'
                     ? `/tv/${requestData.media.tmdbId}`
-                    : `/music/${requestData.media.mbId}`
+                    : requestData.type === 'music'
+                      ? `/music/${requestData.media.mbId}`
+                      : `/book/${getBookId(requestData)}`
                 }
                 className="mr-2 min-w-0 truncate text-lg font-bold text-white hover:underline xl:text-xl"
               >
@@ -531,9 +563,14 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   ? title.title
                   : isMusic(title)
                     ? title.title
-                    : title.name}
+                    : isBook(title)
+                      ? title.title
+                      : title.name}
               </Link>
-              {!isMovie(title) && !isMusic(title) && request.seasons.length > 0 && (
+              {!isMovie(title) &&
+                !isMusic(title) &&
+                !isBook(title) &&
+                request.seasons.length > 0 && (
                 <div className="card-field">
                   <span className="card-field-name">
                     {intl.formatMessage(messages.seasons, {
@@ -567,7 +604,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               ) : requestData.status === MediaRequestStatus.FAILED ? (
                 <Badge
                   badgeType="danger"
-                  href={`/${requestData.type}/${requestData.media.tmdbId}?manage=1`}
+                  href={
+                    requestData.type === 'book'
+                      ? `/book/${getBookId(requestData)}`
+                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                  }
                 >
                   {intl.formatMessage(globalMessages.failed)}
                 </Badge>
@@ -579,7 +620,9 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   href={
                     requestData.type === 'music'
                       ? `/music/${requestData.media.mbId}`
-                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                      : requestData.type === 'book'
+                        ? `/book/${getBookId(requestData)}`
+                        : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
                   }
                 >
                   {intl.formatMessage(globalMessages.pending)}
@@ -599,7 +642,9 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                       ? title.title
                       : isMusic(title)
                         ? title.title
-                        : title.name
+                        : isBook(title)
+                          ? title.title
+                          : title.name
                   }
                   inProgress={
                     (
@@ -612,6 +657,8 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   tmdbId={
                     requestData.type === 'music'
                       ? undefined
+                      : requestData.type === 'book'
+                        ? undefined
                       : requestData.media.tmdbId
                   }
                   mbId={
@@ -622,9 +669,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   mediaType={
                     requestData.type === 'music'
                       ? 'music'
-                      : requestData.type === 'tv'
-                        ? 'tv'
-                        : 'movie'
+                      : requestData.type === 'book'
+                        ? undefined
+                        : requestData.type === 'tv'
+                          ? 'tv'
+                          : 'movie'
                   }
                   plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
                   serviceUrl={

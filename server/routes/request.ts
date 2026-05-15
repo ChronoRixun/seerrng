@@ -130,6 +130,7 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         .leftJoinAndSelect('request.seasons', 'seasons')
         .leftJoinAndSelect('request.modifiedBy', 'modifiedBy')
         .leftJoinAndSelect('request.requestedBy', 'requestedBy')
+        .leftJoinAndSelect('media.identifiers', 'identifiers')
         .where('request.status IN (:...requestStatus)', {
           requestStatus: statusFilter,
         })
@@ -545,7 +546,11 @@ requestRoutes.get('/:requestId', async (req, res, next) => {
   try {
     const request = await requestRepository.findOneOrFail({
       where: { id: Number(req.params.requestId) },
-      relations: { requestedBy: true, modifiedBy: true },
+      relations: {
+        requestedBy: true,
+        modifiedBy: true,
+        media: { identifiers: true },
+      },
     });
 
     if (

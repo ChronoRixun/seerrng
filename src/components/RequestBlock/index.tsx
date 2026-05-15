@@ -17,6 +17,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import { MediaRequestStatus } from '@server/constants/media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import axios from 'axios';
 import Link from 'next/link';
@@ -52,6 +53,9 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const { profile, rootFolder, server, languageProfile } =
     useRequestOverride(request);
+  const bookId = request.media?.identifiers?.find(
+    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+  )?.value;
 
   const updateRequest = async (type: 'approve' | 'decline'): Promise<void> => {
     setIsUpdating(true);
@@ -81,18 +85,25 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
       {request.media && (
         <RequestModal
           show={showEditModal}
-          tmdbId={request.type === 'music' ? undefined : request.media.tmdbId}
+          tmdbId={
+            request.type === 'music' || request.type === 'book'
+              ? undefined
+              : request.media.tmdbId
+          }
           mbId={
             request.type === 'music'
               ? request.media.mbId ?? undefined
               : undefined
           }
+          bookId={request.type === 'book' ? bookId : undefined}
           type={
             request.type === 'music'
               ? 'music'
-              : request.type === 'tv'
-                ? 'tv'
-                : 'movie'
+              : request.type === 'book'
+                ? 'book'
+                : request.type === 'tv'
+                  ? 'tv'
+                  : 'movie'
           }
           is4k={request.is4k}
           editRequest={request}

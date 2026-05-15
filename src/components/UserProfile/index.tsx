@@ -20,6 +20,7 @@ import type {
 import type { MovieDetails } from '@server/models/Movie';
 import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
+import type { BookDetails } from '@server/models/Book';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useState } from 'react';
@@ -44,7 +45,7 @@ const messages = defineMessages('components.UserProfile', {
     'Media added to your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink> will appear here.',
 });
 
-type MediaTitle = MovieDetails | TvDetails | MusicDetails;
+type MediaTitle = MovieDetails | TvDetails | MusicDetails | BookDetails;
 
 const hasBackdropPath = (
   media: MediaTitle

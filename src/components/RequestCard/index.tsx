@@ -20,11 +20,13 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { MovieDetails } from '@server/models/Movie';
 import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
+import type { BookDetails } from '@server/models/Book';
 import axios from 'axios';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -48,7 +50,7 @@ const messages = defineMessages('components.RequestCard', {
 });
 
 const isMovie = (
-  media: MovieDetails | TvDetails | MusicDetails
+  media: MovieDetails | TvDetails | MusicDetails | BookDetails
 ): media is MovieDetails => {
   return (
     (media as MovieDetails).title !== undefined &&
@@ -57,10 +59,21 @@ const isMovie = (
 };
 
 const isMusic = (
-  media: MovieDetails | TvDetails | MusicDetails
+  media: MovieDetails | TvDetails | MusicDetails | BookDetails
 ): media is MusicDetails => {
   return (media as MusicDetails).artist !== undefined;
 };
+
+const isBook = (
+  media: MovieDetails | TvDetails | MusicDetails | BookDetails
+): media is BookDetails => {
+  return (media as BookDetails).mediaType === 'book';
+};
+
+const getBookId = (request: NonFunctionProperties<MediaRequest>) =>
+  request.media.identifiers?.find(
+    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+  )?.value;
 
 const RequestCardPlaceholder = () => {
   return (
@@ -230,7 +243,7 @@ interface RequestCardProps {
   request: NonFunctionProperties<MediaRequest>;
   onTitleData?: (
     requestId: number,
-    title: MovieDetails | TvDetails | MusicDetails
+    title: MovieDetails | TvDetails | MusicDetails | BookDetails
   ) => void;
 }
 
@@ -251,12 +264,14 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
       ? `/api/v1/movie/${request.media.tmdbId}`
       : request.type === 'tv'
         ? `/api/v1/tv/${request.media.tmdbId}`
-        : `/api/v1/music/${request.media.mbId}`;
+        : request.type === 'music'
+          ? `/api/v1/music/${request.media.mbId}`
+          : `/api/v1/book/${getBookId(request)}`;
 
   const { data: title, error } = useSWR<
-    MovieDetails | TvDetails | MusicDetails
+    MovieDetails | TvDetails | MusicDetails | BookDetails
   >(
-    inView ? `${url}` : null
+    inView && !url.endsWith('/undefined') ? `${url}` : null
   );
   const {
     data: requestData,
@@ -350,16 +365,23 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     <>
       <RequestModal
         show={showEditModal}
-        tmdbId={request.type === 'music' ? undefined : request.media.tmdbId}
+        tmdbId={
+          request.type === 'music' || request.type === 'book'
+            ? undefined
+            : request.media.tmdbId
+        }
         mbId={
           request.type === 'music' ? request.media.mbId ?? undefined : undefined
         }
+        bookId={request.type === 'book' ? getBookId(request) : undefined}
         type={
           request.type === 'music'
             ? 'music'
-            : request.type === 'tv'
-              ? 'tv'
-              : 'movie'
+            : request.type === 'book'
+              ? 'book'
+              : request.type === 'tv'
+                ? 'tv'
+                : 'movie'
         }
         is4k={request.is4k}
         editRequest={request}
@@ -373,7 +395,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
         className="relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 ring-gray-700 sm:w-96"
         data-testid="request-card"
       >
-        {!isMusic(title) && title.backdropPath && (
+        {!isMusic(title) && !isBook(title) && title.backdropPath && (
           <div className="absolute inset-0 z-0">
             <CachedImage
               type="tmdb"
@@ -400,7 +422,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               ? title.releaseDate
               : isMusic(title)
                 ? title.releaseDate
-                : title.firstAirDate
+                : isBook(title)
+                  ? title.firstPublishYear?.toString()
+                  : title.firstAirDate
             )?.slice(0, 4)}
             {isMusic(title) && (
               <>
@@ -415,7 +439,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 ? `/movie/${requestData.media.tmdbId}`
                 : request.type === 'tv'
                   ? `/tv/${requestData.media.tmdbId}`
-                  : `/music/${requestData.media.mbId}`
+                  : requestData.type === 'music'
+                    ? `/music/${requestData.media.mbId}`
+                    : `/book/${getBookId(requestData)}`
             }
             className="overflow-hidden overflow-ellipsis whitespace-nowrap text-base font-bold text-white hover:underline sm:text-lg"
           >
@@ -423,7 +449,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               ? title.title
               : isMusic(title)
                 ? title.title
-                : title.name}
+                : isBook(title)
+                  ? title.title
+                  : title.name}
           </Link>
           {hasPermission(
             [Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW],
@@ -450,7 +478,10 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               </Link>
             </div>
           )}
-          {!isMovie(title) && !isMusic(title) && request.seasons.length > 0 && (
+          {!isMovie(title) &&
+            !isMusic(title) &&
+            !isBook(title) &&
+            request.seasons.length > 0 && (
             <div className="my-0.5 hidden items-center text-sm sm:my-1 sm:flex">
               <span className="mr-2 font-bold">
                 {intl.formatMessage(messages.seasons, {
@@ -484,7 +515,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 href={
                   requestData.type === 'music'
                     ? `/music/${requestData.media.mbId}`
-                    : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                    : requestData.type === 'book'
+                      ? `/book/${getBookId(requestData)}`
+                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
                 }
               >
                 {intl.formatMessage(globalMessages.failed)}
@@ -497,7 +530,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 href={
                   requestData.type === 'music'
                     ? `/music/${requestData.media.mbId}`
-                    : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                    : requestData.type === 'book'
+                      ? `/book/${getBookId(requestData)}`
+                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
                 }
               >
                 {intl.formatMessage(globalMessages.pending)}
@@ -517,7 +552,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                     ? title.title
                     : isMusic(title)
                       ? title.title
-                      : title.name
+                      : isBook(title)
+                        ? title.title
+                        : title.name
                 }
                 inProgress={
                   (
@@ -530,6 +567,8 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 tmdbId={
                   requestData.type === 'music'
                     ? undefined
+                    : requestData.type === 'book'
+                      ? undefined
                     : requestData.media.tmdbId
                 }
                 mbId={
@@ -540,9 +579,11 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 mediaType={
                   requestData.type === 'music'
                     ? 'music'
-                    : requestData.type === 'tv'
-                      ? 'tv'
-                      : 'movie'
+                    : requestData.type === 'book'
+                      ? undefined
+                      : requestData.type === 'tv'
+                        ? 'tv'
+                        : 'movie'
                 }
                 plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
                 serviceUrl={
