@@ -97,6 +97,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           omission: '…',
         }),
         media: latestMedia,
+        mediaUrl: `/movie/${latestMedia.tmdbId}`,
         image: `https://image.tmdb.org/t/p/w600_and_h900_bestv2${movie.poster_path}`,
         request: entity,
       });
@@ -169,6 +170,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         notifyUser: entity.requestedBy,
         image: `https://image.tmdb.org/t/p/w600_and_h900_bestv2${tv.poster_path}`,
         media: latestMedia,
+        mediaUrl: `/tv/${latestMedia.tmdbId}`,
         extra: [
           {
             name: 'Requested Seasons',
@@ -229,6 +231,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         }`,
         message: artistName,
         media: latestMedia,
+        mediaUrl: `/music/${mbId}`,
         image: album.caa_release_mbid
           ? `https://coverartarchive.org/release/${album.caa_release_mbid}/front-500`
           : undefined,
@@ -299,6 +302,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             })
           : undefined,
         media: latestMedia,
+        mediaUrl: `/book/${openLibraryId}`,
         image: coverId
           ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
           : undefined,
