@@ -906,4 +906,68 @@ describe('MediaRequestSubscriber service dispatch', () => {
     });
     assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
   });
+
+  it('resets stale music processing status when the last request is declined', async () => {
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'declined-release-group-id',
+        status: MediaStatus.PROCESSING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const request = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MUSIC,
+        status: MediaRequestStatus.DECLINED,
+        media,
+        requestedBy,
+        is4k: false,
+      })
+    );
+
+    await new MediaRequestSubscriber().updateParentStatus(request);
+
+    const updatedMedia = await getRepository(Media).findOneByOrFail({
+      id: media.id,
+    });
+    assert.equal(updatedMedia.status, MediaStatus.UNKNOWN);
+  });
+
+  it('preserves book availability after declining the last missing-format request', async () => {
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PROCESSING,
+        status4k: MediaStatus.UNKNOWN,
+        serviceId: 20,
+        externalServiceId: 40,
+        externalServiceSlug: 'ebook-slug',
+      })
+    );
+    const request = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        status: MediaRequestStatus.DECLINED,
+        media,
+        requestedBy,
+        is4k: false,
+        bookFormat: 'audiobook',
+      })
+    );
+
+    await new MediaRequestSubscriber().updateParentStatus(request);
+
+    const updatedMedia = await getRepository(Media).findOneByOrFail({
+      id: media.id,
+    });
+    assert.equal(updatedMedia.status, MediaStatus.AVAILABLE);
+    assert.equal(updatedMedia.serviceId, 20);
+    assert.equal(updatedMedia.externalServiceId, 40);
+    assert.equal(updatedMedia.audiobookServiceId, null);
+  });
 });
