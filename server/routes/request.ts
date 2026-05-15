@@ -576,6 +576,14 @@ requestRoutes.put<{ requestId: string }>(
         request.requestedBy = requestUser as User;
 
         await requestRepository.save(request);
+      } else if (req.body.mediaType === MediaType.MUSIC) {
+        request.serverId = req.body.serverId;
+        request.profileId = req.body.profileId;
+        request.rootFolder = req.body.rootFolder;
+        request.tags = req.body.tags;
+        request.requestedBy = requestUser as User;
+
+        await requestRepository.save(request);
       } else if (req.body.mediaType === MediaType.TV) {
         const mediaRepository = getRepository(Media);
         request.serverId = req.body.serverId;

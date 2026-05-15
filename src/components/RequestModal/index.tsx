@@ -47,6 +47,7 @@ const RequestModal = ({
           onCancel={onCancel}
           mbId={mbId}
           onUpdating={onUpdating}
+          editRequest={editRequest}
         />
       ) : type === 'movie' && tmdbId ? (
         <MovieRequestModal
