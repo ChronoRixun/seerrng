@@ -49,6 +49,7 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   tmdbid: 'TMDB ID',
   tvdbid: 'TheTVDB ID',
   mbid: 'MusicBrainz ID',
+  olid: 'Open Library ID',
   unknowntitle: 'Unknown Title',
   removearr: 'Remove from {arr}',
   profileName: 'Profile',
@@ -128,13 +129,23 @@ const RequestItemError = ({
           </div>
           {requestData && hasPermission(Permission.MANAGE_REQUESTS) && (
             <>
-              {requestData.type !== 'music' && (
+              {requestData.type !== 'music' && requestData.type !== 'book' && (
                 <div className="card-field">
                   <span className="card-field-name">
                     {intl.formatMessage(messages.tmdbid)}
                   </span>
                   <span className="flex truncate text-sm text-gray-300">
                     {requestData.media.tmdbId}
+                  </span>
+                </div>
+              )}
+              {requestData.type === 'book' && getBookId(requestData) && (
+                <div className="card-field">
+                  <span className="card-field-name">
+                    {intl.formatMessage(messages.olid)}
+                  </span>
+                  <span className="flex truncate text-sm text-gray-300">
+                    {getBookId(requestData)}
                   </span>
                 </div>
               )}
@@ -200,7 +211,9 @@ const RequestItemError = ({
                     is4k={requestData.is4k}
                     mediaType={
                       requestData.type === 'music'
-                        ? undefined
+                        ? 'music'
+                        : requestData.type === 'book'
+                          ? 'book'
                         : requestData.type === 'tv'
                           ? 'tv'
                           : 'movie'
