@@ -7,7 +7,11 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
-import { MediaStatus, MediaType } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  MediaType,
+} from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
@@ -69,6 +73,7 @@ const BookRequestModal = ({
   const [bookFormat, setBookFormat] = useState<'ebook' | 'audiobook' | 'both'>(
     editRequest?.bookFormat ?? 'ebook'
   );
+  const [hasUserSelectedFormat, setHasUserSelectedFormat] = useState(false);
   const [selectedIsbn, setSelectedIsbn] = useState<string>('');
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
@@ -85,6 +90,47 @@ const BookRequestModal = ({
   useEffect(() => {
     setSelectedIsbn(data?.isbn13 ?? '');
   }, [data?.isbn13]);
+
+  useEffect(() => {
+    if (editRequest || hasUserSelectedFormat || !data?.mediaInfo) {
+      return;
+    }
+
+    const hasEbookServiceLink =
+      data.mediaInfo.serviceId !== null &&
+      data.mediaInfo.serviceId !== undefined &&
+      data.mediaInfo.externalServiceId !== null &&
+      data.mediaInfo.externalServiceId !== undefined;
+    const hasAudiobookServiceLink =
+      data.mediaInfo.audiobookServiceId !== null &&
+      data.mediaInfo.audiobookServiceId !== undefined &&
+      data.mediaInfo.audiobookExternalServiceId !== null &&
+      data.mediaInfo.audiobookExternalServiceId !== undefined;
+    const activeRequests =
+      data.mediaInfo.requests?.filter(
+        (request) =>
+          request.status !== MediaRequestStatus.DECLINED &&
+          request.status !== MediaRequestStatus.COMPLETED
+      ) ?? [];
+    const hasActiveEbookRequest = activeRequests.some(
+      (request) =>
+        (request.bookFormat ?? 'ebook') === 'ebook' ||
+        request.bookFormat === 'both'
+    );
+    const hasActiveAudiobookRequest = activeRequests.some(
+      (request) =>
+        request.bookFormat === 'audiobook' || request.bookFormat === 'both'
+    );
+    const ebookCovered = hasEbookServiceLink || hasActiveEbookRequest;
+    const audiobookCovered =
+      hasAudiobookServiceLink || hasActiveAudiobookRequest;
+
+    if (ebookCovered && !audiobookCovered) {
+      setBookFormat('audiobook');
+    } else if (!ebookCovered && audiobookCovered) {
+      setBookFormat('ebook');
+    }
+  }, [data?.mediaInfo, editRequest, hasUserSelectedFormat]);
 
   useEffect(() => {
     onUpdating?.(isUpdating);
@@ -119,6 +165,11 @@ const BookRequestModal = ({
       tags: requestOverrides.tags,
     };
   }, [bookFormat, requestOverrides]);
+
+  const handleBookFormatChange = (value: 'ebook' | 'audiobook' | 'both') => {
+    setHasUserSelectedFormat(true);
+    setBookFormat(value);
+  };
 
   const sendRequest = useCallback(async () => {
     setIsUpdating(true);
@@ -322,7 +373,9 @@ const BookRequestModal = ({
             name="bookFormat"
             value={bookFormat}
             onChange={(e) =>
-              setBookFormat(e.target.value as 'ebook' | 'audiobook' | 'both')
+              handleBookFormatChange(
+                e.target.value as 'ebook' | 'audiobook' | 'both'
+              )
             }
             className="border-gray-700 bg-gray-800"
           >
@@ -398,7 +451,9 @@ const BookRequestModal = ({
           name="bookFormat"
           value={bookFormat}
           onChange={(e) =>
-            setBookFormat(e.target.value as 'ebook' | 'audiobook' | 'both')
+            handleBookFormatChange(
+              e.target.value as 'ebook' | 'audiobook' | 'both'
+            )
           }
           className="border-gray-700 bg-gray-800"
         >
