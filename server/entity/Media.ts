@@ -1,4 +1,6 @@
 import RadarrAPI from '@server/api/servarr/radarr';
+import LidarrAPI from '@server/api/servarr/lidarr';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
@@ -357,6 +359,36 @@ class Media {
                 server,
                 `/series/${this.externalServiceSlug4k}`
               );
+        }
+      }
+    }
+
+    if (this.mediaType === MediaType.MUSIC) {
+      if (this.serviceId !== null && this.externalServiceSlug !== null) {
+        const settings = getSettings();
+        const server = settings.lidarr.find(
+          (lidarr) => lidarr.id === this.serviceId
+        );
+
+        if (server) {
+          this.serviceUrl = server.externalUrl
+            ? `${server.externalUrl}/album/${this.externalServiceSlug}`
+            : LidarrAPI.buildUrl(server, `/album/${this.externalServiceSlug}`);
+        }
+      }
+    }
+
+    if (this.mediaType === MediaType.BOOK) {
+      if (this.serviceId !== null && this.externalServiceSlug !== null) {
+        const settings = getSettings();
+        const server = settings.readarr.find(
+          (readarr) => readarr.id === this.serviceId
+        );
+
+        if (server) {
+          this.serviceUrl = server.externalUrl
+            ? `${server.externalUrl}/book/${this.externalServiceSlug}`
+            : ReadarrAPI.buildUrl(server, `/book/${this.externalServiceSlug}`);
         }
       }
     }

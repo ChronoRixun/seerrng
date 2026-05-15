@@ -2,6 +2,8 @@ import TheMovieDb from '@server/api/themoviedb';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import type { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
+import MediaIdentifier from '@server/entity/MediaIdentifier';
 import Season from '@server/entity/Season';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -350,6 +352,119 @@ class BaseScanner<T> {
           })
         );
         this.log(`Saved new album: ${title}`);
+      }
+    });
+  }
+
+  protected async processBook(
+    provider: MediaIdentifierProvider,
+    value: string,
+    {
+      mediaAddedAt,
+      serviceId,
+      externalServiceId,
+      externalServiceSlug,
+      processing = false,
+      title = 'Unknown Book',
+      hasFile = true,
+    }: ProcessOptions = {}
+  ): Promise<void> {
+    const mediaRepository = getRepository(Media);
+    const identifierRepository = getRepository(MediaIdentifier);
+    const lockKey = `${provider}:${value}`;
+
+    await this.asyncLock.dispatch(lockKey, async () => {
+      const existingIdentifier = await identifierRepository.findOne({
+        where: { provider, value },
+        relations: { media: true },
+      });
+      const existing =
+        existingIdentifier?.media.mediaType === MediaType.BOOK
+          ? existingIdentifier.media
+          : undefined;
+
+      if (existing) {
+        let changedExisting = false;
+        const previousStatus = existing.status;
+
+        existing.status =
+          !processing && hasFile
+            ? MediaStatus.AVAILABLE
+            : !processing &&
+                !hasFile &&
+                previousStatus === MediaStatus.PROCESSING
+              ? MediaStatus.UNKNOWN
+              : processing
+                ? previousStatus === MediaStatus.DELETED
+                  ? MediaStatus.DELETED
+                  : MediaStatus.PROCESSING
+                : previousStatus;
+
+        if (existing.status !== previousStatus) {
+          changedExisting = true;
+          if (mediaAddedAt) {
+            existing.mediaAddedAt = mediaAddedAt;
+          }
+        }
+
+        if (!existing.mediaAddedAt && mediaAddedAt) {
+          existing.mediaAddedAt = mediaAddedAt;
+          changedExisting = true;
+        }
+
+        if (serviceId !== undefined && existing.serviceId !== serviceId) {
+          existing.serviceId = serviceId;
+          changedExisting = true;
+        }
+
+        if (
+          externalServiceId !== undefined &&
+          existing.externalServiceId !== externalServiceId
+        ) {
+          existing.externalServiceId = externalServiceId;
+          changedExisting = true;
+        }
+
+        if (
+          externalServiceSlug !== undefined &&
+          existing.externalServiceSlug !== externalServiceSlug
+        ) {
+          existing.externalServiceSlug = externalServiceSlug;
+          changedExisting = true;
+        }
+
+        if (changedExisting) {
+          await mediaRepository.save(existing);
+          this.log(`Updating existing book: ${title}`, 'info');
+        }
+      } else if (processing || hasFile) {
+        const media = await mediaRepository.save(
+          new Media({
+            tmdbId: 0,
+            mediaType: MediaType.BOOK,
+            mediaAddedAt,
+            serviceId,
+            externalServiceId,
+            externalServiceSlug,
+            status:
+              !processing && hasFile
+                ? MediaStatus.AVAILABLE
+                : processing
+                  ? MediaStatus.PROCESSING
+                  : MediaStatus.UNKNOWN,
+            status4k: MediaStatus.UNKNOWN,
+          })
+        );
+
+        await identifierRepository.save(
+          new MediaIdentifier({
+            media,
+            provider,
+            value,
+            canonical: true,
+          })
+        );
+        this.log(`Saved new book: ${title}`);
       }
     });
   }

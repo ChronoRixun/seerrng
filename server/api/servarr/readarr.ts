@@ -40,6 +40,16 @@ export interface ReadarrBookOptions extends ReadarrBookLookupResult {
   };
 }
 
+export interface ReadarrBook extends ReadarrBookLookupResult {
+  id: number;
+  titleSlug?: string;
+  added?: string;
+  statistics?: {
+    bookFileCount?: number;
+    totalBookCount?: number;
+  };
+}
+
 class ReadarrAPI extends ServarrBase<Record<string, unknown>> {
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
     super({
@@ -58,6 +68,14 @@ class ReadarrAPI extends ServarrBase<Record<string, unknown>> {
         `[Readarr] Failed to retrieve metadata profiles: ${e.message}`,
         { cause: e }
       );
+    }
+  }
+
+  public async getBooks(): Promise<ReadarrBook[]> {
+    try {
+      return await this.get<ReadarrBook[]>('/book');
+    } catch (e) {
+      throw new Error(`[Readarr] Failed to retrieve books: ${e.message}`);
     }
   }
 

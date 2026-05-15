@@ -27,7 +27,7 @@ export const menuMessages = defineMessages('components.Layout.Sidebar', {
   dashboard: 'Video',
   browsemovies: 'Movies',
   browsemusic: 'Music',
-  browsebooks: 'Books / Audiobooks',
+  browsebooks: 'Books',
   browsetv: 'Series',
   requests: 'Requests',
   blocklist: 'Blocklist',
