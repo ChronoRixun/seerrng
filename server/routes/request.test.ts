@@ -514,6 +514,164 @@ describe('POST /request', () => {
     assert.strictEqual(await requestRepo.count(), 1);
   });
 
+  it('allows a complementary audiobook request when an ebook request already exists', async (t) => {
+    const userRepo = getRepository(User);
+    const mediaRepo = getRepository(Media);
+    const requestRepo = getRepository(MediaRequest);
+    const requestedBy = await userRepo.findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const existingMedia = await mediaRepo.save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.OPENLIBRARY,
+            value: 'OL45804W',
+            canonical: true,
+          }),
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780441478125',
+            canonical: false,
+          }),
+        ],
+      })
+    );
+    await requestRepo.save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media: existingMedia,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'ebook',
+      })
+    );
+
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async () =>
+        ({
+          key: '/works/OL999W',
+          title: 'Complementary Format Book',
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async () =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: '/books/OL999M',
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.BOOK,
+      mediaId: 'OL999W',
+      isbn13: '9780441478125',
+      format: 'audiobook',
+    });
+
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.bookFormat, 'audiobook');
+    assert.strictEqual(await requestRepo.count(), 2);
+  });
+
+  it('blocks a both-formats book request when either format already has an active request', async (t) => {
+    const userRepo = getRepository(User);
+    const mediaRepo = getRepository(Media);
+    const requestRepo = getRepository(MediaRequest);
+    const requestedBy = await userRepo.findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const existingMedia = await mediaRepo.save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.OPENLIBRARY,
+            value: 'OL45804W',
+            canonical: true,
+          }),
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780441478125',
+            canonical: false,
+          }),
+        ],
+      })
+    );
+    await requestRepo.save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media: existingMedia,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'audiobook',
+      })
+    );
+
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async () =>
+        ({
+          key: '/works/OL999W',
+          title: 'Duplicate Both Format Book',
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async () =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: '/books/OL999M',
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.BOOK,
+      mediaId: 'OL999W',
+      isbn13: '9780441478125',
+      format: 'both',
+    });
+
+    assert.strictEqual(res.status, 409);
+    assert.match(res.body.message, /request for this book already exists/i);
+    assert.strictEqual(await requestRepo.count(), 1);
+  });
+
   it('blocks duplicate book requests when Open Library only returns ISBN-10', async (t) => {
     const userRepo = getRepository(User);
     const mediaRepo = getRepository(Media);

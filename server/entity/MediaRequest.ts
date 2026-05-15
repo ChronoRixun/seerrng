@@ -15,8 +15,8 @@ import MediaIdentifier, {
 } from '@server/entity/MediaIdentifier';
 import OverrideRule from '@server/entity/OverrideRule';
 import type { MediaRequestBody } from '@server/interfaces/api/requestInterfaces';
-import notificationManager, { Notification } from '@server/lib/notifications';
 import { normalizeValidIsbn } from '@server/lib/isbn';
+import notificationManager, { Notification } from '@server/lib/notifications';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -121,18 +121,24 @@ export class MediaRequest {
       );
     } else if (
       requestBody.mediaType === MediaType.MUSIC &&
-      !requestUser.hasPermission([Permission.REQUEST, Permission.REQUEST_MUSIC], {
-        type: 'or',
-      })
+      !requestUser.hasPermission(
+        [Permission.REQUEST, Permission.REQUEST_MUSIC],
+        {
+          type: 'or',
+        }
+      )
     ) {
       throw new RequestPermissionError(
         'You do not have permission to make music requests.'
       );
     } else if (
       requestBody.mediaType === MediaType.BOOK &&
-      !requestUser.hasPermission([Permission.REQUEST, Permission.REQUEST_BOOK], {
-        type: 'or',
-      })
+      !requestUser.hasPermission(
+        [Permission.REQUEST, Permission.REQUEST_BOOK],
+        {
+          type: 'or',
+        }
+      )
     ) {
       throw new RequestPermissionError(
         'You do not have permission to make book requests.'
@@ -306,7 +312,7 @@ export class MediaRequest {
         })),
       ]);
       const normalizedRequestIsbn = normalizeValidIsbn(requestBody.isbn13);
-      const requestIsbn = (
+      const requestIsbn =
         normalizedRequestIsbn ??
         editions.entries
           .flatMap((edition) => [
@@ -314,8 +320,7 @@ export class MediaRequest {
             ...(edition.isbn_10 ?? []),
           ])
           .map((isbn) => normalizeValidIsbn(isbn))
-          .find((isbn): isbn is string => !!isbn)
-      );
+          .find((isbn): isbn is string => !!isbn);
       const openLibraryEditionId = requestBody.editionId
         ?.toString()
         .replace(/^\/?books\//, '');
@@ -419,13 +424,33 @@ export class MediaRequest {
         media.status = MediaStatus.PENDING;
       }
 
-      if (
-        media?.requests?.some(
-          (request) =>
-            request.status !== MediaRequestStatus.DECLINED &&
-            request.status !== MediaRequestStatus.COMPLETED
-        )
-      ) {
+      const requestedBookFormat = requestBody.format ?? 'ebook';
+      const requestedFormats =
+        requestedBookFormat === 'both'
+          ? (['ebook', 'audiobook'] as const)
+          : ([requestedBookFormat] as const);
+      const hasActiveOverlappingBookRequest = media?.requests?.some(
+        (request) => {
+          if (
+            request.status === MediaRequestStatus.DECLINED ||
+            request.status === MediaRequestStatus.COMPLETED
+          ) {
+            return false;
+          }
+
+          const existingBookFormat = request.bookFormat ?? 'ebook';
+          const existingFormats =
+            existingBookFormat === 'both'
+              ? (['ebook', 'audiobook'] as const)
+              : ([existingBookFormat] as const);
+
+          return existingFormats.some((existingFormat) =>
+            requestedFormats.includes(existingFormat)
+          );
+        }
+      );
+
+      if (hasActiveOverlappingBookRequest) {
         throw new DuplicateMediaRequestError(
           'Request for this book already exists.'
         );
@@ -471,7 +496,6 @@ export class MediaRequest {
         }
       }
 
-      const requestedBookFormat = requestBody.format ?? 'ebook';
       const requestedServiceType =
         requestedBookFormat === 'audiobook' ? 'audiobook' : 'ebook';
       const defaultReadarr =
@@ -501,7 +525,8 @@ export class MediaRequest {
         serverId: requestBody.serverId ?? defaultReadarr?.id,
         profileId: requestBody.profileId ?? defaultReadarr?.activeProfileId,
         metadataProfileId:
-          requestBody.metadataProfileId ?? defaultReadarr?.activeMetadataProfileId,
+          requestBody.metadataProfileId ??
+          defaultReadarr?.activeMetadataProfileId,
         rootFolder: requestBody.rootFolder ?? defaultReadarr?.activeDirectory,
         tags: requestBody.tags ?? defaultReadarr?.tags,
         bookFormat: requestedBookFormat,
@@ -1278,8 +1303,10 @@ export class MediaRequest {
         const releaseYear = work.first_publish_date?.match(/\d{4}/)?.[0];
         const coverId = work.covers?.[0];
         const isbn =
-          editions.entries.find((edition) => edition.isbn_13?.[0])?.isbn_13?.[0] ??
-          editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0];
+          editions.entries.find((edition) => edition.isbn_13?.[0])
+            ?.isbn_13?.[0] ??
+          editions.entries.find((edition) => edition.isbn_10?.[0])
+            ?.isbn_10?.[0];
 
         notificationManager.sendNotification(type, {
           media,
