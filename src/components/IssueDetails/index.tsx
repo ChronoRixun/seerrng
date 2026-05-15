@@ -52,6 +52,8 @@ const messages = defineMessages('components.IssueDetails', {
   play4konplex: 'Play in 4K on {mediaServerName}',
   openinarr: 'Open in {arr}',
   openin4karr: 'Open in 4K {arr}',
+  ebook: 'Ebook',
+  audiobook: 'Audiobook',
   toasteditdescriptionsuccess: 'Issue description edited successfully!',
   toasteditdescriptionfailed:
     'Something went wrong while editing the issue description.',
@@ -110,8 +112,7 @@ const IssueDetails = () => {
       ? `/api/v1/movie/${issueData.media.tmdbId}`
       : issueData?.media.mediaType === MediaType.TV
         ? `/api/v1/tv/${issueData.media.tmdbId}`
-        : issueData?.media.mediaType === MediaType.MUSIC &&
-            issueData.media.mbId
+        : issueData?.media.mediaType === MediaType.MUSIC && issueData.media.mbId
           ? `/api/v1/music/${issueData.media.mbId}`
           : issueData?.media.mediaType === MediaType.BOOK && bookId
             ? `/api/v1/book/${bookId}`
@@ -201,7 +202,8 @@ const IssueDetails = () => {
     }
   };
 
-  const title = isMovie(data) || isMusic(data) || isBook(data) ? data.title : data.name;
+  const title =
+    isMovie(data) || isMusic(data) || isBook(data) ? data.title : data.name;
   const releaseYear = isMovie(data)
     ? data.releaseDate
     : isMusic(data)
@@ -238,6 +240,34 @@ const IssueDetails = () => {
         : issueData.media.mediaType === MediaType.MUSIC
           ? 'Lidarr'
           : 'Bookshelf';
+  const serviceLinks = [
+    issueData.media.serviceUrl
+      ? {
+          key: 'primary',
+          url: issueData.media.serviceUrl,
+          label:
+            issueData.media.mediaType === MediaType.BOOK
+              ? `${arrName} (${intl.formatMessage(messages.ebook)})`
+              : arrName,
+        }
+      : undefined,
+    issueData.media.mediaType === MediaType.BOOK &&
+    issueData.media.audiobookServiceUrl
+      ? {
+          key: 'audiobook',
+          url: issueData.media.audiobookServiceUrl,
+          label: `${arrName} (${intl.formatMessage(messages.audiobook)})`,
+        }
+      : undefined,
+  ].filter(
+    (
+      link
+    ): link is {
+      key: string;
+      url: string;
+      label: string;
+    } => !!link
+  );
 
   return (
     <div
@@ -450,11 +480,12 @@ const IssueDetails = () => {
                   </span>
                 </Button>
               )}
-              {issueData?.media.serviceUrl &&
-                hasPermission(Permission.ADMIN) && (
+              {hasPermission(Permission.ADMIN) &&
+                serviceLinks.map((serviceLink) => (
                   <Button
+                    key={`mobile-service-link-${serviceLink.key}`}
                     as="a"
-                    href={issueData?.media.serviceUrl}
+                    href={serviceLink.url}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full"
@@ -463,12 +494,11 @@ const IssueDetails = () => {
                     <ServerIcon />
                     <span>
                       {intl.formatMessage(messages.openinarr, {
-                        arr:
-                          arrName,
+                        arr: serviceLink.label,
                       })}
                     </span>
                   </Button>
-                )}
+                ))}
               {issueData?.media.mediaUrl4k && (
                 <Button
                   as="a"
@@ -509,8 +539,7 @@ const IssueDetails = () => {
                     <ServerIcon />
                     <span>
                       {intl.formatMessage(messages.openin4karr, {
-                        arr:
-                          arrName,
+                        arr: arrName,
                       })}
                     </span>
                   </Button>
@@ -712,24 +741,25 @@ const IssueDetails = () => {
                 </span>
               </Button>
             )}
-            {issueData?.media.serviceUrl && hasPermission(Permission.ADMIN) && (
-              <Button
-                as="a"
-                href={issueData?.media.serviceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full"
-                buttonType="ghost"
-              >
-                <ServerIcon />
-                <span>
-                  {intl.formatMessage(messages.openinarr, {
-                    arr:
-                      arrName,
-                  })}
-                </span>
-              </Button>
-            )}
+            {hasPermission(Permission.ADMIN) &&
+              serviceLinks.map((serviceLink) => (
+                <Button
+                  key={`service-link-${serviceLink.key}`}
+                  as="a"
+                  href={serviceLink.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full"
+                  buttonType="ghost"
+                >
+                  <ServerIcon />
+                  <span>
+                    {intl.formatMessage(messages.openinarr, {
+                      arr: serviceLink.label,
+                    })}
+                  </span>
+                </Button>
+              ))}
             {issueData?.media.mediaUrl4k && (
               <Button
                 as="a"
@@ -770,8 +800,7 @@ const IssueDetails = () => {
                   <ServerIcon />
                   <span>
                     {intl.formatMessage(messages.openin4karr, {
-                      arr:
-                        arrName,
+                      arr: arrName,
                     })}
                   </span>
                 </Button>
