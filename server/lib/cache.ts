@@ -12,6 +12,7 @@ export type AvailableCacheIds =
   | 'plexwatchlist'
   | 'tvdb'
   | 'lidarr'
+  | 'readarr'
   | 'musicbrainz'
   | 'listenbrainz'
   | 'coverartarchive'
@@ -81,6 +82,7 @@ class CacheManager {
       checkPeriod: 60 * 30,
     }),
     lidarr: new Cache('lidarr', 'Lidarr API'),
+    readarr: new Cache('readarr', 'Readarr API'),
     musicbrainz: new Cache('musicbrainz', 'MusicBrainz API', {
       stdTtl: 21600,
       checkPeriod: 60 * 30,

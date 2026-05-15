@@ -108,6 +108,12 @@ export interface LidarrSettings extends DVRSettings {
   activeMetadataProfileName?: string;
 }
 
+export interface ReadarrSettings extends DVRSettings {
+  activeMetadataProfileId?: number;
+  activeMetadataProfileName?: string;
+  serviceType?: 'ebook' | 'audiobook';
+}
+
 interface Quota {
   quotaLimit?: number;
   quotaDays?: number;
@@ -387,6 +393,7 @@ export interface AllSettings {
   radarr: RadarrSettings[];
   sonarr: SonarrSettings[];
   lidarr: LidarrSettings[];
+  readarr: ReadarrSettings[];
   public: PublicSettings;
   notifications: NotificationSettings;
   jobs: Record<JobId, JobSettings>;
@@ -466,6 +473,7 @@ class Settings {
       radarr: [],
       sonarr: [],
       lidarr: [],
+      readarr: [],
       public: {
         initialized: false,
       },
@@ -704,6 +712,14 @@ class Settings {
 
   set lidarr(data: LidarrSettings[]) {
     this.data.lidarr = data;
+  }
+
+  get readarr(): ReadarrSettings[] {
+    return this.data.readarr;
+  }
+
+  set readarr(data: ReadarrSettings[]) {
+    this.data.readarr = data;
   }
 
   get sonarr(): SonarrSettings[] {

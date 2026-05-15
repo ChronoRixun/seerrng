@@ -1,5 +1,6 @@
 import RadarrAPI from '@server/api/servarr/radarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
 import type {
@@ -185,6 +186,78 @@ serviceRoutes.get('/lidarr', async (_req, res) => {
 
   return res.status(200).json(filteredLidarrServers);
 });
+
+serviceRoutes.get('/readarr', async (_req, res) => {
+  const settings = getSettings();
+
+  const filteredReadarrServers: ServiceCommonServer[] = settings.readarr.map(
+    (readarr) => ({
+      id: readarr.id,
+      name: readarr.name,
+      is4k: readarr.is4k,
+      isDefault: readarr.isDefault,
+      activeDirectory: readarr.activeDirectory,
+      activeProfileId: readarr.activeProfileId,
+      activeTags: readarr.tags ?? [],
+    })
+  );
+
+  return res.status(200).json(filteredReadarrServers);
+});
+
+serviceRoutes.get<{ readarrId: string }>(
+  '/readarr/:readarrId',
+  async (req, res, next) => {
+    const settings = getSettings();
+
+    const readarrSettings = settings.readarr.find(
+      (readarr) => readarr.id === Number(req.params.readarrId)
+    );
+
+    if (!readarrSettings) {
+      return next({
+        status: 404,
+        message: 'Readarr server with provided ID does not exist.',
+      });
+    }
+
+    const readarr = new ReadarrAPI({
+      apiKey: readarrSettings.apiKey,
+      url: ReadarrAPI.buildUrl(readarrSettings, '/api/v1'),
+    });
+
+    try {
+      const profiles = await readarr.getProfiles();
+      const rootFolders = await readarr.getRootFolders();
+      const tags = await readarr.getTags();
+
+      return res.status(200).json({
+        server: {
+          id: readarrSettings.id,
+          name: readarrSettings.name,
+          is4k: readarrSettings.is4k,
+          isDefault: readarrSettings.isDefault,
+          activeDirectory: readarrSettings.activeDirectory,
+          activeProfileId: readarrSettings.activeProfileId,
+          activeTags: readarrSettings.tags,
+        },
+        profiles: profiles.map((profile) => ({
+          id: profile.id,
+          name: profile.name,
+        })),
+        rootFolders: rootFolders.map((folder) => ({
+          id: folder.id,
+          freeSpace: folder.freeSpace,
+          path: folder.path,
+          totalSpace: folder.totalSpace,
+        })),
+        tags,
+      } as ServiceCommonServerWithDetails);
+    } catch (e) {
+      next({ status: 500, message: e.message });
+    }
+  }
+);
 
 serviceRoutes.get<{ lidarrId: string }>(
   '/lidarr/:lidarrId',
