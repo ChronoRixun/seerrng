@@ -23,8 +23,8 @@ import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import notificationManager from '@server/lib/notifications';
 import { getSettings } from '@server/lib/settings';
-import { resetTestDb, seedTestDb } from '@server/utils/seedTestDb';
 import { MediaRequestSubscriber } from '@server/subscriber/MediaRequestSubscriber';
+import { resetTestDb, seedTestDb } from '@server/utils/seedTestDb';
 
 async function getRequester() {
   return getRepository(User).findOneOrFail({
@@ -428,6 +428,99 @@ describe('MediaRequestSubscriber service dispatch', () => {
       savedMedia.audiobookExternalServiceSlug,
       'the-left-hand-of-darkness-audio'
     );
+  });
+
+  it('does not treat ebook availability as audiobook availability', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 21,
+        name: 'Audio Bookshelf',
+        hostname: 'audio.local',
+        port: 8787,
+        apiKey: 'audio-key',
+        useSsl: false,
+        activeProfileId: 31,
+        activeProfileName: 'Audiobooks',
+        activeMetadataProfileId: 32,
+        activeMetadataProfileName: 'Audio Standard',
+        activeDirectory: '/audiobooks',
+        tags: [9],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'audiobook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.AVAILABLE,
+        status4k: MediaStatus.UNKNOWN,
+        serviceId: 20,
+        externalServiceId: 40,
+        externalServiceSlug: 'ebook-slug',
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780441478125',
+            canonical: false,
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+    request.bookFormat = 'audiobook';
+
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => {
+      return [
+        {
+          title: 'The Left Hand of Darkness',
+          foreignBookId: 'readarr-audio-id',
+          titleSlug: 'left-hand-darkness-audio',
+          editions: [
+            {
+              foreignEditionId: 'audio-edition-id',
+              title: 'The Left Hand of Darkness',
+              isbn13: '9780441478125',
+              monitored: false,
+            },
+          ],
+        },
+      ] as ReadarrBookLookupResult[];
+    });
+
+    let addPayload: ReadarrBookOptions | undefined;
+    mock.method(
+      ReadarrAPI.prototype,
+      'addBook',
+      async (payload: ReadarrBookOptions) => {
+        addPayload = payload;
+        return {
+          ...payload,
+          id: 41,
+          titleSlug: 'left-hand-darkness-audio',
+        } as Awaited<ReturnType<ReadarrAPI['addBook']>>;
+      }
+    );
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    assert.equal(addPayload?.rootFolderPath, '/audiobooks');
+
+    const savedMedia = await getRepository(Media).findOneByOrFail({
+      id: media.id,
+    });
+    assert.equal(savedMedia.serviceId, 20);
+    assert.equal(savedMedia.externalServiceId, 40);
+    assert.equal(savedMedia.audiobookServiceId, 21);
+    assert.equal(savedMedia.audiobookExternalServiceId, 41);
   });
 
   it('sends both-format book requests to ebook and audiobook Bookshelf servers', async () => {

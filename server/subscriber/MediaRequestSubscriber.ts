@@ -1,11 +1,11 @@
-import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
-import LidarrAPI from '@server/api/servarr/lidarr';
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
-import type { ReadarrBookLookupResult } from '@server/api/servarr/readarr';
-import ReadarrAPI from '@server/api/servarr/readarr';
+import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
+import LidarrAPI from '@server/api/servarr/lidarr';
 import type { RadarrMovieOptions } from '@server/api/servarr/radarr';
 import RadarrAPI from '@server/api/servarr/radarr';
+import type { ReadarrBookLookupResult } from '@server/api/servarr/readarr';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import type {
   AddSeriesOptions,
   SonarrSeries,
@@ -271,7 +271,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     }
 
     const openLibraryId = latestMedia.identifiers?.find(
-      (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+      (identifier) =>
+        identifier.provider === MediaIdentifierProvider.OPENLIBRARY
     )?.value;
 
     if (!openLibraryId) {
@@ -1031,7 +1032,9 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       const qualityProfile = entity.profileId || lidarrSettings.activeProfileId;
       const metadataProfile =
         entity.metadataProfileId ?? lidarrSettings.activeMetadataProfileId ?? 1;
-      const tags = entity.tags ? [...entity.tags] : [...(lidarrSettings.tags ?? [])];
+      const tags = entity.tags
+        ? [...entity.tags]
+        : [...(lidarrSettings.tags ?? [])];
 
       if (lidarrSettings.tagRequests) {
         let userTag = (await lidarr.getTags()).find((tag) =>
@@ -1166,10 +1169,15 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         return;
       }
 
-      if (
-        entity.bookFormat !== 'both' &&
-        media.status === MediaStatus.AVAILABLE
-      ) {
+      const requestedBookFormat = entity.bookFormat ?? 'ebook';
+      const bookFormatAlreadyAvailable =
+        media.status === MediaStatus.AVAILABLE &&
+        (requestedBookFormat === 'audiobook'
+          ? media.audiobookServiceId !== null &&
+            media.audiobookExternalServiceId !== null
+          : media.serviceId !== null && media.externalServiceId !== null);
+
+      if (requestedBookFormat !== 'both' && bookFormatAlreadyAvailable) {
         logger.warn('Book already exists, marking request as COMPLETED', {
           label: 'Media Request',
           requestId: entity.id,
@@ -1252,7 +1260,9 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         );
 
         if (!readarrSettings) {
-          throw new Error(`No default Bookshelf server configured for ${serviceType}`);
+          throw new Error(
+            `No default Bookshelf server configured for ${serviceType}`
+          );
         }
 
         const readarr = new ReadarrAPI({
@@ -1280,8 +1290,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         const bookInfo =
           searchResults.find((result) =>
             result.editions?.some(
-              (edition) =>
-                normalizeValidIsbn(edition.isbn13) === normalizedIsbn
+              (edition) => normalizeValidIsbn(edition.isbn13) === normalizedIsbn
             )
           ) ?? searchResults[0];
         const rootFolder =
@@ -1295,7 +1304,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         const metadataProfile =
           allowServerOverride && entity.metadataProfileId
             ? entity.metadataProfileId
-            : readarrSettings.activeMetadataProfileId ?? 1;
+            : (readarrSettings.activeMetadataProfileId ?? 1);
         const tags =
           allowServerOverride && entity.tags
             ? [...entity.tags]
@@ -1326,9 +1335,9 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
         await mediaRepository.save(media);
 
-        const resultIsbn = result.editions
-          ?.find((edition) => edition.isbn13)
-          ?.isbn13;
+        const resultIsbn = result.editions?.find(
+          (edition) => edition.isbn13
+        )?.isbn13;
         const normalizedResultIsbn = normalizeValidIsbn(resultIsbn);
         const identifiersToSave = [
           (result.foreignBookId ?? bookInfo.foreignBookId)
@@ -1380,9 +1389,9 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       };
 
       const targetFormats =
-        entity.bookFormat === 'both'
+        requestedBookFormat === 'both'
           ? (['ebook', 'audiobook'] as const)
-          : entity.bookFormat === 'audiobook'
+          : requestedBookFormat === 'audiobook'
             ? (['audiobook'] as const)
             : (['ebook'] as const);
       let lookupTerm: string | undefined;
@@ -1406,7 +1415,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
         lookupTerm = await dispatchFormat(
           serviceType,
-          entity.bookFormat !== 'both' || serviceType === 'ebook'
+          requestedBookFormat !== 'both' || serviceType === 'ebook'
         );
       }
 
@@ -1419,7 +1428,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         requestId: entity.id,
         mediaId: entity.media.id,
         lookupTerm,
-        bookFormat: entity.bookFormat,
+        bookFormat: requestedBookFormat,
       });
     } catch (e) {
       const requestRepository = getRepository(MediaRequest);
