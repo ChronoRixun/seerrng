@@ -5,7 +5,7 @@ import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
 import useVerticalScroll from '@app/hooks/useVerticalScroll';
 import globalMessages from '@app/i18n/globalMessages';
-import { MediaStatus } from '@server/constants/media';
+import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import type { WatchlistItem } from '@server/interfaces/api/discoverInterfaces';
 import type {
   AlbumResult,
@@ -74,8 +74,26 @@ const ListView = ({
       title.mediaInfo.audiobookServiceId !== undefined &&
       title.mediaInfo.audiobookExternalServiceId !== null &&
       title.mediaInfo.audiobookExternalServiceId !== undefined;
+    const activeBookRequests =
+      title.mediaInfo.requests?.filter(
+        (request) =>
+          request.status !== MediaRequestStatus.DECLINED &&
+          request.status !== MediaRequestStatus.COMPLETED
+      ) ?? [];
+    const hasActiveEbookRequest = activeBookRequests.some(
+      (request) =>
+        (request.bookFormat ?? 'ebook') === 'ebook' ||
+        request.bookFormat === 'both'
+    );
+    const hasActiveAudiobookRequest = activeBookRequests.some(
+      (request) =>
+        request.bookFormat === 'audiobook' || request.bookFormat === 'both'
+    );
 
-    return !hasEbookServiceLink || !hasAudiobookServiceLink;
+    return (
+      !(hasEbookServiceLink || hasActiveEbookRequest) ||
+      !(hasAudiobookServiceLink || hasActiveAudiobookRequest)
+    );
   };
 
   return (

@@ -24,7 +24,11 @@ import {
   StarIcon,
 } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
-import { MediaStatus, MediaType } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  MediaType,
+} from '@server/constants/media';
 import { UserType } from '@server/constants/user';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import axios from 'axios';
@@ -102,10 +106,26 @@ const BookDetails = () => {
     data.mediaInfo?.audiobookServiceId !== undefined &&
     data.mediaInfo.audiobookExternalServiceId !== null &&
     data.mediaInfo.audiobookExternalServiceId !== undefined;
+  const activeBookRequests =
+    data.mediaInfo?.requests?.filter(
+      (request) =>
+        request.status !== MediaRequestStatus.DECLINED &&
+        request.status !== MediaRequestStatus.COMPLETED
+    ) ?? [];
+  const hasActiveEbookRequest = activeBookRequests.some(
+    (request) =>
+      (request.bookFormat ?? 'ebook') === 'ebook' ||
+      request.bookFormat === 'both'
+  );
+  const hasActiveAudiobookRequest = activeBookRequests.some(
+    (request) =>
+      request.bookFormat === 'audiobook' || request.bookFormat === 'both'
+  );
   const hasMissingBookFormat =
     !!data.mediaInfo &&
     data.mediaInfo.status !== MediaStatus.BLOCKLISTED &&
-    (!hasEbookServiceLink || !hasAudiobookServiceLink);
+    (!(hasEbookServiceLink || hasActiveEbookRequest) ||
+      !(hasAudiobookServiceLink || hasActiveAudiobookRequest));
   const canShowRequest =
     canRequest &&
     (!data.mediaInfo?.status ||
