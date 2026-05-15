@@ -1,6 +1,6 @@
-import TheMovieDb from '@server/api/themoviedb';
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
+import TheMovieDb from '@server/api/themoviedb';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
@@ -16,9 +16,9 @@ import {
   RequestPermissionError,
 } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
+import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
 import { DbAwareColumn, resolveDbType } from '@server/utils/DbColumnHelper';
-import { Permission } from '@server/lib/permissions';
 import {
   Column,
   Entity,
@@ -294,7 +294,7 @@ export class Watchlist {
   }
 
   public static async deleteWatchlist(
-    id: Watchlist['tmdbId'] | Watchlist['mbId'],
+    id: Watchlist['tmdbId'] | Watchlist['mbId'] | Watchlist['externalId'],
     mediaType: MediaType,
     user: User
   ): Promise<Watchlist | null> {
@@ -325,9 +325,12 @@ export class Watchlist {
   ): Promise<void> {
     if (
       !user.settings?.watchlistSyncBooks ||
-      !user.hasPermission([Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_BOOK], {
-        type: 'or',
-      })
+      !user.hasPermission(
+        [Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_BOOK],
+        {
+          type: 'or',
+        }
+      )
     ) {
       return;
     }

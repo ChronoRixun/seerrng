@@ -76,7 +76,7 @@ watchlistRoutes.delete('/:mediaId', async (req, res, next) => {
         ? req.params.mediaId
         : mediaType === MediaType.BOOK
           ? req.params.mediaId
-        : Number(req.params.mediaId),
+          : Number(req.params.mediaId),
       mediaType,
       req.user
     );

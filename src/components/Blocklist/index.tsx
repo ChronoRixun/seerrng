@@ -49,6 +49,8 @@ const messages = defineMessages('components.Blocklist', {
   filterManual: 'Manual',
   filterBlocklistedTags: 'Blocklisted Tags',
   showAllBlocklisted: 'Show All Blocklisted Media',
+  music: 'Music',
+  books: 'Books',
 });
 
 enum Filter {
@@ -396,8 +398,8 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
                 title && (isMusic(title) || isBook(title)) && title.posterPath
                   ? title.posterPath
                   : title?.posterPath && !isMusic(title) && !isBook(title)
-                  ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
-                  : '/images/seerr_poster_not_found.png'
+                    ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
+                    : '/images/seerr_poster_not_found.png'
               }
               alt=""
               sizes="100vw"
@@ -511,13 +513,13 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
             ) : item.mediaType === 'music' ? (
               <div className="pointer-events-none z-40 self-start rounded-full border border-emerald-500 bg-emerald-600/80 shadow-md">
                 <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
-                  Music
+                  {intl.formatMessage(messages.music)}
                 </div>
               </div>
             ) : (
               <div className="pointer-events-none z-40 self-start rounded-full border border-amber-500 bg-amber-600/80 shadow-md">
                 <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
-                  Books
+                  {intl.formatMessage(messages.books)}
                 </div>
               </div>
             )}

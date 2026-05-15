@@ -28,6 +28,25 @@ const KeyMap: Record<string, string | KeyMapFunction> = {
   media_imdbid: 'media.imdbId',
   media_tmdbid: 'media.tmdbId',
   media_tvdbid: 'media.tvdbId',
+  media_mbid: 'media.mbId',
+  media_externalid: (payload) => {
+    const externalId =
+      payload.media?.mbId ??
+      payload.media?.identifiers?.find((identifier) => identifier.canonical)
+        ?.value ??
+      payload.media?.externalServiceId ??
+      '';
+
+    return String(externalId);
+  },
+  media_openlibraryid: (payload) =>
+    payload.media?.identifiers?.find(
+      (identifier) => identifier.provider === 'openlibrary'
+    )?.value ?? '',
+  media_isbn: (payload) =>
+    payload.media?.identifiers?.find(
+      (identifier) => identifier.provider === 'isbn'
+    )?.value ?? '',
   media_url: 'mediaUrl',
   media_type: 'media.mediaType',
   media_jellyfinMediaId: (payload) =>
