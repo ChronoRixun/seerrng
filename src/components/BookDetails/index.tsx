@@ -2,13 +2,17 @@ import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Button from '@app/components/Common/Button';
+import IssueModal from '@app/components/IssueModal';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/solid';
+import {
+  ArrowDownTrayIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/solid';
 import { MediaStatus } from '@server/constants/media';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import { useRouter } from 'next/router';
@@ -21,6 +25,7 @@ const messages = defineMessages('components.BookDetails', {
   author: 'Author',
   firstPublished: 'First Published',
   subjects: 'Subjects',
+  reportissue: 'Report an Issue',
 });
 
 const BookDetails = () => {
@@ -28,6 +33,7 @@ const BookDetails = () => {
   const intl = useIntl();
   const { hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
 
   const {
     data,
@@ -54,10 +60,24 @@ const BookDetails = () => {
     (!data.mediaInfo?.status ||
       data.mediaInfo.status === MediaStatus.UNKNOWN ||
       data.mediaInfo.status === MediaStatus.DELETED);
+  const canReportIssue =
+    !!data.mediaInfo?.id &&
+    data.mediaInfo.status === MediaStatus.AVAILABLE &&
+    hasPermission([Permission.MANAGE_ISSUES, Permission.CREATE_ISSUES], {
+      type: 'or',
+    });
 
   return (
     <>
       <PageTitle title={data.title} />
+      <IssueModal
+        show={showIssueModal}
+        mediaType="book"
+        mediaId={data.mediaInfo?.id}
+        title={data.title}
+        backdrop={data.posterPath}
+        onCancel={() => setShowIssueModal(false)}
+      />
       <RequestModal
         bookId={data.id}
         show={showRequestModal}
@@ -115,8 +135,9 @@ const BookDetails = () => {
               {data.description}
             </div>
           )}
-          {canShowRequest && (
-            <div className="mt-6">
+          {(canShowRequest || canReportIssue) && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {canShowRequest && (
               <Button
                 buttonType="primary"
                 onClick={() => setShowRequestModal(true)}
@@ -124,6 +145,16 @@ const BookDetails = () => {
                 <ArrowDownTrayIcon />
                 <span>{intl.formatMessage(globalMessages.request)}</span>
               </Button>
+              )}
+              {canReportIssue && (
+                <Button
+                  buttonType="default"
+                  onClick={() => setShowIssueModal(true)}
+                >
+                  <ExclamationTriangleIcon />
+                  <span>{intl.formatMessage(messages.reportissue)}</span>
+                </Button>
+              )}
             </div>
           )}
           {!!data.subjects?.length && (

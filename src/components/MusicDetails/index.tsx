@@ -2,13 +2,17 @@ import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import IssueModal from '@app/components/IssueModal';
 import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowDownTrayIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
 import Link from 'next/link';
@@ -23,6 +27,7 @@ const messages = defineMessages('components.MusicDetails', {
   releasedate: 'Release Date',
   tracks: 'Tracks',
   noTracks: 'No tracks available.',
+  reportissue: 'Report an Issue',
 });
 
 const MusicDetails = () => {
@@ -30,6 +35,7 @@ const MusicDetails = () => {
   const intl = useIntl();
   const { hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
 
   const {
     data,
@@ -56,10 +62,24 @@ const MusicDetails = () => {
     (!data.mediaInfo?.status ||
       data.mediaInfo.status === MediaStatus.UNKNOWN ||
       data.mediaInfo.status === MediaStatus.DELETED);
+  const canReportIssue =
+    !!data.mediaInfo?.id &&
+    data.mediaInfo.status === MediaStatus.AVAILABLE &&
+    hasPermission([Permission.MANAGE_ISSUES, Permission.CREATE_ISSUES], {
+      type: 'or',
+    });
 
   return (
     <>
       <PageTitle title={data.title} />
+      <IssueModal
+        show={showIssueModal}
+        mediaType="music"
+        mediaId={data.mediaInfo?.id}
+        title={data.title}
+        backdrop={data.artistBackdrop}
+        onCancel={() => setShowIssueModal(false)}
+      />
       <RequestModal
         show={showRequestModal}
         type="music"
@@ -114,8 +134,9 @@ const MusicDetails = () => {
             )}
             {data.type && <span>{data.type}</span>}
           </div>
-          {canShowRequest && (
-            <div className="mt-6 max-w-xs">
+          {(canShowRequest || canReportIssue) && (
+            <div className="mt-6 flex max-w-xs flex-wrap gap-2">
+              {canShowRequest && (
               <Button
                 buttonType="primary"
                 onClick={() => setShowRequestModal(true)}
@@ -123,6 +144,16 @@ const MusicDetails = () => {
                 <ArrowDownTrayIcon />
                 <span>{intl.formatMessage(globalMessages.request)}</span>
               </Button>
+              )}
+              {canReportIssue && (
+                <Button
+                  buttonType="default"
+                  onClick={() => setShowIssueModal(true)}
+                >
+                  <ExclamationTriangleIcon />
+                  <span>{intl.formatMessage(messages.reportissue)}</span>
+                </Button>
+              )}
             </div>
           )}
         </div>

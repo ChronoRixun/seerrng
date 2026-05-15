@@ -10,7 +10,9 @@ import { RadioGroup } from '@headlessui/react';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/solid';
 import { MediaStatus } from '@server/constants/media';
 import type Issue from '@server/entity/Issue';
+import type { BookDetails } from '@server/models/Book';
 import type { MovieDetails } from '@server/models/Movie';
+import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import { Field, Formik } from 'formik';
@@ -39,7 +41,25 @@ const messages = defineMessages('components.IssueModal.CreateIssueModal', {
   submitissue: 'Submit Issue',
 });
 
-const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
+type IssueMediaDetails =
+  | MovieDetails
+  | TvDetails
+  | MusicDetails
+  | BookDetails;
+
+const isMusic = (media: IssueMediaDetails): media is MusicDetails => {
+  return (media as MusicDetails).mediaType === 'album';
+};
+
+const isBook = (media: IssueMediaDetails): media is BookDetails => {
+  return (media as BookDetails).mediaType === 'book';
+};
+
+const isMovie = (movie: IssueMediaDetails): movie is MovieDetails => {
+  if (isMusic(movie) || isBook(movie)) {
+    return false;
+  }
+
   return (movie as MovieDetails).title !== undefined;
 };
 
@@ -48,8 +68,11 @@ const classNames = (...classes: string[]) => {
 };
 
 interface CreateIssueModalProps {
-  mediaType: 'movie' | 'tv';
+  mediaType: 'movie' | 'tv' | 'music' | 'book';
   tmdbId?: number;
+  mediaId?: number;
+  title?: string;
+  backdrop?: string;
   onCancel?: () => void;
 }
 
@@ -57,18 +80,34 @@ const CreateIssueModal = ({
   onCancel,
   mediaType,
   tmdbId,
+  mediaId,
+  title,
+  backdrop,
 }: CreateIssueModalProps) => {
   const intl = useIntl();
   const settings = useSettings();
   const { hasPermission } = useUser();
   const { addToast } = useToasts();
-  const { data, error } = useSWR<MovieDetails | TvDetails>(
-    tmdbId ? `/api/v1/${mediaType}/${tmdbId}` : null
-  );
+  const detailUrl =
+    mediaType === 'movie' || mediaType === 'tv'
+      ? tmdbId
+        ? `/api/v1/${mediaType}/${tmdbId}`
+        : null
+      : null;
+  const { data, error } = useSWR<IssueMediaDetails>(detailUrl);
 
-  if (!tmdbId) {
+  if (!tmdbId && !mediaId) {
     return null;
   }
+
+  const resolvedMediaId = mediaId ?? data?.mediaInfo?.id;
+  const resolvedTitle =
+    title ??
+    (data
+      ? isMovie(data) || isMusic(data) || isBook(data)
+        ? data.title
+        : data.name
+      : undefined);
 
   const availableSeasons = (data?.mediaInfo?.seasons ?? [])
     .filter(
@@ -104,18 +143,18 @@ const CreateIssueModal = ({
           const newIssue = await axios.post<Issue>('/api/v1/issue', {
             issueType: values.selectedIssue.issueType,
             message: values.message,
-            mediaId: data?.mediaInfo?.id,
+            mediaId: resolvedMediaId,
             problemSeason: values.problemSeason,
             problemEpisode:
               values.problemSeason > 0 ? values.problemEpisode : 0,
           });
 
-          if (data) {
+          if (resolvedTitle) {
             addToast(
               <>
                 <div>
                   {intl.formatMessage(messages.toastSuccessCreate, {
-                    title: isMovie(data) ? data.title : data.name,
+                    title: resolvedTitle,
                     strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
                   })}
                 </div>
@@ -152,14 +191,23 @@ const CreateIssueModal = ({
             backgroundClickable
             onCancel={onCancel}
             title={intl.formatMessage(messages.reportissue)}
-            subTitle={data && isMovie(data) ? data?.title : data?.name}
+            subTitle={resolvedTitle}
             cancelText={intl.formatMessage(globalMessages.close)}
             onOk={() => handleSubmit()}
             okText={intl.formatMessage(messages.submitissue)}
-            loading={!data && !error}
-            backdrop={`https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${data?.backdropPath}`}
+            loading={!!detailUrl && !data && !error}
+            backdrop={
+              backdrop ??
+              (!data || isMusic(data) || isBook(data) || !data.backdropPath
+                ? undefined
+                : `https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${data.backdropPath}`)
+            }
           >
-            {mediaType === 'tv' && data && !isMovie(data) && (
+            {mediaType === 'tv' &&
+              data &&
+              !isMovie(data) &&
+              !isMusic(data) &&
+              !isBook(data) && (
               <>
                 <div className="form-row">
                   <label htmlFor="problemSeason" className="text-label">
