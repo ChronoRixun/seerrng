@@ -235,7 +235,7 @@ export const startJobs = (): void => {
       logger.debug('Starting scheduled job: Download Sync', {
         label: 'Jobs',
       });
-      downloadTracker.updateDownloads();
+      void downloadTracker.updateDownloads();
     }),
   });
 
