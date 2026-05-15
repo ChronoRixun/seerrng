@@ -2,6 +2,7 @@ import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
+import type { ReadarrBookLookupResult } from '@server/api/servarr/readarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import type { RadarrMovieOptions } from '@server/api/servarr/radarr';
 import RadarrAPI from '@server/api/servarr/radarr';
@@ -1216,19 +1217,46 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       const work = openLibraryId
         ? await openLibrary.getWork(openLibraryId)
         : undefined;
-      const lookupTerm = isbn ?? work?.title;
+      const lookupTerms = [
+        isbn,
+        isbn ? `isbn:${isbn}` : undefined,
+        work?.title,
+      ].filter(
+        (term, index, terms): term is string =>
+          !!term && terms.indexOf(term) === index
+      );
 
-      if (!lookupTerm) {
+      if (!lookupTerms.length) {
         throw new Error('Book request is missing a Readarr lookup term');
       }
 
-      const searchResults = await readarr.lookupBook(lookupTerm);
+      let searchResults: ReadarrBookLookupResult[] = [];
+      let lookupTerm: string | undefined;
 
-      if (!searchResults?.length) {
-        throw new Error('Book not found in Readarr search');
+      for (const term of lookupTerms) {
+        lookupTerm = term;
+        searchResults = await readarr.lookupBook(term);
+
+        if (searchResults?.length) {
+          break;
+        }
       }
 
-      const bookInfo = searchResults[0];
+      if (!searchResults?.length) {
+        throw new Error(
+          `Book not found in Readarr search for ${lookupTerms.join(', ')}`
+        );
+      }
+
+      const normalizedIsbn = isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
+      const bookInfo =
+        searchResults.find((result) =>
+          result.editions?.some(
+            (edition) =>
+              edition.isbn13?.replace(/[^0-9X]/gi, '').toUpperCase() ===
+              normalizedIsbn
+          )
+        ) ?? searchResults[0];
       const rootFolder = entity.rootFolder || readarrSettings.activeDirectory;
       const qualityProfile =
         entity.profileId || readarrSettings.activeProfileId;
@@ -1305,6 +1333,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         label: 'Media Request',
         requestId: entity.id,
         mediaId: entity.media.id,
+        lookupTerm,
       });
     } catch (e) {
       const requestRepository = getRepository(MediaRequest);
