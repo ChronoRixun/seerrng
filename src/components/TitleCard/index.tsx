@@ -311,6 +311,7 @@ const TitleCard = ({
     mediaType === 'movie' || mediaType === 'collection' || mediaType === 'tv';
   const numericId = typeof id === 'number' ? id : Number(id);
   const canUseVideoActions = videoMediaType && Number.isFinite(numericId);
+  const canUseRequestActions = canUseVideoActions || isAlbum;
   const detailHref =
     mediaType === 'movie'
       ? `/movie/${id}`
@@ -328,7 +329,7 @@ const TitleCard = ({
       : undefined;
 
   const showRequestButton =
-    canUseVideoActions &&
+    canUseRequestActions &&
     hasPermission(
       [
         Permission.REQUEST,
@@ -383,6 +384,16 @@ const TitleCard = ({
             isUpdating={isUpdating}
           />
         </>
+      )}
+      {isAlbum && typeof id === 'string' && (
+        <RequestModal
+          mbId={id}
+          show={showRequestModal}
+          type="music"
+          onComplete={requestComplete}
+          onUpdating={requestUpdating}
+          onCancel={closeModal}
+        />
       )}
       <div
         className={`relative transform-gpu cursor-default overflow-hidden rounded-xl bg-gray-800 bg-cover outline-none ring-1 transition duration-300 ${
@@ -466,7 +477,8 @@ const TitleCard = ({
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
               <div className="flex flex-col gap-1">
-                {user?.userType !== UserType.PLEX &&
+                {canUseVideoActions &&
+                  user?.userType !== UserType.PLEX &&
                   (toggleWatchlist ? (
                     <Button
                       buttonType={'ghost'}
