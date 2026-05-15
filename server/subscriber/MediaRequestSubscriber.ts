@@ -997,6 +997,15 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       }
 
       if (media.status === MediaStatus.AVAILABLE) {
+        logger.warn('Music already exists, marking request as COMPLETED', {
+          label: 'Media Request',
+          requestId: entity.id,
+          mediaId: entity.media.id,
+        });
+
+        const requestRepository = getRepository(MediaRequest);
+        entity.status = MediaRequestStatus.COMPLETED;
+        await requestRepository.save(entity);
         return;
       }
 
@@ -1170,6 +1179,15 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       }
 
       if (media.status === MediaStatus.AVAILABLE) {
+        logger.warn('Book already exists, marking request as COMPLETED', {
+          label: 'Media Request',
+          requestId: entity.id,
+          mediaId: entity.media.id,
+        });
+
+        const requestRepository = getRepository(MediaRequest);
+        entity.status = MediaRequestStatus.COMPLETED;
+        await requestRepository.save(entity);
         return;
       }
 
