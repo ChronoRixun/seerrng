@@ -1023,7 +1023,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       const albumInfo = searchResults[0].album;
       const rootFolder = entity.rootFolder || lidarrSettings.activeDirectory;
       const qualityProfile = entity.profileId || lidarrSettings.activeProfileId;
-      const metadataProfile = lidarrSettings.activeMetadataProfileId ?? 1;
+      const metadataProfile =
+        entity.metadataProfileId ?? lidarrSettings.activeMetadataProfileId ?? 1;
       const tags = entity.tags ? [...entity.tags] : [...(lidarrSettings.tags ?? [])];
 
       if (lidarrSettings.tagRequests) {
@@ -1228,7 +1229,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       const qualityProfile =
         entity.profileId || readarrSettings.activeProfileId;
       const metadataProfile =
-        readarrSettings.activeMetadataProfileId ?? 1;
+        entity.metadataProfileId ?? readarrSettings.activeMetadataProfileId ?? 1;
       const tags = entity.tags
         ? [...entity.tags]
         : [...(readarrSettings.tags ?? [])];

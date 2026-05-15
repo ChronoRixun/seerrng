@@ -7,6 +7,7 @@ export interface ServiceCommonServer {
   is4k: boolean;
   isDefault: boolean;
   activeProfileId: number;
+  activeMetadataProfileId?: number;
   activeDirectory: string;
   activeLanguageProfileId?: number;
   activeAnimeProfileId?: number;
@@ -19,6 +20,7 @@ export interface ServiceCommonServer {
 export interface ServiceCommonServerWithDetails {
   server: ServiceCommonServer;
   profiles: QualityProfile[];
+  metadataProfiles?: QualityProfile[];
   rootFolders: Partial<RootFolder>[];
   languageProfiles?: LanguageProfile[];
   tags: Tag[];

@@ -75,6 +75,7 @@ const MusicRequestModal = ({
         ? {
             serverId: requestOverrides.server,
             profileId: requestOverrides.profile,
+            metadataProfileId: requestOverrides.metadataProfile,
             rootFolder: requestOverrides.folder,
             userId: requestOverrides.user?.id,
             tags: requestOverrides.tags,
@@ -171,6 +172,7 @@ const MusicRequestModal = ({
         mediaType: MediaType.MUSIC,
         serverId: requestOverrides?.server,
         profileId: requestOverrides?.profile,
+        metadataProfileId: requestOverrides?.metadataProfile,
         rootFolder: requestOverrides?.folder,
         userId: requestOverrides?.user?.id,
         tags: requestOverrides?.tags,

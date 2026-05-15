@@ -180,6 +180,7 @@ serviceRoutes.get('/lidarr', async (_req, res) => {
       isDefault: lidarr.isDefault,
       activeDirectory: lidarr.activeDirectory,
       activeProfileId: lidarr.activeProfileId,
+      activeMetadataProfileId: lidarr.activeMetadataProfileId,
       activeTags: lidarr.tags ?? [],
     })
   );
@@ -198,6 +199,7 @@ serviceRoutes.get('/readarr', async (_req, res) => {
       isDefault: readarr.isDefault,
       activeDirectory: readarr.activeDirectory,
       activeProfileId: readarr.activeProfileId,
+      activeMetadataProfileId: readarr.activeMetadataProfileId,
       activeTags: readarr.tags ?? [],
     })
   );
@@ -228,6 +230,7 @@ serviceRoutes.get<{ readarrId: string }>(
 
     try {
       const profiles = await readarr.getProfiles();
+      const metadataProfiles = await readarr.getMetadataProfiles();
       const rootFolders = await readarr.getRootFolders();
       const tags = await readarr.getTags();
 
@@ -239,9 +242,14 @@ serviceRoutes.get<{ readarrId: string }>(
           isDefault: readarrSettings.isDefault,
           activeDirectory: readarrSettings.activeDirectory,
           activeProfileId: readarrSettings.activeProfileId,
+          activeMetadataProfileId: readarrSettings.activeMetadataProfileId,
           activeTags: readarrSettings.tags,
         },
         profiles: profiles.map((profile) => ({
+          id: profile.id,
+          name: profile.name,
+        })),
+        metadataProfiles: metadataProfiles.map((profile) => ({
           id: profile.id,
           name: profile.name,
         })),
@@ -282,6 +290,7 @@ serviceRoutes.get<{ lidarrId: string }>(
 
     try {
       const profiles = await lidarr.getProfiles();
+      const metadataProfiles = await lidarr.getMetadataProfiles();
       const rootFolders = await lidarr.getRootFolders();
       const tags = await lidarr.getTags();
 
@@ -293,9 +302,14 @@ serviceRoutes.get<{ lidarrId: string }>(
           isDefault: lidarrSettings.isDefault,
           activeDirectory: lidarrSettings.activeDirectory,
           activeProfileId: lidarrSettings.activeProfileId,
+          activeMetadataProfileId: lidarrSettings.activeMetadataProfileId,
           activeTags: lidarrSettings.tags,
         },
         profiles: profiles.map((profile) => ({
+          id: profile.id,
+          name: profile.name,
+        })),
+        metadataProfiles: metadataProfiles.map((profile) => ({
           id: profile.id,
           name: profile.name,
         })),

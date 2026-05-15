@@ -29,6 +29,7 @@ const messages = defineMessages('components.RequestModal.AdvancedRequester', {
   advancedoptions: 'Advanced',
   destinationserver: 'Destination Server',
   qualityprofile: 'Quality Profile',
+  metadataprofile: 'Metadata Profile',
   rootfolder: 'Root Folder',
   animenote: '* This series is an anime.',
   default: '{name} (Default)',
@@ -43,6 +44,7 @@ const messages = defineMessages('components.RequestModal.AdvancedRequester', {
 export type RequestOverrides = {
   server?: number;
   profile?: number;
+  metadataProfile?: number;
   folder?: string;
   tags?: number[];
   language?: number;
@@ -93,6 +95,8 @@ const AdvancedRequester = ({
   const [selectedProfile, setSelectedProfile] = useState<number>(
     defaultOverrides?.profile ?? -1
   );
+  const [selectedMetadataProfile, setSelectedMetadataProfile] =
+    useState<number>(defaultOverrides?.metadataProfile ?? -1);
   const [selectedFolder, setSelectedFolder] = useState<string>(
     defaultOverrides?.folder ?? ''
   );
@@ -203,6 +207,12 @@ const AdvancedRequester = ({
             ? serverData.server.activeAnimeLanguageProfileId
             : serverData.server.activeLanguageProfileId)
       );
+      const defaultMetadataProfile = serverData.metadataProfiles?.find(
+        (profile) =>
+          profile.id ===
+          (serverData.server.activeMetadataProfileId ??
+            serverData.metadataProfiles?.[0]?.id)
+      );
       const defaultTags = isAnime
         ? serverData.server.activeAnimeTags
         : serverData.server.activeTags;
@@ -218,6 +228,14 @@ const AdvancedRequester = ({
         (!applyOverrides || defaultOverrides.profile === null)
       ) {
         setSelectedProfile(defaultProfile.id);
+      }
+
+      if (
+        defaultMetadataProfile &&
+        defaultMetadataProfile.id !== selectedMetadataProfile &&
+        (!applyOverrides || defaultOverrides.metadataProfile === null)
+      ) {
+        setSelectedMetadataProfile(defaultMetadataProfile.id);
       }
 
       if (
@@ -255,6 +273,10 @@ const AdvancedRequester = ({
       setSelectedProfile(defaultOverrides.profile);
     }
 
+    if (defaultOverrides && defaultOverrides.metadataProfile != null) {
+      setSelectedMetadataProfile(defaultOverrides.metadataProfile);
+    }
+
     if (defaultOverrides && defaultOverrides.folder) {
       setSelectedFolder(defaultOverrides.folder);
     }
@@ -270,6 +292,7 @@ const AdvancedRequester = ({
     defaultOverrides?.server,
     defaultOverrides?.folder,
     defaultOverrides?.profile,
+    defaultOverrides?.metadataProfile,
     defaultOverrides?.language,
     defaultOverrides?.tags,
   ]);
@@ -279,6 +302,8 @@ const AdvancedRequester = ({
       onChange({
         folder: selectedFolder !== '' ? selectedFolder : undefined,
         profile: selectedProfile !== -1 ? selectedProfile : undefined,
+        metadataProfile:
+          selectedMetadataProfile !== -1 ? selectedMetadataProfile : undefined,
         server: selectedServer ?? undefined,
         user: selectedUser ?? undefined,
         language: selectedLanguage !== -1 ? selectedLanguage : undefined,
@@ -289,6 +314,7 @@ const AdvancedRequester = ({
     selectedFolder,
     selectedServer,
     selectedProfile,
+    selectedMetadataProfile,
     selectedUser,
     selectedLanguage,
     selectedTags,
@@ -308,6 +334,7 @@ const AdvancedRequester = ({
       (data.filter((server) => server.is4k === is4k).length < 2 &&
         (!serverData ||
           (serverData.profiles.length < 2 &&
+            (serverData.metadataProfiles ?? []).length < 2 &&
             serverData.rootFolders.length < 2 &&
             (serverData.languageProfiles ?? []).length < 2 &&
             !serverData.tags?.length)))) &&
@@ -354,6 +381,57 @@ const AdvancedRequester = ({
                 </select>
               </div>
             )}
+            {(type === 'music' || type === 'book') &&
+              (isValidating ||
+                !serverData ||
+                (serverData.metadataProfiles ?? []).length > 1) && (
+                <div className="mb-3 w-full flex-shrink-0 flex-grow last:pr-0 md:w-1/4 md:pr-4">
+                  <label htmlFor="metadataProfile">
+                    {intl.formatMessage(messages.metadataprofile)}
+                  </label>
+                  <select
+                    id="metadataProfile"
+                    name="metadataProfile"
+                    value={selectedMetadataProfile}
+                    onChange={(e) =>
+                      setSelectedMetadataProfile(Number(e.target.value))
+                    }
+                    onBlur={(e) =>
+                      setSelectedMetadataProfile(Number(e.target.value))
+                    }
+                    className="border-gray-700 bg-gray-800"
+                    disabled={isValidating || !serverData}
+                  >
+                    {(isValidating || !serverData) && (
+                      <option value="">
+                        {intl.formatMessage(globalMessages.loading)}
+                      </option>
+                    )}
+                    {!isValidating &&
+                      serverData &&
+                      serverData.metadataProfiles
+                        ?.toSorted((a, b) =>
+                          a.name.localeCompare(b.name, intl.locale, {
+                            numeric: true,
+                            sensitivity: 'base',
+                          })
+                        )
+                        .map((profile) => (
+                          <option
+                            key={`metadata-profile-list${profile.id}`}
+                            value={profile.id}
+                          >
+                            {serverData.server.activeMetadataProfileId ===
+                            profile.id
+                              ? intl.formatMessage(messages.default, {
+                                  name: profile.name,
+                                })
+                              : profile.name}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+              )}
             {(isValidating ||
               !serverData ||
               serverData.profiles.length > 1) && (
