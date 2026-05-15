@@ -974,15 +974,17 @@ router.get<{ id: string }, WatchlistResponse>(
           results: result
             .filter(
               (item) =>
-                item.tmdbId !== undefined &&
-                (item.mediaType === MediaType.MOVIE ||
-                  item.mediaType === MediaType.TV)
+                ((item.mediaType === MediaType.MOVIE ||
+                  item.mediaType === MediaType.TV) &&
+                  item.tmdbId !== undefined) ||
+                (item.mediaType === MediaType.MUSIC && !!item.mbId)
             )
             .map((item) => ({
               id: item.id,
-              ratingKey: item.ratingKey,
-              tmdbId: item.tmdbId as number,
-              mediaType: item.mediaType as 'movie' | 'tv',
+              ratingKey: item.ratingKey || item.mbId || item.id.toString(),
+              tmdbId: item.tmdbId,
+              mbId: item.mbId,
+              mediaType: item.mediaType as 'movie' | 'tv' | 'music',
               title: item.title,
             })),
         });

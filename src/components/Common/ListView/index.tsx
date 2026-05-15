@@ -63,14 +63,25 @@ const ListView = ({
         {plexItems?.map((title, index) => {
           return (
             <li key={`${title.ratingKey}-${index}`}>
-              <TmdbTitleCard
-                id={title.tmdbId}
-                tmdbId={title.tmdbId}
-                type={title.mediaType}
-                isAddedToWatchlist={true}
-                canExpand
-                mutateParent={mutateParent}
-              />
+              {title.mediaType === 'music' && title.mbId ? (
+                <TitleCard
+                  id={title.mbId}
+                  title={title.title}
+                  mediaType="album"
+                  isAddedToWatchlist={true}
+                  canExpand
+                  mutateParent={mutateParent}
+                />
+              ) : title.tmdbId ? (
+                <TmdbTitleCard
+                  id={title.tmdbId}
+                  tmdbId={title.tmdbId}
+                  type={title.mediaType === 'tv' ? 'tv' : 'movie'}
+                  isAddedToWatchlist={true}
+                  canExpand
+                  mutateParent={mutateParent}
+                />
+              ) : null}
             </li>
           );
         })}

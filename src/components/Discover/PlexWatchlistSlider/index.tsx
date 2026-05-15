@@ -1,4 +1,5 @@
 import Slider from '@app/components/Slider';
+import TitleCard from '@app/components/TitleCard';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import { useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
@@ -62,13 +63,23 @@ const PlexWatchlistSlider = () => {
           ),
         })}
         items={watchlistItems?.results.map((item) => (
-          <TmdbTitleCard
-            id={item.tmdbId}
-            key={`watchlist-slider-item-${item.ratingKey}`}
-            tmdbId={item.tmdbId}
-            type={item.mediaType}
-            isAddedToWatchlist={true}
-          />
+          <div key={`watchlist-slider-item-${item.ratingKey}`}>
+            {item.mediaType === 'music' && item.mbId ? (
+              <TitleCard
+                id={item.mbId}
+                title={item.title}
+                mediaType="album"
+                isAddedToWatchlist={true}
+              />
+            ) : item.tmdbId ? (
+              <TmdbTitleCard
+                id={item.tmdbId}
+                tmdbId={item.tmdbId}
+                type={item.mediaType === 'tv' ? 'tv' : 'movie'}
+                isAddedToWatchlist={true}
+              />
+            ) : null}
+          </div>
         ))}
       />
     </>

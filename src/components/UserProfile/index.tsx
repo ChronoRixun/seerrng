@@ -4,6 +4,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import ProgressCircle from '@app/components/Common/ProgressCircle';
 import RequestCard from '@app/components/RequestCard';
 import Slider from '@app/components/Slider';
+import TitleCard from '@app/components/TitleCard';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import ProfileHeader from '@app/components/UserProfile/ProfileHeader';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
@@ -428,12 +429,22 @@ const UserProfile = () => {
                 ),
               })}
               items={watchlistItems?.results.map((item) => (
-                <TmdbTitleCard
-                  id={item.tmdbId}
-                  key={`watchlist-slider-item-${item.ratingKey}`}
-                  tmdbId={item.tmdbId}
-                  type={item.mediaType}
-                />
+                <div key={`watchlist-slider-item-${item.ratingKey}`}>
+                  {item.mediaType === 'music' && item.mbId ? (
+                    <TitleCard
+                      id={item.mbId}
+                      title={item.title}
+                      mediaType="album"
+                      isAddedToWatchlist={true}
+                    />
+                  ) : item.tmdbId ? (
+                    <TmdbTitleCard
+                      id={item.tmdbId}
+                      tmdbId={item.tmdbId}
+                      type={item.mediaType === 'tv' ? 'tv' : 'movie'}
+                    />
+                  ) : null}
+                </div>
               ))}
             />
           </>
