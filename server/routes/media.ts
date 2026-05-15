@@ -269,7 +269,10 @@ mediaRoutes.delete(
             mediaId: media.id,
           }
         );
-        return;
+        return next({
+          status: 404,
+          message: `${serviceName} server not configured.`,
+        });
       }
 
       let service;
