@@ -1151,9 +1151,14 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       const mediaRepository = getRepository(Media);
       const settings = getSettings();
 
-      let readarrSettings = settings.readarr.find(
-        (readarr) => readarr.isDefault
-      );
+      const requestedServiceType =
+        entity.bookFormat === 'audiobook' ? 'audiobook' : 'ebook';
+      let readarrSettings =
+        settings.readarr.find(
+          (readarr) =>
+            readarr.isDefault &&
+            (readarr.serviceType ?? 'ebook') === requestedServiceType
+        ) ?? settings.readarr.find((readarr) => readarr.isDefault);
 
       if (
         entity.serverId !== null &&

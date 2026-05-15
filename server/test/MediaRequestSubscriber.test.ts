@@ -319,4 +319,119 @@ describe('MediaRequestSubscriber service dispatch', () => {
     });
     assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
   });
+
+  it('sends audiobook requests to the default audiobook Bookshelf server', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 20,
+        name: 'Ebook Bookshelf',
+        hostname: 'ebooks.local',
+        port: 8787,
+        apiKey: 'ebook-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Ebooks',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/ebooks',
+        tags: [4],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+      {
+        id: 21,
+        name: 'Audio Bookshelf',
+        hostname: 'audio.local',
+        port: 8787,
+        apiKey: 'audio-key',
+        useSsl: false,
+        activeProfileId: 31,
+        activeProfileName: 'Audiobooks',
+        activeMetadataProfileId: 32,
+        activeMetadataProfileName: 'Audio Standard',
+        activeDirectory: '/audiobooks',
+        tags: [9],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'audiobook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780441478125',
+            canonical: false,
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+    request.bookFormat = 'audiobook';
+
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
+      key: '/works/OL45804W',
+      title: 'The Left Hand of Darkness',
+    }));
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => {
+      return [
+        {
+          title: 'The Left Hand of Darkness',
+          foreignBookId: 'readarr-audio-id',
+          titleSlug: 'the-left-hand-of-darkness-audio',
+          editions: [
+            {
+              foreignEditionId: 'audio-edition-id',
+              title: 'The Left Hand of Darkness',
+              isbn13: '9780441478125',
+              monitored: false,
+            },
+          ],
+        },
+      ] as ReadarrBookLookupResult[];
+    });
+
+    let addPayload: ReadarrBookOptions | undefined;
+    mock.method(
+      ReadarrAPI.prototype,
+      'addBook',
+      async (payload: ReadarrBookOptions) => {
+        addPayload = payload;
+        return {
+          ...payload,
+          id: 41,
+          titleSlug: 'the-left-hand-of-darkness-audio',
+        } as Awaited<ReturnType<ReadarrAPI['addBook']>>;
+      }
+    );
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    assert.equal(addPayload?.rootFolderPath, '/audiobooks');
+    assert.equal(addPayload?.qualityProfileId, 31);
+    assert.equal(addPayload?.metadataProfileId, 32);
+    assert.deepEqual(addPayload?.tags, [9]);
+
+    const savedMedia = await getRepository(Media).findOneByOrFail({
+      id: media.id,
+    });
+    assert.equal(savedMedia.serviceId, 21);
+  });
 });

@@ -467,9 +467,15 @@ export class MediaRequest {
         }
       }
 
-      const defaultReadarr = settings.readarr.find(
-        (readarr) => readarr.isDefault
-      );
+      const requestedBookFormat = requestBody.format ?? 'ebook';
+      const requestedServiceType =
+        requestedBookFormat === 'audiobook' ? 'audiobook' : 'ebook';
+      const defaultReadarr =
+        settings.readarr.find(
+          (readarr) =>
+            readarr.isDefault &&
+            (readarr.serviceType ?? 'ebook') === requestedServiceType
+        ) ?? settings.readarr.find((readarr) => readarr.isDefault);
       const autoApproved = user.hasPermission(
         [
           Permission.AUTO_APPROVE,
@@ -494,7 +500,7 @@ export class MediaRequest {
           requestBody.metadataProfileId ?? defaultReadarr?.activeMetadataProfileId,
         rootFolder: requestBody.rootFolder ?? defaultReadarr?.activeDirectory,
         tags: requestBody.tags ?? defaultReadarr?.tags,
-        bookFormat: requestBody.format ?? 'ebook',
+        bookFormat: requestedBookFormat,
         isAutoRequest: options.isAutoRequest ?? false,
       });
 

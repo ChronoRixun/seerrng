@@ -20,9 +20,13 @@ readarrRoutes.post('/', (req, res) => {
   newReadarr.id = lastItem ? lastItem.id + 1 : 0;
 
   if (newReadarr.isDefault) {
+    const serviceType = newReadarr.serviceType ?? 'ebook';
     settings.readarr = settings.readarr.map((readarr) => ({
       ...readarr,
-      isDefault: false,
+      isDefault:
+        (readarr.serviceType ?? 'ebook') === serviceType
+          ? false
+          : readarr.isDefault,
     }));
   }
 
@@ -85,9 +89,13 @@ readarrRoutes.put<{ id: string }, ReadarrSettings, ReadarrSettings>(
     }
 
     if (req.body.isDefault) {
+      const serviceType = req.body.serviceType ?? 'ebook';
       settings.readarr = settings.readarr.map((readarr) => ({
         ...readarr,
-        isDefault: readarr.id === Number(req.params.id),
+        isDefault:
+          (readarr.serviceType ?? 'ebook') === serviceType
+            ? readarr.id === Number(req.params.id)
+            : readarr.isDefault,
       }));
     }
 

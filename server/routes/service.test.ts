@@ -147,7 +147,7 @@ describe('Lidarr settings routes', () => {
 });
 
 describe('Bookshelf settings routes', () => {
-  it('keeps only the newest default Bookshelf/Readarr server active', async () => {
+  it('keeps separate default Bookshelf servers per book format', async () => {
     const first = await request(app)
       .post('/settings/readarr')
       .send(makeReadarr({ name: 'Primary Bookshelf', isDefault: true }));
@@ -176,7 +176,7 @@ describe('Bookshelf settings routes', () => {
         {
           id: 0,
           name: 'Primary Bookshelf',
-          isDefault: false,
+          isDefault: true,
           serviceType: 'ebook',
         },
         {
@@ -184,6 +184,48 @@ describe('Bookshelf settings routes', () => {
           name: 'Replacement Bookshelf',
           isDefault: true,
           serviceType: 'audiobook',
+        },
+      ]
+    );
+  });
+
+  it('keeps only the newest default Bookshelf server active for the same format', async () => {
+    const first = await request(app)
+      .post('/settings/readarr')
+      .send(makeReadarr({ name: 'Primary Ebook Bookshelf', isDefault: true }));
+    const second = await request(app)
+      .post('/settings/readarr')
+      .send(
+        makeReadarr({
+          name: 'Replacement Ebook Bookshelf',
+          isDefault: true,
+          serviceType: 'ebook',
+        })
+      );
+
+    assert.strictEqual(first.status, 201);
+    assert.strictEqual(second.status, 201);
+
+    const servers = getSettings().readarr;
+    assert.deepStrictEqual(
+      servers.map(({ id, name, isDefault, serviceType }) => ({
+        id,
+        name,
+        isDefault,
+        serviceType,
+      })),
+      [
+        {
+          id: 0,
+          name: 'Primary Ebook Bookshelf',
+          isDefault: false,
+          serviceType: 'ebook',
+        },
+        {
+          id: 1,
+          name: 'Replacement Ebook Bookshelf',
+          isDefault: true,
+          serviceType: 'ebook',
         },
       ]
     );
