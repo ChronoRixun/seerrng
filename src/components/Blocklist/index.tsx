@@ -196,7 +196,9 @@ const Blocklist = () => {
           return (
             <div
               className="py-2"
-              key={`request-list-${item.mediaType}-${item.tmdbId}`}
+              key={`request-list-${item.mediaType}-${
+                item.externalId ?? item.tmdbId
+              }`}
             >
               <BlocklistedItem item={item} revalidateList={revalidate} />
             </div>
