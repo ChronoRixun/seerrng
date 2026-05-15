@@ -106,6 +106,20 @@ const getRequestDownloadStatus = (
   return request.media[request.is4k ? 'downloadStatus4k' : 'downloadStatus'];
 };
 
+const getRequestServiceUrl = (request: NonFunctionProperties<MediaRequest>) => {
+  if (request.type === 'book') {
+    if (request.bookFormat === 'audiobook') {
+      return request.media.audiobookServiceUrl;
+    }
+
+    if (request.bookFormat === 'both') {
+      return request.media.serviceUrl ?? request.media.audiobookServiceUrl;
+    }
+  }
+
+  return request.is4k ? request.media.serviceUrl4k : request.media.serviceUrl;
+};
+
 interface RequestItemErrorProps {
   requestData?: NonFunctionProperties<MediaRequest>;
   revalidateList: () => void;
@@ -237,11 +251,7 @@ const RequestItemError = ({
                             : 'movie'
                     }
                     plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
-                    serviceUrl={
-                      requestData.is4k
-                        ? requestData.media.serviceUrl4k
-                        : requestData.media.serviceUrl
-                    }
+                    serviceUrl={getRequestServiceUrl(requestData)}
                   />
                 )}
               </div>
@@ -717,11 +727,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                           : 'movie'
                   }
                   plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
-                  serviceUrl={
-                    requestData.is4k
-                      ? requestData.media.serviceUrl4k
-                      : requestData.media.serviceUrl
-                  }
+                  serviceUrl={getRequestServiceUrl(requestData)}
                 />
               )}
             </div>

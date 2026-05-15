@@ -95,6 +95,20 @@ const getRequestDownloadStatus = (
   return request.media[request.is4k ? 'downloadStatus4k' : 'downloadStatus'];
 };
 
+const getRequestServiceUrl = (request: NonFunctionProperties<MediaRequest>) => {
+  if (request.type === 'book') {
+    if (request.bookFormat === 'audiobook') {
+      return request.media.audiobookServiceUrl;
+    }
+
+    if (request.bookFormat === 'both') {
+      return request.media.serviceUrl ?? request.media.audiobookServiceUrl;
+    }
+  }
+
+  return request.is4k ? request.media.serviceUrl4k : request.media.serviceUrl;
+};
+
 const RequestCardPlaceholder = () => {
   return (
     <div className="relative w-72 animate-pulse rounded-xl bg-gray-700 p-4 sm:w-96">
@@ -219,11 +233,7 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
                               : 'movie'
                       }
                       plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
-                      serviceUrl={
-                        requestData.is4k
-                          ? requestData.media.serviceUrl4k
-                          : requestData.media.serviceUrl
-                      }
+                      serviceUrl={getRequestServiceUrl(requestData)}
                     />
                   )}
                 </div>
@@ -609,11 +619,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                         : 'movie'
                 }
                 plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
-                serviceUrl={
-                  requestData.is4k
-                    ? requestData.media.serviceUrl4k
-                    : requestData.media.serviceUrl
-                }
+                serviceUrl={getRequestServiceUrl(requestData)}
               />
             )}
           </div>
