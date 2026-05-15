@@ -1030,7 +1030,7 @@
   "components.Settings.SettingsMain.youtubeUrl": "YouTube URL",
   "components.Settings.SettingsMain.youtubeUrlTip": "Base URL for YouTube videos if a self-hosted YouTube instance is used.",
   "components.Settings.SettingsNetwork.apiRequestTimeout": "API Request Timeout",
-  "components.Settings.SettingsNetwork.apiRequestTimeoutTip": "Maximum time (in seconds) to wait for responses from external services like Radarr/Sonarr. Set to 0 for no timeout.",
+  "components.Settings.SettingsNetwork.apiRequestTimeoutTip": "Maximum time (in seconds) to wait for responses from external services like Radarr, Sonarr, Lidarr, or Readarr. Set to 0 for no timeout.",
   "components.Settings.SettingsNetwork.csrfProtection": "Enable CSRF Protection",
   "components.Settings.SettingsNetwork.csrfProtectionHoverTip": "Do NOT enable this setting unless you understand what you are doing!",
   "components.Settings.SettingsNetwork.csrfProtectionTip": "Set external API access to read-only (requires HTTPS)",
