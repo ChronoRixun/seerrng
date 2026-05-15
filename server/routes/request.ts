@@ -338,7 +338,9 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
               return {
                 ...r,
                 canRemove: readarrServers.some(
-                  (server) => server.id === r.media.serviceId
+                  (server) =>
+                    server.id === r.media.serviceId ||
+                    server.id === r.media.audiobookServiceId
                 ),
               };
             }

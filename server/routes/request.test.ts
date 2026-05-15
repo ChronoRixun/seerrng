@@ -3,6 +3,7 @@ import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import {
   MediaRequestStatus,
   MediaStatus,
@@ -214,6 +215,88 @@ describe('PUT /request/:requestId (movie)', () => {
     assert.strictEqual(saved.serverId, 3);
     assert.strictEqual(saved.profileId, 7);
     assert.strictEqual(saved.rootFolder, '/updated/movies');
+  });
+});
+
+describe('GET /request', () => {
+  it('marks audiobook-only book requests removable when the Bookshelf server exists', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 21,
+        name: 'Audio Bookshelf',
+        hostname: 'audio.local',
+        port: 8787,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 1,
+        activeProfileName: 'Audiobooks',
+        activeMetadataProfileId: 1,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/audiobooks',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'audiobook',
+      },
+    ];
+    const originalGetProfiles = Object.getOwnPropertyDescriptor(
+      ReadarrAPI.prototype,
+      'getProfiles'
+    );
+    Object.defineProperty(ReadarrAPI.prototype, 'getProfiles', {
+      set() {},
+      get() {
+        return async () => [{ id: 1, name: 'Audiobooks' }];
+      },
+      configurable: true,
+    });
+    t.after(() => {
+      if (originalGetProfiles) {
+        Object.defineProperty(
+          ReadarrAPI.prototype,
+          'getProfiles',
+          originalGetProfiles
+        );
+      }
+      settings.readarr = [];
+    });
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+        status4k: MediaStatus.UNKNOWN,
+        audiobookServiceId: 21,
+        audiobookExternalServiceId: 210,
+        audiobookExternalServiceSlug: 'audio-book',
+      })
+    );
+    await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.COMPLETED,
+        is4k: false,
+        bookFormat: 'audiobook',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.get('/request').query({ mediaType: 'book' });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results.length, 1);
+    assert.strictEqual(res.body.results[0].canRemove, true);
   });
 });
 
