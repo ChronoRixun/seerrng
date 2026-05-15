@@ -297,7 +297,8 @@ const RequestList = () => {
       {data.serviceErrors &&
         (data.serviceErrors.radarr.length > 0 ||
           data.serviceErrors.sonarr.length > 0 ||
-          data.serviceErrors.lidarr.length > 0) &&
+          data.serviceErrors.lidarr.length > 0 ||
+          data.serviceErrors.readarr.length > 0) &&
         (hasPermission(Permission.MANAGE_REQUESTS) ||
           hasPermission(Permission.REQUEST_ADVANCED)) && (
           <div className="service-error-banner">
@@ -308,6 +309,7 @@ const RequestList = () => {
                   ...data.serviceErrors.radarr.map((s) => s.name),
                   ...data.serviceErrors.sonarr.map((s) => s.name),
                   ...data.serviceErrors.lidarr.map((s) => s.name),
+                  ...data.serviceErrors.readarr.map((s) => s.name),
                 ].join(', '),
               })}
             </span>

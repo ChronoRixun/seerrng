@@ -12,7 +12,7 @@
 
 # SeerrNG
 
-**SeerrNG** is a fork of [Seerr](https://github.com/seerr-team/seerr) focused on extending media requests beyond movies and TV into music, books, audiobooks, and related library automation.
+**SeerrNG** is a fork of [Seerr](https://github.com/seerr-team/seerr) focused on extending media requests beyond movies and TV into music, books, and related library automation.
 
 SeerrNG is built on the work of the Seerr, Jellyseerr, and Overseerr projects. Upstream Seerr remains the base project and is credited for the original application, architecture, and ongoing video-first media request manager.
 
@@ -24,7 +24,7 @@ SeerrNG is targeting first-class request and availability workflows for:
 
 - Movies and TV via the inherited Radarr/Sonarr integrations.
 - Music via Lidarr, MusicBrainz, ListenBrainz, and Cover Art Archive.
-- Books and audiobooks via Readarr, Hardcover/ISBN identifiers, and audiobook/library backends where practical.
+- Books via Readarr, Hardcover/ISBN identifiers, and library backends where practical.
 
 The implementation priority is to stabilize music first, then add books behind a clean identifier and format model instead of forcing everything through movie/TV-shaped IDs.
 
