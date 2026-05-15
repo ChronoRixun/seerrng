@@ -48,6 +48,7 @@ interface ProcessOptions {
     provider: MediaIdentifierProvider;
     value: string;
   }[];
+  bookServiceType?: 'ebook' | 'audiobook';
 }
 
 export interface ProcessableSeason {
@@ -372,6 +373,7 @@ class BaseScanner<T> {
       title = 'Unknown Book',
       hasFile = true,
       secondaryIdentifiers = [],
+      bookServiceType = 'ebook',
     }: ProcessOptions = {}
   ): Promise<void> {
     const mediaRepository = getRepository(Media);
@@ -424,12 +426,31 @@ class BaseScanner<T> {
           changedExisting = true;
         }
 
-        if (serviceId !== undefined && existing.serviceId !== serviceId) {
+        if (
+          bookServiceType === 'audiobook' &&
+          serviceId !== undefined &&
+          existing.audiobookServiceId !== serviceId
+        ) {
+          existing.audiobookServiceId = serviceId;
+          changedExisting = true;
+        } else if (
+          bookServiceType === 'ebook' &&
+          serviceId !== undefined &&
+          existing.serviceId !== serviceId
+        ) {
           existing.serviceId = serviceId;
           changedExisting = true;
         }
 
         if (
+          bookServiceType === 'audiobook' &&
+          externalServiceId !== undefined &&
+          existing.audiobookExternalServiceId !== externalServiceId
+        ) {
+          existing.audiobookExternalServiceId = externalServiceId;
+          changedExisting = true;
+        } else if (
+          bookServiceType === 'ebook' &&
           externalServiceId !== undefined &&
           existing.externalServiceId !== externalServiceId
         ) {
@@ -438,6 +459,14 @@ class BaseScanner<T> {
         }
 
         if (
+          bookServiceType === 'audiobook' &&
+          externalServiceSlug !== undefined &&
+          existing.audiobookExternalServiceSlug !== externalServiceSlug
+        ) {
+          existing.audiobookExternalServiceSlug = externalServiceSlug;
+          changedExisting = true;
+        } else if (
+          bookServiceType === 'ebook' &&
           externalServiceSlug !== undefined &&
           existing.externalServiceSlug !== externalServiceSlug
         ) {
@@ -481,9 +510,19 @@ class BaseScanner<T> {
             tmdbId: 0,
             mediaType: MediaType.BOOK,
             mediaAddedAt,
-            serviceId,
-            externalServiceId,
-            externalServiceSlug,
+            serviceId: bookServiceType === 'ebook' ? serviceId : undefined,
+            externalServiceId:
+              bookServiceType === 'ebook' ? externalServiceId : undefined,
+            externalServiceSlug:
+              bookServiceType === 'ebook' ? externalServiceSlug : undefined,
+            audiobookServiceId:
+              bookServiceType === 'audiobook' ? serviceId : undefined,
+            audiobookExternalServiceId:
+              bookServiceType === 'audiobook' ? externalServiceId : undefined,
+            audiobookExternalServiceSlug:
+              bookServiceType === 'audiobook'
+                ? externalServiceSlug
+                : undefined,
             status:
               !processing && hasFile
                 ? MediaStatus.AVAILABLE

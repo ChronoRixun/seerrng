@@ -27,7 +27,7 @@ import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
 import notificationManager, { Notification } from '@server/lib/notifications';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, type ReadarrSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isEqual, truncate } from 'lodash';
 import type {
@@ -1151,34 +1151,6 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       const mediaRepository = getRepository(Media);
       const settings = getSettings();
 
-      const requestedServiceType =
-        entity.bookFormat === 'audiobook' ? 'audiobook' : 'ebook';
-      let readarrSettings =
-        settings.readarr.find(
-          (readarr) =>
-            readarr.isDefault &&
-            (readarr.serviceType ?? 'ebook') === requestedServiceType
-        ) ?? settings.readarr.find((readarr) => readarr.isDefault);
-
-      if (
-        entity.serverId !== null &&
-        entity.serverId >= 0 &&
-        readarrSettings?.id !== entity.serverId
-      ) {
-        readarrSettings = settings.readarr.find(
-          (readarr) => readarr.id === entity.serverId
-        );
-      }
-
-      if (!readarrSettings) {
-        logger.warn('There is no default Readarr server configured.', {
-          label: 'Media Request',
-          requestId: entity.id,
-          mediaId: entity.media.id,
-        });
-        return;
-      }
-
       const media = await mediaRepository.findOne({
         where: { id: entity.media.id },
         relations: { identifiers: true },
@@ -1193,7 +1165,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         return;
       }
 
-      if (media.status === MediaStatus.AVAILABLE) {
+      if (
+        entity.bookFormat !== 'both' &&
+        media.status === MediaStatus.AVAILABLE
+      ) {
         logger.warn('Book already exists, marking request as COMPLETED', {
           label: 'Media Request',
           requestId: entity.id,
@@ -1218,10 +1193,6 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         throw new Error('Book request is missing lookup identifiers');
       }
 
-      const readarr = new ReadarrAPI({
-        apiKey: readarrSettings.apiKey,
-        url: ReadarrAPI.buildUrl(readarrSettings, '/api/v1'),
-      });
       const openLibrary = new OpenLibraryAPI();
       const work = openLibraryId
         ? await openLibrary.getWork(openLibraryId)
@@ -1239,118 +1210,200 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         throw new Error('Book request is missing a Readarr lookup term');
       }
 
-      let searchResults: ReadarrBookLookupResult[] = [];
-      let lookupTerm: string | undefined;
-
-      for (const term of lookupTerms) {
-        lookupTerm = term;
-        searchResults = await readarr.lookupBook(term);
-
-        if (searchResults?.length) {
-          break;
-        }
-      }
-
-      if (!searchResults?.length) {
-        throw new Error(
-          `Book not found in Readarr search for ${lookupTerms.join(', ')}`
-        );
-      }
-
-      const normalizedIsbn = isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
-      const bookInfo =
-        searchResults.find((result) =>
-          result.editions?.some(
-            (edition) =>
-              edition.isbn13?.replace(/[^0-9X]/gi, '').toUpperCase() ===
-              normalizedIsbn
-          )
-        ) ?? searchResults[0];
-      const rootFolder = entity.rootFolder || readarrSettings.activeDirectory;
-      const qualityProfile =
-        entity.profileId || readarrSettings.activeProfileId;
-      const metadataProfile =
-        entity.metadataProfileId ?? readarrSettings.activeMetadataProfileId ?? 1;
-      const tags = entity.tags
-        ? [...entity.tags]
-        : [...(readarrSettings.tags ?? [])];
-
-      const result = await readarr.addBook({
-        ...bookInfo,
-        monitored: true,
-        qualityProfileId: qualityProfile,
-        metadataProfileId: metadataProfile,
-        rootFolderPath: rootFolder,
-        tags,
-        addOptions: {
-          searchForNewBook: true,
-        },
-      });
-
-      media.externalServiceId = result.id ?? null;
-      media.externalServiceSlug = result.titleSlug ?? result.foreignBookId;
-      media.serviceId = readarrSettings.id;
-      await mediaRepository.save(media);
-
       const identifierRepository = getRepository(MediaIdentifier);
+      const normalizedIsbn = isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
       const existingIdentifierKeys = new Set(
         (media.identifiers ?? []).map(
           (identifier) => `${identifier.provider}:${identifier.value}`
         )
       );
-      const resultIsbn = result.editions
-        ?.find((edition) => edition.isbn13)
-        ?.isbn13?.replace(/[^0-9X]/gi, '')
-        .toUpperCase();
-      const identifiersToSave = [
-        result.foreignBookId
-          ? {
-              provider: MediaIdentifierProvider.READARR,
-              value: result.foreignBookId,
-            }
-          : undefined,
-        resultIsbn
-          ? {
-              provider: MediaIdentifierProvider.ISBN,
-              value: resultIsbn,
-            }
-          : undefined,
-      ].filter(
-        (
-          identifier
-        ): identifier is {
-          provider: MediaIdentifierProvider;
-          value: string;
-        } =>
-          !!identifier &&
-          !existingIdentifierKeys.has(
-            `${identifier.provider}:${identifier.value}`
-          )
-      );
+      const getReadarrSettings = (
+        serviceType: 'ebook' | 'audiobook',
+        allowServerOverride: boolean
+      ): ReadarrSettings | undefined => {
+        let readarrSettings =
+          settings.readarr.find(
+            (readarr) =>
+              readarr.isDefault &&
+              (readarr.serviceType ?? 'ebook') === serviceType
+          ) ?? settings.readarr.find((readarr) => readarr.isDefault);
 
-      if (identifiersToSave.length) {
-        await identifierRepository.save(
-          identifiersToSave.map(
-            (identifier) =>
-              new MediaIdentifier({
-                media,
-                provider: identifier.provider,
-                value: identifier.value,
-                canonical: false,
-              })
-          )
+        if (
+          allowServerOverride &&
+          entity.serverId !== null &&
+          entity.serverId >= 0 &&
+          readarrSettings?.id !== entity.serverId
+        ) {
+          readarrSettings = settings.readarr.find(
+            (readarr) => readarr.id === entity.serverId
+          );
+        }
+
+        return readarrSettings;
+      };
+      const dispatchFormat = async (
+        serviceType: 'ebook' | 'audiobook',
+        allowServerOverride: boolean
+      ): Promise<string | undefined> => {
+        const readarrSettings = getReadarrSettings(
+          serviceType,
+          allowServerOverride
+        );
+
+        if (!readarrSettings) {
+          throw new Error(`No default Bookshelf server configured for ${serviceType}`);
+        }
+
+        const readarr = new ReadarrAPI({
+          apiKey: readarrSettings.apiKey,
+          url: ReadarrAPI.buildUrl(readarrSettings, '/api/v1'),
+        });
+        let searchResults: ReadarrBookLookupResult[] = [];
+        let lookupTerm: string | undefined;
+
+        for (const term of lookupTerms) {
+          lookupTerm = term;
+          searchResults = await readarr.lookupBook(term);
+
+          if (searchResults?.length) {
+            break;
+          }
+        }
+
+        if (!searchResults?.length) {
+          throw new Error(
+            `Book not found in Bookshelf search for ${lookupTerms.join(', ')}`
+          );
+        }
+
+        const bookInfo =
+          searchResults.find((result) =>
+            result.editions?.some(
+              (edition) =>
+                edition.isbn13?.replace(/[^0-9X]/gi, '').toUpperCase() ===
+                normalizedIsbn
+            )
+          ) ?? searchResults[0];
+        const rootFolder =
+          allowServerOverride && entity.rootFolder
+            ? entity.rootFolder
+            : readarrSettings.activeDirectory;
+        const qualityProfile =
+          allowServerOverride && entity.profileId
+            ? entity.profileId
+            : readarrSettings.activeProfileId;
+        const metadataProfile =
+          allowServerOverride && entity.metadataProfileId
+            ? entity.metadataProfileId
+            : readarrSettings.activeMetadataProfileId ?? 1;
+        const tags =
+          allowServerOverride && entity.tags
+            ? [...entity.tags]
+            : [...(readarrSettings.tags ?? [])];
+
+        const result = await readarr.addBook({
+          ...bookInfo,
+          monitored: true,
+          qualityProfileId: qualityProfile,
+          metadataProfileId: metadataProfile,
+          rootFolderPath: rootFolder,
+          tags,
+          addOptions: {
+            searchForNewBook: true,
+          },
+        });
+
+        if (serviceType === 'audiobook') {
+          media.audiobookExternalServiceId = result.id ?? null;
+          media.audiobookExternalServiceSlug =
+            result.titleSlug ?? result.foreignBookId;
+          media.audiobookServiceId = readarrSettings.id;
+        } else {
+          media.externalServiceId = result.id ?? null;
+          media.externalServiceSlug = result.titleSlug ?? result.foreignBookId;
+          media.serviceId = readarrSettings.id;
+        }
+
+        const resultIsbn = result.editions
+          ?.find((edition) => edition.isbn13)
+          ?.isbn13?.replace(/[^0-9X]/gi, '')
+          .toUpperCase();
+        const identifiersToSave = [
+          (result.foreignBookId ?? bookInfo.foreignBookId)
+            ? {
+                provider: MediaIdentifierProvider.READARR,
+                value: result.foreignBookId ?? bookInfo.foreignBookId,
+              }
+            : undefined,
+          resultIsbn
+            ? {
+                provider: MediaIdentifierProvider.ISBN,
+                value: resultIsbn,
+              }
+            : undefined,
+        ].filter(
+          (
+            identifier
+          ): identifier is {
+            provider: MediaIdentifierProvider;
+            value: string;
+          } =>
+            !!identifier &&
+            (identifier.provider === MediaIdentifierProvider.READARR ||
+              !existingIdentifierKeys.has(
+                `${identifier.provider}:${identifier.value}`
+              ))
+        );
+
+        if (identifiersToSave.length) {
+          await identifierRepository.insert(
+            identifiersToSave.map(
+              (identifier) =>
+                ({
+                  mediaId: media.id,
+                  provider: identifier.provider,
+                  value: identifier.value,
+                  canonical: false,
+                }) as unknown as MediaIdentifier
+            )
+          );
+          identifiersToSave.forEach((identifier) =>
+            existingIdentifierKeys.add(
+              `${identifier.provider}:${identifier.value}`
+            )
+          );
+        }
+
+        return lookupTerm;
+      };
+
+      const targetFormats =
+        entity.bookFormat === 'both'
+          ? (['ebook', 'audiobook'] as const)
+          : entity.bookFormat === 'audiobook'
+            ? (['audiobook'] as const)
+            : (['ebook'] as const);
+      let lookupTerm: string | undefined;
+
+      for (const serviceType of targetFormats) {
+        lookupTerm = await dispatchFormat(
+          serviceType,
+          entity.bookFormat !== 'both' || serviceType === 'ebook'
         );
       }
+
+      await mediaRepository.save(media);
 
       const requestRepository = getRepository(MediaRequest);
       entity.status = MediaRequestStatus.COMPLETED;
       await requestRepository.save(entity);
 
-      logger.info('Sent request to Readarr', {
+      logger.info('Sent request to Bookshelf', {
         label: 'Media Request',
         requestId: entity.id,
         mediaId: entity.media.id,
         lookupTerm,
+        bookFormat: entity.bookFormat,
       });
     } catch (e) {
       const requestRepository = getRepository(MediaRequest);

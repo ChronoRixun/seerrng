@@ -199,6 +199,15 @@ class Media {
   @Column({ nullable: true, type: 'varchar' })
   public externalServiceSlug4k?: string | null;
 
+  @Column({ nullable: true, type: 'int' })
+  public audiobookServiceId?: number | null;
+
+  @Column({ nullable: true, type: 'int' })
+  public audiobookExternalServiceId?: number | null;
+
+  @Column({ nullable: true, type: 'varchar' })
+  public audiobookExternalServiceSlug?: string | null;
+
   @Column({ nullable: true, type: 'varchar' })
   public ratingKey?: string | null;
 
@@ -217,8 +226,10 @@ class Media {
 
   public serviceUrl?: string;
   public serviceUrl4k?: string;
+  public audiobookServiceUrl?: string;
   public downloadStatus?: DownloadingItem[] = [];
   public downloadStatus4k?: DownloadingItem[] = [];
+  public audiobookDownloadStatus?: DownloadingItem[] = [];
 
   public mediaUrl?: string;
   public mediaUrl4k?: string;
@@ -240,6 +251,9 @@ class Media {
     this.externalServiceId4k = null;
     this.externalServiceSlug = null;
     this.externalServiceSlug4k = null;
+    this.audiobookServiceId = null;
+    this.audiobookExternalServiceId = null;
+    this.audiobookExternalServiceSlug = null;
     this.ratingKey = null;
     this.ratingKey4k = null;
     this.jellyfinMediaId = null;
@@ -391,6 +405,25 @@ class Media {
             : ReadarrAPI.buildUrl(server, `/book/${this.externalServiceSlug}`);
         }
       }
+
+      if (
+        this.audiobookServiceId !== null &&
+        this.audiobookExternalServiceSlug !== null
+      ) {
+        const settings = getSettings();
+        const server = settings.readarr.find(
+          (readarr) => readarr.id === this.audiobookServiceId
+        );
+
+        if (server) {
+          this.audiobookServiceUrl = server.externalUrl
+            ? `${server.externalUrl}/book/${this.audiobookExternalServiceSlug}`
+            : ReadarrAPI.buildUrl(
+                server,
+                `/book/${this.audiobookExternalServiceSlug}`
+              );
+        }
+      }
     }
   }
 
@@ -472,6 +505,18 @@ class Media {
         this.downloadStatus = downloadTracker.getBookProgress(
           this.serviceId,
           this.externalServiceId
+        );
+      }
+
+      if (
+        this.audiobookExternalServiceId !== undefined &&
+        this.audiobookExternalServiceId !== null &&
+        this.audiobookServiceId !== undefined &&
+        this.audiobookServiceId !== null
+      ) {
+        this.audiobookDownloadStatus = downloadTracker.getBookProgress(
+          this.audiobookServiceId,
+          this.audiobookExternalServiceId
         );
       }
     }

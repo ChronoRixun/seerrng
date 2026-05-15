@@ -160,6 +160,7 @@ class ReadarrScanner
           hasFile: false,
           secondaryIdentifiers,
           processing: false,
+          bookServiceType: this.currentServer.serviceType ?? 'ebook',
         });
         return;
       }
@@ -174,6 +175,7 @@ class ReadarrScanner
           : undefined,
         hasFile,
         secondaryIdentifiers,
+        bookServiceType: this.currentServer.serviceType ?? 'ebook',
         processing:
           readarrBook.monitored &&
           (readarrBook.statistics
