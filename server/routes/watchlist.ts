@@ -50,7 +50,7 @@ watchlistRoutes.post<never, Watchlist, Watchlist>(
   }
 );
 
-watchlistRoutes.delete('/:tmdbId', async (req, res, next) => {
+watchlistRoutes.delete('/:mediaId', async (req, res, next) => {
   if (!req.user) {
     return next({
       status: 401,
@@ -59,7 +59,11 @@ watchlistRoutes.delete('/:tmdbId', async (req, res, next) => {
   }
   try {
     const mediaType = req.query.mediaType;
-    if (mediaType !== MediaType.MOVIE && mediaType !== MediaType.TV) {
+    if (
+      mediaType !== MediaType.MOVIE &&
+      mediaType !== MediaType.TV &&
+      mediaType !== MediaType.MUSIC
+    ) {
       return next({
         status: 400,
         message: 'Invalid mediaType query parameter.',
@@ -67,7 +71,9 @@ watchlistRoutes.delete('/:tmdbId', async (req, res, next) => {
     }
 
     await Watchlist.deleteWatchlist(
-      Number(req.params.tmdbId),
+      mediaType === MediaType.MUSIC
+        ? req.params.mediaId
+        : Number(req.params.mediaId),
       mediaType,
       req.user
     );

@@ -2,15 +2,15 @@ import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { MediaStatus, MediaType } from '@server/constants/media';
+import { MediaStatus } from '@server/constants/media';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
-import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
@@ -23,14 +23,13 @@ const messages = defineMessages('components.MusicDetails', {
   releasedate: 'Release Date',
   tracks: 'Tracks',
   noTracks: 'No tracks available.',
-  requestError: 'Something went wrong. Please try again.',
 });
 
 const MusicDetails = () => {
   const router = useRouter();
   const intl = useIntl();
   const { hasPermission } = useUser();
-  const [isRequesting, setIsRequesting] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   const {
     data,
@@ -58,27 +57,19 @@ const MusicDetails = () => {
       data.mediaInfo.status === MediaStatus.UNKNOWN ||
       data.mediaInfo.status === MediaStatus.DELETED);
 
-  const requestAlbum = async () => {
-    setIsRequesting(true);
-
-    try {
-      await axios.post('/api/v1/request', {
-        mediaType: MediaType.MUSIC,
-        mediaId: data.id,
-      });
-      await revalidate();
-    } catch {
-      // The request route already returns actionable status codes; detailed
-      // modal handling comes with the full music request modal.
-      window.alert(intl.formatMessage(messages.requestError));
-    } finally {
-      setIsRequesting(false);
-    }
-  };
-
   return (
     <>
       <PageTitle title={data.title} />
+      <RequestModal
+        show={showRequestModal}
+        type="music"
+        mbId={data.id}
+        onCancel={() => setShowRequestModal(false)}
+        onComplete={() => {
+          setShowRequestModal(false);
+          revalidate();
+        }}
+      />
       <div className="relative z-10 mt-4 flex flex-col gap-6 lg:flex-row">
         <div className="w-full max-w-xs flex-shrink-0">
           <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
@@ -122,8 +113,7 @@ const MusicDetails = () => {
             <div className="mt-6 max-w-xs">
               <Button
                 buttonType="primary"
-                disabled={isRequesting}
-                onClick={requestAlbum}
+                onClick={() => setShowRequestModal(true)}
               >
                 <ArrowDownTrayIcon />
                 <span>{intl.formatMessage(globalMessages.request)}</span>

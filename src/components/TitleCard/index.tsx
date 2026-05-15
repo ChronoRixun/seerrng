@@ -113,11 +113,20 @@ const TitleCard = ({
   const onClickWatchlistBtn = async (): Promise<void> => {
     setIsUpdating(true);
     try {
-      const response = await axios.post<Watchlist>('/api/v1/watchlist', {
-        tmdbId: id,
-        mediaType,
-        title,
-      });
+      const response = await axios.post<Watchlist>(
+        '/api/v1/watchlist',
+        mediaType === 'album'
+          ? {
+              mbId: id,
+              mediaType: 'music',
+              title,
+            }
+          : {
+              tmdbId: id,
+              mediaType,
+              title,
+            }
+      );
       mutate('/api/v1/discover/watchlist');
       if (response.data) {
         addToast(
@@ -145,7 +154,9 @@ const TitleCard = ({
     setIsUpdating(true);
     try {
       const response = await axios.delete<Watchlist>(
-        `/api/v1/watchlist/${id}?mediaType=${mediaType}`
+        `/api/v1/watchlist/${id}?mediaType=${
+          mediaType === 'album' ? 'music' : mediaType
+        }`
       );
 
       if (response.status === 204) {
@@ -312,6 +323,7 @@ const TitleCard = ({
   const numericId = typeof id === 'number' ? id : Number(id);
   const canUseVideoActions = videoMediaType && Number.isFinite(numericId);
   const canUseRequestActions = canUseVideoActions || isAlbum;
+  const canUseWatchlistActions = canUseVideoActions || isAlbum;
   const detailHref =
     mediaType === 'movie'
       ? `/movie/${id}`
@@ -477,7 +489,7 @@ const TitleCard = ({
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
               <div className="flex flex-col gap-1">
-                {canUseVideoActions &&
+                {canUseWatchlistActions &&
                   user?.userType !== UserType.PLEX &&
                   (toggleWatchlist ? (
                     <Button

@@ -1,4 +1,5 @@
 import TheMovieDb from '@server/api/themoviedb';
+import ListenBrainzAPI from '@server/api/listenbrainz';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
@@ -83,13 +84,74 @@ export class Watchlist {
       mediaType: MediaType;
       ratingKey?: ZodOptional<ZodString>['_output'];
       title?: ZodOptional<ZodString>['_output'];
-      tmdbId: ZodNumber['_output'];
+      tmdbId?: ZodNumber['_output'];
+      mbId?: ZodOptional<ZodString>['_output'];
     };
     user: User;
   }): Promise<Watchlist> {
     const watchlistRepository = getRepository(this);
     const mediaRepository = getRepository(Media);
     const tmdb = new TheMovieDb();
+
+    if (watchlistRequest.mediaType === MediaType.MUSIC) {
+      if (!watchlistRequest.mbId) {
+        throw new Error('MusicBrainz ID is required for music watchlists.');
+      }
+
+      const existing = await watchlistRepository.findOne({
+        where: {
+          mbId: watchlistRequest.mbId,
+          mediaType: MediaType.MUSIC,
+          requestedBy: { id: user.id },
+        },
+      });
+
+      if (existing) {
+        logger.warn('Duplicate request for watchlist blocked', {
+          mbId: watchlistRequest.mbId,
+          mediaType: watchlistRequest.mediaType,
+          label: 'Watchlist',
+        });
+
+        throw new DuplicateWatchlistRequestError();
+      }
+
+      const listenBrainz = new ListenBrainzAPI();
+      const album = await listenBrainz.getAlbum(watchlistRequest.mbId);
+      const title =
+        watchlistRequest.title ??
+        album.release_group_metadata.release_group.name;
+
+      let media = await mediaRepository.findOne({
+        where: {
+          mbId: watchlistRequest.mbId,
+          mediaType: MediaType.MUSIC,
+        },
+      });
+
+      if (!media) {
+        media = new Media({
+          tmdbId: 0,
+          mbId: watchlistRequest.mbId,
+          mediaType: MediaType.MUSIC,
+        });
+      }
+
+      const watchlist = new this({
+        ...watchlistRequest,
+        title,
+        requestedBy: user,
+        media,
+      });
+
+      await mediaRepository.save(media);
+      await watchlistRepository.save(watchlist);
+      return watchlist;
+    }
+
+    if (!watchlistRequest.tmdbId) {
+      throw new Error('TMDB ID is required for movie and series watchlists.');
+    }
 
     const tmdbMedia =
       watchlistRequest.mediaType === MediaType.MOVIE
@@ -145,13 +207,13 @@ export class Watchlist {
   }
 
   public static async deleteWatchlist(
-    tmdbId: Watchlist['tmdbId'],
+    id: Watchlist['tmdbId'] | Watchlist['mbId'],
     mediaType: MediaType,
     user: User
   ): Promise<Watchlist | null> {
     const watchlistRepository = getRepository(this);
     const watchlist = await watchlistRepository.findOneBy({
-      tmdbId,
+      ...(mediaType === MediaType.MUSIC ? { mbId: id as string } : { tmdbId: Number(id) }),
       mediaType,
       requestedBy: { id: user.id },
     });
