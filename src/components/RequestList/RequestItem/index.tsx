@@ -455,11 +455,18 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
   };
 
   const deleteMediaFile = async () => {
-    if (request.media) {
+    if (requestData?.media) {
+      const formatQuery =
+        requestData.type === 'book' && requestData.bookFormat
+          ? `&format=${requestData.bookFormat}`
+          : '';
+
       await axios.delete(
-        `/api/v1/media/${request.media.id}/file?is4k=${request.is4k}`
+        `/api/v1/media/${requestData.media.id}/file?is4k=${requestData.is4k}${formatQuery}`
       );
-      await axios.delete(`/api/v1/media/${request.media.id}`);
+      if (requestData.type !== 'book' || requestData.bookFormat === 'both') {
+        await axios.delete(`/api/v1/media/${requestData.media.id}`);
+      }
       revalidateList();
     }
   };

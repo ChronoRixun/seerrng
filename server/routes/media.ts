@@ -1,5 +1,5 @@
-import RadarrAPI from '@server/api/servarr/radarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
+import RadarrAPI from '@server/api/servarr/radarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import TautulliAPI from '@server/api/tautulli';
@@ -213,6 +213,12 @@ mediaRoutes.delete(
       const isMovie = media.mediaType === MediaType.MOVIE;
       const isMusic = media.mediaType === MediaType.MUSIC;
       const isBook = media.mediaType === MediaType.BOOK;
+      const bookFormat =
+        req.query.format === 'ebook' ||
+        req.query.format === 'audiobook' ||
+        req.query.format === 'both'
+          ? req.query.format
+          : 'both';
 
       let serviceSettings;
       if (isMovie) {
@@ -313,8 +319,11 @@ mediaRoutes.delete(
         await (service as LidarrAPI).removeAlbum(media.externalServiceId);
       } else if (isBook) {
         const removals: Promise<void>[] = [];
+        const removeEbook = bookFormat !== 'audiobook';
+        const removeAudiobook = bookFormat !== 'ebook';
 
         if (
+          removeEbook &&
           media.serviceId !== null &&
           media.serviceId !== undefined &&
           media.externalServiceId !== null &&
@@ -336,6 +345,7 @@ mediaRoutes.delete(
         }
 
         if (
+          removeAudiobook &&
           media.audiobookServiceId !== null &&
           media.audiobookServiceId !== undefined &&
           media.audiobookExternalServiceId !== null &&
@@ -363,6 +373,18 @@ mediaRoutes.delete(
         }
 
         await Promise.all(removals);
+
+        if (removeEbook) {
+          media.serviceId = null;
+          media.externalServiceId = null;
+          media.externalServiceSlug = null;
+        }
+
+        if (removeAudiobook) {
+          media.audiobookServiceId = null;
+          media.audiobookExternalServiceId = null;
+          media.audiobookExternalServiceSlug = null;
+        }
       } else {
         const tmdb = new TheMovieDb();
         const series = await tmdb.getTvShow({ tvId: media.tmdbId });
@@ -373,7 +395,22 @@ mediaRoutes.delete(
         await (service as SonarrAPI).removeSeries(tvdbId);
       }
 
-      if (isMusic || isBook) {
+      if (isBook) {
+        const hasRemainingBookServiceLink =
+          (media.serviceId !== null &&
+            media.serviceId !== undefined &&
+            media.externalServiceId !== null &&
+            media.externalServiceId !== undefined) ||
+          (media.audiobookServiceId !== null &&
+            media.audiobookServiceId !== undefined &&
+            media.audiobookExternalServiceId !== null &&
+            media.audiobookExternalServiceId !== undefined);
+
+        media.status = hasRemainingBookServiceLink
+          ? MediaStatus.PARTIALLY_AVAILABLE
+          : MediaStatus.DELETED;
+        await mediaRepository.save(media);
+      } else if (isMusic) {
         media.status = MediaStatus.DELETED;
         media.resetServiceData();
         await mediaRepository.save(media);

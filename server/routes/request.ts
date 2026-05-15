@@ -335,13 +335,21 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
               };
             }
             case MediaType.BOOK: {
+              const canRemoveEbook = readarrServers.some(
+                (server) => server.id === r.media.serviceId
+              );
+              const canRemoveAudiobook = readarrServers.some(
+                (server) => server.id === r.media.audiobookServiceId
+              );
+
               return {
                 ...r,
-                canRemove: readarrServers.some(
-                  (server) =>
-                    server.id === r.media.serviceId ||
-                    server.id === r.media.audiobookServiceId
-                ),
+                canRemove:
+                  r.bookFormat === 'audiobook'
+                    ? canRemoveAudiobook
+                    : r.bookFormat === 'both'
+                      ? canRemoveEbook || canRemoveAudiobook
+                      : canRemoveEbook,
               };
             }
             default: {
