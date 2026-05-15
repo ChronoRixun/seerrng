@@ -7,6 +7,7 @@ import defineMessages from '@app/utils/defineMessages';
 import type {
   AlbumResult,
   ArtistResult,
+  BookResult,
   MovieResult,
   PersonResult,
   TvResult,
@@ -32,7 +33,12 @@ const Search = () => {
     fetchMore,
     error,
   } = useDiscover<
-    MovieResult | TvResult | PersonResult | AlbumResult | ArtistResult
+    | MovieResult
+    | TvResult
+    | PersonResult
+    | AlbumResult
+    | ArtistResult
+    | BookResult
   >(
     `/api/v1/search`,
     {

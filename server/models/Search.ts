@@ -3,6 +3,7 @@ import type {
   MbArtistResult,
 } from '@server/api/musicbrainz/interfaces';
 import type { BookResult } from '@server/models/Book';
+export type { BookResult } from '@server/models/Book';
 import type {
   TmdbCollectionResult,
   TmdbMovieDetails,

@@ -10,6 +10,7 @@ import type { WatchlistItem } from '@server/interfaces/api/discoverInterfaces';
 import type {
   AlbumResult,
   ArtistResult,
+  BookResult,
   CollectionResult,
   MovieResult,
   PersonResult,
@@ -25,6 +26,7 @@ type ListViewProps = {
     | CollectionResult
     | ArtistResult
     | AlbumResult
+    | BookResult
   )[];
   plexItems?: WatchlistItem[];
   isEmpty?: boolean;
@@ -89,7 +91,7 @@ const ListView = ({
           ?.filter((title) => {
             if (!blocklistVisibility)
               return (
-                (title as TvResult | MovieResult | AlbumResult).mediaInfo
+                (title as TvResult | MovieResult | AlbumResult | BookResult).mediaInfo
                   ?.status !== MediaStatus.BLOCKLISTED
               );
             return title;
@@ -207,6 +209,22 @@ const ListView = ({
                     name={title.name}
                     artistThumb={title.artistThumb}
                     subName={title.disambiguation}
+                    canExpand
+                  />
+                );
+                break;
+              case 'book':
+                titleCard = (
+                  <TitleCard
+                    key={title.id}
+                    id={title.id}
+                    image={title.posterPath}
+                    status={title.mediaInfo?.status}
+                    title={title.title}
+                    artist={title.author}
+                    type="Book"
+                    year={title.firstPublishYear?.toString()}
+                    mediaType={title.mediaType}
                     canExpand
                   />
                 );

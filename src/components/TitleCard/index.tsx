@@ -318,6 +318,7 @@ const TitleCard = ({
 
   const isAlbum = mediaType === 'album';
   const isArtist = mediaType === 'artist';
+  const isBook = mediaType === 'book';
   const videoMediaType =
     mediaType === 'movie' || mediaType === 'collection' || mediaType === 'tv';
   const numericId = typeof id === 'number' ? id : Number(id);
@@ -333,7 +334,9 @@ const TitleCard = ({
           ? `/tv/${id}`
           : mediaType === 'album'
             ? `/music/${id}`
-            : `/artist/${id}`;
+            : mediaType === 'book'
+              ? `/book/${id}`
+              : `/artist/${id}`;
   const displayImage = image?.startsWith('http')
     ? image
     : image
@@ -349,7 +352,9 @@ const TitleCard = ({
           ? Permission.REQUEST_MOVIE
           : mediaType === 'tv'
             ? Permission.REQUEST_TV
-            : Permission.REQUEST_MUSIC,
+            : isAlbum
+              ? Permission.REQUEST_MUSIC
+              : Permission.REQUEST_BOOK,
       ],
       { type: 'or' }
     ) &&
@@ -432,11 +437,11 @@ const TitleCard = ({
         tabIndex={0}
       >
         <div className="absolute inset-0 h-full w-full overflow-hidden">
-          {isAlbum ? (
+          {isAlbum || isBook ? (
             <div className="absolute inset-0 flex h-full w-full flex-col items-center p-2">
               <div className="relative aspect-square w-full overflow-hidden rounded ring-1 ring-gray-700">
                 <CachedImage
-                  type="music"
+                  type={displayImage?.startsWith('http') ? 'music' : 'tmdb'}
                   className="h-full w-full object-contain"
                   alt=""
                   src={displayImage ?? '/images/seerr_poster_not_found_logo_top.png'}
@@ -472,6 +477,8 @@ const TitleCard = ({
                   ? 'border-blue-500 bg-blue-600/80'
                   : isAlbum
                     ? 'border-emerald-500 bg-emerald-600/80'
+                    : isBook
+                      ? 'border-amber-500 bg-amber-600/80'
                     : 'border-purple-600 bg-purple-600/80'
               }`}
             >
@@ -484,6 +491,8 @@ const TitleCard = ({
                       ? intl.formatMessage(globalMessages.tvshow)
                       : isAlbum
                         ? 'Album'
+                        : isBook
+                          ? 'Book'
                         : 'Artist'}
               </div>
             </div>
