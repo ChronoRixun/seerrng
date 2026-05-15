@@ -6304,6 +6304,97 @@ paths:
                         - $ref: '#/components/schemas/MovieResult'
                         - $ref: '#/components/schemas/TvResult'
                         - $ref: '#/components/schemas/PersonResult'
+  /discover/music:
+    get:
+      summary: Discover music
+      description: Returns fresh music releases from ListenBrainz.
+      tags:
+        - search
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: number
+            example: 1
+            default: 1
+        - in: query
+          name: days
+          schema:
+            type: number
+            enum:
+              - 7
+              - 30
+              - 90
+            default: 7
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - release_date.desc
+              - release_date.asc
+            default: release_date.desc
+      responses:
+        '200':
+          description: Music discovery results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    type: number
+                    example: 1
+                  totalPages:
+                    type: number
+                    example: 2
+                  totalResults:
+                    type: number
+                    example: 20
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MusicResult'
+  /discover/books:
+    get:
+      summary: Discover books
+      description: Returns book discovery results from Open Library.
+      tags:
+        - search
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: number
+            example: 1
+            default: 1
+        - in: query
+          name: query
+          schema:
+            type: string
+            example: subject:fiction
+            default: subject:fiction
+      responses:
+        '200':
+          description: Book discovery results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    type: number
+                    example: 1
+                  totalPages:
+                    type: number
+                    example: 20
+                  totalResults:
+                    type: number
+                    example: 200
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BookResult'
   /discover/keyword/{keywordId}/movies:
     get:
       summary: Get movies from keyword

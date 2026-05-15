@@ -117,7 +117,7 @@ class ListenBrainzAPI extends ExternalAPI {
     count?: number;
   } = {}): Promise<LbFreshReleasesResponse> {
     return this.get<LbFreshReleasesResponse>(
-      '/explore/fresh-releases',
+      '/explore/fresh-releases/',
       {
         params: {
           days: days.toString(),

@@ -937,13 +937,32 @@ discoverRoutes.get('/music', async (req, res, next) => {
   const sort = req.query.sortBy === 'release_date.asc' ? 'date' : 'release_date';
 
   try {
-    const freshReleases = await listenBrainz.getFreshReleases({
-      days,
-      sort,
-      offset,
-      count: itemsPerPage,
-    });
-    const releases = freshReleases.payload.releases;
+    let freshReleases;
+    try {
+      freshReleases = await listenBrainz.getFreshReleases({
+        days,
+        sort,
+        offset,
+        count: itemsPerPage,
+      });
+    } catch (e) {
+      if (days <= 7) {
+        throw e;
+      }
+
+      logger.warn('Music discovery failed, retrying with a shorter window', {
+        label: 'Discover Music',
+        days,
+        errorMessage: e instanceof Error ? e.message : 'Unknown error',
+      });
+      freshReleases = await listenBrainz.getFreshReleases({
+        days: 7,
+        sort,
+        offset,
+        count: itemsPerPage,
+      });
+    }
+    const releases = freshReleases.payload.releases.slice(0, itemsPerPage);
     const mbIds = releases.map((release) => release.release_group_mbid);
     const relatedMedia = mbIds.length
       ? await getRepository(Media).find({

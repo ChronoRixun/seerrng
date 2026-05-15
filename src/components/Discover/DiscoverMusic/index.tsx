@@ -25,7 +25,7 @@ const DiscoverMusic = () => {
   const updateQueryParams = useUpdateQueryParams({});
   const title = intl.formatMessage(messages.music);
   const days =
-    typeof router.query.days === 'string' ? router.query.days : '30';
+    typeof router.query.days === 'string' ? router.query.days : '7';
   const sortBy =
     typeof router.query.sortBy === 'string'
       ? router.query.sortBy

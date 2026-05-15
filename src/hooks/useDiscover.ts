@@ -87,7 +87,7 @@ const useDiscover = <
       return `${endpoint}?${finalQueryString}`;
     },
     {
-      initialSize: 3,
+      initialSize: 1,
       revalidateFirstPage: false,
       dedupingInterval: 30000,
       revalidateOnFocus: false,
