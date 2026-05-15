@@ -309,6 +309,9 @@ export class MediaRequest {
         editions.entries.find((edition) => edition.isbn_13?.[0])?.isbn_13?.[0] ??
         editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0]
       )?.replace(/[^0-9X]/gi, '').toUpperCase();
+      const openLibraryEditionId = requestBody.editionId
+        ?.toString()
+        .replace(/^\/?books\//, '');
       const identifierCandidates = [
         {
           provider: MediaIdentifierProvider.OPENLIBRARY,
@@ -324,6 +327,15 @@ export class MediaRequest {
               },
             ]
           : []),
+        ...(openLibraryEditionId
+          ? [
+              {
+                provider: MediaIdentifierProvider.OPENLIBRARY_EDITION,
+                value: openLibraryEditionId,
+                canonical: false,
+              },
+            ]
+          : []),
       ];
       const blocklistedBook = await getRepository(Blocklist).findOne({
         where: [
@@ -331,6 +343,14 @@ export class MediaRequest {
             externalId: openLibraryId,
             mediaType: MediaType.BOOK,
           },
+          ...(openLibraryEditionId
+            ? [
+                {
+                  externalId: openLibraryEditionId,
+                  mediaType: MediaType.BOOK,
+                },
+              ]
+            : []),
           ...(requestIsbn
             ? [
                 {
