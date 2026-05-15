@@ -19,13 +19,20 @@ import {
   ArrowDownTrayIcon,
   CogIcon,
   ExclamationTriangleIcon,
+  InformationCircleIcon,
   MinusCircleIcon,
   NoSymbolIcon,
   StarIcon,
 } from '@heroicons/react/24/outline';
 import { IssueStatus } from '@server/constants/issue';
-import { MediaStatus, MediaType } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  MediaType,
+} from '@server/constants/media';
 import { UserType } from '@server/constants/user';
+import type { MediaRequest } from '@server/entity/MediaRequest';
+import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
 import axios from 'axios';
 import Link from 'next/link';
@@ -49,6 +56,7 @@ const messages = defineMessages('components.MusicDetails', {
   watchlistError: 'Something went wrong. Please try again.',
   removefromwatchlist: 'Remove From Watchlist',
   addtowatchlist: 'Add To Watchlist',
+  viewrequest: 'View Request',
 });
 
 const MusicDetails = () => {
@@ -57,6 +65,8 @@ const MusicDetails = () => {
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [editRequest, setEditRequest] =
+    useState<NonFunctionProperties<MediaRequest>>();
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showManager, setShowManager] = useState(router.query.manage === '1');
   const [isBlocklisting, setIsBlocklisting] = useState(false);
@@ -96,6 +106,20 @@ const MusicDetails = () => {
     (!data.mediaInfo?.status ||
       data.mediaInfo.status === MediaStatus.UNKNOWN ||
       data.mediaInfo.status === MediaStatus.DELETED);
+  const activeMusicRequests =
+    data.mediaInfo?.requests?.filter(
+      (request) =>
+        request.status !== MediaRequestStatus.DECLINED &&
+        request.status !== MediaRequestStatus.COMPLETED
+    ) ?? [];
+  const activeMusicRequest =
+    activeMusicRequests.find(
+      (request) => request.requestedBy.id === user?.id
+    ) ??
+    (hasPermission(Permission.MANAGE_REQUESTS) &&
+    activeMusicRequests.length === 1
+      ? activeMusicRequests[0]
+      : undefined);
   const canReportIssue =
     !!data.mediaInfo?.id &&
     data.mediaInfo.status === MediaStatus.AVAILABLE &&
@@ -234,11 +258,16 @@ const MusicDetails = () => {
         onCancel={() => setShowIssueModal(false)}
       />
       <RequestModal
+        editRequest={editRequest}
         show={showRequestModal}
         type="music"
         mbId={data.id}
-        onCancel={() => setShowRequestModal(false)}
+        onCancel={() => {
+          setEditRequest(undefined);
+          setShowRequestModal(false);
+        }}
         onComplete={() => {
+          setEditRequest(undefined);
           setShowRequestModal(false);
           revalidate();
         }}
@@ -330,10 +359,25 @@ const MusicDetails = () => {
               {canShowRequest && (
                 <Button
                   buttonType="primary"
-                  onClick={() => setShowRequestModal(true)}
+                  onClick={() => {
+                    setEditRequest(undefined);
+                    setShowRequestModal(true);
+                  }}
                 >
                   <ArrowDownTrayIcon />
                   <span>{intl.formatMessage(globalMessages.request)}</span>
+                </Button>
+              )}
+              {activeMusicRequest && (
+                <Button
+                  buttonType="default"
+                  onClick={() => {
+                    setEditRequest(activeMusicRequest);
+                    setShowRequestModal(true);
+                  }}
+                >
+                  <InformationCircleIcon />
+                  <span>{intl.formatMessage(messages.viewrequest)}</span>
                 </Button>
               )}
               {canManage && (

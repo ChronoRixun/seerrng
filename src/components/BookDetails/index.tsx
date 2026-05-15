@@ -19,6 +19,7 @@ import {
   ArrowDownTrayIcon,
   CogIcon,
   ExclamationTriangleIcon,
+  InformationCircleIcon,
   MinusCircleIcon,
   NoSymbolIcon,
   StarIcon,
@@ -30,6 +31,8 @@ import {
   MediaType,
 } from '@server/constants/media';
 import { UserType } from '@server/constants/user';
+import type { MediaRequest } from '@server/entity/MediaRequest';
+import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import axios from 'axios';
 import { useRouter } from 'next/router';
@@ -54,6 +57,7 @@ const messages = defineMessages('components.BookDetails', {
   watchlistError: 'Something went wrong. Please try again.',
   removefromwatchlist: 'Remove From Watchlist',
   addtowatchlist: 'Add To Watchlist',
+  viewrequest: 'View Request',
 });
 
 const BookDetails = () => {
@@ -62,6 +66,8 @@ const BookDetails = () => {
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [editRequest, setEditRequest] =
+    useState<NonFunctionProperties<MediaRequest>>();
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showManager, setShowManager] = useState(router.query.manage === '1');
   const [isBlocklisting, setIsBlocklisting] = useState(false);
@@ -121,6 +127,12 @@ const BookDetails = () => {
     (request) =>
       request.bookFormat === 'audiobook' || request.bookFormat === 'both'
   );
+  const activeBookRequest =
+    activeBookRequests.find((request) => request.requestedBy.id === user?.id) ??
+    (hasPermission(Permission.MANAGE_REQUESTS) &&
+    activeBookRequests.length === 1
+      ? activeBookRequests[0]
+      : undefined);
   const hasMissingBookFormat =
     !!data.mediaInfo &&
     data.mediaInfo.status !== MediaStatus.BLOCKLISTED &&
@@ -275,13 +287,18 @@ const BookDetails = () => {
       />
       <RequestModal
         bookId={data.id}
+        editRequest={editRequest}
         show={showRequestModal}
         type="book"
         onComplete={() => {
+          setEditRequest(undefined);
           setShowRequestModal(false);
           revalidate();
         }}
-        onCancel={() => setShowRequestModal(false)}
+        onCancel={() => {
+          setEditRequest(undefined);
+          setShowRequestModal(false);
+        }}
       />
       <div className="relative z-10 mt-4 flex flex-col gap-6 lg:flex-row">
         <div className="w-full max-w-xs flex-shrink-0">
@@ -412,10 +429,25 @@ const BookDetails = () => {
               {canShowRequest && (
                 <Button
                   buttonType="primary"
-                  onClick={() => setShowRequestModal(true)}
+                  onClick={() => {
+                    setEditRequest(undefined);
+                    setShowRequestModal(true);
+                  }}
                 >
                   <ArrowDownTrayIcon />
                   <span>{intl.formatMessage(globalMessages.request)}</span>
+                </Button>
+              )}
+              {activeBookRequest && (
+                <Button
+                  buttonType="default"
+                  onClick={() => {
+                    setEditRequest(activeBookRequest);
+                    setShowRequestModal(true);
+                  }}
+                >
+                  <InformationCircleIcon />
+                  <span>{intl.formatMessage(messages.viewrequest)}</span>
                 </Button>
               )}
               {canManage && (
