@@ -127,6 +127,17 @@ const AdvancedRequester = ({
     requestUser ?? null
   );
   const bookServiceType = bookFormat === 'audiobook' ? 'audiobook' : 'ebook';
+  const serviceOverridesEnabled = type !== 'book' || bookFormat !== 'both';
+  const serviceServers = useMemo(
+    () =>
+      (data ?? []).filter(
+        (server) =>
+          server.is4k === is4k &&
+          (type !== 'book' ||
+            (server.serviceType ?? 'ebook') === bookServiceType)
+      ),
+    [bookServiceType, data, is4k, type]
+  );
 
   const { data: userData } = useSWR<UserResultsResponse>(
     currentHasPermission([Permission.MANAGE_REQUESTS, Permission.MANAGE_USERS])
@@ -183,8 +194,8 @@ const AdvancedRequester = ({
       );
     }
 
-    if (!defaultServer && (data ?? []).length > 0) {
-      defaultServer = data?.[0];
+    if (!defaultServer && serviceServers.length > 0) {
+      defaultServer = serviceServers[0];
     }
 
     if (
@@ -194,7 +205,7 @@ const AdvancedRequester = ({
     ) {
       setSelectedServer(defaultServer.id);
     }
-  }, [data, bookServiceType, type]);
+  }, [data, bookServiceType, serviceServers, type]);
 
   useEffect(() => {
     if (serverData) {
@@ -312,14 +323,27 @@ const AdvancedRequester = ({
   useEffect(() => {
     if (selectedServer !== null || selectedUser) {
       onChange({
-        folder: selectedFolder !== '' ? selectedFolder : undefined,
-        profile: selectedProfile !== -1 ? selectedProfile : undefined,
+        folder:
+          serviceOverridesEnabled && selectedFolder !== ''
+            ? selectedFolder
+            : undefined,
+        profile:
+          serviceOverridesEnabled && selectedProfile !== -1
+            ? selectedProfile
+            : undefined,
         metadataProfile:
-          selectedMetadataProfile !== -1 ? selectedMetadataProfile : undefined,
-        server: selectedServer ?? undefined,
+          serviceOverridesEnabled && selectedMetadataProfile !== -1
+            ? selectedMetadataProfile
+            : undefined,
+        server: serviceOverridesEnabled
+          ? (selectedServer ?? undefined)
+          : undefined,
         user: selectedUser ?? undefined,
-        language: selectedLanguage !== -1 ? selectedLanguage : undefined,
-        tags: selectedTags,
+        language:
+          serviceOverridesEnabled && selectedLanguage !== -1
+            ? selectedLanguage
+            : undefined,
+        tags: serviceOverridesEnabled ? selectedTags : undefined,
       });
     }
   }, [
@@ -330,6 +354,7 @@ const AdvancedRequester = ({
     selectedUser,
     selectedLanguage,
     selectedTags,
+    serviceOverridesEnabled,
   ]);
 
   if (!data && !error) {
@@ -340,18 +365,20 @@ const AdvancedRequester = ({
     );
   }
 
-  if (
-    (!data ||
-      selectedServer === null ||
-      (data.filter((server) => server.is4k === is4k).length < 2 &&
-        (!serverData ||
-          (serverData.profiles.length < 2 &&
-            (serverData.metadataProfiles ?? []).length < 2 &&
-            serverData.rootFolders.length < 2 &&
-            (serverData.languageProfiles ?? []).length < 2 &&
-            !serverData.tags?.length)))) &&
-    (!selectedUser || (filteredUserData ?? []).length < 2)
-  ) {
+  const serviceOptionsHidden =
+    !serviceOverridesEnabled ||
+    selectedServer === null ||
+    (serviceServers.length < 2 &&
+      (!serverData ||
+        (serverData.profiles.length < 2 &&
+          (serverData.metadataProfiles ?? []).length < 2 &&
+          serverData.rootFolders.length < 2 &&
+          (serverData.languageProfiles ?? []).length < 2 &&
+          !serverData.tags?.length)));
+  const userOptionsHidden =
+    !selectedUser || (filteredUserData ?? []).length < 2;
+
+  if ((!data || serviceOptionsHidden) && userOptionsHidden) {
     return null;
   }
 
@@ -361,9 +388,9 @@ const AdvancedRequester = ({
         {intl.formatMessage(messages.advancedoptions)}
       </div>
       <div className="rounded-md">
-        {!!data && selectedServer !== null && (
+        {!!data && selectedServer !== null && serviceOverridesEnabled && (
           <div className="flex flex-col md:flex-row">
-            {data.filter((server) => server.is4k === is4k).length > 1 && (
+            {serviceServers.length > 1 && (
               <div className="mb-3 w-full flex-shrink-0 flex-grow last:pr-0 md:w-1/4 md:pr-4">
                 <label htmlFor="server">
                   {intl.formatMessage(messages.destinationserver)}
@@ -376,20 +403,15 @@ const AdvancedRequester = ({
                   onBlur={(e) => setSelectedServer(Number(e.target.value))}
                   className="border-gray-700 bg-gray-800"
                 >
-                  {data
-                    .filter((server) => server.is4k === is4k)
-                    .map((server) => (
-                      <option
-                        key={`server-list-${server.id}`}
-                        value={server.id}
-                      >
-                        {server.isDefault
-                          ? intl.formatMessage(messages.default, {
-                              name: server.name,
-                            })
-                          : server.name}
-                      </option>
-                    ))}
+                  {serviceServers.map((server) => (
+                    <option key={`server-list-${server.id}`} value={server.id}>
+                      {server.isDefault
+                        ? intl.formatMessage(messages.default, {
+                            name: server.name,
+                          })
+                        : server.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             )}
@@ -602,6 +624,7 @@ const AdvancedRequester = ({
           </div>
         )}
         {selectedServer !== null &&
+          serviceOverridesEnabled &&
           (isValidating || !serverData || !!serverData?.tags?.length) && (
             <div className="mb-2">
               <label htmlFor="tags">{intl.formatMessage(messages.tags)}</label>

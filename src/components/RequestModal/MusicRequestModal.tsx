@@ -60,7 +60,10 @@ const MusicRequestModal = ({
     revalidateOnMount: true,
   });
   const { data: quota } = useSWR<QuotaResponse>(
-    user ? `/api/v1/user/${user.id}/quota` : null
+    user &&
+      (!requestOverrides?.user?.id || hasPermission(Permission.MANAGE_USERS))
+      ? `/api/v1/user/${requestOverrides?.user?.id ?? user.id}/quota`
+      : null
   );
 
   useEffect(() => {
@@ -92,9 +95,12 @@ const MusicRequestModal = ({
 
       if (response.data) {
         onComplete?.(
-          hasPermission([Permission.AUTO_APPROVE, Permission.AUTO_APPROVE_MUSIC], {
-            type: 'or',
-          })
+          hasPermission(
+            [Permission.AUTO_APPROVE, Permission.AUTO_APPROVE_MUSIC],
+            {
+              type: 'or',
+            }
+          )
             ? MediaStatus.PROCESSING
             : MediaStatus.PENDING
         );
@@ -128,7 +134,11 @@ const MusicRequestModal = ({
   ]);
 
   const hasAutoApprove = hasPermission(
-    [Permission.MANAGE_REQUESTS, Permission.AUTO_APPROVE, Permission.AUTO_APPROVE_MUSIC],
+    [
+      Permission.MANAGE_REQUESTS,
+      Permission.AUTO_APPROVE,
+      Permission.AUTO_APPROVE_MUSIC,
+    ],
     { type: 'or' }
   );
 
@@ -316,7 +326,15 @@ const MusicRequestModal = ({
         </div>
       )}
       {(quota?.music?.limit ?? 0) > 0 && (
-        <QuotaDisplay mediaType="music" quota={quota?.music} />
+        <QuotaDisplay
+          mediaType="music"
+          quota={quota?.music}
+          userOverride={
+            requestOverrides?.user && requestOverrides.user.id !== user?.id
+              ? requestOverrides?.user?.id
+              : undefined
+          }
+        />
       )}
       {(hasPermission(Permission.REQUEST_ADVANCED) ||
         hasPermission(Permission.MANAGE_REQUESTS)) && (

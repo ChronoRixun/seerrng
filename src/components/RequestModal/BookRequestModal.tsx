@@ -1,7 +1,7 @@
 import Alert from '@app/components/Common/Alert';
 import Modal from '@app/components/Common/Modal';
-import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
+import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -34,6 +34,8 @@ const messages = defineMessages('components.RequestModal.Book', {
   requesterror: 'Something went wrong while submitting the request.',
   editerror: 'Something went wrong while editing the request.',
   format: 'Format',
+  bothDefaultInfo:
+    'Both uses your default ebook and audiobook Bookshelf services. Choose a single format to override server, profile, folder, or tags.',
   edition: 'Edition / ISBN',
   automaticEdition: 'Automatic best match',
   automaticEditionInfo:
@@ -74,7 +76,10 @@ const BookRequestModal = ({
     revalidateOnMount: true,
   });
   const { data: quota } = useSWR<QuotaResponse>(
-    user ? `/api/v1/user/${user.id}/quota` : null
+    user &&
+      (!requestOverrides?.user?.id || hasPermission(Permission.MANAGE_USERS))
+      ? `/api/v1/user/${requestOverrides?.user?.id ?? user.id}/quota`
+      : null
   );
 
   useEffect(() => {
@@ -94,30 +99,42 @@ const BookRequestModal = ({
     { type: 'or' }
   );
 
+  const getOverrideParams = useCallback(() => {
+    if (!requestOverrides) {
+      return {};
+    }
+
+    if (bookFormat === 'both') {
+      return {
+        userId: requestOverrides.user?.id,
+      };
+    }
+
+    return {
+      serverId: requestOverrides.server,
+      profileId: requestOverrides.profile,
+      metadataProfileId: requestOverrides.metadataProfile,
+      rootFolder: requestOverrides.folder,
+      userId: requestOverrides.user?.id,
+      tags: requestOverrides.tags,
+    };
+  }, [bookFormat, requestOverrides]);
+
   const sendRequest = useCallback(async () => {
     setIsUpdating(true);
 
     try {
-      const overrideParams = requestOverrides
-        ? {
-            serverId: requestOverrides.server,
-            profileId: requestOverrides.profile,
-            metadataProfileId: requestOverrides.metadataProfile,
-            rootFolder: requestOverrides.folder,
-            userId: requestOverrides.user?.id,
-            tags: requestOverrides.tags,
-          }
-        : {};
       const response = await axios.post<MediaRequest>('/api/v1/request', {
         mediaId: data?.id ?? bookId,
         mediaType: MediaType.BOOK,
         isbn13: selectedIsbn || data?.isbn13,
         editionId:
-          data?.isbnCandidates?.find((candidate) => candidate.isbn === selectedIsbn)
-            ?.editionId ?? data?.editionId,
+          data?.isbnCandidates?.find(
+            (candidate) => candidate.isbn === selectedIsbn
+          )?.editionId ?? data?.editionId,
         authorId: data?.authorId,
         format: bookFormat,
-        ...overrideParams,
+        ...getOverrideParams(),
       });
 
       mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
@@ -158,7 +175,7 @@ const BookRequestModal = ({
     hasAutoApprove,
     intl,
     onComplete,
-    requestOverrides,
+    getOverrideParams,
     selectedIsbn,
   ]);
 
@@ -200,13 +217,8 @@ const BookRequestModal = ({
     try {
       await axios.put(`/api/v1/request/${editRequest?.id}`, {
         mediaType: MediaType.BOOK,
-        serverId: requestOverrides?.server,
-        profileId: requestOverrides?.profile,
-        metadataProfileId: requestOverrides?.metadataProfile,
-        rootFolder: requestOverrides?.folder,
-        userId: requestOverrides?.user?.id,
-        tags: requestOverrides?.tags,
         format: bookFormat,
+        ...getOverrideParams(),
       });
 
       if (alsoApproveRequest) {
@@ -301,6 +313,36 @@ const BookRequestModal = ({
           : intl.formatMessage(messages.requestfrom, {
               username: editRequest.requestedBy.displayName,
             })}
+        <div className="mt-6">
+          <label htmlFor="bookFormat" className="text-label">
+            {intl.formatMessage(messages.format)}
+          </label>
+          <select
+            id="bookFormat"
+            name="bookFormat"
+            value={bookFormat}
+            onChange={(e) =>
+              setBookFormat(e.target.value as 'ebook' | 'audiobook' | 'both')
+            }
+            className="border-gray-700 bg-gray-800"
+          >
+            <option value="ebook">{intl.formatMessage(messages.ebook)}</option>
+            <option value="audiobook">
+              {intl.formatMessage(messages.audiobook)}
+            </option>
+            <option value="both">{intl.formatMessage(messages.both)}</option>
+          </select>
+        </div>
+        {bookFormat === 'both' &&
+          (hasPermission(Permission.REQUEST_ADVANCED) ||
+            hasPermission(Permission.MANAGE_REQUESTS)) && (
+            <div className="mt-4">
+              <Alert
+                title={intl.formatMessage(messages.bothDefaultInfo)}
+                type="info"
+              />
+            </div>
+          )}
         {(hasPermission(Permission.REQUEST_ADVANCED) ||
           hasPermission(Permission.MANAGE_REQUESTS)) && (
           <AdvancedRequester
@@ -379,17 +421,15 @@ const BookRequestModal = ({
             onChange={(e) => setSelectedIsbn(e.target.value)}
             className="border-gray-700 bg-gray-800"
           >
-            <option value="">{intl.formatMessage(messages.automaticEdition)}</option>
+            <option value="">
+              {intl.formatMessage(messages.automaticEdition)}
+            </option>
             {data?.isbnCandidates?.slice(0, 25).map((candidate) => (
               <option
                 key={`${candidate.editionId ?? candidate.isbn}-${candidate.isbn}`}
                 value={candidate.isbn}
               >
-                {[
-                  candidate.isbn,
-                  candidate.title,
-                  candidate.format,
-                ]
+                {[candidate.isbn, candidate.title, candidate.format]
                   .filter(Boolean)
                   .join(' - ')}
               </option>
@@ -413,8 +453,26 @@ const BookRequestModal = ({
           />
         </div>
       )}
+      {bookFormat === 'both' &&
+        (hasPermission(Permission.REQUEST_ADVANCED) ||
+          hasPermission(Permission.MANAGE_REQUESTS)) && (
+          <div className="mt-4">
+            <Alert
+              title={intl.formatMessage(messages.bothDefaultInfo)}
+              type="info"
+            />
+          </div>
+        )}
       {(quota?.book?.limit ?? 0) > 0 && (
-        <QuotaDisplay mediaType="book" quota={quota?.book} />
+        <QuotaDisplay
+          mediaType="book"
+          quota={quota?.book}
+          userOverride={
+            requestOverrides?.user && requestOverrides.user.id !== user?.id
+              ? requestOverrides?.user?.id
+              : undefined
+          }
+        />
       )}
       {(hasPermission(Permission.REQUEST_ADVANCED) ||
         hasPermission(Permission.MANAGE_REQUESTS)) && (
