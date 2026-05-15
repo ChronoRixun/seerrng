@@ -44,6 +44,10 @@ interface ProcessOptions {
   title?: string;
   processing?: boolean;
   hasFile?: boolean;
+  secondaryIdentifiers?: {
+    provider: MediaIdentifierProvider;
+    value: string;
+  }[];
 }
 
 export interface ProcessableSeason {
@@ -367,6 +371,7 @@ class BaseScanner<T> {
       processing = false,
       title = 'Unknown Book',
       hasFile = true,
+      secondaryIdentifiers = [],
     }: ProcessOptions = {}
   ): Promise<void> {
     const mediaRepository = getRepository(Media);
@@ -374,8 +379,15 @@ class BaseScanner<T> {
     const lockKey = `${provider}:${value}`;
 
     await this.asyncLock.dispatch(lockKey, async () => {
+      const identifierCandidates = [
+        { provider, value },
+        ...secondaryIdentifiers,
+      ];
       const existingIdentifier = await identifierRepository.findOne({
-        where: { provider, value },
+        where: identifierCandidates.map((identifier) => ({
+          provider: identifier.provider,
+          value: identifier.value,
+        })),
         relations: { media: true },
       });
       const existing =
@@ -437,6 +449,32 @@ class BaseScanner<T> {
           await mediaRepository.save(existing);
           this.log(`Updating existing book: ${title}`, 'info');
         }
+
+        const existingKeys = new Set(
+          (
+            await identifierRepository.find({
+              where: { media: { id: existing.id } },
+            })
+          ).map((identifier) => `${identifier.provider}:${identifier.value}`)
+        );
+        const missingIdentifiers = identifierCandidates.filter(
+          (identifier) =>
+            !existingKeys.has(`${identifier.provider}:${identifier.value}`)
+        );
+
+        if (missingIdentifiers.length) {
+          await identifierRepository.save(
+            missingIdentifiers.map(
+              (identifier) =>
+                new MediaIdentifier({
+                  media: existing,
+                  provider: identifier.provider,
+                  value: identifier.value,
+                  canonical: false,
+                })
+            )
+          );
+        }
       } else if (processing || hasFile) {
         const media = await mediaRepository.save(
           new Media({
@@ -457,12 +495,15 @@ class BaseScanner<T> {
         );
 
         await identifierRepository.save(
-          new MediaIdentifier({
-            media,
-            provider,
-            value,
-            canonical: true,
-          })
+          identifierCandidates.map(
+            (identifier, index) =>
+              new MediaIdentifier({
+                media,
+                provider: identifier.provider,
+                value: identifier.value,
+                canonical: index === 0,
+              })
+          )
         );
         this.log(`Saved new book: ${title}`);
       }

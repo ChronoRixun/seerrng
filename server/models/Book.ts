@@ -1,5 +1,6 @@
 import type {
   OpenLibrarySearchDoc,
+  OpenLibraryEdition,
   OpenLibraryWork,
 } from '@server/api/openlibrary';
 import type Media from '@server/entity/Media';
@@ -47,13 +48,15 @@ export const mapOpenLibrarySearchDoc = (
 
 export const mapOpenLibraryWork = (
   work: OpenLibraryWork,
-  media?: Media
+  media?: Media,
+  editions: OpenLibraryEdition[] = []
 ): BookDetails => {
   const description =
     typeof work.description === 'string'
       ? work.description
       : work.description?.value;
   const coverId = work.covers?.[0];
+  const edition = editions.find((item) => item.isbn_13?.[0] || item.isbn_10?.[0]);
 
   return {
     id: work.key.replace('/works/', ''),
@@ -66,6 +69,8 @@ export const mapOpenLibraryWork = (
     posterPath: coverId
       ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
       : undefined,
+    isbn13: edition?.isbn_13?.[0] ?? edition?.isbn_10?.[0],
+    editionId: edition?.key.replace('/books/', ''),
     description,
     subjects: work.subjects?.slice(0, 20),
     mediaInfo: media,

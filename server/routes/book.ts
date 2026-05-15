@@ -79,8 +79,12 @@ bookRoutes.get('/search', async (req, res, next) => {
 bookRoutes.get('/:id', async (req, res, next) => {
   try {
     const openLibrary = new OpenLibraryAPI();
-    const [work, identifiers] = await Promise.all([
+    const [work, editions, identifiers] = await Promise.all([
       openLibrary.getWork(req.params.id),
+      openLibrary.getWorkEditions(req.params.id).catch(() => ({
+        size: 0,
+        entries: [],
+      })),
       getRepository(MediaIdentifier).find({
         where: {
           provider: MediaIdentifierProvider.OPENLIBRARY,
@@ -101,7 +105,7 @@ bookRoutes.get('/:id', async (req, res, next) => {
       (identifier) => identifier.media.mediaType === MediaType.BOOK
     )?.media;
 
-    return res.status(200).json(mapOpenLibraryWork(work, media));
+    return res.status(200).json(mapOpenLibraryWork(work, media, editions.entries));
   } catch (e) {
     logger.error('Failed to retrieve book details', {
       label: 'Book',

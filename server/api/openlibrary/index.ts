@@ -32,6 +32,21 @@ export interface OpenLibraryWork {
   subjects?: string[];
 }
 
+export interface OpenLibraryEdition {
+  key: string;
+  title?: string;
+  isbn_10?: string[];
+  isbn_13?: string[];
+}
+
+interface OpenLibraryEditionsResponse {
+  links?: {
+    next?: string;
+  };
+  size: number;
+  entries: OpenLibraryEdition[];
+}
+
 class OpenLibraryAPI extends ExternalAPI {
   constructor() {
     super(
@@ -75,6 +90,24 @@ class OpenLibraryAPI extends ExternalAPI {
       : `/works/${workId}`;
 
     return this.get<OpenLibraryWork>(`${normalizedWorkId}.json`, undefined, 43200);
+  }
+
+  public async getWorkEditions(
+    workId: string
+  ): Promise<OpenLibraryEditionsResponse> {
+    const normalizedWorkId = workId.startsWith('/works/')
+      ? workId
+      : `/works/${workId}`;
+
+    return this.get<OpenLibraryEditionsResponse>(
+      `${normalizedWorkId}/editions.json`,
+      {
+        params: {
+          limit: '25',
+        },
+      },
+      43200
+    );
   }
 }
 

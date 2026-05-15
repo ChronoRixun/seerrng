@@ -100,6 +100,34 @@ class ReadarrScanner
       )
         ? MediaIdentifierProvider.ISBN
         : MediaIdentifierProvider.READARR;
+      const secondaryIdentifiers = [
+        readarrBook.foreignBookId
+          ? {
+              provider: MediaIdentifierProvider.READARR,
+              value: readarrBook.foreignBookId,
+            }
+          : undefined,
+        ...((readarrBook.editions ?? [])
+          .map((edition) =>
+            edition.isbn13
+              ? {
+                  provider: MediaIdentifierProvider.ISBN,
+                  value: edition.isbn13,
+                }
+              : undefined
+          )
+          .filter(Boolean) as {
+          provider: MediaIdentifierProvider;
+          value: string;
+        }[]),
+      ].filter(
+        (
+          item
+        ): item is {
+          provider: MediaIdentifierProvider;
+          value: string;
+        } => !!item && !(item.provider === provider && item.value === identifier)
+      );
       const hasFile = (readarrBook.statistics?.bookFileCount ?? 0) > 0;
       const totalBooks = readarrBook.statistics?.totalBookCount ?? 1;
 
@@ -112,6 +140,7 @@ class ReadarrScanner
           ? new Date(readarrBook.added)
           : undefined,
         hasFile,
+        secondaryIdentifiers,
         processing:
           readarrBook.monitored &&
           (readarrBook.statistics
