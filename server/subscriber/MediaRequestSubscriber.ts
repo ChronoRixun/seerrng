@@ -26,6 +26,7 @@ import MediaIdentifier, {
 import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
+import { normalizeValidIsbn } from '@server/lib/isbn';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { getSettings, type ReadarrSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -1211,7 +1212,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       }
 
       const identifierRepository = getRepository(MediaIdentifier);
-      const normalizedIsbn = isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
+      const normalizedIsbn = normalizeValidIsbn(isbn);
       const existingIdentifierKeys = new Set(
         (media.identifiers ?? []).map(
           (identifier) => `${identifier.provider}:${identifier.value}`
@@ -1280,8 +1281,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           searchResults.find((result) =>
             result.editions?.some(
               (edition) =>
-                edition.isbn13?.replace(/[^0-9X]/gi, '').toUpperCase() ===
-                normalizedIsbn
+                normalizeValidIsbn(edition.isbn13) === normalizedIsbn
             )
           ) ?? searchResults[0];
         const rootFolder =
@@ -1328,8 +1328,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
         const resultIsbn = result.editions
           ?.find((edition) => edition.isbn13)
-          ?.isbn13?.replace(/[^0-9X]/gi, '')
-          .toUpperCase();
+          ?.isbn13;
+        const normalizedResultIsbn = normalizeValidIsbn(resultIsbn);
         const identifiersToSave = [
           (result.foreignBookId ?? bookInfo.foreignBookId)
             ? {
@@ -1337,10 +1337,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
                 value: result.foreignBookId ?? bookInfo.foreignBookId,
               }
             : undefined,
-          resultIsbn
+          normalizedResultIsbn
             ? {
                 provider: MediaIdentifierProvider.ISBN,
-                value: resultIsbn,
+                value: normalizedResultIsbn,
               }
             : undefined,
         ].filter(

@@ -16,6 +16,7 @@ import MediaIdentifier, {
 import OverrideRule from '@server/entity/OverrideRule';
 import type { MediaRequestBody } from '@server/interfaces/api/requestInterfaces';
 import notificationManager, { Notification } from '@server/lib/notifications';
+import { normalizeValidIsbn } from '@server/lib/isbn';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -304,14 +305,17 @@ export class MediaRequest {
           entries: [],
         })),
       ]);
-      const normalizedRequestIsbn = requestBody.isbn13
-        ?.replace(/[^0-9X]/gi, '')
-        .toUpperCase();
+      const normalizedRequestIsbn = normalizeValidIsbn(requestBody.isbn13);
       const requestIsbn = (
         normalizedRequestIsbn ??
-        editions.entries.find((edition) => edition.isbn_13?.[0])?.isbn_13?.[0] ??
-        editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0]
-      )?.replace(/[^0-9X]/gi, '').toUpperCase();
+        editions.entries
+          .flatMap((edition) => [
+            ...(edition.isbn_13 ?? []),
+            ...(edition.isbn_10 ?? []),
+          ])
+          .map((isbn) => normalizeValidIsbn(isbn))
+          .find((isbn): isbn is string => !!isbn)
+      );
       const openLibraryEditionId = requestBody.editionId
         ?.toString()
         .replace(/^\/?books\//, '');

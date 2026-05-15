@@ -1,4 +1,5 @@
 import logger from '@server/logger';
+import { normalizeIsbn } from '@server/lib/isbn';
 import ServarrBase from './base';
 
 export interface ReadarrMetadataProfile {
@@ -59,9 +60,6 @@ type ReadarrQueueItem = {
     id?: number;
   };
 };
-
-const normalizeIsbn = (isbn?: string): string | undefined =>
-  isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
 
 class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
