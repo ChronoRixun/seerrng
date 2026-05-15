@@ -74,6 +74,15 @@ const ListView = ({
                   canExpand
                   mutateParent={mutateParent}
                 />
+              ) : title.mediaType === 'book' && title.externalId ? (
+                <TitleCard
+                  id={title.externalId}
+                  title={title.title}
+                  mediaType="book"
+                  isAddedToWatchlist={true}
+                  canExpand
+                  mutateParent={mutateParent}
+                />
               ) : title.tmdbId ? (
                 <TmdbTitleCard
                   id={title.tmdbId}

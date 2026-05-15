@@ -3,7 +3,9 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Button from '@app/components/Common/Button';
 import RequestModal from '@app/components/RequestModal';
+import StatusBadge from '@app/components/StatusBadge';
 import { Permission, useUser } from '@app/hooks/useUser';
+import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/solid';
@@ -26,9 +28,12 @@ const BookDetails = () => {
   const intl = useIntl();
   const { hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
-  const [mediaStatus, setMediaStatus] = useState(MediaStatus.UNKNOWN);
 
-  const { data, error } = useSWR<BookDetailsType>(
+  const {
+    data,
+    error,
+    mutate: revalidate,
+  } = useSWR<BookDetailsType>(
     router.query.bookId ? `/api/v1/book/${router.query.bookId}` : null
   );
 
@@ -40,6 +45,16 @@ const BookDetails = () => {
     return <ErrorPage statusCode={404} />;
   }
 
+  const canRequest = hasPermission(
+    [Permission.REQUEST, Permission.REQUEST_BOOK],
+    { type: 'or' }
+  );
+  const canShowRequest =
+    canRequest &&
+    (!data.mediaInfo?.status ||
+      data.mediaInfo.status === MediaStatus.UNKNOWN ||
+      data.mediaInfo.status === MediaStatus.DELETED);
+
   return (
     <>
       <PageTitle title={data.title} />
@@ -47,9 +62,9 @@ const BookDetails = () => {
         bookId={data.id}
         show={showRequestModal}
         type="book"
-        onComplete={(newStatus) => {
-          setMediaStatus(newStatus);
+        onComplete={() => {
           setShowRequestModal(false);
+          revalidate();
         }}
         onCancel={() => setShowRequestModal(false)}
       />
@@ -70,6 +85,14 @@ const BookDetails = () => {
             <span className="rounded-full border border-amber-500 bg-amber-600/80 px-3 py-1 text-xs font-medium uppercase tracking-wider text-white">
               {intl.formatMessage(messages.book)}
             </span>
+            {data.mediaInfo?.status &&
+              data.mediaInfo.status !== MediaStatus.UNKNOWN && (
+                <StatusBadge
+                  status={data.mediaInfo.status}
+                  mediaType="book"
+                  serviceUrl={data.mediaInfo.serviceUrl}
+                />
+              )}
           </div>
           <h1 className="break-words text-3xl font-bold text-white lg:text-5xl">
             {data.title}
@@ -92,20 +115,17 @@ const BookDetails = () => {
               {data.description}
             </div>
           )}
-          {hasPermission([Permission.REQUEST, Permission.REQUEST_BOOK], {
-            type: 'or',
-          }) &&
-            mediaStatus === MediaStatus.UNKNOWN && (
-              <div className="mt-6">
-                <Button
-                  buttonType="primary"
-                  onClick={() => setShowRequestModal(true)}
-                >
-                  <ArrowDownTrayIcon />
-                  <span>{intl.formatMessage({ defaultMessage: 'Request' })}</span>
-                </Button>
-              </div>
-            )}
+          {canShowRequest && (
+            <div className="mt-6">
+              <Button
+                buttonType="primary"
+                onClick={() => setShowRequestModal(true)}
+              >
+                <ArrowDownTrayIcon />
+                <span>{intl.formatMessage(globalMessages.request)}</span>
+              </Button>
+            </div>
+          )}
           {!!data.subjects?.length && (
             <div className="mt-6">
               <h2 className="mb-2 text-lg font-semibold text-white">
