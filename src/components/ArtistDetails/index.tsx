@@ -5,6 +5,7 @@ import TitleCard from '@app/components/TitleCard';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { MediaStatus } from '@server/constants/media';
+import type Media from '@server/entity/Media';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -34,9 +35,7 @@ interface Album {
   'primary-type'?: string;
   secondary_types?: string[];
   'artist-credit'?: { name: string }[];
-  mediaInfo?: {
-    status: MediaStatus;
-  };
+  mediaInfo?: Media;
 }
 
 interface ArtistData {
@@ -100,7 +99,8 @@ const ArtistDetails = () => {
         return;
       }
 
-      const type = album.secondary_types?.[0] ?? album['primary-type'] ?? 'Other';
+      const type =
+        album.secondary_types?.[0] ?? album['primary-type'] ?? 'Other';
       grouped[type] ??= { albums: [], isExpanded: false, isLoading: false };
       grouped[type].albums.push(album);
     });
@@ -163,7 +163,9 @@ const ArtistDetails = () => {
         return;
       }
 
-      if ((current?.albums.length ?? 0) < (data?.typeCounts?.[albumType] ?? 0)) {
+      if (
+        (current?.albums.length ?? 0) < (data?.typeCounts?.[albumType] ?? 0)
+      ) {
         loadAllAlbumsOfType(albumType);
         return;
       }
@@ -200,7 +202,7 @@ const ArtistDetails = () => {
   return (
     <>
       <PageTitle title={artistName} />
-      <div className="relative z-10 mt-4 mb-10 flex flex-col items-center gap-6 text-gray-300 lg:flex-row lg:items-start">
+      <div className="relative z-10 mb-10 mt-4 flex flex-col items-center gap-6 text-gray-300 lg:flex-row lg:items-start">
         {data.artistThumb && (
           <div className="relative h-36 w-36 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-gray-700 lg:h-44 lg:w-44">
             <CachedImage
@@ -265,11 +267,12 @@ const ArtistDetails = () => {
                         year={album['first-release-date']}
                         image={album.posterPath ?? undefined}
                         mediaType="album"
-                        artist={
-                          album['artist-credit']?.[0]?.name ?? artistName
-                        }
+                        artist={album['artist-credit']?.[0]?.name ?? artistName}
                         type={album['primary-type']}
                         status={album.mediaInfo?.status ?? MediaStatus.UNKNOWN}
+                        inProgress={
+                          (album.mediaInfo?.downloadStatus ?? []).length > 0
+                        }
                         canExpand
                       />
                     </li>

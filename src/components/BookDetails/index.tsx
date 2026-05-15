@@ -126,6 +126,10 @@ const BookDetails = () => {
     data.mediaInfo.status !== MediaStatus.BLOCKLISTED &&
     (!(hasEbookServiceLink || hasActiveEbookRequest) ||
       !(hasAudiobookServiceLink || hasActiveAudiobookRequest));
+  const bookDownloadStatus = [
+    ...(data.mediaInfo?.downloadStatus ?? []),
+    ...(data.mediaInfo?.audiobookDownloadStatus ?? []),
+  ];
   const canShowRequest =
     canRequest &&
     (!data.mediaInfo?.status ||
@@ -302,6 +306,8 @@ const BookDetails = () => {
               data.mediaInfo.status !== MediaStatus.UNKNOWN && (
                 <StatusBadge
                   status={data.mediaInfo.status}
+                  downloadItem={bookDownloadStatus}
+                  inProgress={bookDownloadStatus.length > 0}
                   mediaType="book"
                   externalId={data.id}
                   serviceUrl={

@@ -266,6 +266,8 @@ const MusicDetails = () => {
               data.mediaInfo.status !== MediaStatus.UNKNOWN && (
                 <StatusBadge
                   status={data.mediaInfo.status}
+                  downloadItem={data.mediaInfo.downloadStatus}
+                  inProgress={(data.mediaInfo.downloadStatus ?? []).length > 0}
                   mediaType="music"
                   mbId={data.mbId}
                   serviceUrl={data.mediaInfo.serviceUrl}
