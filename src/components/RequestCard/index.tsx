@@ -23,6 +23,7 @@ import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { MovieDetails } from '@server/models/Movie';
+import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
@@ -46,8 +47,19 @@ const messages = defineMessages('components.RequestCard', {
   unknowntitle: 'Unknown Title',
 });
 
-const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
-  return (movie as MovieDetails).title !== undefined;
+const isMovie = (
+  media: MovieDetails | TvDetails | MusicDetails
+): media is MovieDetails => {
+  return (
+    (media as MovieDetails).title !== undefined &&
+    (media as MusicDetails).artist === undefined
+  );
+};
+
+const isMusic = (
+  media: MovieDetails | TvDetails | MusicDetails
+): media is MusicDetails => {
+  return (media as MusicDetails).artist !== undefined;
 };
 
 const RequestCardPlaceholder = () => {
@@ -216,7 +228,10 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
 
 interface RequestCardProps {
   request: NonFunctionProperties<MediaRequest>;
-  onTitleData?: (requestId: number, title: MovieDetails | TvDetails) => void;
+  onTitleData?: (
+    requestId: number,
+    title: MovieDetails | TvDetails | MusicDetails
+  ) => void;
 }
 
 const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
@@ -234,9 +249,13 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
   const url =
     request.type === 'movie'
       ? `/api/v1/movie/${request.media.tmdbId}`
-      : `/api/v1/tv/${request.media.tmdbId}`;
+      : request.type === 'tv'
+        ? `/api/v1/tv/${request.media.tmdbId}`
+        : `/api/v1/music/${request.media.mbId}`;
 
-  const { data: title, error } = useSWR<MovieDetails | TvDetails>(
+  const { data: title, error } = useSWR<
+    MovieDetails | TvDetails | MusicDetails
+  >(
     inView ? `${url}` : null
   );
   const {
@@ -331,8 +350,17 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     <>
       <RequestModal
         show={showEditModal}
-        tmdbId={request.media.tmdbId}
-        type={request.type === 'tv' ? 'tv' : 'movie'}
+        tmdbId={request.type === 'music' ? undefined : request.media.tmdbId}
+        mbId={
+          request.type === 'music' ? request.media.mbId ?? undefined : undefined
+        }
+        type={
+          request.type === 'music'
+            ? 'music'
+            : request.type === 'tv'
+              ? 'tv'
+              : 'movie'
+        }
         is4k={request.is4k}
         editRequest={request}
         onCancel={() => setShowEditModal(false)}
@@ -345,7 +373,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
         className="relative flex w-72 overflow-hidden rounded-xl bg-gray-800 bg-cover bg-center p-4 text-gray-400 shadow ring-1 ring-gray-700 sm:w-96"
         data-testid="request-card"
       >
-        {title.backdropPath && (
+        {!isMusic(title) && title.backdropPath && (
           <div className="absolute inset-0 z-0">
             <CachedImage
               type="tmdb"
@@ -368,20 +396,34 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
           data-testid="request-card-title"
         >
           <div className="hidden text-xs font-medium text-white sm:flex">
-            {(isMovie(title) ? title.releaseDate : title.firstAirDate)?.slice(
-              0,
-              4
+            {(isMovie(title)
+              ? title.releaseDate
+              : isMusic(title)
+                ? title.releaseDate
+                : title.firstAirDate
+            )?.slice(0, 4)}
+            {isMusic(title) && (
+              <>
+                <span className="mx-2">-</span>
+                <span className="truncate">{title.artist.name}</span>
+              </>
             )}
           </div>
           <Link
             href={
               request.type === 'movie'
                 ? `/movie/${requestData.media.tmdbId}`
-                : `/tv/${requestData.media.tmdbId}`
+                : request.type === 'tv'
+                  ? `/tv/${requestData.media.tmdbId}`
+                  : `/music/${requestData.media.mbId}`
             }
             className="overflow-hidden overflow-ellipsis whitespace-nowrap text-base font-bold text-white hover:underline sm:text-lg"
           >
-            {isMovie(title) ? title.title : title.name}
+            {isMovie(title)
+              ? title.title
+              : isMusic(title)
+                ? title.title
+                : title.name}
           </Link>
           {hasPermission(
             [Permission.MANAGE_REQUESTS, Permission.REQUEST_VIEW],
@@ -408,7 +450,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               </Link>
             </div>
           )}
-          {!isMovie(title) && request.seasons.length > 0 && (
+          {!isMovie(title) && !isMusic(title) && request.seasons.length > 0 && (
             <div className="my-0.5 hidden items-center text-sm sm:my-1 sm:flex">
               <span className="mr-2 font-bold">
                 {intl.formatMessage(messages.seasons, {
@@ -439,7 +481,11 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
             ) : requestData.status === MediaRequestStatus.FAILED ? (
               <Badge
                 badgeType="danger"
-                href={`/${requestData.type}/${requestData.media.tmdbId}?manage=1`}
+                href={
+                  requestData.type === 'music'
+                    ? `/music/${requestData.media.mbId}`
+                    : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                }
               >
                 {intl.formatMessage(globalMessages.failed)}
               </Badge>
@@ -448,7 +494,11 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 MediaStatus.DELETED ? (
               <Badge
                 badgeType="warning"
-                href={`/${requestData.type}/${requestData.media.tmdbId}?manage=1`}
+                href={
+                  requestData.type === 'music'
+                    ? `/music/${requestData.media.mbId}`
+                    : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                }
               >
                 {intl.formatMessage(globalMessages.pending)}
               </Badge>
@@ -462,7 +512,13 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                     requestData.is4k ? 'downloadStatus4k' : 'downloadStatus'
                   ]
                 }
-                title={isMovie(title) ? title.title : title.name}
+                title={
+                  isMovie(title)
+                    ? title.title
+                    : isMusic(title)
+                      ? title.title
+                      : title.name
+                }
                 inProgress={
                   (
                     requestData.media[
@@ -471,8 +527,18 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                   ).length > 0
                 }
                 is4k={requestData.is4k}
-                tmdbId={requestData.media.tmdbId}
-                mediaType={requestData.type === 'tv' ? 'tv' : 'movie'}
+                tmdbId={
+                  requestData.type === 'music'
+                    ? undefined
+                    : requestData.media.tmdbId
+                }
+                mediaType={
+                  requestData.type === 'music'
+                    ? undefined
+                    : requestData.type === 'tv'
+                      ? 'tv'
+                      : 'movie'
+                }
                 plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
                 serviceUrl={
                   requestData.is4k
@@ -625,14 +691,18 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
           href={
             request.type === 'movie'
               ? `/movie/${requestData.media.tmdbId}`
-              : `/tv/${requestData.media.tmdbId}`
+              : request.type === 'tv'
+                ? `/tv/${requestData.media.tmdbId}`
+                : `/music/${requestData.media.mbId}`
           }
           className="w-20 flex-shrink-0 scale-100 transform-gpu cursor-pointer overflow-hidden rounded-md shadow-sm transition duration-300 hover:scale-105 hover:shadow-md sm:w-28"
         >
           <CachedImage
-            type="tmdb"
+            type={isMusic(title) ? 'music' : 'tmdb'}
             src={
-              title.posterPath
+              isMusic(title) && title.posterPath
+                ? title.posterPath
+                : !isMusic(title) && title.posterPath
                 ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
                 : '/images/seerr_poster_not_found.png'
             }

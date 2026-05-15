@@ -17,6 +17,7 @@ import type {
   UserWatchDataResponse,
 } from '@server/interfaces/api/userInterfaces';
 import type { MovieDetails } from '@server/models/Movie';
+import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -40,7 +41,13 @@ const messages = defineMessages('components.UserProfile', {
     'Media added to your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink> will appear here.',
 });
 
-type MediaTitle = MovieDetails | TvDetails;
+type MediaTitle = MovieDetails | TvDetails | MusicDetails;
+
+const hasBackdropPath = (
+  media: MediaTitle
+): media is MovieDetails | TvDetails => {
+  return 'backdropPath' in media && !!media.backdropPath;
+};
 
 const UserProfile = () => {
   const intl = useIntl();
@@ -135,7 +142,7 @@ const UserProfile = () => {
             key={user.id}
             isDarker
             backgroundImages={Object.values(availableTitles)
-              .filter((media) => media.backdropPath)
+              .filter(hasBackdropPath)
               .map(
                 (media) =>
                   `https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${media.backdropPath}`
