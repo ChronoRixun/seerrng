@@ -260,7 +260,7 @@ mediaRoutes.delete(
           : isMusic
             ? 'Lidarr'
             : isBook
-              ? 'Readarr'
+              ? 'Bookshelf'
               : 'Sonarr';
         logger.warn(
           `There is no configured ${is4k ? '4K ' : ''}${serviceName} server for this media item.`,
@@ -307,7 +307,7 @@ mediaRoutes.delete(
         await (service as LidarrAPI).removeAlbum(media.externalServiceId);
       } else if (isBook) {
         if (!media.externalServiceId) {
-          throw new Error('Readarr book ID not found');
+          throw new Error('Bookshelf book ID not found');
         }
         await (service as ReadarrAPI).removeBook(media.externalServiceId);
       } else {

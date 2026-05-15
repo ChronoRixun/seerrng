@@ -391,7 +391,7 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
               id: s.id,
               name:
                 settings.readarr.find((r) => r.id === s.id)?.name ||
-                `Readarr ${s.id}`,
+                `Bookshelf ${s.id}`,
             })),
         },
       });

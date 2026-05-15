@@ -219,7 +219,7 @@ serviceRoutes.get<{ readarrId: string }>(
     if (!readarrSettings) {
       return next({
         status: 404,
-        message: 'Readarr server with provided ID does not exist.',
+        message: 'Bookshelf server with provided ID does not exist.',
       });
     }
 

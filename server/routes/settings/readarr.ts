@@ -67,7 +67,7 @@ readarrRoutes.post<
       label: 'Readarr',
       message: e.message,
     });
-    next({ status: 500, message: 'Failed to connect to Readarr' });
+    next({ status: 500, message: 'Failed to connect to Bookshelf' });
   }
 });
 
