@@ -94,7 +94,8 @@ class OpenLibraryAPI extends ExternalAPI {
   }
 
   public async getWorkEditions(
-    workId: string
+    workId: string,
+    limit = 100
   ): Promise<OpenLibraryEditionsResponse> {
     const normalizedWorkId = workId.startsWith('/works/')
       ? workId
@@ -104,7 +105,7 @@ class OpenLibraryAPI extends ExternalAPI {
       `${normalizedWorkId}/editions.json`,
       {
         params: {
-          limit: '25',
+          limit: Math.min(Math.max(limit, 1), 100).toString(),
         },
       },
       43200
