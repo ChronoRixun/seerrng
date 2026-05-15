@@ -759,7 +759,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
           className="w-20 flex-shrink-0 scale-100 transform-gpu cursor-pointer overflow-hidden rounded-md shadow-sm transition duration-300 hover:scale-105 hover:shadow-md sm:w-28"
         >
           <CachedImage
-            type={isMusic(title) || isBook(title) ? 'music' : 'tmdb'}
+            type={isBook(title) ? 'book' : isMusic(title) ? 'music' : 'tmdb'}
             src={
               (isMusic(title) || isBook(title)) && title.posterPath
                 ? title.posterPath
