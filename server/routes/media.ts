@@ -255,12 +255,15 @@ mediaRoutes.delete(
       }
 
       if (!serviceSettings) {
+        const serviceName = isMovie
+          ? 'Radarr'
+          : isMusic
+            ? 'Lidarr'
+            : isBook
+              ? 'Readarr'
+              : 'Sonarr';
         logger.warn(
-          `There is no default ${
-            is4k ? '4K ' : '' + isMovie ? 'Radarr' : 'Sonarr'
-          }/ server configured. Did you set any of your ${
-            is4k ? '4K ' : '' + isMovie ? 'Radarr' : 'Sonarr'
-          } servers as default?`,
+          `There is no configured ${is4k ? '4K ' : ''}${serviceName} server for this media item.`,
           {
             label: 'Media Request',
             mediaId: media.id,
@@ -312,6 +315,12 @@ mediaRoutes.delete(
           throw new Error('TVDB ID not found');
         }
         await (service as SonarrAPI).removeSeries(tvdbId);
+      }
+
+      if (isMusic || isBook) {
+        media.status = MediaStatus.DELETED;
+        media.resetServiceData();
+        await mediaRepository.save(media);
       }
 
       return res.status(204).send();
