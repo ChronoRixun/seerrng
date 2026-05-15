@@ -30,6 +30,7 @@ interface StatusBadgeProps {
   serviceUrl?: string;
   tmdbId?: number;
   mbId?: string;
+  externalId?: string;
   mediaType?: 'movie' | 'tv' | 'music' | 'book';
   title?: string | string[];
   statusLabelOverride?: string;
@@ -44,6 +45,7 @@ const StatusBadge = ({
   serviceUrl,
   tmdbId,
   mbId,
+  externalId,
   mediaType,
   title,
   statusLabelOverride,
@@ -101,13 +103,13 @@ const StatusBadge = ({
             : 'Jellyfin',
     });
   } else if (hasPermission(Permission.MANAGE_REQUESTS)) {
-    if (mediaType === 'music' && mbId) {
-      mediaLink = `/music/${mbId}?manage=1`;
+    if (mediaType === 'music' && (mbId || externalId)) {
+      mediaLink = `/music/${mbId ?? externalId}?manage=1`;
       mediaLinkDescription = intl.formatMessage(messages.managemedia, {
         mediaType: 'Music',
       });
-    } else if (mediaType === 'book' && serviceUrl) {
-      mediaLink = serviceUrl;
+    } else if (mediaType === 'book' && externalId) {
+      mediaLink = `/book/${externalId}?manage=1`;
       mediaLinkDescription = intl.formatMessage(messages.managemedia, {
         mediaType: 'Book',
       });

@@ -3,6 +3,7 @@ import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Button from '@app/components/Common/Button';
+import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
 import IssueModal from '@app/components/IssueModal';
 import RequestModal from '@app/components/RequestModal';
@@ -14,6 +15,7 @@ import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ArrowDownTrayIcon,
+  CogIcon,
   ExclamationTriangleIcon,
   NoSymbolIcon,
 } from '@heroicons/react/24/solid';
@@ -23,7 +25,7 @@ import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import axios from 'axios';
 import { useRouter } from 'next/router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -32,6 +34,7 @@ const messages = defineMessages('components.BookDetails', {
   author: 'Author',
   firstPublished: 'First Published',
   subjects: 'Subjects',
+  manage: 'Manage',
   reportissue: 'Report an Issue',
   openissues: 'Open Issues',
 });
@@ -43,6 +46,7 @@ const BookDetails = () => {
   const { hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
+  const [showManager, setShowManager] = useState(router.query.manage === '1');
   const [isBlocklisting, setIsBlocklisting] = useState(false);
 
   const {
@@ -52,6 +56,10 @@ const BookDetails = () => {
   } = useSWR<BookDetailsType>(
     router.query.bookId ? `/api/v1/book/${router.query.bookId}` : null
   );
+
+  useEffect(() => {
+    setShowManager(router.query.manage === '1');
+  }, [router.query.manage]);
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -79,6 +87,10 @@ const BookDetails = () => {
   const canBlocklist =
     hasPermission(Permission.MANAGE_BLOCKLIST) &&
     data.mediaInfo?.status !== MediaStatus.BLOCKLISTED;
+  const canManage =
+    hasPermission(Permission.MANAGE_REQUESTS) &&
+    data.mediaInfo &&
+    data.mediaInfo.status !== MediaStatus.UNKNOWN;
   const openIssues =
     data.mediaInfo?.issues?.filter((issue) => issue.status === IssueStatus.OPEN) ??
     [];
@@ -117,6 +129,19 @@ const BookDetails = () => {
   return (
     <>
       <PageTitle title={data.title} />
+      <ExternalMediaManageSlideOver
+        data={data}
+        mediaType={MediaType.BOOK}
+        onClose={() => {
+          setShowManager(false);
+          router.push({
+            pathname: router.pathname,
+            query: { bookId: router.query.bookId },
+          });
+        }}
+        revalidate={() => revalidate()}
+        show={showManager}
+      />
       <IssueModal
         show={showIssueModal}
         mediaType="book"
@@ -157,6 +182,7 @@ const BookDetails = () => {
                 <StatusBadge
                   status={data.mediaInfo.status}
                   mediaType="book"
+                  externalId={data.id}
                   serviceUrl={data.mediaInfo.serviceUrl}
                 />
               )}
@@ -182,16 +208,22 @@ const BookDetails = () => {
               {data.description}
             </div>
           )}
-          {(canShowRequest || canReportIssue || canBlocklist) && (
+          {(canShowRequest || canReportIssue || canBlocklist || canManage) && (
             <div className="mt-6 flex flex-wrap gap-2">
               {canShowRequest && (
-              <Button
-                buttonType="primary"
-                onClick={() => setShowRequestModal(true)}
-              >
-                <ArrowDownTrayIcon />
-                <span>{intl.formatMessage(globalMessages.request)}</span>
-              </Button>
+                <Button
+                  buttonType="primary"
+                  onClick={() => setShowRequestModal(true)}
+                >
+                  <ArrowDownTrayIcon />
+                  <span>{intl.formatMessage(globalMessages.request)}</span>
+                </Button>
+              )}
+              {canManage && (
+                <Button buttonType="ghost" onClick={() => setShowManager(true)}>
+                  <CogIcon />
+                  <span>{intl.formatMessage(messages.manage)}</span>
+                </Button>
               )}
               {canReportIssue && (
                 <Button

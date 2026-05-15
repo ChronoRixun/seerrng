@@ -22,7 +22,7 @@ const messages = defineMessages('component.BlocklistBlock', {
 });
 
 interface BlocklistBlockProps {
-  tmdbId: number;
+  tmdbId?: number;
   externalId?: string | null;
   mediaType: MediaType;
   onUpdate?: () => void;

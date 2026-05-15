@@ -3,6 +3,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
 import IssueModal from '@app/components/IssueModal';
 import RequestModal from '@app/components/RequestModal';
@@ -14,6 +15,7 @@ import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ArrowDownTrayIcon,
+  CogIcon,
   ExclamationTriangleIcon,
   NoSymbolIcon,
 } from '@heroicons/react/24/outline';
@@ -24,7 +26,7 @@ import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
 import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -34,6 +36,7 @@ const messages = defineMessages('components.MusicDetails', {
   releasedate: 'Release Date',
   tracks: 'Tracks',
   noTracks: 'No tracks available.',
+  manage: 'Manage',
   reportissue: 'Report an Issue',
   openissues: 'Open Issues',
 });
@@ -45,6 +48,7 @@ const MusicDetails = () => {
   const { hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
+  const [showManager, setShowManager] = useState(router.query.manage === '1');
   const [isBlocklisting, setIsBlocklisting] = useState(false);
 
   const {
@@ -54,6 +58,10 @@ const MusicDetails = () => {
   } = useSWR<MusicDetailsType>(
     router.query.musicId ? `/api/v1/music/${router.query.musicId}` : null
   );
+
+  useEffect(() => {
+    setShowManager(router.query.manage === '1');
+  }, [router.query.manage]);
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -81,6 +89,10 @@ const MusicDetails = () => {
   const canBlocklist =
     hasPermission(Permission.MANAGE_BLOCKLIST) &&
     data.mediaInfo?.status !== MediaStatus.BLOCKLISTED;
+  const canManage =
+    hasPermission(Permission.MANAGE_REQUESTS) &&
+    data.mediaInfo &&
+    data.mediaInfo.status !== MediaStatus.UNKNOWN;
   const openIssues =
     data.mediaInfo?.issues?.filter((issue) => issue.status === IssueStatus.OPEN) ??
     [];
@@ -119,6 +131,19 @@ const MusicDetails = () => {
   return (
     <>
       <PageTitle title={data.title} />
+      <ExternalMediaManageSlideOver
+        data={data}
+        mediaType={MediaType.MUSIC}
+        onClose={() => {
+          setShowManager(false);
+          router.push({
+            pathname: router.pathname,
+            query: { musicId: router.query.musicId },
+          });
+        }}
+        revalidate={() => revalidate()}
+        show={showManager}
+      />
       <IssueModal
         show={showIssueModal}
         mediaType="music"
@@ -181,16 +206,22 @@ const MusicDetails = () => {
             )}
             {data.type && <span>{data.type}</span>}
           </div>
-          {(canShowRequest || canReportIssue || canBlocklist) && (
+          {(canShowRequest || canReportIssue || canBlocklist || canManage) && (
             <div className="mt-6 flex max-w-xs flex-wrap gap-2">
               {canShowRequest && (
-              <Button
-                buttonType="primary"
-                onClick={() => setShowRequestModal(true)}
-              >
-                <ArrowDownTrayIcon />
-                <span>{intl.formatMessage(globalMessages.request)}</span>
-              </Button>
+                <Button
+                  buttonType="primary"
+                  onClick={() => setShowRequestModal(true)}
+                >
+                  <ArrowDownTrayIcon />
+                  <span>{intl.formatMessage(globalMessages.request)}</span>
+                </Button>
+              )}
+              {canManage && (
+                <Button buttonType="ghost" onClick={() => setShowManager(true)}>
+                  <CogIcon />
+                  <span>{intl.formatMessage(messages.manage)}</span>
+                </Button>
               )}
               {canReportIssue && (
                 <Button
