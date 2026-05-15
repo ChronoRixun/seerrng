@@ -18,7 +18,9 @@ import {
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
-import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
@@ -1103,6 +1105,52 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       media.externalServiceSlug = result.foreignBookId;
       media.serviceId = readarrSettings.id;
       await mediaRepository.save(media);
+
+      const identifierRepository = getRepository(MediaIdentifier);
+      const existingIdentifierKeys = new Set(
+        (media.identifiers ?? []).map(
+          (identifier) => `${identifier.provider}:${identifier.value}`
+        )
+      );
+      const identifiersToSave = [
+        result.foreignBookId
+          ? {
+              provider: MediaIdentifierProvider.READARR,
+              value: result.foreignBookId,
+            }
+          : undefined,
+        result.editions?.find((edition) => edition.isbn13)?.isbn13
+          ? {
+              provider: MediaIdentifierProvider.ISBN,
+              value: result.editions.find((edition) => edition.isbn13)?.isbn13,
+            }
+          : undefined,
+      ].filter(
+        (
+          identifier
+        ): identifier is {
+          provider: MediaIdentifierProvider;
+          value: string;
+        } =>
+          !!identifier &&
+          !existingIdentifierKeys.has(
+            `${identifier.provider}:${identifier.value}`
+          )
+      );
+
+      if (identifiersToSave.length) {
+        await identifierRepository.save(
+          identifiersToSave.map(
+            (identifier) =>
+              new MediaIdentifier({
+                media,
+                provider: identifier.provider,
+                value: identifier.value,
+                canonical: false,
+              })
+          )
+        );
+      }
 
       logger.info('Sent request to Readarr', {
         label: 'Media Request',
