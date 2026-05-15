@@ -34,6 +34,74 @@ export interface BookIsbnCandidate {
 const normalizeIsbn = (isbn?: string): string | undefined =>
   isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
 
+const isValidIsbn10 = (isbn: string): boolean => {
+  if (!/^\d{9}[\dX]$/.test(isbn)) {
+    return false;
+  }
+
+  const sum = isbn
+    .split('')
+    .reduce(
+      (total, digit, index) =>
+        total + (digit === 'X' ? 10 : Number(digit)) * (10 - index),
+      0
+    );
+
+  return sum % 11 === 0;
+};
+
+const isValidIsbn13 = (isbn: string): boolean => {
+  if (!/^\d{13}$/.test(isbn)) {
+    return false;
+  }
+
+  const sum = isbn
+    .slice(0, 12)
+    .split('')
+    .reduce(
+      (total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 1 : 3),
+      0
+    );
+  const checkDigit = (10 - (sum % 10)) % 10;
+
+  return checkDigit === Number(isbn[12]);
+};
+
+const convertIsbn10To13 = (isbn: string): string | undefined => {
+  if (!isValidIsbn10(isbn)) {
+    return undefined;
+  }
+
+  const body = `978${isbn.slice(0, 9)}`;
+  const sum = body
+    .split('')
+    .reduce(
+      (total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 1 : 3),
+      0
+    );
+  const checkDigit = (10 - (sum % 10)) % 10;
+
+  return `${body}${checkDigit}`;
+};
+
+const normalizeValidIsbn = (isbn?: string): string | undefined => {
+  const normalized = normalizeIsbn(isbn);
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (normalized.length === 13 && isValidIsbn13(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.length === 10) {
+    return convertIsbn10To13(normalized);
+  }
+
+  return undefined;
+};
+
 const getEditionId = (key?: string): string | undefined =>
   key?.replace('/books/', '');
 
@@ -48,7 +116,7 @@ const mapEditionIsbnCandidates = (
     const format = edition.physical_format;
 
     [...(edition.isbn_13 ?? []), ...(edition.isbn_10 ?? [])].forEach((isbn) => {
-      const normalized = normalizeIsbn(isbn);
+      const normalized = normalizeValidIsbn(isbn);
 
       if (normalized && !candidates.has(normalized)) {
         candidates.set(normalized, {
@@ -75,8 +143,9 @@ export const mapOpenLibrarySearchDoc = (
   media?: Media
 ): BookResult => {
   const isbn13 =
-    normalizeIsbn(doc.isbn?.find((isbn) => normalizeIsbn(isbn)?.length === 13)) ??
-    normalizeIsbn(doc.isbn?.[0]);
+    doc.isbn
+      ?.map((isbn) => normalizeValidIsbn(isbn))
+      .find((isbn): isbn is string => !!isbn);
   const workId = doc.key.replace('/works/', '');
 
   return {
