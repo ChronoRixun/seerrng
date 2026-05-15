@@ -1,8 +1,10 @@
+import Spinner from '@app/assets/spinner.svg';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import Tooltip from '@app/components/Common/Tooltip';
 import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
 import IssueModal from '@app/components/IssueModal';
@@ -17,10 +19,13 @@ import {
   ArrowDownTrayIcon,
   CogIcon,
   ExclamationTriangleIcon,
+  MinusCircleIcon,
   NoSymbolIcon,
+  StarIcon,
 } from '@heroicons/react/24/outline';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaStatus, MediaType } from '@server/constants/media';
+import { UserType } from '@server/constants/user';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
 import axios from 'axios';
 import Link from 'next/link';
@@ -38,17 +43,25 @@ const messages = defineMessages('components.MusicDetails', {
   manage: 'Manage',
   reportissue: 'Report an Issue',
   openissues: 'Open Issues',
+  watchlistSuccess: '<strong>{title}</strong> added to watchlist successfully!',
+  watchlistDeleted:
+    '<strong>{title}</strong> Removed from watchlist successfully!',
+  watchlistError: 'Something went wrong. Please try again.',
+  removefromwatchlist: 'Remove From Watchlist',
+  addtowatchlist: 'Add To Watchlist',
 });
 
 const MusicDetails = () => {
   const router = useRouter();
   const intl = useIntl();
   const { addToast } = useToasts();
-  const { hasPermission } = useUser();
+  const { user, hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showManager, setShowManager] = useState(router.query.manage === '1');
   const [isBlocklisting, setIsBlocklisting] = useState(false);
+  const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
+  const [toggleWatchlist, setToggleWatchlist] = useState(true);
 
   const {
     data,
@@ -61,6 +74,10 @@ const MusicDetails = () => {
   useEffect(() => {
     setShowManager(router.query.manage === '1');
   }, [router.query.manage]);
+
+  useEffect(() => {
+    setToggleWatchlist(!data?.onUserWatchlist);
+  }, [data?.onUserWatchlist]);
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -92,9 +109,13 @@ const MusicDetails = () => {
     hasPermission(Permission.MANAGE_REQUESTS) &&
     data.mediaInfo &&
     data.mediaInfo.status !== MediaStatus.UNKNOWN;
+  const canWatchlist =
+    data.mediaInfo?.status !== MediaStatus.BLOCKLISTED &&
+    user?.userType !== UserType.PLEX;
   const openIssues =
-    data.mediaInfo?.issues?.filter((issue) => issue.status === IssueStatus.OPEN) ??
-    [];
+    data.mediaInfo?.issues?.filter(
+      (issue) => issue.status === IssueStatus.OPEN
+    ) ?? [];
 
   const blocklistAlbum = async () => {
     setIsBlocklisting(true);
@@ -124,6 +145,67 @@ const MusicDetails = () => {
       });
     } finally {
       setIsBlocklisting(false);
+    }
+  };
+
+  const addToWatchlist = async (): Promise<void> => {
+    setIsWatchlistUpdating(true);
+
+    try {
+      const response = await axios.post('/api/v1/watchlist', {
+        mbId: data.mbId,
+        mediaType: MediaType.MUSIC,
+        title: data.title,
+      });
+
+      if (response.data) {
+        addToast(
+          <span>
+            {intl.formatMessage(messages.watchlistSuccess, {
+              title: data.title,
+              strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+            })}
+          </span>,
+          { appearance: 'success', autoDismiss: true }
+        );
+      }
+
+      setToggleWatchlist(false);
+    } catch {
+      addToast(intl.formatMessage(messages.watchlistError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    } finally {
+      setIsWatchlistUpdating(false);
+      revalidate();
+    }
+  };
+
+  const removeFromWatchlist = async (): Promise<void> => {
+    setIsWatchlistUpdating(true);
+
+    try {
+      await axios.delete(`/api/v1/watchlist/${data.mbId}?mediaType=music`);
+
+      addToast(
+        <span>
+          {intl.formatMessage(messages.watchlistDeleted, {
+            title: data.title,
+            strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+          })}
+        </span>,
+        { appearance: 'info', autoDismiss: true }
+      );
+      setToggleWatchlist(true);
+    } catch {
+      addToast(intl.formatMessage(messages.watchlistError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    } finally {
+      setIsWatchlistUpdating(false);
+      revalidate();
     }
   };
 
@@ -166,7 +248,9 @@ const MusicDetails = () => {
           <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
             <CachedImage
               type="music"
-              src={data.posterPath ?? '/images/seerr_poster_not_found_logo_top.png'}
+              src={
+                data.posterPath ?? '/images/seerr_poster_not_found_logo_top.png'
+              }
               alt=""
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               fill
@@ -178,14 +262,15 @@ const MusicDetails = () => {
             <span className="rounded-full border border-emerald-500 bg-emerald-600/80 px-3 py-1 text-xs font-medium uppercase tracking-wider text-white">
               {intl.formatMessage(messages.album)}
             </span>
-            {data.mediaInfo?.status && data.mediaInfo.status !== MediaStatus.UNKNOWN && (
-              <StatusBadge
-                status={data.mediaInfo.status}
-                mediaType="music"
-                mbId={data.mbId}
-                serviceUrl={data.mediaInfo.serviceUrl}
-              />
-            )}
+            {data.mediaInfo?.status &&
+              data.mediaInfo.status !== MediaStatus.UNKNOWN && (
+                <StatusBadge
+                  status={data.mediaInfo.status}
+                  mediaType="music"
+                  mbId={data.mbId}
+                  serviceUrl={data.mediaInfo.serviceUrl}
+                />
+              )}
           </div>
           <h1 className="break-words text-3xl font-bold text-white lg:text-5xl">
             {data.title}
@@ -205,8 +290,41 @@ const MusicDetails = () => {
             )}
             {data.type && <span>{data.type}</span>}
           </div>
-          {(canShowRequest || canReportIssue || canBlocklist || canManage) && (
+          {(canWatchlist ||
+            canShowRequest ||
+            canReportIssue ||
+            canBlocklist ||
+            canManage) && (
             <div className="mt-6 flex max-w-xs flex-wrap gap-2">
+              {canWatchlist && (
+                <>
+                  {toggleWatchlist ? (
+                    <Tooltip
+                      content={intl.formatMessage(messages.addtowatchlist)}
+                    >
+                      <Button buttonType="ghost" onClick={addToWatchlist}>
+                        {isWatchlistUpdating ? (
+                          <Spinner />
+                        ) : (
+                          <StarIcon className="text-amber-300" />
+                        )}
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip
+                      content={intl.formatMessage(messages.removefromwatchlist)}
+                    >
+                      <Button onClick={removeFromWatchlist}>
+                        {isWatchlistUpdating ? (
+                          <Spinner />
+                        ) : (
+                          <MinusCircleIcon />
+                        )}
+                      </Button>
+                    </Tooltip>
+                  )}
+                </>
+              )}
               {canShowRequest && (
                 <Button
                   buttonType="primary"
@@ -235,7 +353,9 @@ const MusicDetails = () => {
                 <ConfirmButton
                   onClick={blocklistAlbum}
                   confirmText={intl.formatMessage(globalMessages.areyousure)}
-                  className={isBlocklisting ? 'pointer-events-none opacity-50' : ''}
+                  className={
+                    isBlocklisting ? 'pointer-events-none opacity-50' : ''
+                  }
                 >
                   <NoSymbolIcon />
                   <span>{intl.formatMessage(globalMessages.blocklist)}</span>

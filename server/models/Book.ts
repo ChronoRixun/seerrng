@@ -1,6 +1,6 @@
 import type {
-  OpenLibrarySearchDoc,
   OpenLibraryEdition,
+  OpenLibrarySearchDoc,
   OpenLibraryWork,
 } from '@server/api/openlibrary';
 import type Media from '@server/entity/Media';
@@ -23,6 +23,7 @@ export interface BookResult {
 export interface BookDetails extends BookResult {
   description?: string;
   subjects?: string[];
+  onUserWatchlist?: boolean;
 }
 
 export interface BookIsbnCandidate {
@@ -72,10 +73,9 @@ export const mapOpenLibrarySearchDoc = (
   doc: OpenLibrarySearchDoc,
   media?: Media
 ): BookResult => {
-  const isbn13 =
-    doc.isbn
-      ?.map((isbn) => normalizeValidIsbn(isbn))
-      .find((isbn): isbn is string => !!isbn);
+  const isbn13 = doc.isbn
+    ?.map((isbn) => normalizeValidIsbn(isbn))
+    .find((isbn): isbn is string => !!isbn);
   const workId = doc.key.replace('/works/', '');
 
   return {
@@ -97,7 +97,8 @@ export const mapOpenLibrarySearchDoc = (
 export const mapOpenLibraryWork = (
   work: OpenLibraryWork,
   media?: Media,
-  editions: OpenLibraryEdition[] = []
+  editions: OpenLibraryEdition[] = [],
+  userWatchlist?: boolean
 ): BookDetails => {
   const description =
     typeof work.description === 'string'
@@ -124,5 +125,6 @@ export const mapOpenLibraryWork = (
     description,
     subjects: work.subjects?.slice(0, 20),
     mediaInfo: media,
+    onUserWatchlist: userWatchlist,
   };
 };

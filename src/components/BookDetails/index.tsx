@@ -1,8 +1,10 @@
+import Spinner from '@app/assets/spinner.svg';
+import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
-import Button from '@app/components/Common/Button';
+import Tooltip from '@app/components/Common/Tooltip';
 import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
 import IssueModal from '@app/components/IssueModal';
@@ -17,10 +19,13 @@ import {
   ArrowDownTrayIcon,
   CogIcon,
   ExclamationTriangleIcon,
+  MinusCircleIcon,
   NoSymbolIcon,
+  StarIcon,
 } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaStatus, MediaType } from '@server/constants/media';
+import { UserType } from '@server/constants/user';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import axios from 'axios';
 import { useRouter } from 'next/router';
@@ -39,17 +44,25 @@ const messages = defineMessages('components.BookDetails', {
   manage: 'Manage',
   reportissue: 'Report an Issue',
   openissues: 'Open Issues',
+  watchlistSuccess: '<strong>{title}</strong> added to watchlist successfully!',
+  watchlistDeleted:
+    '<strong>{title}</strong> Removed from watchlist successfully!',
+  watchlistError: 'Something went wrong. Please try again.',
+  removefromwatchlist: 'Remove From Watchlist',
+  addtowatchlist: 'Add To Watchlist',
 });
 
 const BookDetails = () => {
   const router = useRouter();
   const intl = useIntl();
   const { addToast } = useToasts();
-  const { hasPermission } = useUser();
+  const { user, hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showManager, setShowManager] = useState(router.query.manage === '1');
   const [isBlocklisting, setIsBlocklisting] = useState(false);
+  const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
+  const [toggleWatchlist, setToggleWatchlist] = useState(true);
 
   const {
     data,
@@ -62,6 +75,10 @@ const BookDetails = () => {
   useEffect(() => {
     setShowManager(router.query.manage === '1');
   }, [router.query.manage]);
+
+  useEffect(() => {
+    setToggleWatchlist(!data?.onUserWatchlist);
+  }, [data?.onUserWatchlist]);
 
   if (!data && !error) {
     return <LoadingSpinner />;
@@ -93,9 +110,13 @@ const BookDetails = () => {
     hasPermission(Permission.MANAGE_REQUESTS) &&
     data.mediaInfo &&
     data.mediaInfo.status !== MediaStatus.UNKNOWN;
+  const canWatchlist =
+    data.mediaInfo?.status !== MediaStatus.BLOCKLISTED &&
+    user?.userType !== UserType.PLEX;
   const openIssues =
-    data.mediaInfo?.issues?.filter((issue) => issue.status === IssueStatus.OPEN) ??
-    [];
+    data.mediaInfo?.issues?.filter(
+      (issue) => issue.status === IssueStatus.OPEN
+    ) ?? [];
 
   const blocklistBook = async () => {
     setIsBlocklisting(true);
@@ -125,6 +146,67 @@ const BookDetails = () => {
       });
     } finally {
       setIsBlocklisting(false);
+    }
+  };
+
+  const addToWatchlist = async (): Promise<void> => {
+    setIsWatchlistUpdating(true);
+
+    try {
+      const response = await axios.post('/api/v1/watchlist', {
+        externalId: data.id,
+        mediaType: MediaType.BOOK,
+        title: data.title,
+      });
+
+      if (response.data) {
+        addToast(
+          <span>
+            {intl.formatMessage(messages.watchlistSuccess, {
+              title: data.title,
+              strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+            })}
+          </span>,
+          { appearance: 'success', autoDismiss: true }
+        );
+      }
+
+      setToggleWatchlist(false);
+    } catch {
+      addToast(intl.formatMessage(messages.watchlistError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    } finally {
+      setIsWatchlistUpdating(false);
+      revalidate();
+    }
+  };
+
+  const removeFromWatchlist = async (): Promise<void> => {
+    setIsWatchlistUpdating(true);
+
+    try {
+      await axios.delete(`/api/v1/watchlist/${data.id}?mediaType=book`);
+
+      addToast(
+        <span>
+          {intl.formatMessage(messages.watchlistDeleted, {
+            title: data.title,
+            strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+          })}
+        </span>,
+        { appearance: 'info', autoDismiss: true }
+      );
+      setToggleWatchlist(true);
+    } catch {
+      addToast(intl.formatMessage(messages.watchlistError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    } finally {
+      setIsWatchlistUpdating(false);
+      revalidate();
     }
   };
 
@@ -167,7 +249,9 @@ const BookDetails = () => {
           <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
             <CachedImage
               type="book"
-              src={data.posterPath ?? '/images/seerr_poster_not_found_logo_top.png'}
+              src={
+                data.posterPath ?? '/images/seerr_poster_not_found_logo_top.png'
+              }
               alt=""
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               fill
@@ -233,19 +317,11 @@ const BookDetails = () => {
                     <div
                       key={`${candidate.editionId ?? candidate.isbn}-${candidate.isbn}`}
                       className="truncate"
-                      title={[
-                        candidate.isbn,
-                        candidate.title,
-                        candidate.format,
-                      ]
+                      title={[candidate.isbn, candidate.title, candidate.format]
                         .filter(Boolean)
                         .join(' - ')}
                     >
-                      {[
-                        candidate.isbn,
-                        candidate.title,
-                        candidate.format,
-                      ]
+                      {[candidate.isbn, candidate.title, candidate.format]
                         .filter(Boolean)
                         .join(' - ')}
                     </div>
@@ -254,8 +330,41 @@ const BookDetails = () => {
               </div>
             )}
           </div>
-          {(canShowRequest || canReportIssue || canBlocklist || canManage) && (
+          {(canWatchlist ||
+            canShowRequest ||
+            canReportIssue ||
+            canBlocklist ||
+            canManage) && (
             <div className="mt-6 flex flex-wrap gap-2">
+              {canWatchlist && (
+                <>
+                  {toggleWatchlist ? (
+                    <Tooltip
+                      content={intl.formatMessage(messages.addtowatchlist)}
+                    >
+                      <Button buttonType="ghost" onClick={addToWatchlist}>
+                        {isWatchlistUpdating ? (
+                          <Spinner />
+                        ) : (
+                          <StarIcon className="text-amber-300" />
+                        )}
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip
+                      content={intl.formatMessage(messages.removefromwatchlist)}
+                    >
+                      <Button onClick={removeFromWatchlist}>
+                        {isWatchlistUpdating ? (
+                          <Spinner />
+                        ) : (
+                          <MinusCircleIcon />
+                        )}
+                      </Button>
+                    </Tooltip>
+                  )}
+                </>
+              )}
               {canShowRequest && (
                 <Button
                   buttonType="primary"
@@ -284,7 +393,9 @@ const BookDetails = () => {
                 <ConfirmButton
                   onClick={blocklistBook}
                   confirmText={intl.formatMessage(globalMessages.areyousure)}
-                  className={isBlocklisting ? 'pointer-events-none opacity-50' : ''}
+                  className={
+                    isBlocklisting ? 'pointer-events-none opacity-50' : ''
+                  }
                 >
                   <NoSymbolIcon />
                   <span>{intl.formatMessage(globalMessages.blocklist)}</span>

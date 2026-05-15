@@ -5,6 +5,7 @@ import type Media from '@server/entity/Media';
 import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
+import { Watchlist } from '@server/entity/Watchlist';
 import logger from '@server/logger';
 import {
   mapOpenLibrarySearchDoc,
@@ -79,7 +80,7 @@ bookRoutes.get('/search', async (req, res, next) => {
 bookRoutes.get('/:id', async (req, res, next) => {
   try {
     const openLibrary = new OpenLibraryAPI();
-    const [work, editions, identifiers] = await Promise.all([
+    const [work, editions, identifiers, onUserWatchlist] = await Promise.all([
       openLibrary.getWork(req.params.id),
       openLibrary.getWorkEditions(req.params.id).catch(() => ({
         size: 0,
@@ -106,13 +107,22 @@ bookRoutes.get('/:id', async (req, res, next) => {
           },
         },
       }),
+      getRepository(Watchlist).exist({
+        where: {
+          externalId: req.params.id,
+          mediaType: MediaType.BOOK,
+          requestedBy: { id: req.user?.id },
+        },
+      }),
     ]);
 
     const media = identifiers.find(
       (identifier) => identifier.media.mediaType === MediaType.BOOK
     )?.media;
 
-    return res.status(200).json(mapOpenLibraryWork(work, media, editions.entries));
+    return res
+      .status(200)
+      .json(mapOpenLibraryWork(work, media, editions.entries, onUserWatchlist));
   } catch (e) {
     logger.error('Failed to retrieve book details', {
       label: 'Book',
