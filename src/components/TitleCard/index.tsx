@@ -323,7 +323,7 @@ const TitleCard = ({
     mediaType === 'movie' || mediaType === 'collection' || mediaType === 'tv';
   const numericId = typeof id === 'number' ? id : Number(id);
   const canUseVideoActions = videoMediaType && Number.isFinite(numericId);
-  const canUseRequestActions = canUseVideoActions || isAlbum;
+  const canUseRequestActions = canUseVideoActions || isAlbum || isBook;
   const canUseWatchlistActions = canUseVideoActions || isAlbum;
   const detailHref =
     mediaType === 'movie'
@@ -407,6 +407,16 @@ const TitleCard = ({
           mbId={id}
           show={showRequestModal}
           type="music"
+          onComplete={requestComplete}
+          onUpdating={requestUpdating}
+          onCancel={closeModal}
+        />
+      )}
+      {isBook && typeof id === 'string' && (
+        <RequestModal
+          bookId={id}
+          show={showRequestModal}
+          type="book"
           onComplete={requestComplete}
           onUpdating={requestUpdating}
           onCancel={closeModal}

@@ -1,10 +1,16 @@
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import Button from '@app/components/Common/Button';
+import RequestModal from '@app/components/RequestModal';
+import { Permission, useUser } from '@app/hooks/useUser';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/solid';
+import { MediaStatus } from '@server/constants/media';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import { useRouter } from 'next/router';
+import { useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -18,6 +24,9 @@ const messages = defineMessages('components.BookDetails', {
 const BookDetails = () => {
   const router = useRouter();
   const intl = useIntl();
+  const { hasPermission } = useUser();
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [mediaStatus, setMediaStatus] = useState(MediaStatus.UNKNOWN);
 
   const { data, error } = useSWR<BookDetailsType>(
     router.query.bookId ? `/api/v1/book/${router.query.bookId}` : null
@@ -34,6 +43,16 @@ const BookDetails = () => {
   return (
     <>
       <PageTitle title={data.title} />
+      <RequestModal
+        bookId={data.id}
+        show={showRequestModal}
+        type="book"
+        onComplete={(newStatus) => {
+          setMediaStatus(newStatus);
+          setShowRequestModal(false);
+        }}
+        onCancel={() => setShowRequestModal(false)}
+      />
       <div className="relative z-10 mt-4 flex flex-col gap-6 lg:flex-row">
         <div className="w-full max-w-xs flex-shrink-0">
           <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
@@ -73,6 +92,20 @@ const BookDetails = () => {
               {data.description}
             </div>
           )}
+          {hasPermission([Permission.REQUEST, Permission.REQUEST_BOOK], {
+            type: 'or',
+          }) &&
+            mediaStatus === MediaStatus.UNKNOWN && (
+              <div className="mt-6">
+                <Button
+                  buttonType="primary"
+                  onClick={() => setShowRequestModal(true)}
+                >
+                  <ArrowDownTrayIcon />
+                  <span>{intl.formatMessage({ defaultMessage: 'Request' })}</span>
+                </Button>
+              </div>
+            )}
           {!!data.subjects?.length && (
             <div className="mt-6">
               <h2 className="mb-2 text-lg font-semibold text-white">

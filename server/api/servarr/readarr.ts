@@ -6,13 +6,19 @@ export interface ReadarrMetadataProfile {
 }
 
 export interface ReadarrBookLookupResult {
+  id?: number;
   title: string;
   foreignBookId: string;
   foreignEditionId?: string;
+  qualityProfileId?: number;
+  metadataProfileId?: number;
+  rootFolderPath?: string;
+  monitored?: boolean;
   authorTitle?: string;
   author?: {
     foreignAuthorId?: string;
     authorName?: string;
+    id?: number;
   };
   editions?: {
     foreignEditionId: string;
@@ -21,6 +27,17 @@ export interface ReadarrBookLookupResult {
     asin?: string;
     monitored: boolean;
   }[];
+}
+
+export interface ReadarrBookOptions extends ReadarrBookLookupResult {
+  qualityProfileId: number;
+  metadataProfileId: number;
+  rootFolderPath: string;
+  monitored: boolean;
+  tags?: number[];
+  addOptions?: {
+    searchForNewBook: boolean;
+  };
 }
 
 class ReadarrAPI extends ServarrBase<Record<string, unknown>> {
@@ -51,6 +68,19 @@ class ReadarrAPI extends ServarrBase<Record<string, unknown>> {
       });
     } catch (e) {
       throw new Error(`[Readarr] Failed to lookup book: ${e.message}`, {
+        cause: e,
+      });
+    }
+  }
+
+  public async addBook(options: ReadarrBookOptions): Promise<ReadarrBookLookupResult> {
+    try {
+      return await this.post<ReadarrBookLookupResult>(
+        '/book',
+        options as unknown as Record<string, unknown>
+      );
+    } catch (e) {
+      throw new Error(`[Readarr] Failed to add book: ${e.message}`, {
         cause: e,
       });
     }

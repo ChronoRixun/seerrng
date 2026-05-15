@@ -1,4 +1,5 @@
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import TheMovieDb from '@server/api/themoviedb';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
@@ -8,6 +9,9 @@ import {
   MediaType,
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import OverrideRule from '@server/entity/OverrideRule';
 import type { MediaRequestBody } from '@server/interfaces/api/requestInterfaces';
 import notificationManager, { Notification } from '@server/lib/notifications';
@@ -52,7 +56,9 @@ export class MediaRequest {
   ): Promise<MediaRequest> {
     const tmdb = new TheMovieDb();
     const listenbrainz = new ListenBrainzAPI();
+    const openLibrary = new OpenLibraryAPI();
     const mediaRepository = getRepository(Media);
+    const mediaIdentifierRepository = getRepository(MediaIdentifier);
     const requestRepository = getRepository(MediaRequest);
     const userRepository = getRepository(User);
     const settings = getSettings();
@@ -120,6 +126,15 @@ export class MediaRequest {
       throw new RequestPermissionError(
         'You do not have permission to make music requests.'
       );
+    } else if (
+      requestBody.mediaType === MediaType.BOOK &&
+      !requestUser.hasPermission([Permission.REQUEST, Permission.REQUEST_BOOK], {
+        type: 'or',
+      })
+    ) {
+      throw new RequestPermissionError(
+        'You do not have permission to make book requests.'
+      );
     }
 
     const quotas = await requestUser.getQuota();
@@ -133,6 +148,11 @@ export class MediaRequest {
       quotas.music.restricted
     ) {
       throw new QuotaRestrictedError('Music Quota exceeded.');
+    } else if (
+      requestBody.mediaType === MediaType.BOOK &&
+      quotas.book.restricted
+    ) {
+      throw new QuotaRestrictedError('Book Quota exceeded.');
     }
 
     if (requestBody.mediaType === MediaType.MUSIC) {
@@ -246,6 +266,129 @@ export class MediaRequest {
         profileId,
         rootFolder,
         tags,
+        isAutoRequest: options.isAutoRequest ?? false,
+      });
+
+      await requestRepository.save(request);
+      return request;
+    }
+
+    if (requestBody.mediaType === MediaType.BOOK) {
+      const openLibraryId = requestBody.mediaId
+        .toString()
+        .replace(/^\/?works\//, '');
+      await openLibrary.getWork(openLibraryId);
+
+      const existingIdentifier = await mediaIdentifierRepository.findOne({
+        where: {
+          provider: MediaIdentifierProvider.OPENLIBRARY,
+          value: openLibraryId,
+        },
+        relations: {
+          media: {
+            requests: true,
+            identifiers: true,
+          },
+        },
+      });
+
+      let media = existingIdentifier?.media;
+
+      if (!media) {
+        media = new Media({
+          tmdbId: 0,
+          status: MediaStatus.PENDING,
+          status4k: MediaStatus.UNKNOWN,
+          mediaType: MediaType.BOOK,
+          identifiers: [
+            new MediaIdentifier({
+              provider: MediaIdentifierProvider.OPENLIBRARY,
+              value: openLibraryId,
+              canonical: true,
+            }),
+          ],
+        });
+      } else if (media.status === MediaStatus.BLOCKLISTED) {
+        logger.warn('Request for book blocked due to being blocklisted', {
+          openLibraryId,
+          label: 'Media Request',
+        });
+
+        throw new BlocklistedMediaError('This book is blocklisted.');
+      } else if (media.status === MediaStatus.UNKNOWN) {
+        media.status = MediaStatus.PENDING;
+      }
+
+      const existing = await requestRepository
+        .createQueryBuilder('request')
+        .leftJoin('request.media', 'media')
+        .leftJoin('media.identifiers', 'identifier')
+        .leftJoinAndSelect('request.requestedBy', 'user')
+        .where('identifier.provider = :provider', {
+          provider: MediaIdentifierProvider.OPENLIBRARY,
+        })
+        .andWhere('identifier.value = :value', { value: openLibraryId })
+        .andWhere('media.mediaType = :mediaType', {
+          mediaType: MediaType.BOOK,
+        })
+        .getMany();
+
+      if (
+        existing.some(
+          (request) =>
+            request.status !== MediaRequestStatus.DECLINED &&
+            request.status !== MediaRequestStatus.COMPLETED
+        )
+      ) {
+        throw new DuplicateMediaRequestError(
+          'Request for this book already exists.'
+        );
+      }
+
+      await mediaRepository.save(media);
+
+      if (requestBody.isbn13) {
+        const hasIsbn = media.identifiers?.some(
+          (identifier) =>
+            identifier.provider === MediaIdentifierProvider.ISBN &&
+            identifier.value === requestBody.isbn13
+        );
+
+        if (!hasIsbn) {
+          await mediaIdentifierRepository.save(
+            new MediaIdentifier({
+              media,
+              provider: MediaIdentifierProvider.ISBN,
+              value: requestBody.isbn13,
+              canonical: false,
+            })
+          );
+        }
+      }
+
+      const defaultReadarr = settings.readarr.find((readarr) => readarr.isDefault);
+      const autoApproved = user.hasPermission(
+        [
+          Permission.AUTO_APPROVE,
+          Permission.AUTO_APPROVE_BOOK,
+          Permission.MANAGE_REQUESTS,
+        ],
+        { type: 'or' }
+      );
+
+      const request = new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy: requestUser,
+        status: autoApproved
+          ? MediaRequestStatus.APPROVED
+          : MediaRequestStatus.PENDING,
+        modifiedBy: autoApproved ? user : undefined,
+        is4k: false,
+        serverId: requestBody.serverId ?? defaultReadarr?.id,
+        profileId: requestBody.profileId ?? defaultReadarr?.activeProfileId,
+        rootFolder: requestBody.rootFolder ?? defaultReadarr?.activeDirectory,
+        tags: requestBody.tags ?? defaultReadarr?.tags,
         isAutoRequest: options.isAutoRequest ?? false,
       });
 

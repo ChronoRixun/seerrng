@@ -1,5 +1,7 @@
 import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
+import OpenLibraryAPI from '@server/api/openlibrary';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import type { RadarrMovieOptions } from '@server/api/servarr/radarr';
 import RadarrAPI from '@server/api/servarr/radarr';
 import type {
@@ -16,6 +18,7 @@ import {
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
@@ -989,6 +992,146 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     }
   }
 
+  public async sendToReadarr(entity: MediaRequest): Promise<void> {
+    if (
+      entity.status !== MediaRequestStatus.APPROVED ||
+      entity.type !== MediaType.BOOK
+    ) {
+      return;
+    }
+
+    try {
+      const mediaRepository = getRepository(Media);
+      const settings = getSettings();
+
+      let readarrSettings = settings.readarr.find(
+        (readarr) => readarr.isDefault
+      );
+
+      if (
+        entity.serverId !== null &&
+        entity.serverId >= 0 &&
+        readarrSettings?.id !== entity.serverId
+      ) {
+        readarrSettings = settings.readarr.find(
+          (readarr) => readarr.id === entity.serverId
+        );
+      }
+
+      if (!readarrSettings) {
+        logger.warn('There is no default Readarr server configured.', {
+          label: 'Media Request',
+          requestId: entity.id,
+          mediaId: entity.media.id,
+        });
+        return;
+      }
+
+      const media = await mediaRepository.findOne({
+        where: { id: entity.media.id },
+        relations: { identifiers: true },
+      });
+
+      if (!media) {
+        logger.error('Book media data not found', {
+          label: 'Media Request',
+          requestId: entity.id,
+          mediaId: entity.media.id,
+        });
+        return;
+      }
+
+      if (media.status === MediaStatus.AVAILABLE) {
+        return;
+      }
+
+      const openLibraryId = media.identifiers?.find(
+        (identifier) =>
+          identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+      )?.value;
+      const isbn = media.identifiers?.find(
+        (identifier) => identifier.provider === MediaIdentifierProvider.ISBN
+      )?.value;
+
+      if (!openLibraryId && !isbn) {
+        throw new Error('Book request is missing lookup identifiers');
+      }
+
+      const readarr = new ReadarrAPI({
+        apiKey: readarrSettings.apiKey,
+        url: ReadarrAPI.buildUrl(readarrSettings, '/api/v1'),
+      });
+      const openLibrary = new OpenLibraryAPI();
+      const work = openLibraryId
+        ? await openLibrary.getWork(openLibraryId)
+        : undefined;
+      const lookupTerm = isbn ?? work?.title;
+
+      if (!lookupTerm) {
+        throw new Error('Book request is missing a Readarr lookup term');
+      }
+
+      const searchResults = await readarr.lookupBook(lookupTerm);
+
+      if (!searchResults?.length) {
+        throw new Error('Book not found in Readarr search');
+      }
+
+      const bookInfo = searchResults[0];
+      const rootFolder = entity.rootFolder || readarrSettings.activeDirectory;
+      const qualityProfile =
+        entity.profileId || readarrSettings.activeProfileId;
+      const metadataProfile =
+        readarrSettings.activeMetadataProfileId ?? 1;
+      const tags = entity.tags
+        ? [...entity.tags]
+        : [...(readarrSettings.tags ?? [])];
+
+      const result = await readarr.addBook({
+        ...bookInfo,
+        monitored: true,
+        qualityProfileId: qualityProfile,
+        metadataProfileId: metadataProfile,
+        rootFolderPath: rootFolder,
+        tags,
+        addOptions: {
+          searchForNewBook: true,
+        },
+      });
+
+      media.externalServiceId = result.id ?? null;
+      media.externalServiceSlug = result.foreignBookId;
+      media.serviceId = readarrSettings.id;
+      await mediaRepository.save(media);
+
+      logger.info('Sent request to Readarr', {
+        label: 'Media Request',
+        requestId: entity.id,
+        mediaId: entity.media.id,
+      });
+    } catch (e) {
+      const requestRepository = getRepository(MediaRequest);
+      const mediaRepository = getRepository(Media);
+      const media = await mediaRepository.findOne({
+        where: { id: entity.media.id },
+      });
+
+      entity.status = MediaRequestStatus.FAILED;
+      await requestRepository.save(entity);
+
+      logger.warn('Something went wrong sending book request to Readarr', {
+        label: 'Media Request',
+        requestId: entity.id,
+        mediaId: entity.media.id,
+        errorMessage: e instanceof Error ? e.message : String(e),
+      });
+
+      if (media) {
+        MediaRequest.sendNotification(entity, media, Notification.MEDIA_FAILED);
+      }
+    }
+  }
+
   public async updateParentStatus(entity: MediaRequest): Promise<void> {
     const mediaRepository = getRepository(Media);
     const media = await mediaRepository.findOne({
@@ -1158,6 +1301,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       await this.sendToRadarr(event.entity as MediaRequest);
       await this.sendToSonarr(event.entity as MediaRequest);
       await this.sendToLidarr(event.entity as MediaRequest);
+      await this.sendToReadarr(event.entity as MediaRequest);
     } catch (e) {
       logger.error('Error while sending to *arr in afterUpdate subscriber', {
         label: 'Media Request',
@@ -1198,6 +1342,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       await this.sendToRadarr(event.entity as MediaRequest);
       await this.sendToSonarr(event.entity as MediaRequest);
       await this.sendToLidarr(event.entity as MediaRequest);
+      await this.sendToReadarr(event.entity as MediaRequest);
     } catch (e) {
       logger.error('Error while sending to *arr in afterInsert subscriber', {
         label: 'Media Request',

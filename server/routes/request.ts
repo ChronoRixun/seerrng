@@ -180,6 +180,11 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
             type: MediaType.MUSIC,
           });
           break;
+        case 'book':
+          query = query.andWhere('request.type = :type', {
+            type: MediaType.BOOK,
+          });
+          break;
       }
 
       const [requests, requestCount] = await query
@@ -458,6 +463,12 @@ requestRoutes.get('/count', async (_req, res, next) => {
       })
       .getCount();
 
+    const bookCount = await query
+      .where('request.type = :requestType', {
+        requestType: MediaType.BOOK,
+      })
+      .getCount();
+
     const pendingCount = await query
       .where('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.PENDING,
@@ -511,6 +522,7 @@ requestRoutes.get('/count', async (_req, res, next) => {
       movie: movieCount,
       tv: tvCount,
       music: musicCount,
+      book: bookCount,
       pending: pendingCount,
       approved: approvedCount,
       declined: declinedCount,
@@ -615,7 +627,10 @@ requestRoutes.put<{ requestId: string }>(
         request.requestedBy = requestUser as User;
 
         await requestRepository.save(request);
-      } else if (req.body.mediaType === MediaType.MUSIC) {
+      } else if (
+        req.body.mediaType === MediaType.MUSIC ||
+        req.body.mediaType === MediaType.BOOK
+      ) {
         request.serverId = req.body.serverId;
         request.profileId = req.body.profileId;
         request.rootFolder = req.body.rootFolder;
