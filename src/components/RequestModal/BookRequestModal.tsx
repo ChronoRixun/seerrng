@@ -36,6 +36,10 @@ const messages = defineMessages('components.RequestModal.Book', {
   format: 'Format',
   edition: 'Edition / ISBN',
   automaticEdition: 'Automatic best match',
+  automaticEditionInfo:
+    'Automatic uses the first valid ISBN from Open Library. Pick a specific edition when testers report a mismatch.',
+  noIsbnCandidates:
+    'No valid ISBN candidates were found. Bookshelf will fall back to title matching.',
   ebook: 'Ebook',
   audiobook: 'Audiobook',
   both: 'Both',
@@ -391,6 +395,22 @@ const BookRequestModal = ({
               </option>
             ))}
           </select>
+        </div>
+      )}
+      {(data?.isbnCandidates?.length ?? 0) > 1 && !selectedIsbn && (
+        <div className="mt-4">
+          <Alert
+            title={intl.formatMessage(messages.automaticEditionInfo)}
+            type="info"
+          />
+        </div>
+      )}
+      {data && (data.isbnCandidates?.length ?? 0) === 0 && (
+        <div className="mt-4">
+          <Alert
+            title={intl.formatMessage(messages.noIsbnCandidates)}
+            type="warning"
+          />
         </div>
       )}
       {(quota?.book?.limit ?? 0) > 0 && (

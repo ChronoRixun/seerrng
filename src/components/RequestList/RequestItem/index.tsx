@@ -56,6 +56,7 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   ebook: 'Ebook',
   audiobook: 'Audiobook',
   both: 'Both',
+  partialBookService: 'Partial Bookshelf link',
   music: 'Music',
   book: 'Book',
 });
@@ -399,6 +400,13 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
   const [updatingType, setUpdatingType] = useState<
     'approve' | 'decline' | null
   >(null);
+  const hasPartialBookService =
+    requestData?.type === 'book' &&
+    requestData.bookFormat === 'both' &&
+    !!(
+      requestData.media.serviceId !== requestData.media.audiobookServiceId &&
+      (requestData.media.serviceId || requestData.media.audiobookServiceId)
+    );
 
   const modifyRequest = async (type: 'approve' | 'decline') => {
     setUpdatingType(type);
@@ -834,6 +842,18 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                         ? messages.both
                         : messages.ebook
                   )}
+                </span>
+              </div>
+            )}
+            {hasPartialBookService && (
+              <div className="card-field">
+                <span className="card-field-name">
+                  {intl.formatMessage(messages.partialBookService)}
+                </span>
+                <span className="flex truncate text-sm text-gray-300">
+                  {requestData.media.serviceId
+                    ? intl.formatMessage(messages.ebook)
+                    : intl.formatMessage(messages.audiobook)}
                 </span>
               </div>
             )}
