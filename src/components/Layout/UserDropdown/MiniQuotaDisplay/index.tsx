@@ -11,6 +11,7 @@ const messages = defineMessages(
   {
     movierequests: 'Movie Requests',
     seriesrequests: 'Series Requests',
+    musicrequests: 'Music Requests',
   }
 );
 
@@ -32,9 +33,11 @@ const MiniQuotaDisplay = ({ userId }: MiniQuotaDisplayProps) => {
 
   return (
     <>
-      {((data?.movie.limit ?? 0) !== 0 || (data?.tv.limit ?? 0) !== 0) && (
+      {((data?.movie.limit ?? 0) !== 0 ||
+        (data?.tv.limit ?? 0) !== 0 ||
+        (data?.music.limit ?? 0) !== 0) && (
         <div className="flex">
-          <div className="flex basis-1/2 flex-col space-y-2">
+          <div className="flex basis-1/3 flex-col space-y-2">
             <div className="text-sm text-gray-200">
               {intl.formatMessage(messages.movierequests)}
             </div>
@@ -62,7 +65,7 @@ const MiniQuotaDisplay = ({ userId }: MiniQuotaDisplayProps) => {
               )}
             </div>
           </div>
-          <div className="flex basis-1/2 flex-col space-y-2">
+          <div className="flex basis-1/3 flex-col space-y-2">
             <div className="text-sm text-gray-200">
               {intl.formatMessage(messages.seriesrequests)}
             </div>
@@ -78,6 +81,34 @@ const MiniQuotaDisplay = ({ userId }: MiniQuotaDisplayProps) => {
                   />
                   <span className="text-lg font-bold text-gray-200">
                     {data?.tv.remaining} / {data?.tv.limit}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <InfinityIcon className="w-7" />
+                  <span className="font-bold">Unlimited</span>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex basis-1/3 flex-col space-y-2">
+            <div className="text-sm text-gray-200">
+              {intl.formatMessage(messages.musicrequests)}
+            </div>
+            <div className="flex h-full items-center space-x-2 text-gray-200">
+              {(data?.music.limit ?? 0) > 0 ? (
+                <>
+                  <ProgressCircle
+                    className="h-8 w-8"
+                    progress={Math.round(
+                      ((data?.music.remaining ?? 0) /
+                        (data?.music.limit ?? 1)) *
+                        100
+                    )}
+                    useHeatLevel
+                  />
+                  <span className="text-lg font-bold text-gray-200">
+                    {data?.music.remaining} / {data?.music.limit}
                   </span>
                 </>
               ) : (
