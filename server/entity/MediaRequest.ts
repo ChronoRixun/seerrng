@@ -304,10 +304,11 @@ export class MediaRequest {
           entries: [],
         })),
       ]);
-      const requestIsbn =
+      const requestIsbn = (
         requestBody.isbn13 ??
         editions.entries.find((edition) => edition.isbn_13?.[0])?.isbn_13?.[0] ??
-        editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0];
+        editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0]
+      )?.replace(/[^0-9X]/gi, '').toUpperCase();
       const identifierCandidates = [
         {
           provider: MediaIdentifierProvider.OPENLIBRARY,
