@@ -400,6 +400,13 @@ class BaseScanner<T> {
       if (existing) {
         let changedExisting = false;
         const previousStatus = existing.status;
+        const hasAvailableOtherBookFormat =
+          previousStatus === MediaStatus.AVAILABLE &&
+          processing &&
+          (bookServiceType === 'audiobook'
+            ? existing.serviceId !== null && existing.externalServiceId !== null
+            : existing.audiobookServiceId !== null &&
+              existing.audiobookExternalServiceId !== null);
 
         existing.status =
           !processing && hasFile
@@ -409,9 +416,11 @@ class BaseScanner<T> {
                 previousStatus === MediaStatus.PROCESSING
               ? MediaStatus.UNKNOWN
               : processing
-                ? previousStatus === MediaStatus.DELETED
-                  ? MediaStatus.DELETED
-                  : MediaStatus.PROCESSING
+                ? hasAvailableOtherBookFormat
+                  ? MediaStatus.AVAILABLE
+                  : previousStatus === MediaStatus.DELETED
+                    ? MediaStatus.DELETED
+                    : MediaStatus.PROCESSING
                 : previousStatus;
 
         if (existing.status !== previousStatus) {
@@ -520,9 +529,7 @@ class BaseScanner<T> {
             audiobookExternalServiceId:
               bookServiceType === 'audiobook' ? externalServiceId : undefined,
             audiobookExternalServiceSlug:
-              bookServiceType === 'audiobook'
-                ? externalServiceSlug
-                : undefined,
+              bookServiceType === 'audiobook' ? externalServiceSlug : undefined,
             status:
               !processing && hasFile
                 ? MediaStatus.AVAILABLE

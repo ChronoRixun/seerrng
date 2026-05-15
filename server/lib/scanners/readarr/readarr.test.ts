@@ -215,4 +215,49 @@ describe('Readarr Scanner', () => {
     assert.strictEqual(updated.audiobookExternalServiceSlug, 'audiobook-slug');
     assert.strictEqual(updated.status, MediaStatus.AVAILABLE);
   });
+
+  it('keeps an available ebook available while audiobook is still processing', async () => {
+    const media = await seedBook('9780000000007', MediaStatus.AVAILABLE);
+    media.serviceId = 10;
+    media.externalServiceId = 100;
+    media.externalServiceSlug = 'ebook-slug';
+    await getRepository(Media).save(media);
+
+    configureReadarr([
+      {
+        id: 21,
+        serviceType: 'audiobook',
+        activeDirectory: '/audiobooks',
+      },
+    ]);
+    getBooksImpl = async () => [
+      fakeReadarrBook({
+        id: 210,
+        titleSlug: 'audiobook-slug',
+        editions: [
+          {
+            foreignEditionId: 'edition-id',
+            title: 'Test Book',
+            isbn13: '9780000000007',
+            monitored: true,
+          },
+        ],
+        statistics: {
+          bookFileCount: 0,
+          totalBookCount: 1,
+        },
+      }),
+    ];
+
+    await readarrScanner.run();
+
+    const updated = await getRepository(Media).findOneOrFail({
+      where: { mediaType: MediaType.BOOK },
+    });
+    assert.strictEqual(updated.serviceId, 10);
+    assert.strictEqual(updated.externalServiceId, 100);
+    assert.strictEqual(updated.audiobookServiceId, 21);
+    assert.strictEqual(updated.audiobookExternalServiceId, 210);
+    assert.strictEqual(updated.status, MediaStatus.AVAILABLE);
+  });
 });
