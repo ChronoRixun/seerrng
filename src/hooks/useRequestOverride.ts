@@ -8,6 +8,7 @@ import useSWR from 'swr';
 interface OverrideStatus {
   server?: string;
   profile?: string;
+  metadataProfile?: string;
   rootFolder?: string;
   languageProfile?: string;
 }
@@ -18,7 +19,9 @@ const useRequestOverride = (request: MediaRequest): OverrideStatus => {
       ? 'radarr'
       : request.type === 'music'
         ? 'lidarr'
-        : 'sonarr';
+        : request.type === 'book'
+          ? 'readarr'
+          : 'sonarr';
   const { data: allServers } = useSWR<ServiceCommonServer[]>(
     `/api/v1/service/${serviceType}`
   );
@@ -50,6 +53,13 @@ const useRequestOverride = (request: MediaRequest): OverrideStatus => {
       defaultServer?.activeProfileId !== request.profileId
         ? data.profiles.find((profile) => profile.id === request.profileId)
             ?.name
+        : undefined,
+    metadataProfile:
+      (request.type === 'music' || request.type === 'book') &&
+      defaultServer?.activeMetadataProfileId !== request.metadataProfileId
+        ? data.metadataProfiles?.find(
+            (profile) => profile.id === request.metadataProfileId
+          )?.name
         : undefined,
     rootFolder:
       defaultServer?.activeDirectory !== request.rootFolder

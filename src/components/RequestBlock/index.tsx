@@ -29,6 +29,7 @@ const messages = defineMessages('components.RequestBlock', {
   requestoverrides: 'Request Overrides',
   server: 'Destination Server',
   profilechanged: 'Quality Profile',
+  metadataprofilechanged: 'Metadata Profile',
   rootfolder: 'Root Folder',
   languageprofile: 'Language Profile',
   requestdate: 'Request Date',
@@ -50,7 +51,7 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
   const intl = useIntl();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const { profile, rootFolder, server, languageProfile } =
+  const { profile, metadataProfile, rootFolder, server, languageProfile } =
     useRequestOverride(request);
   const bookId = request.media?.identifiers?.find(
     (identifier) => identifier.provider === 'openlibrary'
@@ -306,7 +307,11 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
             </div>
           </div>
         )}
-        {(server || profile || rootFolder || languageProfile) && (
+        {(server ||
+          profile ||
+          metadataProfile ||
+          rootFolder ||
+          languageProfile) && (
           <>
             <div className="mb-1 mt-4 text-sm">
               {intl.formatMessage(messages.requestoverrides)}
@@ -326,6 +331,14 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
                     {intl.formatMessage(messages.profilechanged)}
                   </span>
                   <span>{profile}</span>
+                </li>
+              )}
+              {metadataProfile && (
+                <li className="flex justify-between px-1 py-2">
+                  <span className="font-bold">
+                    {intl.formatMessage(messages.metadataprofilechanged)}
+                  </span>
+                  <span>{metadataProfile}</span>
                 </li>
               )}
               {rootFolder && (
