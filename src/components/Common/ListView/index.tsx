@@ -53,6 +53,30 @@ const ListView = ({
     [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
     { type: 'or' }
   );
+  const isBookInProgress = (title: BookResult) =>
+    (title.mediaInfo?.downloadStatus ?? []).length > 0 ||
+    (title.mediaInfo?.audiobookDownloadStatus ?? []).length > 0;
+  const canRequestMissingBookFormat = (title: BookResult) => {
+    if (
+      !title.mediaInfo ||
+      title.mediaInfo.status === MediaStatus.BLOCKLISTED
+    ) {
+      return false;
+    }
+
+    const hasEbookServiceLink =
+      title.mediaInfo.serviceId !== null &&
+      title.mediaInfo.serviceId !== undefined &&
+      title.mediaInfo.externalServiceId !== null &&
+      title.mediaInfo.externalServiceId !== undefined;
+    const hasAudiobookServiceLink =
+      title.mediaInfo.audiobookServiceId !== null &&
+      title.mediaInfo.audiobookServiceId !== undefined &&
+      title.mediaInfo.audiobookExternalServiceId !== null &&
+      title.mediaInfo.audiobookExternalServiceId !== undefined;
+
+    return !hasEbookServiceLink || !hasAudiobookServiceLink;
+  };
 
   return (
     <>
@@ -100,8 +124,8 @@ const ListView = ({
           ?.filter((title) => {
             if (!blocklistVisibility)
               return (
-                (title as TvResult | MovieResult | AlbumResult | BookResult).mediaInfo
-                  ?.status !== MediaStatus.BLOCKLISTED
+                (title as TvResult | MovieResult | AlbumResult | BookResult)
+                  .mediaInfo?.status !== MediaStatus.BLOCKLISTED
               );
             return title;
           })
@@ -237,9 +261,10 @@ const ListView = ({
                     type="Book"
                     year={title.firstPublishYear?.toString()}
                     mediaType={title.mediaType}
-                    inProgress={
-                      (title.mediaInfo?.downloadStatus ?? []).length > 0
-                    }
+                    inProgress={isBookInProgress(title)}
+                    canRequestAdditionalFormat={canRequestMissingBookFormat(
+                      title
+                    )}
                     canExpand
                   />
                 );

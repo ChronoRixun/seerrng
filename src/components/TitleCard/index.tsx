@@ -43,6 +43,7 @@ interface TitleCardProps {
   status?: MediaStatus;
   canExpand?: boolean;
   inProgress?: boolean;
+  canRequestAdditionalFormat?: boolean;
   isAddedToWatchlist?: number | boolean;
   needsCoverArt?: boolean;
   mutateParent?: () => void;
@@ -70,6 +71,7 @@ const TitleCard = ({
   mediaType,
   isAddedToWatchlist = false,
   inProgress = false,
+  canRequestAdditionalFormat = false,
   canExpand = false,
   mutateParent,
 }: TitleCardProps) => {
@@ -202,9 +204,7 @@ const TitleCard = ({
         } else if (isAlbum || isBook) {
           await axios.post('/api/v1/blocklist', {
             externalId: id,
-            externalProvider: isAlbum
-              ? 'musicbrainz'
-              : 'openlibrary',
+            externalProvider: isAlbum ? 'musicbrainz' : 'openlibrary',
             mediaType: isAlbum ? 'music' : 'book',
             title,
             user: user?.id,
@@ -290,9 +290,7 @@ const TitleCard = ({
           }
         } else {
           const res = await axios.delete(
-            `/api/v1/blocklist/${id}?mediaType=${
-              isAlbum ? 'music' : mediaType
-            }`
+            `/api/v1/blocklist/${id}?mediaType=${isAlbum ? 'music' : mediaType}`
           );
 
           if (res.status === 204) {
@@ -381,7 +379,14 @@ const TitleCard = ({
   const showHideButton =
     hasPermission([Permission.MANAGE_BLOCKLIST], {
       type: 'or',
-    }) && (canUseVideoActions || isAlbum || isBook);
+    }) &&
+    (canUseVideoActions || isAlbum || isBook);
+  const canShowRequestButton =
+    showRequestButton &&
+    (!currentStatus ||
+      currentStatus === MediaStatus.UNKNOWN ||
+      currentStatus === MediaStatus.DELETED ||
+      canRequestAdditionalFormat);
 
   return (
     <div
@@ -479,7 +484,10 @@ const TitleCard = ({
                   }
                   className="h-full w-full object-contain"
                   alt=""
-                  src={displayImage ?? '/images/seerr_poster_not_found_logo_top.png'}
+                  src={
+                    displayImage ??
+                    '/images/seerr_poster_not_found_logo_top.png'
+                  }
                   fill
                 />
               </div>
@@ -500,7 +508,9 @@ const TitleCard = ({
               type={displayImage?.startsWith('http') ? 'music' : 'tmdb'}
               className="absolute inset-0 h-full w-full"
               alt=""
-              src={displayImage ?? '/images/seerr_poster_not_found_logo_top.png'}
+              src={
+                displayImage ?? '/images/seerr_poster_not_found_logo_top.png'
+              }
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               fill
             />
@@ -514,7 +524,7 @@ const TitleCard = ({
                     ? 'border-emerald-500 bg-emerald-600/80'
                     : isBook
                       ? 'border-amber-500 bg-amber-600/80'
-                    : 'border-purple-600 bg-purple-600/80'
+                      : 'border-purple-600 bg-purple-600/80'
               }`}
             >
               <div className="flex h-4 items-center px-2 py-2 text-center text-xs font-medium uppercase tracking-wider text-white sm:h-5">
@@ -528,7 +538,7 @@ const TitleCard = ({
                         ? 'Album'
                         : isBook
                           ? 'Book'
-                        : 'Artist'}
+                          : 'Artist'}
               </div>
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
@@ -640,12 +650,7 @@ const TitleCard = ({
                 <div className="flex h-full w-full items-end">
                   <div
                     className={`px-2 text-white ${
-                      !showRequestButton ||
-                      (currentStatus &&
-                        currentStatus !== MediaStatus.UNKNOWN &&
-                        currentStatus !== MediaStatus.DELETED)
-                        ? 'pb-2'
-                        : 'pb-11'
+                      canShowRequestButton ? 'pb-11' : 'pb-2'
                     }`}
                   >
                     {year && <div className="text-sm font-medium">{year}</div>}
@@ -666,13 +671,7 @@ const TitleCard = ({
                     <div
                       className="whitespace-normal text-xs"
                       style={{
-                        WebkitLineClamp:
-                          !showRequestButton ||
-                          (currentStatus &&
-                            currentStatus !== MediaStatus.UNKNOWN &&
-                            currentStatus !== MediaStatus.DELETED)
-                            ? 5
-                            : 3,
+                        WebkitLineClamp: canShowRequestButton ? 3 : 5,
                         display: '-webkit-box',
                         overflow: 'hidden',
                         WebkitBoxOrient: 'vertical',
@@ -686,23 +685,20 @@ const TitleCard = ({
               </Link>
 
               <div className="absolute bottom-0 left-0 right-0 flex justify-between px-2 py-2">
-                {showRequestButton &&
-                  (!currentStatus ||
-                    currentStatus === MediaStatus.UNKNOWN ||
-                    currentStatus === MediaStatus.DELETED) && (
-                    <Button
-                      buttonType="primary"
-                      buttonSize="sm"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setShowRequestModal(true);
-                      }}
-                      className="h-7 w-full"
-                    >
-                      <ArrowDownTrayIcon />
-                      <span>{intl.formatMessage(globalMessages.request)}</span>
-                    </Button>
-                  )}
+                {canShowRequestButton && (
+                  <Button
+                    buttonType="primary"
+                    buttonSize="sm"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowRequestModal(true);
+                    }}
+                    className="h-7 w-full"
+                  >
+                    <ArrowDownTrayIcon />
+                    <span>{intl.formatMessage(globalMessages.request)}</span>
+                  </Button>
+                )}
               </div>
             </div>
           </Transition>
