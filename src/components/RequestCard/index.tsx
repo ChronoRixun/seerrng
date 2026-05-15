@@ -580,7 +580,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                   requestData.type === 'music'
                     ? 'music'
                     : requestData.type === 'book'
-                      ? undefined
+                      ? 'book'
                       : requestData.type === 'tv'
                         ? 'tv'
                         : 'movie'

@@ -30,7 +30,7 @@ interface StatusBadgeProps {
   serviceUrl?: string;
   tmdbId?: number;
   mbId?: string;
-  mediaType?: 'movie' | 'tv' | 'music';
+  mediaType?: 'movie' | 'tv' | 'music' | 'book';
   title?: string | string[];
   statusLabelOverride?: string;
 }
@@ -74,15 +74,18 @@ const StatusBadge = ({
             Permission.REQUEST,
             mediaType === 'music'
               ? Permission.REQUEST_MUSIC
-              : mediaType === 'movie'
-                ? Permission.REQUEST_MOVIE
-                : Permission.REQUEST_TV,
+              : mediaType === 'book'
+                ? Permission.REQUEST_BOOK
+                : mediaType === 'movie'
+                  ? Permission.REQUEST_MOVIE
+                  : Permission.REQUEST_TV,
           ],
       {
         type: 'or',
       }
     ) &&
     mediaType !== 'music' &&
+    mediaType !== 'book' &&
     (!is4k ||
       (mediaType === 'movie'
         ? settings.currentSettings.movie4kEnabled
@@ -103,6 +106,11 @@ const StatusBadge = ({
       mediaLinkDescription = intl.formatMessage(messages.managemedia, {
         mediaType: 'Music',
       });
+    } else if (mediaType === 'book' && serviceUrl) {
+      mediaLink = serviceUrl;
+      mediaLinkDescription = intl.formatMessage(messages.managemedia, {
+        mediaType: 'Book',
+      });
     } else if (mediaType && tmdbId) {
       mediaLink = `/${mediaType}/${tmdbId}?manage=1`;
       mediaLinkDescription = intl.formatMessage(messages.managemedia, {
@@ -116,9 +124,11 @@ const StatusBadge = ({
         arr:
           mediaType === 'music'
             ? 'Lidarr'
-            : mediaType === 'movie'
-              ? 'Radarr'
-              : 'Sonarr',
+            : mediaType === 'book'
+              ? 'Readarr'
+              : mediaType === 'movie'
+                ? 'Radarr'
+                : 'Sonarr',
       });
     }
   }
