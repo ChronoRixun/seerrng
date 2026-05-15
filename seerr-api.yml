@@ -810,6 +810,69 @@ components:
           type: string
         mediaInfo:
           $ref: '#/components/schemas/MediaInfo'
+    MusicResult:
+      type: object
+      required:
+        - mbId
+        - mediaType
+        - title
+      properties:
+        mbId:
+          type: string
+          example: f5093c06-23e3-404f-aeaa-40f72885ee3a
+        mediaType:
+          type: string
+          enum: [music]
+        title:
+          type: string
+          example: Album Title
+        artist:
+          type: string
+          example: Artist Name
+        artistMbId:
+          type: string
+          example: b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d
+        posterPath:
+          type: string
+        releaseDate:
+          type: string
+        mediaInfo:
+          $ref: '#/components/schemas/MediaInfo'
+    BookResult:
+      type: object
+      required:
+        - id
+        - mediaType
+        - title
+      properties:
+        id:
+          type: string
+          example: OL27448W
+        mediaType:
+          type: string
+          enum: [book]
+        title:
+          type: string
+          example: Book Title
+        author:
+          type: string
+          example: Author Name
+        authorId:
+          type: string
+          example: OL23919A
+        firstPublishYear:
+          type: number
+          example: 1965
+        posterPath:
+          type: string
+        isbn13:
+          type: string
+          example: '9780441478125'
+        editionId:
+          type: string
+          example: OL8934157M
+        mediaInfo:
+          $ref: '#/components/schemas/MediaInfo'
     PersonResult:
       type: object
       properties:
@@ -830,6 +893,8 @@ components:
             oneOf:
               - $ref: '#/components/schemas/MovieResult'
               - $ref: '#/components/schemas/TvResult'
+              - $ref: '#/components/schemas/MusicResult'
+              - $ref: '#/components/schemas/BookResult'
     Genre:
       type: object
       properties:
@@ -1271,6 +1336,16 @@ components:
           type: number
         rootFolder:
           type: string
+        metadataProfileId:
+          type: number
+        tags:
+          type: array
+          items:
+            type: number
+        bookFormat:
+          type: string
+          enum: [ebook, audiobook, both]
+          nullable: true
       required:
         - id
         - status
@@ -1283,9 +1358,35 @@ components:
         tmdbId:
           type: number
           readOnly: true
+          nullable: true
         tvdbId:
           type: number
           readOnly: true
+          nullable: true
+        mbId:
+          type: string
+          readOnly: true
+          nullable: true
+        mediaType:
+          type: string
+          enum: [movie, tv, music, book]
+        serviceId:
+          type: number
+          nullable: true
+        externalServiceId:
+          type: number
+          nullable: true
+        externalServiceSlug:
+          type: string
+          nullable: true
+        audiobookServiceId:
+          type: number
+          nullable: true
+        audiobookExternalServiceId:
+          type: number
+          nullable: true
+        audiobookExternalServiceSlug:
+          type: string
           nullable: true
         status:
           type: number
@@ -6338,7 +6439,7 @@ paths:
           name: mediaType
           schema:
             type: string
-            enum: [movie, tv, all]
+            enum: [movie, tv, music, book, all]
             nullable: true
             default: all
       responses:
@@ -6372,11 +6473,14 @@ paths:
               properties:
                 mediaType:
                   type: string
-                  enum: [movie, tv]
+                  enum: [movie, tv, music, book]
                   example: movie
                 mediaId:
-                  type: number
-                  example: 123
+                  oneOf:
+                    - type: number
+                      example: 123
+                    - type: string
+                      example: OL27448W
                 tvdbId:
                   type: number
                   example: 123
@@ -6399,6 +6503,25 @@ paths:
                   type: string
                 languageProfileId:
                   type: number
+                metadataProfileId:
+                  type: number
+                tags:
+                  type: array
+                  items:
+                    type: number
+                format:
+                  type: string
+                  enum: [ebook, audiobook, both]
+                  description: Book request format.
+                editionId:
+                  type: string
+                  example: OL8934157M
+                isbn13:
+                  type: string
+                  example: '9780441478125'
+                authorId:
+                  type: string
+                  example: OL23919A
                 userId:
                   type: number
                   nullable: true
@@ -6432,6 +6555,10 @@ paths:
                   movie:
                     type: number
                   tv:
+                    type: number
+                  music:
+                    type: number
+                  book:
                     type: number
                   pending:
                     type: number
@@ -6488,7 +6615,7 @@ paths:
               properties:
                 mediaType:
                   type: string
-                  enum: [movie, tv]
+                  enum: [movie, tv, music, book]
                 seasons:
                   type: array
                   items:
@@ -6505,6 +6632,16 @@ paths:
                   type: string
                 languageProfileId:
                   type: number
+                metadataProfileId:
+                  type: number
+                tags:
+                  type: array
+                  items:
+                    type: number
+                format:
+                  type: string
+                  enum: [ebook, audiobook, both]
+                  description: Book request format.
                 userId:
                   type: number
                   nullable: true
