@@ -396,7 +396,8 @@ const UserProfile = () => {
           !!watchlistItems.results.length ||
           (user.id === currentUser?.id &&
             (user.settings?.watchlistSyncMovies ||
-              user.settings?.watchlistSyncTv))) &&
+              user.settings?.watchlistSyncTv ||
+              user.settings?.watchlistSyncMusic))) &&
         !watchlistError && (
           <>
             <div className="slider-header">

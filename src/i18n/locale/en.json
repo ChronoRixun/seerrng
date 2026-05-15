@@ -1471,6 +1471,8 @@
   "components.UserProfile.UserSettings.UserGeneralSettings.plexwatchlistsyncmoviestip": "Automatically request movies on your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink>",
   "components.UserProfile.UserSettings.UserGeneralSettings.plexwatchlistsyncseries": "Auto-Request Series",
   "components.UserProfile.UserSettings.UserGeneralSettings.plexwatchlistsyncseriestip": "Automatically request series on your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink>",
+  "components.UserProfile.UserSettings.UserGeneralSettings.musicwatchlistsync": "Auto-Request Music",
+  "components.UserProfile.UserSettings.UserGeneralSettings.musicwatchlistsynctip": "Automatically request albums added to SeerrNG music watchlists when a supported music watchlist source is available.",
   "components.UserProfile.UserSettings.UserGeneralSettings.region": "Discover Region",
   "components.UserProfile.UserSettings.UserGeneralSettings.regionTip": "Filter content by regional availability",
   "components.UserProfile.UserSettings.UserGeneralSettings.role": "Role",

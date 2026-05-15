@@ -204,12 +204,14 @@ const NotificationTypeSelector = ({
         hidden:
           !user ||
           (!user.settings?.watchlistSyncMovies &&
-            !user.settings?.watchlistSyncTv) ||
+            !user.settings?.watchlistSyncTv &&
+            !user.settings?.watchlistSyncMusic) ||
           !hasPermission(
             [
               Permission.AUTO_REQUEST,
               Permission.AUTO_REQUEST_MOVIE,
               Permission.AUTO_REQUEST_TV,
+              Permission.AUTO_REQUEST_MUSIC,
             ],
             { type: 'or' }
           ),

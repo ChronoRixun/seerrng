@@ -46,6 +46,7 @@ class WatchlistSync {
           Permission.AUTO_REQUEST,
           Permission.AUTO_REQUEST_MOVIE,
           Permission.AUTO_REQUEST_TV,
+          Permission.AUTO_REQUEST_MUSIC,
         ],
         { type: 'or' }
       )
@@ -55,7 +56,8 @@ class WatchlistSync {
 
     if (
       !user.settings?.watchlistSyncMovies &&
-      !user.settings?.watchlistSyncTv
+      !user.settings?.watchlistSyncTv &&
+      !user.settings?.watchlistSyncMusic
     ) {
       // Skip sync if user settings have it disabled
       return;

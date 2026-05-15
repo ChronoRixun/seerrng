@@ -74,6 +74,9 @@ const messages = defineMessages(
     plexwatchlistsyncseries: 'Auto-Request Series',
     plexwatchlistsyncseriestip:
       'Automatically request series on your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink>',
+    musicwatchlistsync: 'Auto-Request Music',
+    musicwatchlistsynctip:
+      'Automatically request albums added to SeerrNG music watchlists when a supported music watchlist source is available.',
   }
 );
 
@@ -176,6 +179,7 @@ const UserGeneralSettings = () => {
           musicQuotaDays: data?.musicQuotaDays,
           watchlistSyncMovies: data?.watchlistSyncMovies,
           watchlistSyncTv: data?.watchlistSyncTv,
+          watchlistSyncMusic: data?.watchlistSyncMusic,
         }}
         validationSchema={UserGeneralSettingsSchema}
         enableReinitialize
@@ -204,6 +208,7 @@ const UserGeneralSettings = () => {
                 : null,
               watchlistSyncMovies: values.watchlistSyncMovies,
               watchlistSyncTv: values.watchlistSyncTv,
+              watchlistSyncMusic: values.watchlistSyncMusic,
             });
 
             if (currentUser?.id === user?.id && setLocale) {
@@ -690,6 +695,37 @@ const UserGeneralSettings = () => {
                     </div>
                   </div>
                 )}
+              {hasPermission(
+                [Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_MUSIC],
+                { type: 'or' }
+              ) && (
+                <div className="form-row">
+                  <label
+                    htmlFor="watchlistSyncMusic"
+                    className="checkbox-label"
+                  >
+                    <span>
+                      {intl.formatMessage(messages.musicwatchlistsync)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.musicwatchlistsynctip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="watchlistSyncMusic"
+                      name="watchlistSyncMusic"
+                      onChange={() => {
+                        setFieldValue(
+                          'watchlistSyncMusic',
+                          !values.watchlistSyncMusic
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
               <div className="actions">
                 <div className="flex justify-end">
                   <span className="ml-3 inline-flex rounded-md shadow-sm">

@@ -22,6 +22,7 @@ export interface UserSettingsGeneralResponse {
   globalMusicQuotaLimit?: number;
   watchlistSyncMovies?: boolean;
   watchlistSyncTv?: boolean;
+  watchlistSyncMusic?: boolean;
 }
 
 export type NotificationAgentTypes = Record<NotificationAgentKey, number>;
