@@ -621,9 +621,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                 <Badge
                   badgeType="danger"
                   href={
-                    requestData.type === 'book'
-                      ? `/book/${getBookId(requestData)}`
-                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                    requestData.type === 'music'
+                      ? `/music/${requestData.media.mbId}`
+                      : requestData.type === 'book'
+                        ? `/book/${getBookId(requestData)}`
+                        : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
                   }
                 >
                   {intl.formatMessage(globalMessages.failed)}
