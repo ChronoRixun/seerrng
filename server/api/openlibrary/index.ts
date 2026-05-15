@@ -37,6 +37,7 @@ export interface OpenLibraryEdition {
   title?: string;
   isbn_10?: string[];
   isbn_13?: string[];
+  physical_format?: string;
 }
 
 interface OpenLibraryEditionsResponse {

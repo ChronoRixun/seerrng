@@ -34,6 +34,8 @@ const messages = defineMessages('components.RequestModal.Book', {
   requesterror: 'Something went wrong while submitting the request.',
   editerror: 'Something went wrong while editing the request.',
   format: 'Format',
+  edition: 'Edition / ISBN',
+  automaticEdition: 'Automatic best match',
   ebook: 'Ebook',
   audiobook: 'Audiobook',
   both: 'Both',
@@ -61,6 +63,7 @@ const BookRequestModal = ({
   const [bookFormat, setBookFormat] = useState<'ebook' | 'audiobook' | 'both'>(
     editRequest?.bookFormat ?? 'ebook'
   );
+  const [selectedIsbn, setSelectedIsbn] = useState<string>('');
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
   const { data, error } = useSWR<BookDetails>(`/api/v1/book/${bookId}`, {
@@ -69,6 +72,10 @@ const BookRequestModal = ({
   const { data: quota } = useSWR<QuotaResponse>(
     user ? `/api/v1/user/${user.id}/quota` : null
   );
+
+  useEffect(() => {
+    setSelectedIsbn(data?.isbn13 ?? '');
+  }, [data?.isbn13]);
 
   useEffect(() => {
     onUpdating?.(isUpdating);
@@ -100,7 +107,10 @@ const BookRequestModal = ({
       const response = await axios.post<MediaRequest>('/api/v1/request', {
         mediaId: data?.id ?? bookId,
         mediaType: MediaType.BOOK,
-        isbn13: data?.isbn13,
+        isbn13: selectedIsbn || data?.isbn13,
+        editionId:
+          data?.isbnCandidates?.find((candidate) => candidate.isbn === selectedIsbn)
+            ?.editionId ?? data?.editionId,
         authorId: data?.authorId,
         format: bookFormat,
         ...overrideParams,
@@ -136,13 +146,16 @@ const BookRequestModal = ({
     bookId,
     bookFormat,
     data?.authorId,
+    data?.editionId,
     data?.id,
     data?.isbn13,
+    data?.isbnCandidates,
     data?.title,
     hasAutoApprove,
     intl,
     onComplete,
     requestOverrides,
+    selectedIsbn,
   ]);
 
   const cancelRequest = async () => {
@@ -349,6 +362,36 @@ const BookRequestModal = ({
           <option value="both">{intl.formatMessage(messages.both)}</option>
         </select>
       </div>
+      {(data?.isbnCandidates?.length ?? 0) > 1 && (
+        <div className="mt-6">
+          <label htmlFor="bookEdition" className="text-label">
+            {intl.formatMessage(messages.edition)}
+          </label>
+          <select
+            id="bookEdition"
+            name="bookEdition"
+            value={selectedIsbn}
+            onChange={(e) => setSelectedIsbn(e.target.value)}
+            className="border-gray-700 bg-gray-800"
+          >
+            <option value="">{intl.formatMessage(messages.automaticEdition)}</option>
+            {data?.isbnCandidates?.slice(0, 25).map((candidate) => (
+              <option
+                key={`${candidate.editionId ?? candidate.isbn}-${candidate.isbn}`}
+                value={candidate.isbn}
+              >
+                {[
+                  candidate.isbn,
+                  candidate.title,
+                  candidate.format,
+                ]
+                  .filter(Boolean)
+                  .join(' - ')}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {(quota?.book?.limit ?? 0) > 0 && (
         <QuotaDisplay mediaType="book" quota={quota?.book} />
       )}

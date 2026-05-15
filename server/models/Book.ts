@@ -15,6 +15,7 @@ export interface BookResult {
   posterPath?: string;
   isbn13?: string;
   editionId?: string;
+  isbnCandidates?: BookIsbnCandidate[];
   mediaInfo?: Media;
 }
 
@@ -23,11 +24,59 @@ export interface BookDetails extends BookResult {
   subjects?: string[];
 }
 
+export interface BookIsbnCandidate {
+  isbn: string;
+  editionId?: string;
+  title?: string;
+  format?: string;
+}
+
+const normalizeIsbn = (isbn?: string): string | undefined =>
+  isbn?.replace(/[^0-9X]/gi, '').toUpperCase();
+
+const getEditionId = (key?: string): string | undefined =>
+  key?.replace('/books/', '');
+
+const mapEditionIsbnCandidates = (
+  editions: OpenLibraryEdition[]
+): BookIsbnCandidate[] => {
+  const candidates = new Map<string, BookIsbnCandidate>();
+
+  editions.forEach((edition) => {
+    const editionId = getEditionId(edition.key);
+    const title = edition.title;
+    const format = edition.physical_format;
+
+    [...(edition.isbn_13 ?? []), ...(edition.isbn_10 ?? [])].forEach((isbn) => {
+      const normalized = normalizeIsbn(isbn);
+
+      if (normalized && !candidates.has(normalized)) {
+        candidates.set(normalized, {
+          isbn: normalized,
+          editionId,
+          title,
+          format,
+        });
+      }
+    });
+  });
+
+  return [...candidates.values()].sort((a, b) => {
+    if (a.isbn.length !== b.isbn.length) {
+      return b.isbn.length - a.isbn.length;
+    }
+
+    return a.isbn.localeCompare(b.isbn);
+  });
+};
+
 export const mapOpenLibrarySearchDoc = (
   doc: OpenLibrarySearchDoc,
   media?: Media
 ): BookResult => {
-  const isbn13 = doc.isbn?.find((isbn) => isbn.length === 13) ?? doc.isbn?.[0];
+  const isbn13 =
+    normalizeIsbn(doc.isbn?.find((isbn) => normalizeIsbn(isbn)?.length === 13)) ??
+    normalizeIsbn(doc.isbn?.[0]);
   const workId = doc.key.replace('/works/', '');
 
   return {
@@ -56,7 +105,8 @@ export const mapOpenLibraryWork = (
       ? work.description
       : work.description?.value;
   const coverId = work.covers?.[0];
-  const edition = editions.find((item) => item.isbn_13?.[0] || item.isbn_10?.[0]);
+  const isbnCandidates = mapEditionIsbnCandidates(editions);
+  const selectedCandidate = isbnCandidates[0];
 
   return {
     id: work.key.replace('/works/', ''),
@@ -69,8 +119,9 @@ export const mapOpenLibraryWork = (
     posterPath: coverId
       ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
       : undefined,
-    isbn13: edition?.isbn_13?.[0] ?? edition?.isbn_10?.[0],
-    editionId: edition?.key.replace('/books/', ''),
+    isbn13: selectedCandidate?.isbn,
+    editionId: selectedCandidate?.editionId,
+    isbnCandidates,
     description,
     subjects: work.subjects?.slice(0, 20),
     mediaInfo: media,
