@@ -31,6 +31,8 @@ const messages = defineMessages('components.Settings.SettingsAbout', {
   uptodate: 'Up to Date',
   runningDevelop:
     'You are running the <code>develop</code> branch of Seerr, which is only recommended for those contributing to development or assisting with bleeding-edge testing.',
+  legalUse:
+    'SeerrNG is intended for lawful personal media management. The project does not condone piracy or copyright infringement. Users are responsible for complying with applicable laws, licenses, and service terms in their region.',
 });
 
 const SettingsAbout = () => {
@@ -117,6 +119,11 @@ const SettingsAbout = () => {
           </List.Item>
           <List.Item title={intl.formatMessage(messages.totalrequests)}>
             {intl.formatNumber(data.totalRequests)}
+          </List.Item>
+          <List.Item title="Legal Use">
+            <span className="text-sm text-gray-400">
+              {intl.formatMessage(messages.legalUse)}
+            </span>
           </List.Item>
           <List.Item title={intl.formatMessage(messages.appDataPath)}>
             <code>{data.appDataPath}</code>

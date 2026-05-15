@@ -1,4 +1,5 @@
 import RadarrAPI from '@server/api/servarr/radarr';
+import LidarrAPI from '@server/api/servarr/lidarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import {
   MediaRequestStatus,
@@ -173,6 +174,11 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
             type: MediaType.TV,
           });
           break;
+        case 'music':
+          query = query.andWhere('request.type = :type', {
+            type: MediaType.MUSIC,
+          });
+          break;
       }
 
       const [requests, requestCount] = await query
@@ -213,6 +219,20 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         })
       );
 
+      const lidarrServers = await Promise.all(
+        settings.lidarr.map(async (lidarrSetting) => {
+          const lidarr = new LidarrAPI({
+            apiKey: lidarrSetting.apiKey,
+            url: LidarrAPI.buildUrl(lidarrSetting, '/api/v1'),
+          });
+
+          return {
+            id: lidarrSetting.id,
+            profiles: await lidarr.getProfiles().catch(() => undefined),
+          };
+        })
+      );
+
       // add profile names to the media requests, with undefined if not found
       let mappedRequests = requests.map((r) => {
         switch (r.type) {
@@ -230,6 +250,14 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
             return {
               ...r,
               profileName: sonarrServers
+                .find((serverr) => serverr.id === r.serverId)
+                ?.profiles?.find((profile) => profile.id === r.profileId)?.name,
+            };
+          }
+          case MediaType.MUSIC: {
+            return {
+              ...r,
+              profileName: lidarrServers
                 .find((serverr) => serverr.id === r.serverId)
                 ?.profiles?.find((profile) => profile.id === r.profileId)?.name,
             };
@@ -269,6 +297,14 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
                 ),
               };
             }
+            case MediaType.MUSIC: {
+              return {
+                ...r,
+                canRemove: lidarrServers.some(
+                  (server) => server.id === r.media.serviceId
+                ),
+              };
+            }
             default: {
               return {
                 ...r,
@@ -303,6 +339,14 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
               name:
                 settings.sonarr.find((r) => r.id === s.id)?.name ||
                 `Sonarr ${s.id}`,
+            })),
+          lidarr: lidarrServers
+            .filter((s) => !s.profiles)
+            .map((s) => ({
+              id: s.id,
+              name:
+                settings.lidarr.find((r) => r.id === s.id)?.name ||
+                `Lidarr ${s.id}`,
             })),
         },
       });
@@ -369,6 +413,12 @@ requestRoutes.get('/count', async (_req, res, next) => {
       })
       .getCount();
 
+    const musicCount = await query
+      .where('request.type = :requestType', {
+        requestType: MediaType.MUSIC,
+      })
+      .getCount();
+
     const pendingCount = await query
       .where('request.status = :requestStatus', {
         requestStatus: MediaRequestStatus.PENDING,
@@ -421,6 +471,7 @@ requestRoutes.get('/count', async (_req, res, next) => {
       total: totalCount,
       movie: movieCount,
       tv: tvCount,
+      music: musicCount,
       pending: pendingCount,
       approved: approvedCount,
       declined: declinedCount,

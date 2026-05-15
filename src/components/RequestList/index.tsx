@@ -51,7 +51,7 @@ type Sort = 'added' | 'modified';
 
 type SortDirection = 'asc' | 'desc';
 
-type MediaType = 'all' | 'movie' | 'tv';
+type MediaType = 'all' | 'movie' | 'tv' | 'music';
 
 const RequestList = () => {
   const router = useRouter();
@@ -194,6 +194,7 @@ const RequestList = () => {
               <option value="tv">
                 {intl.formatMessage(globalMessages.tvshows)}
               </option>
+              <option value="music">Music</option>
             </select>
           </div>
           <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 lg:flex-grow-0">
@@ -294,7 +295,8 @@ const RequestList = () => {
 
       {data.serviceErrors &&
         (data.serviceErrors.radarr.length > 0 ||
-          data.serviceErrors.sonarr.length > 0) &&
+          data.serviceErrors.sonarr.length > 0 ||
+          data.serviceErrors.lidarr.length > 0) &&
         (hasPermission(Permission.MANAGE_REQUESTS) ||
           hasPermission(Permission.REQUEST_ADVANCED)) && (
           <div className="service-error-banner">
@@ -304,6 +306,7 @@ const RequestList = () => {
                 services: [
                   ...data.serviceErrors.radarr.map((s) => s.name),
                   ...data.serviceErrors.sonarr.map((s) => s.name),
+                  ...data.serviceErrors.lidarr.map((s) => s.name),
                 ].join(', '),
               })}
             </span>

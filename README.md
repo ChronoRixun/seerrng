@@ -28,6 +28,10 @@ SeerrNG is targeting first-class request and availability workflows for:
 
 The implementation priority is to stabilize music first, then add books behind a clean identifier and format model instead of forcing everything through movie/TV-shaped IDs.
 
+## Legal Use
+
+SeerrNG is intended for lawful personal media management. The project does not condone piracy or copyright infringement. Users are responsible for complying with the laws, licenses, and service terms that apply in their region.
+
 ## Current Features
 
 - Full Jellyfin/Emby/Plex integration including authentication with user import & management.

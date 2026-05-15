@@ -10,6 +10,7 @@ export interface RequestResultsResponse extends PaginatedResponse {
   serviceErrors: {
     radarr: { id: number; name: string }[];
     sonarr: { id: number; name: string }[];
+    lidarr: { id: number; name: string }[];
   };
 }
 
