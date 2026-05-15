@@ -415,22 +415,8 @@ export class MediaRequest {
         media.status = MediaStatus.PENDING;
       }
 
-      const existing = await requestRepository
-        .createQueryBuilder('request')
-        .leftJoin('request.media', 'media')
-        .leftJoin('media.identifiers', 'identifier')
-        .leftJoinAndSelect('request.requestedBy', 'user')
-        .where('identifier.provider = :provider', {
-          provider: MediaIdentifierProvider.OPENLIBRARY,
-        })
-        .andWhere('identifier.value = :value', { value: openLibraryId })
-        .andWhere('media.mediaType = :mediaType', {
-          mediaType: MediaType.BOOK,
-        })
-        .getMany();
-
       if (
-        existing.some(
+        media?.requests?.some(
           (request) =>
             request.status !== MediaRequestStatus.DECLINED &&
             request.status !== MediaRequestStatus.COMPLETED
