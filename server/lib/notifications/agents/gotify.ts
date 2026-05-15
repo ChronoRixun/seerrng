@@ -103,7 +103,10 @@ class GotifyAgent
     }
 
     if (applicationUrl && payload.media) {
-      const actionUrl = `${applicationUrl}/${payload.media.mediaType}/${payload.media.tmdbId}`;
+      const actionUrl = `${applicationUrl}${
+        payload.mediaUrl ??
+        `/${payload.media.mediaType}/${payload.media.tmdbId}`
+      }`;
       const displayUrl =
         actionUrl.length > 40 ? `${actionUrl.slice(0, 41)}...` : actionUrl;
       message += `\n\n**${intl.formatMessage(globalMessages.openIn, { applicationTitle })}:** [${displayUrl}](${actionUrl})  `;

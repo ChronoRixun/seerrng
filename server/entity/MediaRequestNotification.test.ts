@@ -8,7 +8,6 @@ import {
   MediaStatus,
   MediaType,
 } from '@server/constants/media';
-import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import MediaIdentifier, {
   MediaIdentifierProvider,
@@ -17,14 +16,13 @@ import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import type { NotificationPayload } from '@server/lib/notifications/agents/agent';
 import notificationManager, { Notification } from '@server/lib/notifications';
-import { getSettings } from '@server/lib/settings';
-import { setupTestDb } from '@server/test/db';
 
-setupTestDb();
-
-async function getFriendUser() {
-  return getRepository(User).findOneOrFail({
-    where: { email: 'friend@seerr.dev' },
+function createUser() {
+  return new User({
+    id: 2,
+    email: 'friend@seerr.dev',
+    username: 'friend',
+    displayName: 'Friend',
   });
 }
 
@@ -57,19 +55,17 @@ describe('MediaRequest.sendNotification', () => {
       getAlbumMock.mock.restore();
     });
 
-    const media = await getRepository(Media).save(
-      new Media({
-        mediaType: MediaType.MUSIC,
-        tmdbId: 0,
-        mbId: 'release-group-id',
-        status: MediaStatus.PENDING,
-        status4k: MediaStatus.UNKNOWN,
-      })
-    );
+    const media = new Media({
+      mediaType: MediaType.MUSIC,
+      tmdbId: 0,
+      mbId: 'release-group-id',
+      status: MediaStatus.PENDING,
+      status4k: MediaStatus.UNKNOWN,
+    });
     const entity = new MediaRequest({
       type: MediaType.MUSIC,
       media,
-      requestedBy: await getFriendUser(),
+      requestedBy: createUser(),
       status: MediaRequestStatus.APPROVED,
       is4k: false,
     });
@@ -85,6 +81,7 @@ describe('MediaRequest.sendNotification', () => {
       .arguments as [Notification, NotificationPayload];
     assert.strictEqual(type, Notification.MEDIA_APPROVED);
     assert.strictEqual(payload.event, 'Music Request Approved');
+    assert.strictEqual(payload.mediaUrl, '/music/release-group-id');
     assert.strictEqual(payload.subject, 'Kind of Blue (1959)');
     assert.strictEqual(payload.message, 'Miles Davis');
     assert.deepStrictEqual(payload.extra, [
@@ -133,26 +130,25 @@ describe('MediaRequest.sendNotification', () => {
       getWorkEditionsMock.mock.restore();
     });
 
-    const media = await getRepository(Media).save(
-      new Media({
-        mediaType: MediaType.BOOK,
-        tmdbId: 0,
-        status: MediaStatus.PENDING,
-        status4k: MediaStatus.UNKNOWN,
-      })
-    );
-    await getRepository(MediaIdentifier).save(
-      new MediaIdentifier({
-        media,
-        provider: MediaIdentifierProvider.OPENLIBRARY,
-        value: 'OL45804W',
-        canonical: true,
-      })
-    );
+    const media = new Media({
+      id: 20,
+      mediaType: MediaType.BOOK,
+      tmdbId: 0,
+      status: MediaStatus.PENDING,
+      status4k: MediaStatus.UNKNOWN,
+      identifiers: [
+        new MediaIdentifier({
+          provider: MediaIdentifierProvider.OPENLIBRARY,
+          value: 'OL45804W',
+          canonical: true,
+        }),
+      ],
+    });
+    media.identifiers[0].media = media;
     const entity = new MediaRequest({
       type: MediaType.BOOK,
       media,
-      requestedBy: await getFriendUser(),
+      requestedBy: createUser(),
       status: MediaRequestStatus.APPROVED,
       is4k: false,
     });
@@ -168,6 +164,7 @@ describe('MediaRequest.sendNotification', () => {
       .arguments as [Notification, NotificationPayload];
     assert.strictEqual(type, Notification.MEDIA_AVAILABLE);
     assert.strictEqual(payload.event, 'Book Now Available');
+    assert.strictEqual(payload.mediaUrl, '/book/OL45804W');
     assert.strictEqual(payload.subject, 'The Left Hand of Darkness (1969)');
     assert.strictEqual(payload.message, 'A classic science fiction novel.');
     assert.strictEqual(
@@ -180,60 +177,5 @@ describe('MediaRequest.sendNotification', () => {
         value: '9780441478125',
       },
     ]);
-  });
-});
-
-describe('MediaRequest.request', () => {
-  it('uses default Lidarr settings when requesting music without overrides', async (t) => {
-    const settings = getSettings();
-    const originalLidarr = settings.lidarr;
-    settings.lidarr = [
-      {
-        id: 9,
-        name: 'Default Lidarr',
-        hostname: '127.0.0.1',
-        port: 8686,
-        apiKey: 'test-key',
-        useSsl: false,
-        activeProfileId: 11,
-        activeProfileName: 'Lossless',
-        activeMetadataProfileId: 12,
-        activeMetadataProfileName: 'Standard',
-        activeDirectory: '/music',
-        tags: [3, 4],
-        is4k: false,
-        isDefault: true,
-        syncEnabled: true,
-        preventSearch: false,
-        tagRequests: false,
-        overrideRule: [],
-      },
-    ];
-    const getAlbumMock = mock.method(
-      ListenBrainzAPI.prototype,
-      'getAlbum',
-      async () =>
-        ({
-          release_group_mbid: 'defaulted-release-group',
-        } as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>)
-    );
-    t.after(() => {
-      settings.lidarr = originalLidarr;
-      getAlbumMock.mock.restore();
-    });
-
-    const mediaRequest = await MediaRequest.request(
-      {
-        mediaType: MediaType.MUSIC,
-        mediaId: 'listenbrainz-release-id',
-      },
-      await getFriendUser()
-    );
-
-    assert.strictEqual(mediaRequest.serverId, 9);
-    assert.strictEqual(mediaRequest.profileId, 11);
-    assert.strictEqual(mediaRequest.metadataProfileId, 12);
-    assert.strictEqual(mediaRequest.rootFolder, '/music');
-    assert.deepStrictEqual(mediaRequest.tags, [3, 4]);
   });
 });

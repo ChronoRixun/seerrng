@@ -175,7 +175,8 @@ class WebPushAgent
     const actionUrl = payload.issue
       ? `/issues/${payload.issue.id}`
       : payload.media
-        ? `/${payload.media.mediaType}/${payload.media.tmdbId}`
+        ? (payload.mediaUrl ??
+          `/${payload.media.mediaType}/${payload.media.tmdbId}`)
         : undefined;
 
     const actionUrlTitle = actionUrl

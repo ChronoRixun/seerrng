@@ -1158,6 +1158,7 @@ export class MediaRequest {
         const movie = await tmdb.getMovie({ movieId: media.tmdbId });
         notificationManager.sendNotification(type, {
           media,
+          mediaUrl: `/movie/${media.tmdbId}`,
           request: entity,
           notifyAdmin,
           notifySystem,
@@ -1177,6 +1178,7 @@ export class MediaRequest {
         const tv = await tmdb.getTvShow({ tvId: media.tmdbId });
         notificationManager.sendNotification(type, {
           media,
+          mediaUrl: `/tv/${media.tmdbId}`,
           request: entity,
           notifyAdmin,
           notifySystem,
@@ -1208,6 +1210,7 @@ export class MediaRequest {
 
         notificationManager.sendNotification(type, {
           media,
+          mediaUrl: `/music/${media.mbId}`,
           request: entity,
           notifyAdmin,
           notifySystem,
@@ -1260,6 +1263,7 @@ export class MediaRequest {
 
         notificationManager.sendNotification(type, {
           media,
+          mediaUrl: `/book/${openLibraryId}`,
           request: entity,
           notifyAdmin,
           notifySystem,

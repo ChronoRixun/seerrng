@@ -92,7 +92,10 @@ class NtfyAgent
 
     let click;
     if (applicationUrl && payload.media) {
-      click = `${applicationUrl}/${payload.media.mediaType}/${payload.media.tmdbId}`;
+      click = `${applicationUrl}${
+        payload.mediaUrl ??
+        `/${payload.media.mediaType}/${payload.media.tmdbId}`
+      }`;
     }
 
     const ntfyPayload: Record<string, unknown> = {

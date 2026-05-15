@@ -13,6 +13,7 @@ export interface NotificationPayload {
   notifyAdmin: boolean;
   notifyUser?: User;
   media?: Media;
+  mediaUrl?: string;
   image?: string;
   message?: string;
   extra?: { name: string; value: string }[];
