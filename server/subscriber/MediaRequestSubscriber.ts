@@ -1,5 +1,6 @@
 import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
+import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import type { RadarrMovieOptions } from '@server/api/servarr/radarr';
@@ -182,6 +183,131 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       logger.error('Something went wrong sending media notification(s)', {
         label: 'Notifications',
         errorMessage: e.message,
+        mediaId: entity.id,
+      });
+    }
+  }
+
+  private async notifyAvailableMusic(
+    entity: MediaRequest,
+    event?: UpdateEvent<MediaRequest>
+  ) {
+    let latestMedia: Media | null = null;
+    if (event?.manager) {
+      latestMedia = await event.manager.findOne(Media, {
+        where: { id: entity.media.id },
+      });
+    }
+    if (!latestMedia) {
+      latestMedia = await getRepository(Media).findOne({
+        where: { id: entity.media.id },
+      });
+    }
+
+    if (!latestMedia || latestMedia.status !== MediaStatus.AVAILABLE) {
+      return;
+    }
+
+    const mbId = latestMedia.mbId ?? entity.media.mbId;
+
+    if (!mbId) {
+      return;
+    }
+
+    try {
+      const album = await new ListenBrainzAPI().getAlbum(mbId);
+      const releaseGroup = album.release_group_metadata.release_group;
+      const artistName = album.release_group_metadata.artist.name;
+
+      notificationManager.sendNotification(Notification.MEDIA_AVAILABLE, {
+        event: 'Music Request Now Available',
+        notifyAdmin: false,
+        notifySystem: true,
+        notifyUser: entity.requestedBy,
+        subject: `${releaseGroup.name}${
+          releaseGroup.date ? ` (${releaseGroup.date.slice(0, 4)})` : ''
+        }`,
+        message: artistName,
+        media: latestMedia,
+        image: album.caa_release_mbid
+          ? `https://coverartarchive.org/release/${album.caa_release_mbid}/front-500`
+          : undefined,
+        request: entity,
+      });
+    } catch (e) {
+      logger.error('Something went wrong sending music notification(s)', {
+        label: 'Notifications',
+        errorMessage: e instanceof Error ? e.message : String(e),
+        mediaId: entity.id,
+      });
+    }
+  }
+
+  private async notifyAvailableBook(
+    entity: MediaRequest,
+    event?: UpdateEvent<MediaRequest>
+  ) {
+    let latestMedia: Media | null = null;
+    if (event?.manager) {
+      latestMedia = await event.manager.findOne(Media, {
+        where: { id: entity.media.id },
+        relations: { identifiers: true },
+      });
+    }
+    if (!latestMedia) {
+      latestMedia = await getRepository(Media).findOne({
+        where: { id: entity.media.id },
+        relations: { identifiers: true },
+      });
+    }
+
+    if (!latestMedia || latestMedia.status !== MediaStatus.AVAILABLE) {
+      return;
+    }
+
+    const openLibraryId = latestMedia.identifiers?.find(
+      (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+    )?.value;
+
+    if (!openLibraryId) {
+      return;
+    }
+
+    try {
+      const work = await new OpenLibraryAPI().getWork(openLibraryId);
+      const description =
+        typeof work.description === 'string'
+          ? work.description
+          : work.description?.value;
+      const coverId = work.covers?.[0];
+
+      notificationManager.sendNotification(Notification.MEDIA_AVAILABLE, {
+        event: 'Book Request Now Available',
+        notifyAdmin: false,
+        notifySystem: true,
+        notifyUser: entity.requestedBy,
+        subject: `${work.title}${
+          work.first_publish_date
+            ? ` (${work.first_publish_date.match(/\d{4}/)?.[0]})`
+            : ''
+        }`,
+        message: description
+          ? truncate(description, {
+              length: 500,
+              separator: /\s/,
+              omission: '…',
+            })
+          : undefined,
+        media: latestMedia,
+        image: coverId
+          ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
+          : undefined,
+        request: entity,
+      });
+    } catch (e) {
+      logger.error('Something went wrong sending book notification(s)', {
+        label: 'Notifications',
+        errorMessage: e instanceof Error ? e.message : String(e),
         mediaId: entity.id,
       });
     }
@@ -1367,6 +1493,12 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         }
         if (event.entity.media.mediaType === MediaType.TV) {
           await this.notifyAvailableSeries(event.entity as MediaRequest, event);
+        }
+        if (event.entity.media.mediaType === MediaType.MUSIC) {
+          await this.notifyAvailableMusic(event.entity as MediaRequest, event);
+        }
+        if (event.entity.media.mediaType === MediaType.BOOK) {
+          await this.notifyAvailableBook(event.entity as MediaRequest, event);
         }
       }
     } catch (e) {
