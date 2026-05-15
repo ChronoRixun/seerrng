@@ -41,6 +41,7 @@ export class NotFoundError extends Error {
 @Entity()
 @Unique('UNIQUE_USER_DB', ['tmdbId', 'mediaType', 'requestedBy'])
 @Unique('UNIQUE_USER_MUSIC', ['mbId', 'requestedBy'])
+@Unique('UNIQUE_USER_BOOK', ['externalId', 'requestedBy'])
 export class Watchlist {
   @PrimaryGeneratedColumn()
   id: number;
