@@ -576,7 +576,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   MediaStatus.DELETED ? (
                 <Badge
                   badgeType="warning"
-                  href={`/${requestData.type}/${requestData.media.tmdbId}?manage=1`}
+                  href={
+                    requestData.type === 'music'
+                      ? `/music/${requestData.media.mbId}`
+                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
+                  }
                 >
                   {intl.formatMessage(globalMessages.pending)}
                 </Badge>
@@ -610,9 +614,14 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                       ? undefined
                       : requestData.media.tmdbId
                   }
+                  mbId={
+                    requestData.type === 'music'
+                      ? (requestData.media.mbId ?? undefined)
+                      : undefined
+                  }
                   mediaType={
                     requestData.type === 'music'
-                      ? undefined
+                      ? 'music'
                       : requestData.type === 'tv'
                         ? 'tv'
                         : 'movie'

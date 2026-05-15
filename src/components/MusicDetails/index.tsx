@@ -88,7 +88,12 @@ const MusicDetails = () => {
               {intl.formatMessage(messages.album)}
             </span>
             {data.mediaInfo?.status && data.mediaInfo.status !== MediaStatus.UNKNOWN && (
-              <StatusBadge status={data.mediaInfo.status} />
+              <StatusBadge
+                status={data.mediaInfo.status}
+                mediaType="music"
+                mbId={data.mbId}
+                serviceUrl={data.mediaInfo.serviceUrl}
+              />
             )}
           </div>
           <h1 className="break-words text-3xl font-bold text-white lg:text-5xl">

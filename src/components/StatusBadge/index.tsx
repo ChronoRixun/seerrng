@@ -29,7 +29,8 @@ interface StatusBadgeProps {
   plexUrl?: string;
   serviceUrl?: string;
   tmdbId?: number;
-  mediaType?: 'movie' | 'tv';
+  mbId?: string;
+  mediaType?: 'movie' | 'tv' | 'music';
   title?: string | string[];
   statusLabelOverride?: string;
 }
@@ -42,6 +43,7 @@ const StatusBadge = ({
   plexUrl,
   serviceUrl,
   tmdbId,
+  mbId,
   mediaType,
   title,
   statusLabelOverride,
@@ -70,14 +72,17 @@ const StatusBadge = ({
           ]
         : [
             Permission.REQUEST,
-            mediaType === 'movie'
-              ? Permission.REQUEST_MOVIE
-              : Permission.REQUEST_TV,
+            mediaType === 'music'
+              ? Permission.REQUEST_MUSIC
+              : mediaType === 'movie'
+                ? Permission.REQUEST_MOVIE
+                : Permission.REQUEST_TV,
           ],
       {
         type: 'or',
       }
     ) &&
+    mediaType !== 'music' &&
     (!is4k ||
       (mediaType === 'movie'
         ? settings.currentSettings.movie4kEnabled
@@ -93,7 +98,12 @@ const StatusBadge = ({
             : 'Jellyfin',
     });
   } else if (hasPermission(Permission.MANAGE_REQUESTS)) {
-    if (mediaType && tmdbId) {
+    if (mediaType === 'music' && mbId) {
+      mediaLink = `/music/${mbId}?manage=1`;
+      mediaLinkDescription = intl.formatMessage(messages.managemedia, {
+        mediaType: 'Music',
+      });
+    } else if (mediaType && tmdbId) {
       mediaLink = `/${mediaType}/${tmdbId}?manage=1`;
       mediaLinkDescription = intl.formatMessage(messages.managemedia, {
         mediaType: intl.formatMessage(
@@ -103,7 +113,12 @@ const StatusBadge = ({
     } else if (hasPermission(Permission.ADMIN) && serviceUrl) {
       mediaLink = serviceUrl;
       mediaLinkDescription = intl.formatMessage(messages.openinarr, {
-        arr: mediaType === 'movie' ? 'Radarr' : 'Sonarr',
+        arr:
+          mediaType === 'music'
+            ? 'Lidarr'
+            : mediaType === 'movie'
+              ? 'Radarr'
+              : 'Sonarr',
       });
     }
   }

@@ -532,9 +532,14 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                     ? undefined
                     : requestData.media.tmdbId
                 }
+                mbId={
+                  requestData.type === 'music'
+                    ? (requestData.media.mbId ?? undefined)
+                    : undefined
+                }
                 mediaType={
                   requestData.type === 'music'
-                    ? undefined
+                    ? 'music'
                     : requestData.type === 'tv'
                       ? 'tv'
                       : 'movie'
