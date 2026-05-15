@@ -254,7 +254,18 @@ mediaRoutes.delete(
         }
       }
 
-      if (!serviceSettings) {
+      const hasBookServiceLink =
+        isBook &&
+        ((media.serviceId !== null &&
+          media.serviceId !== undefined &&
+          media.externalServiceId !== null &&
+          media.externalServiceId !== undefined) ||
+          (media.audiobookServiceId !== null &&
+            media.audiobookServiceId !== undefined &&
+            media.audiobookExternalServiceId !== null &&
+            media.audiobookExternalServiceId !== undefined));
+
+      if (!serviceSettings && !hasBookServiceLink) {
         const serviceName = isMovie
           ? 'Radarr'
           : isMusic
@@ -278,23 +289,18 @@ mediaRoutes.delete(
       let service;
       if (isMovie) {
         service = new RadarrAPI({
-          apiKey: serviceSettings?.apiKey,
-          url: RadarrAPI.buildUrl(serviceSettings, '/api/v3'),
+          apiKey: serviceSettings!.apiKey,
+          url: RadarrAPI.buildUrl(serviceSettings!, '/api/v3'),
         });
       } else if (isMusic) {
         service = new LidarrAPI({
-          apiKey: serviceSettings?.apiKey,
-          url: LidarrAPI.buildUrl(serviceSettings, '/api/v1'),
+          apiKey: serviceSettings!.apiKey,
+          url: LidarrAPI.buildUrl(serviceSettings!, '/api/v1'),
         });
-      } else if (isBook) {
-        service = new ReadarrAPI({
-          apiKey: serviceSettings?.apiKey,
-          url: ReadarrAPI.buildUrl(serviceSettings, '/api/v1'),
-        });
-      } else {
+      } else if (!isBook) {
         service = new SonarrAPI({
-          apiKey: serviceSettings?.apiKey,
-          url: SonarrAPI.buildUrl(serviceSettings, '/api/v3'),
+          apiKey: serviceSettings!.apiKey,
+          url: SonarrAPI.buildUrl(serviceSettings!, '/api/v3'),
         });
       }
 
@@ -306,10 +312,57 @@ mediaRoutes.delete(
         }
         await (service as LidarrAPI).removeAlbum(media.externalServiceId);
       } else if (isBook) {
-        if (!media.externalServiceId) {
+        const removals: Promise<void>[] = [];
+
+        if (
+          media.serviceId !== null &&
+          media.serviceId !== undefined &&
+          media.externalServiceId !== null &&
+          media.externalServiceId !== undefined
+        ) {
+          const ebookSettings = settings.readarr.find(
+            (readarr) => readarr.id === media.serviceId
+          );
+
+          if (!ebookSettings) {
+            throw new Error('Bookshelf ebook server not configured');
+          }
+
+          const ebookService = new ReadarrAPI({
+            apiKey: ebookSettings.apiKey,
+            url: ReadarrAPI.buildUrl(ebookSettings, '/api/v1'),
+          });
+          removals.push(ebookService.removeBook(media.externalServiceId));
+        }
+
+        if (
+          media.audiobookServiceId !== null &&
+          media.audiobookServiceId !== undefined &&
+          media.audiobookExternalServiceId !== null &&
+          media.audiobookExternalServiceId !== undefined
+        ) {
+          const audiobookSettings = settings.readarr.find(
+            (readarr) => readarr.id === media.audiobookServiceId
+          );
+
+          if (!audiobookSettings) {
+            throw new Error('Bookshelf audiobook server not configured');
+          }
+
+          const audiobookService = new ReadarrAPI({
+            apiKey: audiobookSettings.apiKey,
+            url: ReadarrAPI.buildUrl(audiobookSettings, '/api/v1'),
+          });
+          removals.push(
+            audiobookService.removeBook(media.audiobookExternalServiceId)
+          );
+        }
+
+        if (!removals.length) {
           throw new Error('Bookshelf book ID not found');
         }
-        await (service as ReadarrAPI).removeBook(media.externalServiceId);
+
+        await Promise.all(removals);
       } else {
         const tmdb = new TheMovieDb();
         const series = await tmdb.getTvShow({ tvId: media.tmdbId });
