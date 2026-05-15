@@ -36,7 +36,10 @@ const messages = defineMessages('components.ExternalMediaManageSlideOver', {
   manageModalRemoveMediaWarning:
     '* This will remove this {mediaType} from {arr}, including all files.',
   openarr: 'Open in {arr}',
+  openarrFormat: 'Open {format} in {arr}',
   removearr: 'Remove from {arr}',
+  ebook: 'Ebook',
+  audiobook: 'Audiobook',
   markavailable: 'Mark as Available',
   music: 'music',
   book: 'book',
@@ -48,6 +51,12 @@ type ExternalMediaManageSlideOverProps = {
   data: MusicDetails | BookDetails;
   onClose: () => void;
   revalidate: () => void;
+};
+
+type ServiceLink = {
+  key: string;
+  url: string;
+  format?: string;
 };
 
 const ExternalMediaManageSlideOver = ({
@@ -66,6 +75,27 @@ const ExternalMediaManageSlideOver = ({
   const mediaLabel = intl.formatMessage(
     mediaType === MediaType.MUSIC ? messages.music : messages.book
   );
+  const serviceLinks = (
+    [
+    mediaInfo?.serviceUrl
+      ? {
+          key: 'primary',
+          url: mediaInfo.serviceUrl,
+          format:
+            mediaType === MediaType.BOOK
+              ? intl.formatMessage(messages.ebook)
+              : undefined,
+        }
+      : undefined,
+    mediaType === MediaType.BOOK && mediaInfo?.audiobookServiceUrl
+      ? {
+          key: 'audiobook',
+          url: mediaInfo.audiobookServiceUrl,
+          format: intl.formatMessage(messages.audiobook),
+        }
+      : undefined,
+    ] as (ServiceLink | undefined)[]
+  ).filter((link): link is ServiceLink => !!link);
 
   const requests =
     mediaInfo?.requests?.filter(
@@ -174,25 +204,35 @@ const ExternalMediaManageSlideOver = ({
           </div>
         )}
 
-        {hasPermission(Permission.ADMIN) && mediaInfo?.serviceUrl && (
+        {hasPermission(Permission.ADMIN) && serviceLinks.length > 0 && (
           <div>
             <h3 className="mb-2 text-xl font-bold">
               {intl.formatMessage(messages.manageModalMedia)}
             </h3>
             <div className="space-y-2">
-              <a
-                href={mediaInfo.serviceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="block"
-              >
-                <Button buttonType="ghost" className="w-full">
-                  <ServerIcon />
-                  <span>
-                    {intl.formatMessage(messages.openarr, { arr: arrName })}
-                  </span>
-                </Button>
-              </a>
+              {serviceLinks.map((link) => (
+                <a
+                  key={`external-service-link-${link.key}`}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block"
+                >
+                  <Button buttonType="ghost" className="w-full">
+                    <ServerIcon />
+                    <span>
+                      {link.format
+                        ? intl.formatMessage(messages.openarrFormat, {
+                            arr: arrName,
+                            format: link.format,
+                          })
+                        : intl.formatMessage(messages.openarr, {
+                            arr: arrName,
+                          })}
+                    </span>
+                  </Button>
+                </a>
+              ))}
               <div>
                 <ConfirmButton
                   onClick={deleteMediaFile}
