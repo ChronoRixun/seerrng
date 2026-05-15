@@ -1293,6 +1293,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           (identifier) => `${identifier.provider}:${identifier.value}`
         )
       );
+      const resultIsbn = result.editions
+        ?.find((edition) => edition.isbn13)
+        ?.isbn13?.replace(/[^0-9X]/gi, '')
+        .toUpperCase();
       const identifiersToSave = [
         result.foreignBookId
           ? {
@@ -1300,10 +1304,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
               value: result.foreignBookId,
             }
           : undefined,
-        result.editions?.find((edition) => edition.isbn13)?.isbn13
+        resultIsbn
           ? {
               provider: MediaIdentifierProvider.ISBN,
-              value: result.editions.find((edition) => edition.isbn13)?.isbn13,
+              value: resultIsbn,
             }
           : undefined,
       ].filter(
