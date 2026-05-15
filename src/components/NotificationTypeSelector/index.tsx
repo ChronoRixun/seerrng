@@ -31,9 +31,9 @@ const messages = defineMessages('components.NotificationTypeSelector', {
     'Get notified when your media requests become available.',
   mediafailed: 'Request Processing Failed',
   mediafailedDescription:
-    'Send notifications when media requests fail to be added to Radarr or Sonarr.',
+    'Send notifications when media requests fail to be added to Radarr, Sonarr, Lidarr, or Readarr.',
   usermediafailedDescription:
-    'Get notified when media requests fail to be added to Radarr or Sonarr.',
+    'Get notified when media requests fail to be added to Radarr, Sonarr, Lidarr, or Readarr.',
   mediadeclined: 'Request Declined',
   mediadeclinedDescription:
     'Send notifications when media requests are declined.',
@@ -156,6 +156,8 @@ const NotificationTypeSelector = ({
             Permission.REQUEST_4K,
             Permission.REQUEST_4K_MOVIE,
             Permission.REQUEST_4K_TV,
+            Permission.REQUEST_MUSIC,
+            Permission.REQUEST_BOOK,
           ],
           { type: 'or' }
         ) ||
@@ -192,6 +194,22 @@ const NotificationTypeSelector = ({
             }) ||
             hasPermission(
               [Permission.AUTO_APPROVE_4K, Permission.AUTO_APPROVE_4K_TV],
+              { type: 'or' }
+            )) &&
+          // Cannot submit music requests OR has Auto-Approve perms for music
+          (!hasPermission([Permission.REQUEST, Permission.REQUEST_MUSIC], {
+            type: 'or',
+          }) ||
+            hasPermission(
+              [Permission.AUTO_APPROVE, Permission.AUTO_APPROVE_MUSIC],
+              { type: 'or' }
+            )) &&
+          // Cannot submit book requests OR has Auto-Approve perms for books
+          (!hasPermission([Permission.REQUEST, Permission.REQUEST_BOOK], {
+            type: 'or',
+          }) ||
+            hasPermission(
+              [Permission.AUTO_APPROVE, Permission.AUTO_APPROVE_BOOK],
               { type: 'or' }
             ))));
 
