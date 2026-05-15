@@ -8,8 +8,8 @@ import {
   jellyfinFullScanner,
   jellyfinRecentScanner,
 } from '@server/lib/scanners/jellyfin';
-import { plexFullScanner, plexRecentScanner } from '@server/lib/scanners/plex';
 import { lidarrScanner } from '@server/lib/scanners/lidarr';
+import { plexFullScanner, plexRecentScanner } from '@server/lib/scanners/plex';
 import { radarrScanner } from '@server/lib/scanners/radarr';
 import { readarrScanner } from '@server/lib/scanners/readarr';
 import { sonarrScanner } from '@server/lib/scanners/sonarr';
@@ -195,12 +195,12 @@ export const startJobs = (): void => {
 
   scheduledJobs.push({
     id: 'readarr-scan',
-    name: 'Readarr Scan',
+    name: 'Bookshelf Scan',
     type: 'process',
     interval: 'hours',
     cronSchedule: jobs['readarr-scan'].schedule,
     job: schedule.scheduleJob(jobs['readarr-scan'].schedule, () => {
-      logger.info('Starting scheduled job: Readarr Scan', { label: 'Jobs' });
+      logger.info('Starting scheduled job: Bookshelf Scan', { label: 'Jobs' });
       readarrScanner.run();
     }),
     running: () => readarrScanner.status().running,

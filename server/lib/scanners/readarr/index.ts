@@ -29,7 +29,7 @@ class ReadarrScanner
   private didScan = false;
 
   constructor() {
-    super('Readarr Scan', { bundleSize: 50 });
+    super('Bookshelf Scan', { bundleSize: 50 });
   }
 
   public status(): SyncStatus {
@@ -61,7 +61,7 @@ class ReadarrScanner
         this.currentServer = server;
         if (server.syncEnabled) {
           this.log(
-            `Beginning to process Readarr server: ${server.name}`,
+            `Beginning to process Bookshelf server: ${server.name}`,
             'info'
           );
 
@@ -74,7 +74,9 @@ class ReadarrScanner
           this.didScan = true;
           await this.loop(this.processReadarrBook.bind(this), { sessionId });
         } else {
-          this.log(`Sync not enabled. Skipping Readarr server: ${server.name}`);
+          this.log(
+            `Sync not enabled. Skipping Bookshelf server: ${server.name}`
+          );
         }
       }
 
@@ -83,7 +85,7 @@ class ReadarrScanner
       }
 
       await this.cleanupOrphanedBooks();
-      this.log('Readarr scan complete', 'info');
+      this.log('Bookshelf scan complete', 'info');
     } catch (e) {
       this.log('Scan interrupted', 'error', { errorMessage: e.message });
     } finally {
@@ -98,9 +100,13 @@ class ReadarrScanner
         readarrBook.foreignBookId;
 
       if (!identifier) {
-        this.log('No supported identifier found for this book. Skipping item.', 'debug', {
-          title: readarrBook.title,
-        });
+        this.log(
+          'No supported identifier found for this book. Skipping item.',
+          'debug',
+          {
+            title: readarrBook.title,
+          }
+        );
         return;
       }
 
@@ -135,14 +141,13 @@ class ReadarrScanner
         ): item is {
           provider: MediaIdentifierProvider;
           value: string;
-        } => !!item && !(item.provider === provider && item.value === identifier)
+        } =>
+          !!item && !(item.provider === provider && item.value === identifier)
       );
 
-      [
-        { provider, value: identifier },
-        ...secondaryIdentifiers,
-      ].forEach((item) =>
-        this.scannedIdentifierKeys.add(`${item.provider}:${item.value}`)
+      [{ provider, value: identifier }, ...secondaryIdentifiers].forEach(
+        (item) =>
+          this.scannedIdentifierKeys.add(`${item.provider}:${item.value}`)
       );
 
       const hasFile = (readarrBook.statistics?.bookFileCount ?? 0) > 0;
@@ -152,7 +157,8 @@ class ReadarrScanner
         await this.processBook(provider, identifier, {
           serviceId: this.currentServer.id,
           externalServiceId: readarrBook.id,
-          externalServiceSlug: readarrBook.titleSlug ?? readarrBook.foreignBookId,
+          externalServiceSlug:
+            readarrBook.titleSlug ?? readarrBook.foreignBookId,
           title: readarrBook.title,
           mediaAddedAt: readarrBook.added
             ? new Date(readarrBook.added)
@@ -183,7 +189,7 @@ class ReadarrScanner
             : !hasFile),
       });
     } catch (e) {
-      this.log('Failed to process Readarr media', 'error', {
+      this.log('Failed to process Bookshelf media', 'error', {
         errorMessage: e.message,
         title: readarrBook.title,
       });
@@ -195,7 +201,7 @@ class ReadarrScanner
 
     if (!this.didScan) {
       this.log(
-        'Skipping orphaned book cleanup: not all Readarr servers were scanned.',
+        'Skipping orphaned book cleanup: not all Bookshelf servers were scanned.',
         'info'
       );
       return;
@@ -218,7 +224,7 @@ class ReadarrScanner
         media.status = MediaStatus.UNKNOWN;
         await mediaRepository.save(media);
         this.log(
-          `Book ${identifierKeys[0]} not found in any Readarr server. Status reset to UNKNOWN.`,
+          `Book ${identifierKeys[0]} not found in any Bookshelf server. Status reset to UNKNOWN.`,
           'info'
         );
       }

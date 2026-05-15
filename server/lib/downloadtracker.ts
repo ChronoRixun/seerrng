@@ -284,9 +284,7 @@ class DownloadTracker {
               .filter((item) => item.albumId !== undefined)
               .map((item) => ({
                 externalId: item.albumId,
-                estimatedCompletionTime: new Date(
-                  item.estimatedCompletionTime
-                ),
+                estimatedCompletionTime: new Date(item.estimatedCompletionTime),
                 mediaType: MediaType.MUSIC,
                 size: item.size,
                 sizeLeft: item.sizeleft,
@@ -366,9 +364,7 @@ class DownloadTracker {
               )
               .map((item) => ({
                 externalId: item.bookId,
-                estimatedCompletionTime: new Date(
-                  item.estimatedCompletionTime
-                ),
+                estimatedCompletionTime: new Date(item.estimatedCompletionTime),
                 mediaType: MediaType.BOOK,
                 size: item.size,
                 sizeLeft: item.sizeleft,
@@ -380,13 +376,13 @@ class DownloadTracker {
 
             if (queueItems.length > 0) {
               logger.debug(
-                `Found ${queueItems.length} item(s) in progress on Readarr server: ${server.name}`,
+                `Found ${queueItems.length} item(s) in progress on Bookshelf server: ${server.name}`,
                 { label: 'Download Tracker' }
               );
             }
           } catch {
             logger.error(
-              `Unable to get queue from Readarr server: ${server.name}`,
+              `Unable to get queue from Bookshelf server: ${server.name}`,
               {
                 label: 'Download Tracker',
               }
@@ -403,7 +399,7 @@ class DownloadTracker {
 
           if (matchingServers.length > 0) {
             logger.debug(
-              `Matching download data to ${matchingServers.length} other Readarr server(s)`,
+              `Matching download data to ${matchingServers.length} other Bookshelf server(s)`,
               { label: 'Download Tracker' }
             );
           }
