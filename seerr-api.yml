@@ -6377,6 +6377,338 @@ paths:
                           type: string
                         title:
                           type: string
+  /music/{musicId}:
+    get:
+      summary: Get music album details
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: musicId
+          required: true
+          schema:
+            type: string
+            example: f5093c06-23e3-404f-aeaa-40f72885ee3a
+      responses:
+        '200':
+          description: Album details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MusicResult'
+  /music/{musicId}/artist:
+    get:
+      summary: Get the primary artist for an album
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: musicId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Artist details returned
+  /music/{musicId}/artist-discography:
+    get:
+      summary: Get the primary artist discography for an album
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: musicId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: number
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: number
+            default: 20
+      responses:
+        '200':
+          description: Artist discography returned
+  /music/{musicId}/artist-similar:
+    get:
+      summary: Get similar artists for the primary artist on an album
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: musicId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: number
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: number
+            default: 20
+      responses:
+        '200':
+          description: Similar artists returned
+  /artist/{artistId}:
+    get:
+      summary: Get artist details
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: artistId
+          required: true
+          schema:
+            type: string
+            example: b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d
+        - in: query
+          name: page
+          schema:
+            type: number
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: number
+            default: 20
+        - in: query
+          name: albumType
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Artist details returned
+  /book/search:
+    get:
+      summary: Search books
+      tags:
+        - search
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+            example: dune
+        - in: query
+          name: page
+          schema:
+            type: number
+            default: 1
+      responses:
+        '200':
+          description: Book search results returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    type: number
+                  totalPages:
+                    type: number
+                  totalResults:
+                    type: number
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BookResult'
+  /book/{bookId}:
+    get:
+      summary: Get book details
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: bookId
+          required: true
+          schema:
+            type: string
+            example: OL27448W
+      responses:
+        '200':
+          description: Book details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResult'
+  /service/lidarr:
+    get:
+      summary: Get Lidarr service summaries
+      tags:
+        - service
+      responses:
+        '200':
+          description: Lidarr services returned
+  /service/lidarr/{lidarrId}:
+    get:
+      summary: Get Lidarr service details
+      tags:
+        - service
+      parameters:
+        - in: path
+          name: lidarrId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Lidarr service details returned
+  /service/readarr:
+    get:
+      summary: Get Bookshelf service summaries
+      tags:
+        - service
+      responses:
+        '200':
+          description: Bookshelf services returned
+  /service/readarr/{readarrId}:
+    get:
+      summary: Get Bookshelf service details
+      tags:
+        - service
+      parameters:
+        - in: path
+          name: readarrId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Bookshelf service details returned
+  /settings/lidarr:
+    get:
+      summary: Get Lidarr settings
+      tags:
+        - settings
+      responses:
+        '200':
+          description: Lidarr settings returned
+    post:
+      summary: Create Lidarr settings
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Lidarr settings created
+  /settings/lidarr/test:
+    post:
+      summary: Test Lidarr settings
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Lidarr connection details returned
+  /settings/lidarr/{lidarrId}:
+    put:
+      summary: Update Lidarr settings
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: lidarrId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Lidarr settings updated
+    delete:
+      summary: Delete Lidarr settings
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: lidarrId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Lidarr settings deleted
+  /settings/readarr:
+    get:
+      summary: Get Bookshelf settings
+      tags:
+        - settings
+      responses:
+        '200':
+          description: Bookshelf settings returned
+    post:
+      summary: Create Bookshelf settings
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Bookshelf settings created
+  /settings/readarr/test:
+    post:
+      summary: Test Bookshelf settings
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Bookshelf connection details returned
+  /settings/readarr/{readarrId}:
+    put:
+      summary: Update Bookshelf settings
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: readarrId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Bookshelf settings updated
+    delete:
+      summary: Delete Bookshelf settings
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: readarrId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Bookshelf settings deleted
   /request:
     get:
       summary: Get all requests
