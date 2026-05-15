@@ -178,17 +178,20 @@ blocklistRoutes.post(
       }
 
       if (error instanceof QueryFailedError) {
-        switch (error.driverError.errno) {
-          case 19:
-            return next({ status: 412, message: 'Item already blocklisted' });
-          default:
-            logger.warn('Something wrong with data blocklist', {
-              tmdbId: req.body.tmdbId,
-              mediaType: req.body.mediaType,
-              label: 'Blocklist',
-            });
-            return next({ status: 409, message: 'Something wrong' });
+        if (
+          error.driverError.errno === 19 ||
+          error.driverError.code === '23505'
+        ) {
+          return next({ status: 412, message: 'Item already blocklisted' });
         }
+
+        logger.warn('Something wrong with data blocklist', {
+          tmdbId: req.body.tmdbId,
+          externalId: req.body.externalId,
+          mediaType: req.body.mediaType,
+          label: 'Blocklist',
+        });
+        return next({ status: 409, message: 'Something wrong' });
       }
 
       return next({ status: 500, message: error.message });
