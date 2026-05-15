@@ -19,7 +19,13 @@ lidarrRoutes.post('/', (req, res) => {
   const lastItem = settings.lidarr[settings.lidarr.length - 1];
   newLidarr.id = lastItem ? lastItem.id + 1 : 0;
 
-  // If we are setting this as the default, clear any previous defaults for the same type first
+  if (newLidarr.isDefault) {
+    settings.lidarr = settings.lidarr.map((lidarr) => ({
+      ...lidarr,
+      isDefault: false,
+    }));
+  }
+
   settings.lidarr = [...settings.lidarr, newLidarr];
   settings.save();
 
@@ -78,7 +84,12 @@ lidarrRoutes.put<{ id: string }, LidarrSettings, LidarrSettings>(
       return next({ status: '404', message: 'Settings instance not found' });
     }
 
-    // If we are setting this as the default, clear any previous defaults for the same type first
+    if (req.body.isDefault) {
+      settings.lidarr = settings.lidarr.map((lidarr) => ({
+        ...lidarr,
+        isDefault: lidarr.id === Number(req.params.id),
+      }));
+    }
 
     settings.lidarr[lidarrIndex] = {
       ...req.body,

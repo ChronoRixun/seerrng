@@ -19,6 +19,13 @@ readarrRoutes.post('/', (req, res) => {
   const lastItem = settings.readarr[settings.readarr.length - 1];
   newReadarr.id = lastItem ? lastItem.id + 1 : 0;
 
+  if (newReadarr.isDefault) {
+    settings.readarr = settings.readarr.map((readarr) => ({
+      ...readarr,
+      isDefault: false,
+    }));
+  }
+
   settings.readarr = [...settings.readarr, newReadarr];
   settings.save();
 
@@ -75,6 +82,13 @@ readarrRoutes.put<{ id: string }, ReadarrSettings, ReadarrSettings>(
 
     if (readarrIndex === -1) {
       return next({ status: '404', message: 'Settings instance not found' });
+    }
+
+    if (req.body.isDefault) {
+      settings.readarr = settings.readarr.map((readarr) => ({
+        ...readarr,
+        isDefault: readarr.id === Number(req.params.id),
+      }));
     }
 
     settings.readarr[readarrIndex] = {

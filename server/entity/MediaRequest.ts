@@ -214,7 +214,7 @@ export class MediaRequest {
       let tags = requestBody.tags;
 
       if (useOverrides) {
-        const defaultLidarrId = settings.lidarr.findIndex((l) => l.isDefault);
+        const defaultLidarrId = settings.lidarr.find((l) => l.isDefault)?.id;
         const overrideRules = await getRepository(OverrideRule).find({
           where: { lidarrServiceId: defaultLidarrId },
         });
