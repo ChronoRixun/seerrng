@@ -1,3 +1,5 @@
+import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
+import LidarrAPI from '@server/api/servarr/lidarr';
 import type { RadarrMovieOptions } from '@server/api/servarr/radarr';
 import RadarrAPI from '@server/api/servarr/radarr';
 import type {
@@ -817,6 +819,176 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     }
   }
 
+  public async sendToLidarr(entity: MediaRequest): Promise<void> {
+    if (
+      entity.status !== MediaRequestStatus.APPROVED ||
+      entity.type !== MediaType.MUSIC
+    ) {
+      return;
+    }
+
+    try {
+      const mediaRepository = getRepository(Media);
+      const settings = getSettings();
+
+      let lidarrSettings = settings.lidarr.find((lidarr) => lidarr.isDefault);
+
+      if (
+        entity.serverId !== null &&
+        entity.serverId >= 0 &&
+        lidarrSettings?.id !== entity.serverId
+      ) {
+        lidarrSettings = settings.lidarr.find(
+          (lidarr) => lidarr.id === entity.serverId
+        );
+      }
+
+      if (!lidarrSettings) {
+        logger.warn('There is no default Lidarr server configured.', {
+          label: 'Media Request',
+          requestId: entity.id,
+          mediaId: entity.media.id,
+        });
+        return;
+      }
+
+      const media = await mediaRepository.findOne({
+        where: { id: entity.media.id },
+      });
+
+      if (!media?.mbId) {
+        logger.error('Music media data not found or missing mbId', {
+          label: 'Media Request',
+          requestId: entity.id,
+          mediaId: entity.media.id,
+        });
+        return;
+      }
+
+      if (media.status === MediaStatus.AVAILABLE) {
+        return;
+      }
+
+      const lidarr = new LidarrAPI({
+        apiKey: lidarrSettings.apiKey,
+        url: LidarrAPI.buildUrl(lidarrSettings, '/api/v1'),
+      });
+
+      const searchResults = await lidarr.searchAlbumByMusicBrainzId(media.mbId);
+
+      if (!searchResults?.length) {
+        throw new Error('Album not found in Lidarr search');
+      }
+
+      const albumInfo = searchResults[0].album;
+      const rootFolder = entity.rootFolder || lidarrSettings.activeDirectory;
+      const qualityProfile = entity.profileId || lidarrSettings.activeProfileId;
+      const metadataProfile = lidarrSettings.activeMetadataProfileId ?? 1;
+      const tags = entity.tags ? [...entity.tags] : [...(lidarrSettings.tags ?? [])];
+
+      if (lidarrSettings.tagRequests) {
+        let userTag = (await lidarr.getTags()).find((tag) =>
+          tag.label.startsWith(`${entity.requestedBy.id} - `)
+        );
+
+        if (!userTag) {
+          userTag = await lidarr.createTag({
+            label: `${entity.requestedBy.id} - ${entity.requestedBy.displayName}`,
+          });
+        }
+
+        if (userTag.id && !tags.includes(userTag.id)) {
+          tags.push(userTag.id);
+        }
+      }
+
+      const artistPath = `${rootFolder}/${albumInfo.artist.artistName}`;
+      const addAlbumPayload: LidarrAlbumOptions = {
+        title: albumInfo.title,
+        disambiguation: albumInfo.disambiguation || '',
+        overview: albumInfo.overview,
+        artistId: albumInfo.artist.id,
+        foreignAlbumId: albumInfo.foreignAlbumId,
+        monitored: true,
+        anyReleaseOk: true,
+        profileId: qualityProfile,
+        duration: albumInfo.duration || 0,
+        albumType: albumInfo.albumType,
+        secondaryTypes: [],
+        mediumCount: albumInfo.mediumCount || 0,
+        ratings: albumInfo.ratings,
+        releaseDate: albumInfo.releaseDate,
+        releases: [],
+        genres: albumInfo.genres,
+        media: [],
+        artist: {
+          status: albumInfo.artist.status,
+          ended: albumInfo.artist.ended,
+          artistName: albumInfo.artist.artistName,
+          foreignArtistId: albumInfo.artist.foreignArtistId,
+          tadbId: albumInfo.artist.tadbId || 0,
+          discogsId: albumInfo.artist.discogsId || 0,
+          overview: albumInfo.artist.overview,
+          artistType: albumInfo.artist.artistType,
+          disambiguation: albumInfo.artist.disambiguation,
+          links: albumInfo.artist.links || [],
+          images: albumInfo.artist.images || [],
+          path: artistPath,
+          qualityProfileId: qualityProfile,
+          metadataProfileId: metadataProfile,
+          monitored: true,
+          monitorNewItems: 'none',
+          rootFolderPath: rootFolder,
+          genres: albumInfo.artist.genres || [],
+          cleanName: albumInfo.artist.cleanName,
+          sortName: albumInfo.artist.sortName,
+          tags,
+          added: albumInfo.artist.added || new Date().toISOString(),
+          ratings: albumInfo.artist.ratings,
+          id: albumInfo.artist.id,
+        },
+        images: albumInfo.images || [],
+        links: albumInfo.links || [],
+        addOptions: {
+          searchForNewAlbum: true,
+        },
+      };
+
+      const result = await lidarr.addAlbum(addAlbumPayload);
+
+      media.externalServiceId = result.id;
+      media.externalServiceSlug = result.titleSlug;
+      media.serviceId = lidarrSettings.id;
+      await mediaRepository.save(media);
+
+      logger.info('Sent request to Lidarr', {
+        label: 'Media Request',
+        requestId: entity.id,
+        mediaId: entity.media.id,
+      });
+    } catch (e) {
+      const requestRepository = getRepository(MediaRequest);
+      const mediaRepository = getRepository(Media);
+      const media = await mediaRepository.findOne({
+        where: { id: entity.media.id },
+      });
+
+      entity.status = MediaRequestStatus.FAILED;
+      await requestRepository.save(entity);
+
+      logger.warn('Something went wrong sending album request to Lidarr', {
+        label: 'Media Request',
+        requestId: entity.id,
+        mediaId: entity.media.id,
+        errorMessage: e instanceof Error ? e.message : String(e),
+      });
+
+      if (media) {
+        MediaRequest.sendNotification(entity, media, Notification.MEDIA_FAILED);
+      }
+    }
+  }
+
   public async updateParentStatus(entity: MediaRequest): Promise<void> {
     const mediaRepository = getRepository(Media);
     const media = await mediaRepository.findOne({
@@ -985,6 +1157,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     try {
       await this.sendToRadarr(event.entity as MediaRequest);
       await this.sendToSonarr(event.entity as MediaRequest);
+      await this.sendToLidarr(event.entity as MediaRequest);
     } catch (e) {
       logger.error('Error while sending to *arr in afterUpdate subscriber', {
         label: 'Media Request',
@@ -1024,6 +1197,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     try {
       await this.sendToRadarr(event.entity as MediaRequest);
       await this.sendToSonarr(event.entity as MediaRequest);
+      await this.sendToLidarr(event.entity as MediaRequest);
     } catch (e) {
       logger.error('Error while sending to *arr in afterInsert subscriber', {
         label: 'Media Request',

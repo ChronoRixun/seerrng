@@ -257,6 +257,103 @@ class BaseScanner<T> {
     });
   }
 
+  protected async processMusic(
+    mbId: string,
+    {
+      mediaAddedAt,
+      serviceId,
+      externalServiceId,
+      externalServiceSlug,
+      processing = false,
+      title = 'Unknown Album',
+      hasFile = true,
+    }: ProcessOptions = {}
+  ): Promise<void> {
+    const mediaRepository = getRepository(Media);
+
+    await this.asyncLock.dispatch(mbId, async () => {
+      const existing = await mediaRepository.findOne({
+        where: { mbId, mediaType: MediaType.MUSIC },
+      });
+
+      if (existing) {
+        let changedExisting = false;
+        const previousStatus = existing.status;
+
+        existing.status =
+          !processing && hasFile
+            ? MediaStatus.AVAILABLE
+            : !processing &&
+                !hasFile &&
+                previousStatus === MediaStatus.PROCESSING
+              ? MediaStatus.UNKNOWN
+              : processing
+                ? previousStatus === MediaStatus.DELETED
+                  ? MediaStatus.DELETED
+                  : MediaStatus.PROCESSING
+                : previousStatus;
+
+        if (existing.status !== previousStatus) {
+          changedExisting = true;
+          if (mediaAddedAt) {
+            existing.mediaAddedAt = mediaAddedAt;
+          }
+        }
+
+        if (!existing.mediaAddedAt && mediaAddedAt) {
+          existing.mediaAddedAt = mediaAddedAt;
+          changedExisting = true;
+        }
+
+        if (serviceId !== undefined && existing.serviceId !== serviceId) {
+          existing.serviceId = serviceId;
+          changedExisting = true;
+        }
+
+        if (
+          externalServiceId !== undefined &&
+          existing.externalServiceId !== externalServiceId
+        ) {
+          existing.externalServiceId = externalServiceId;
+          changedExisting = true;
+        }
+
+        if (
+          externalServiceSlug !== undefined &&
+          existing.externalServiceSlug !== externalServiceSlug
+        ) {
+          existing.externalServiceSlug = externalServiceSlug;
+          changedExisting = true;
+        }
+
+        if (changedExisting) {
+          await mediaRepository.save(existing);
+          this.log(`Updating existing album: ${title}`, 'info');
+        }
+      } else if (processing || hasFile) {
+        await mediaRepository.save(
+          new Media({
+            tmdbId: 0,
+            mbId,
+            mediaType: MediaType.MUSIC,
+            mediaAddedAt,
+            serviceId,
+            externalServiceId,
+            externalServiceSlug,
+            status:
+              !processing && hasFile
+                ? MediaStatus.AVAILABLE
+                : processing
+                  ? MediaStatus.PROCESSING
+                  : MediaStatus.UNKNOWN,
+            status4k: MediaStatus.UNKNOWN,
+          })
+        );
+        this.log(`Saved new album: ${title}`);
+      }
+    });
+  }
+
   /**
    * processShow takes a TMDB ID and an array of ProcessableSeasons, which
    * should include the total episodes a sesaon has + the total available

@@ -31,7 +31,7 @@ import Season from './Season';
 class Media {
   public static async getRelatedMedia(
     user: User | undefined,
-    items: { tmdbId: number; mediaType: string }[]
+    items: { tmdbId: number; mediaType: string }[] | number[] | string[]
   ): Promise<Media[]> {
     const mediaRepository = getRepository(Media);
 
@@ -40,7 +40,14 @@ class Media {
         return [];
       }
 
-      const finalIds = [...new Set(items.map((i) => i.tmdbId))];
+      const firstItem = items[0];
+      const isLegacyItem = typeof firstItem === 'object';
+      const ids = isLegacyItem
+        ? (items as { tmdbId: number; mediaType: string }[]).map(
+            (i) => i.tmdbId
+          )
+        : (items as (number | string)[]);
+      const finalIds = [...new Set<number | string>(ids)];
 
       const media = await mediaRepository
         .createQueryBuilder('media')
@@ -50,11 +57,22 @@ class Media {
           'media.id= watchlist.media and watchlist.requestedBy = :userId',
           { userId: user?.id }
         ) //,
-        .where(' media.tmdbId in (:...finalIds)', { finalIds })
+        .where(
+          typeof finalIds[0] === 'string'
+            ? 'media.mbId in (:...finalIds)'
+            : 'media.tmdbId in (:...finalIds)',
+          { finalIds }
+        )
         .getMany();
 
+      if (!isLegacyItem) {
+        return media;
+      }
+
       return media.filter((m) =>
-        items.some((i) => i.tmdbId === m.tmdbId && i.mediaType === m.mediaType)
+        (items as { tmdbId: number; mediaType: string }[]).some(
+          (i) => i.tmdbId === m.tmdbId && i.mediaType === m.mediaType
+        )
       );
     } catch (e) {
       logger.error(e.message);

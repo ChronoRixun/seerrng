@@ -42,6 +42,7 @@ export interface TmdbCollectionResult {
 
 export interface TmdbPersonResult {
   id: number;
+  known_for_department?: string;
   name: string;
   popularity: number;
   profile_path?: string;
@@ -390,6 +391,10 @@ export interface TmdbPersonCombinedCredits {
   id: number;
   cast: TmdbPersonCreditCast[];
   crew: TmdbPersonCreditCrew[];
+}
+
+export interface TmdbSearchPersonResponse extends TmdbPaginatedResponse {
+  results: TmdbPersonResult[];
 }
 
 export interface TmdbSeasonWithEpisodes extends Omit<

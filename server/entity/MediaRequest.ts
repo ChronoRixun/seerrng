@@ -1,3 +1,4 @@
+import ListenBrainzAPI from '@server/api/listenbrainz';
 import TheMovieDb from '@server/api/themoviedb';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
@@ -50,6 +51,7 @@ export class MediaRequest {
     options: MediaRequestOptions = {}
   ): Promise<MediaRequest> {
     const tmdb = new TheMovieDb();
+    const listenbrainz = new ListenBrainzAPI();
     const mediaRepository = getRepository(Media);
     const requestRepository = getRepository(MediaRequest);
     const userRepository = getRepository(User);
@@ -109,6 +111,15 @@ export class MediaRequest {
           requestBody.is4k ? '4K ' : ''
         }series requests.`
       );
+    } else if (
+      requestBody.mediaType === MediaType.MUSIC &&
+      !requestUser.hasPermission([Permission.REQUEST, Permission.REQUEST_MUSIC], {
+        type: 'or',
+      })
+    ) {
+      throw new RequestPermissionError(
+        'You do not have permission to make music requests.'
+      );
     }
 
     const quotas = await requestUser.getQuota();
@@ -117,16 +128,139 @@ export class MediaRequest {
       throw new QuotaRestrictedError('Movie Quota exceeded.');
     } else if (requestBody.mediaType === MediaType.TV && quotas.tv.restricted) {
       throw new QuotaRestrictedError('Series Quota exceeded.');
+    } else if (
+      requestBody.mediaType === MediaType.MUSIC &&
+      quotas.music.restricted
+    ) {
+      throw new QuotaRestrictedError('Music Quota exceeded.');
+    }
+
+    if (requestBody.mediaType === MediaType.MUSIC) {
+      const album = await listenbrainz.getAlbum(requestBody.mediaId.toString());
+      const musicMbId = album.release_group_mbid;
+
+      let media = await mediaRepository.findOne({
+        where: { mbId: musicMbId, mediaType: MediaType.MUSIC },
+        relations: ['requests'],
+      });
+
+      if (!media) {
+        media = new Media({
+          tmdbId: 0,
+          mbId: musicMbId,
+          status: MediaStatus.PENDING,
+          status4k: MediaStatus.UNKNOWN,
+          mediaType: MediaType.MUSIC,
+        });
+      } else if (media.status === MediaStatus.BLOCKLISTED) {
+        logger.warn('Request for music blocked due to being blocklisted', {
+          mbId: musicMbId,
+          label: 'Media Request',
+        });
+
+        throw new BlocklistedMediaError('This album is blocklisted.');
+      } else if (media.status === MediaStatus.UNKNOWN) {
+        media.status = MediaStatus.PENDING;
+      }
+
+      const existing = await requestRepository
+        .createQueryBuilder('request')
+        .leftJoin('request.media', 'media')
+        .leftJoinAndSelect('request.requestedBy', 'user')
+        .where('media.mbId = :mbId', { mbId: musicMbId })
+        .andWhere('media.mediaType = :mediaType', {
+          mediaType: MediaType.MUSIC,
+        })
+        .getMany();
+
+      if (
+        existing.some(
+          (request) =>
+            request.status !== MediaRequestStatus.DECLINED &&
+            request.status !== MediaRequestStatus.COMPLETED
+        )
+      ) {
+        throw new DuplicateMediaRequestError(
+          'Request for this album already exists.'
+        );
+      }
+
+      const useOverrides = !user.hasPermission([Permission.MANAGE_REQUESTS], {
+        type: 'or',
+      });
+
+      let rootFolder = requestBody.rootFolder;
+      let profileId = requestBody.profileId;
+      let tags = requestBody.tags;
+
+      if (useOverrides) {
+        const defaultLidarrId = settings.lidarr.findIndex((l) => l.isDefault);
+        const overrideRules = await getRepository(OverrideRule).find({
+          where: { lidarrServiceId: defaultLidarrId },
+        });
+        const prioritizedRule = overrideRules.find(
+          (rule) =>
+            !rule.users ||
+            rule.users
+              .split(',')
+              .some((userId) => Number(userId) === requestUser.id)
+        );
+
+        if (prioritizedRule?.rootFolder) {
+          rootFolder = prioritizedRule.rootFolder;
+        }
+        if (prioritizedRule?.profileId) {
+          profileId = prioritizedRule.profileId;
+        }
+        if (prioritizedRule?.tags) {
+          tags = [
+            ...new Set([
+              ...(tags || []),
+              ...prioritizedRule.tags.split(',').map((tag) => Number(tag)),
+            ]),
+          ];
+        }
+      }
+
+      await mediaRepository.save(media);
+
+      const autoApproved = user.hasPermission(
+        [
+          Permission.AUTO_APPROVE,
+          Permission.AUTO_APPROVE_MUSIC,
+          Permission.MANAGE_REQUESTS,
+        ],
+        { type: 'or' }
+      );
+
+      const request = new MediaRequest({
+        type: MediaType.MUSIC,
+        media,
+        requestedBy: requestUser,
+        status: autoApproved
+          ? MediaRequestStatus.APPROVED
+          : MediaRequestStatus.PENDING,
+        modifiedBy: autoApproved ? user : undefined,
+        is4k: false,
+        serverId: requestBody.serverId,
+        profileId,
+        rootFolder,
+        tags,
+        isAutoRequest: options.isAutoRequest ?? false,
+      });
+
+      await requestRepository.save(request);
+      return request;
     }
 
     const tmdbMedia =
       requestBody.mediaType === MediaType.MOVIE
-        ? await tmdb.getMovie({ movieId: requestBody.mediaId })
-        : await tmdb.getTvShow({ tvId: requestBody.mediaId });
+        ? await tmdb.getMovie({ movieId: requestBody.mediaId as number })
+        : await tmdb.getTvShow({ tvId: requestBody.mediaId as number });
 
     let media = await mediaRepository.findOne({
       where: {
-        tmdbId: requestBody.mediaId,
+        tmdbId: requestBody.mediaId as number,
         mediaType: requestBody.mediaType,
       },
       relations: ['requests'],
@@ -219,7 +353,6 @@ export class MediaRequest {
       const defaultSonarrId = requestBody.is4k
         ? settings.sonarr.findIndex((s) => s.is4k && s.isDefault)
         : settings.sonarr.findIndex((s) => !s.is4k && s.isDefault);
-
       const overrideRuleRepository = getRepository(OverrideRule);
       const overrideRules = await overrideRuleRepository.find({
         where:

@@ -948,7 +948,20 @@ discoverRoutes.get<Record<string, unknown>, WatchlistResponse>(
           page: page,
           totalPages: Math.ceil(total / itemsPerPage),
           totalResults: total,
-          results: result,
+          results: result
+            .filter(
+              (item) =>
+                item.tmdbId !== undefined &&
+                (item.mediaType === MediaType.MOVIE ||
+                  item.mediaType === MediaType.TV)
+            )
+            .map((item) => ({
+              id: item.id,
+              ratingKey: item.ratingKey,
+              tmdbId: item.tmdbId as number,
+              mediaType: item.mediaType as 'movie' | 'tv',
+              title: item.title,
+            })),
         });
       }
     }

@@ -3,7 +3,6 @@ import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { User } from '@server/entity/User';
-import type { WatchlistItem } from '@server/interfaces/api/discoverInterfaces';
 import logger from '@server/logger';
 import { DbAwareColumn, resolveDbType } from '@server/utils/DbColumnHelper';
 import {
@@ -27,7 +26,8 @@ export class NotFoundError extends Error {
 
 @Entity()
 @Unique('UNIQUE_USER_DB', ['tmdbId', 'mediaType', 'requestedBy'])
-export class Watchlist implements WatchlistItem {
+@Unique('UNIQUE_USER_MUSIC', ['mbId', 'requestedBy'])
+export class Watchlist {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -40,9 +40,13 @@ export class Watchlist implements WatchlistItem {
   @Column({ type: 'varchar' })
   title = '';
 
-  @Column()
+  @Column({ nullable: true })
   @Index()
-  public tmdbId: number;
+  public tmdbId?: number;
+
+  @Column({ nullable: true, type: 'varchar' })
+  @Index()
+  public mbId?: string;
 
   @ManyToOne(() => User, (user) => user.watchlists, {
     eager: true,

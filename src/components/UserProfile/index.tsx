@@ -389,15 +389,20 @@ const UserProfile = () => {
             <Slider
               sliderKey="media"
               isLoading={!watchData}
-              items={watchData?.recentlyWatched?.map((item) => (
-                <TmdbTitleCard
-                  key={`media-slider-item-${item.id}`}
-                  id={item.id}
-                  tmdbId={item.tmdbId}
-                  tvdbId={item.tvdbId}
-                  type={item.mediaType}
-                />
-              ))}
+              items={watchData?.recentlyWatched
+                ?.filter(
+                  (item) =>
+                    item.mediaType === 'movie' || item.mediaType === 'tv'
+                )
+                .map((item) => (
+                  <TmdbTitleCard
+                    key={`media-slider-item-${item.id}`}
+                    id={item.id}
+                    tmdbId={item.tmdbId}
+                    tvdbId={item.tvdbId}
+                    type={item.mediaType === 'tv' ? 'tv' : 'movie'}
+                  />
+                ))}
             />
           </>
         )}

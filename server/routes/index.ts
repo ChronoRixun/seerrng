@@ -36,6 +36,8 @@ import issueRoutes from './issue';
 import issueCommentRoutes from './issueComment';
 import mediaRoutes from './media';
 import movieRoutes from './movie';
+import musicRoutes from './music';
+import artistRoutes from './artist';
 import personRoutes from './person';
 import requestRoutes from './request';
 import searchRoutes from './search';
@@ -165,6 +167,8 @@ router.use(
 );
 router.use('/movie', isAuthenticated(), movieRoutes);
 router.use('/tv', isAuthenticated(), tvRoutes);
+router.use('/music', isAuthenticated(), musicRoutes);
+router.use('/artist', isAuthenticated(), artistRoutes);
 router.use('/media', isAuthenticated(), mediaRoutes);
 router.use('/person', isAuthenticated(), personRoutes);
 router.use('/collection', isAuthenticated(), collectionRoutes);
