@@ -50,6 +50,8 @@ const messages = defineMessages('components.Settings', {
   default: 'Default',
   default4k: 'Default 4K',
   is4k: '4K',
+  ebook: 'Ebook',
+  audiobook: 'Audiobook',
   address: 'Address',
   activeProfile: 'Active Profile',
   addradarr: 'Add Radarr Server',
@@ -85,6 +87,7 @@ interface ServerInstanceProps {
   isSonarr?: boolean;
   isLidarr?: boolean;
   isReadarr?: boolean;
+  serviceFormat?: 'ebook' | 'audiobook';
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -127,6 +130,7 @@ const ServerInstance = ({
   isSonarr = false,
   isLidarr = false,
   isReadarr = false,
+  serviceFormat,
   externalUrl,
   onEdit,
   onDelete,
@@ -161,6 +165,15 @@ const ServerInstance = ({
             {!isDefault && is4k && (
               <Badge badgeType="warning">
                 {intl.formatMessage(messages.is4k)}
+              </Badge>
+            )}
+            {isReadarr && serviceFormat && (
+              <Badge badgeType={serviceFormat === 'audiobook' ? 'warning' : 'default'}>
+                {intl.formatMessage(
+                  serviceFormat === 'audiobook'
+                    ? messages.audiobook
+                    : messages.ebook
+                )}
               </Badge>
             )}
             {isSSL && (
@@ -677,6 +690,7 @@ const SettingsServices = () => {
                   profileName={readarr.activeProfileName}
                   isSSL={readarr.useSsl}
                   isReadarr={true}
+                  serviceFormat={readarr.serviceType ?? 'ebook'}
                   isDefault={readarr.isDefault}
                   externalUrl={readarr.externalUrl}
                   onEdit={() =>
