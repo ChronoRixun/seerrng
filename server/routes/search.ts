@@ -239,7 +239,8 @@ searchRoutes.get('/', async (req, res, next) => {
           const metadata = updatedArtistsMetadataMap.get(artist.id);
           const personMapping = personMappingResults[artist.id];
           const hasTmdbPersonId =
-            metadata?.tmdbPersonId || personMapping?.personId !== null;
+            !!metadata?.tmdbPersonId ||
+            (personMapping ? personMapping.personId !== null : false);
 
           if (artist.type === 'Person' && hasTmdbPersonId) {
             return null;
