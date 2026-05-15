@@ -14,8 +14,8 @@ import MediaIdentifier, {
 } from '@server/entity/MediaIdentifier';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
-import type { NotificationPayload } from '@server/lib/notifications/agents/agent';
 import notificationManager, { Notification } from '@server/lib/notifications';
+import type { NotificationPayload } from '@server/lib/notifications/agents/agent';
 
 function createUser() {
   return new User({
@@ -48,7 +48,7 @@ describe('MediaRequest.sendNotification', () => {
               name: 'Miles Davis',
             },
           },
-        } as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>)
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
     );
     t.after(() => {
       sendNotificationMock.mock.restore();
@@ -77,8 +77,10 @@ describe('MediaRequest.sendNotification', () => {
     );
 
     assert.strictEqual(sendNotificationMock.mock.callCount(), 1);
-    const [type, payload] = sendNotificationMock.mock.calls[0]
-      .arguments as [Notification, NotificationPayload];
+    const [type, payload] = sendNotificationMock.mock.calls[0].arguments as [
+      Notification,
+      NotificationPayload,
+    ];
     assert.strictEqual(type, Notification.MEDIA_APPROVED);
     assert.strictEqual(payload.event, 'Music Request Approved');
     assert.strictEqual(payload.mediaUrl, '/music/release-group-id');
@@ -108,7 +110,7 @@ describe('MediaRequest.sendNotification', () => {
           first_publish_date: '1969',
           description: 'A classic science fiction novel.',
           covers: [1234],
-        } as Awaited<ReturnType<OpenLibraryAPI['getWork']>>)
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
     );
     const getWorkEditionsMock = mock.method(
       OpenLibraryAPI.prototype,
@@ -122,7 +124,7 @@ describe('MediaRequest.sendNotification', () => {
               isbn_13: ['9780441478125'],
             },
           ],
-        } as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>)
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
     );
     t.after(() => {
       sendNotificationMock.mock.restore();
@@ -160,8 +162,10 @@ describe('MediaRequest.sendNotification', () => {
     );
 
     assert.strictEqual(sendNotificationMock.mock.callCount(), 1);
-    const [type, payload] = sendNotificationMock.mock.calls[0]
-      .arguments as [Notification, NotificationPayload];
+    const [type, payload] = sendNotificationMock.mock.calls[0].arguments as [
+      Notification,
+      NotificationPayload,
+    ];
     assert.strictEqual(type, Notification.MEDIA_AVAILABLE);
     assert.strictEqual(payload.event, 'Book Now Available');
     assert.strictEqual(payload.mediaUrl, '/book/OL45804W');
