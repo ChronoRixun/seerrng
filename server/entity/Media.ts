@@ -23,6 +23,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import Issue from './Issue';
+import MediaIdentifier from './MediaIdentifier';
 import { MediaRequest } from './MediaRequest';
 import Season from './Season';
 
@@ -141,6 +142,11 @@ class Media {
 
   @OneToMany(() => Issue, (issue) => issue.media, { cascade: true })
   public issues: Issue[];
+
+  @OneToMany(() => MediaIdentifier, (identifier) => identifier.media, {
+    cascade: true,
+  })
+  public identifiers: MediaIdentifier[];
 
   @OneToOne(() => Blocklist, (blocklist) => blocklist.media)
   public blocklist: Promise<Blocklist>;
