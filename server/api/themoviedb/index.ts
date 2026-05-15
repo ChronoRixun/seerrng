@@ -3,6 +3,7 @@ import type { TvShowProvider } from '@server/api/provider';
 import cacheManager from '@server/lib/cache';
 import { getSettings } from '@server/lib/settings';
 import { sortBy } from 'lodash';
+import { getTmdbAuthHeaders, getTmdbAuthParams } from './auth';
 import type {
   TmdbCollection,
   TmdbCompanySearchResponse,
@@ -134,10 +135,9 @@ class TheMovieDb extends ExternalAPI implements TvShowProvider {
   }: { discoverRegion?: string; originalLanguage?: string } = {}) {
     super(
       'https://api.themoviedb.org/3',
+      getTmdbAuthParams(),
       {
-        api_key: '431a8708161bcd1f1fbe7536137e61ed',
-      },
-      {
+        headers: getTmdbAuthHeaders(),
         nodeCache: cacheManager.getCache('tmdb').data,
         rateLimit: {
           maxRequests: 20,

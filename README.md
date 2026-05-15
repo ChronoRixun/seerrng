@@ -51,6 +51,15 @@ Check out our documentation for instructions on how to install and run Seerr:
 
 https://docs.seerr.dev/getting-started/
 
+## TMDB Credentials
+
+SeerrNG reads TMDB credentials from the environment:
+
+- `TMDB_API_KEY`: TMDB API key (v3 auth).
+- `TMDB_READ_ACCESS_TOKEN`: TMDB API read access token (v4 bearer token).
+
+Use deployment secrets, `.env` files, or container environment variables for these values. Do not commit private deployment credentials to the repository.
+
 ## Preview
 
 <img src="./public/preview.jpg" alt="Seerr application preview" />

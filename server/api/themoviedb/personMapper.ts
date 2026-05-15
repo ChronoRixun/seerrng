@@ -5,6 +5,7 @@ import MetadataArtist from '@server/entity/MetadataArtist';
 import cacheManager from '@server/lib/cache';
 import logger from '@server/logger';
 import { In } from 'typeorm';
+import { getTmdbAuthHeaders, getTmdbAuthParams } from './auth';
 import type { TmdbSearchPersonResponse } from './interfaces';
 
 interface SearchPersonOptions {
@@ -22,10 +23,9 @@ class TmdbPersonMapper extends ExternalAPI {
   constructor() {
     super(
       'https://api.themoviedb.org/3',
+      getTmdbAuthParams(),
       {
-        api_key: '431a8708161bcd1f1fbe7536137e61ed',
-      },
-      {
+        headers: getTmdbAuthHeaders(),
         nodeCache: cacheManager.getCache('tmdb').data,
         rateLimit: {
           maxRequests: 20,
