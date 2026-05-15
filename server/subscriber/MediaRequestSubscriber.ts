@@ -38,7 +38,7 @@ import type {
   RemoveEvent,
   UpdateEvent,
 } from 'typeorm';
-import { EventSubscriber, Not } from 'typeorm';
+import { EventSubscriber, In, Not } from 'typeorm';
 
 const sanitizeDisplayName = (displayName: string): string => {
   return displayName
@@ -52,6 +52,23 @@ const sanitizeDisplayName = (displayName: string): string => {
 
 @EventSubscriber()
 export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRequest> {
+  private getBookStatusFromLinks(media: Media): MediaStatus {
+    const hasEbook =
+      media.serviceId !== null &&
+      media.serviceId !== undefined &&
+      media.externalServiceId !== null &&
+      media.externalServiceId !== undefined;
+    const hasAudiobook =
+      media.audiobookServiceId !== null &&
+      media.audiobookServiceId !== undefined &&
+      media.audiobookExternalServiceId !== null &&
+      media.audiobookExternalServiceId !== undefined;
+
+    return hasEbook || hasAudiobook
+      ? MediaStatus.AVAILABLE
+      : MediaStatus.UNKNOWN;
+  }
+
   private async notifyAvailableMovie(
     entity: MediaRequest,
     event?: UpdateEvent<MediaRequest>
@@ -1491,6 +1508,33 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       await mediaRepository.save(media);
     }
 
+    if (
+      (media.mediaType === MediaType.MUSIC ||
+        media.mediaType === MediaType.BOOK) &&
+      entity.status === MediaRequestStatus.DECLINED &&
+      media.status !== MediaStatus.DELETED
+    ) {
+      const activeCount = await requestRepository.count({
+        where: {
+          media: { id: media.id },
+          status: In([
+            MediaRequestStatus.PENDING,
+            MediaRequestStatus.APPROVED,
+            MediaRequestStatus.FAILED,
+          ]),
+          id: Not(entity.id),
+        },
+      });
+
+      if (activeCount === 0) {
+        media.status =
+          media.mediaType === MediaType.BOOK
+            ? this.getBookStatusFromLinks(media)
+            : MediaStatus.UNKNOWN;
+        await mediaRepository.save(media);
+      }
+    }
+
     /**
      * If the media type is TV, and we are declining a request,
      * we must check if its the only pending request and that
@@ -1587,6 +1631,34 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       where: { id: entity.media.id },
       relations: { requests: true },
     });
+
+    if (
+      fullMedia.mediaType === MediaType.MUSIC ||
+      fullMedia.mediaType === MediaType.BOOK
+    ) {
+      const hasActiveRequests = fullMedia.requests.some((request) =>
+        [
+          MediaRequestStatus.PENDING,
+          MediaRequestStatus.APPROVED,
+          MediaRequestStatus.FAILED,
+        ].includes(request.status)
+      );
+
+      if (!hasActiveRequests && fullMedia.status !== MediaStatus.DELETED) {
+        const cleanMedia = await manager.findOneOrFail(Media, {
+          where: { id: entity.media.id },
+        });
+
+        cleanMedia.status =
+          fullMedia.mediaType === MediaType.BOOK
+            ? this.getBookStatusFromLinks(cleanMedia)
+            : MediaStatus.UNKNOWN;
+
+        await manager.save(cleanMedia);
+      }
+
+      return;
+    }
 
     const needsStatusUpdate =
       !fullMedia.requests.some((request) => !request.is4k) &&
