@@ -164,6 +164,7 @@ export class Watchlist {
 
       await mediaRepository.save(media);
       await watchlistRepository.save(watchlist);
+      await this.requestMusicFromWatchlist(watchlistRequest.mbId, user);
       return watchlist;
     }
 
@@ -365,6 +366,61 @@ export class Watchlist {
             label: 'Watchlist',
             userId: user.id,
             openLibraryId,
+            errorMessage: e.message,
+          });
+      }
+    }
+  }
+
+  private static async requestMusicFromWatchlist(
+    mbId: string,
+    user: User
+  ): Promise<void> {
+    if (
+      !user.settings?.watchlistSyncMusic ||
+      !user.hasPermission(
+        [Permission.AUTO_REQUEST, Permission.AUTO_REQUEST_MUSIC],
+        {
+          type: 'or',
+        }
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await MediaRequest.request(
+        {
+          mediaId: mbId,
+          mediaType: MediaType.MUSIC,
+        },
+        user,
+        { isAutoRequest: true }
+      );
+    } catch (e) {
+      if (!(e instanceof Error)) {
+        return;
+      }
+
+      switch (e.constructor) {
+        case RequestPermissionError:
+        case DuplicateMediaRequestError:
+        case QuotaRestrictedError:
+        case NoSeasonsAvailableError:
+          logger.debug('Failed to create music request from watchlist', {
+            label: 'Watchlist',
+            userId: user.id,
+            mbId,
+            errorMessage: e.message,
+          });
+          break;
+        case BlocklistedMediaError:
+          break;
+        default:
+          logger.error('Failed to create music request from watchlist', {
+            label: 'Watchlist',
+            userId: user.id,
+            mbId,
             errorMessage: e.message,
           });
       }
