@@ -228,12 +228,18 @@ const ListView = ({
                     key={title.id}
                     id={title.id}
                     image={title.posterPath}
+                    isAddedToWatchlist={
+                      title.mediaInfo?.watchlists?.length ?? 0
+                    }
                     status={title.mediaInfo?.status}
                     title={title.title}
                     artist={title.author}
                     type="Book"
                     year={title.firstPublishYear?.toString()}
                     mediaType={title.mediaType}
+                    inProgress={
+                      (title.mediaInfo?.downloadStatus ?? []).length > 0
+                    }
                     canExpand
                   />
                 );
