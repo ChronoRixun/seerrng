@@ -9,7 +9,8 @@ export interface WatchlistItem {
   ratingKey: string;
   tmdbId?: number;
   mbId?: string;
-  mediaType: 'movie' | 'tv' | 'music';
+  externalId?: string;
+  mediaType: 'movie' | 'tv' | 'music' | 'book';
   title: string;
 }
 

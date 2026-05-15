@@ -1,8 +1,12 @@
 import TheMovieDb from '@server/api/themoviedb';
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import { User } from '@server/entity/User';
 import logger from '@server/logger';
 import { DbAwareColumn, resolveDbType } from '@server/utils/DbColumnHelper';
@@ -49,6 +53,10 @@ export class Watchlist {
   @Index()
   public mbId?: string;
 
+  @Column({ nullable: true, type: 'varchar' })
+  @Index()
+  public externalId?: string;
+
   @ManyToOne(() => User, (user) => user.watchlists, {
     eager: true,
     onDelete: 'CASCADE',
@@ -86,6 +94,7 @@ export class Watchlist {
       title?: ZodOptional<ZodString>['_output'];
       tmdbId?: ZodNumber['_output'];
       mbId?: ZodOptional<ZodString>['_output'];
+      externalId?: ZodOptional<ZodString>['_output'];
     };
     user: User;
   }): Promise<Watchlist> {
@@ -145,6 +154,73 @@ export class Watchlist {
       });
 
       await mediaRepository.save(media);
+      await watchlistRepository.save(watchlist);
+      return watchlist;
+    }
+
+    if (watchlistRequest.mediaType === MediaType.BOOK) {
+      if (!watchlistRequest.externalId) {
+        throw new Error('Open Library ID is required for book watchlists.');
+      }
+
+      const existing = await watchlistRepository.findOne({
+        where: {
+          externalId: watchlistRequest.externalId,
+          mediaType: MediaType.BOOK,
+          requestedBy: { id: user.id },
+        },
+      });
+
+      if (existing) {
+        logger.warn('Duplicate request for watchlist blocked', {
+          externalId: watchlistRequest.externalId,
+          mediaType: watchlistRequest.mediaType,
+          label: 'Watchlist',
+        });
+
+        throw new DuplicateWatchlistRequestError();
+      }
+
+      const openLibrary = new OpenLibraryAPI();
+      const work = await openLibrary.getWork(watchlistRequest.externalId);
+      const title = watchlistRequest.title ?? work.title;
+      const identifierRepository = getRepository(MediaIdentifier);
+      const identifier = await identifierRepository.findOne({
+        where: {
+          provider: MediaIdentifierProvider.OPENLIBRARY,
+          value: watchlistRequest.externalId,
+        },
+        relations: { media: true },
+      });
+      let media =
+        identifier?.media.mediaType === MediaType.BOOK
+          ? identifier.media
+          : undefined;
+
+      if (!media) {
+        media = await mediaRepository.save(
+          new Media({
+            tmdbId: 0,
+            mediaType: MediaType.BOOK,
+          })
+        );
+        await identifierRepository.save(
+          new MediaIdentifier({
+            media,
+            provider: MediaIdentifierProvider.OPENLIBRARY,
+            value: watchlistRequest.externalId,
+            canonical: true,
+          })
+        );
+      }
+
+      const watchlist = new this({
+        ...watchlistRequest,
+        title,
+        requestedBy: user,
+        media,
+      });
+
       await watchlistRepository.save(watchlist);
       return watchlist;
     }
@@ -213,7 +289,11 @@ export class Watchlist {
   ): Promise<Watchlist | null> {
     const watchlistRepository = getRepository(this);
     const watchlist = await watchlistRepository.findOneBy({
-      ...(mediaType === MediaType.MUSIC ? { mbId: id as string } : { tmdbId: Number(id) }),
+      ...(mediaType === MediaType.MUSIC
+        ? { mbId: id as string }
+        : mediaType === MediaType.BOOK
+          ? { externalId: id as string }
+          : { tmdbId: Number(id) }),
       mediaType,
       requestedBy: { id: user.id },
     });

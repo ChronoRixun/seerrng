@@ -62,7 +62,8 @@ watchlistRoutes.delete('/:mediaId', async (req, res, next) => {
     if (
       mediaType !== MediaType.MOVIE &&
       mediaType !== MediaType.TV &&
-      mediaType !== MediaType.MUSIC
+      mediaType !== MediaType.MUSIC &&
+      mediaType !== MediaType.BOOK
     ) {
       return next({
         status: 400,
@@ -73,6 +74,8 @@ watchlistRoutes.delete('/:mediaId', async (req, res, next) => {
     await Watchlist.deleteWatchlist(
       mediaType === MediaType.MUSIC
         ? req.params.mediaId
+        : mediaType === MediaType.BOOK
+          ? req.params.mediaId
         : Number(req.params.mediaId),
       mediaType,
       req.user

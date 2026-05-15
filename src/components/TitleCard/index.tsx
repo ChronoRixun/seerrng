@@ -121,11 +121,17 @@ const TitleCard = ({
               mediaType: 'music',
               title,
             }
-          : {
-              tmdbId: id,
-              mediaType,
-              title,
-            }
+          : mediaType === 'book'
+            ? {
+                externalId: id,
+                mediaType,
+                title,
+              }
+            : {
+                tmdbId: id,
+                mediaType,
+                title,
+              }
       );
       mutate('/api/v1/discover/watchlist');
       if (response.data) {
@@ -324,7 +330,7 @@ const TitleCard = ({
   const numericId = typeof id === 'number' ? id : Number(id);
   const canUseVideoActions = videoMediaType && Number.isFinite(numericId);
   const canUseRequestActions = canUseVideoActions || isAlbum || isBook;
-  const canUseWatchlistActions = canUseVideoActions || isAlbum;
+  const canUseWatchlistActions = canUseVideoActions || isAlbum || isBook;
   const detailHref =
     mediaType === 'movie'
       ? `/movie/${id}`

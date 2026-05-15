@@ -5,6 +5,7 @@ export const watchlistCreate = z.object({
   ratingKey: z.coerce.string().optional(),
   tmdbId: z.coerce.number().optional(),
   mbId: z.coerce.string().optional(),
+  externalId: z.coerce.string().optional(),
   mediaType: z.nativeEnum(MediaType),
   title: z.coerce.string().optional(),
 });
