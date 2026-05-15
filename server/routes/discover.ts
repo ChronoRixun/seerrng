@@ -1,4 +1,5 @@
 import PlexTvAPI from '@server/api/plextv';
+import ListenBrainzAPI from '@server/api/listenbrainz';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
@@ -16,6 +17,7 @@ import logger from '@server/logger';
 import { mapProductionCompany } from '@server/models/Movie';
 import {
   mapCollectionResult,
+  mapAlbumResult,
   mapMovieResult,
   mapPersonResult,
   mapTvResult,
@@ -24,6 +26,7 @@ import { mapNetwork } from '@server/models/Tv';
 import { isCollection, isMovie, isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
 import { sortBy } from 'lodash';
+import { In } from 'typeorm';
 import { z } from 'zod';
 
 export const createTmdbWithRegionLanguage = (user?: User): TheMovieDb => {
@@ -918,6 +921,76 @@ discoverRoutes.get<{ language: string }, GenreSliderItem[]>(
     }
   }
 );
+
+discoverRoutes.get('/music', async (req, res, next) => {
+  const listenBrainz = new ListenBrainzAPI();
+  const itemsPerPage = 20;
+  const page = req.query.page ? Number(req.query.page) : 1;
+  const offset = (page - 1) * itemsPerPage;
+  const days = req.query.days ? Number(req.query.days) : 7;
+  const sort = req.query.sortBy === 'release_date.asc' ? 'date' : 'release_date';
+
+  try {
+    const freshReleases = await listenBrainz.getFreshReleases({
+      days,
+      sort,
+      offset,
+      count: itemsPerPage,
+    });
+    const releases = freshReleases.payload.releases;
+    const mbIds = releases.map((release) => release.release_group_mbid);
+    const relatedMedia = mbIds.length
+      ? await getRepository(Media).find({
+          where: { mbId: In(mbIds), mediaType: MediaType.MUSIC },
+          relations: { requests: true, watchlists: true },
+        })
+      : [];
+
+    const results = releases.map((release) =>
+      mapAlbumResult(
+        {
+          id: release.release_group_mbid,
+          score: release.listen_count ?? 0,
+          media_type: 'album',
+          title: release.release_name,
+          'primary-type':
+            release.release_group_primary_type === 'Single' ||
+            release.release_group_primary_type === 'EP'
+              ? release.release_group_primary_type
+              : 'Album',
+          'first-release-date': release.release_date,
+          'artist-credit': [
+            {
+              name: release.artist_credit_name,
+              artist: {
+                id: release.artist_mbids[0],
+                name: release.artist_credit_name,
+                'sort-name': release.artist_credit_name,
+              },
+            },
+          ],
+          posterPath: release.caa_release_mbid
+            ? `https://coverartarchive.org/release/${release.caa_release_mbid}/front-250`
+            : undefined,
+        },
+        relatedMedia.find((media) => media.mbId === release.release_group_mbid)
+      )
+    );
+
+    return res.status(200).json({
+      page,
+      totalPages: releases.length < itemsPerPage ? page : page + 1,
+      totalResults: offset + releases.length,
+      results,
+    });
+  } catch (e) {
+    logger.error('Failed to fetch music discovery results', {
+      label: 'Discover Music',
+      errorMessage: e instanceof Error ? e.message : 'Unknown error',
+    });
+    return next({ status: 500, message: 'Unable to fetch music discovery.' });
+  }
+});
 
 discoverRoutes.get<Record<string, unknown>, WatchlistResponse>(
   '/watchlist',
