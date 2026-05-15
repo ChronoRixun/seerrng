@@ -1,0 +1,115 @@
+import OpenLibraryAPI from '@server/api/openlibrary';
+import { MediaType } from '@server/constants/media';
+import { getRepository } from '@server/datasource';
+import type Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
+import logger from '@server/logger';
+import {
+  mapOpenLibrarySearchDoc,
+  mapOpenLibraryWork,
+} from '@server/models/Book';
+import { Router } from 'express';
+import { In } from 'typeorm';
+
+const bookRoutes = Router();
+
+const findBookMediaByOpenLibraryIds = async (
+  ids: string[]
+): Promise<Map<string, Media>> => {
+  if (!ids.length) {
+    return new Map();
+  }
+
+  const identifiers = await getRepository(MediaIdentifier).find({
+    where: {
+      provider: MediaIdentifierProvider.OPENLIBRARY,
+      value: In(ids),
+    },
+    relations: { media: true },
+  });
+
+  return new Map(
+    identifiers
+      .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
+      .map((identifier) => [identifier.value, identifier.media])
+  );
+};
+
+bookRoutes.get('/search', async (req, res, next) => {
+  const query = req.query.query?.toString();
+  const page = Number(req.query.page) || 1;
+
+  if (!query) {
+    return next({ status: 400, message: 'Missing query parameter.' });
+  }
+
+  try {
+    const openLibrary = new OpenLibraryAPI();
+    const response = await openLibrary.searchBooks({
+      query,
+      page,
+      limit: 20,
+    });
+    const ids = response.docs.map((doc) => doc.key.replace('/works/', ''));
+    const mediaByOpenLibraryId = await findBookMediaByOpenLibraryIds(ids);
+
+    return res.status(200).json({
+      page,
+      totalPages: Math.ceil(response.numFound / 20),
+      totalResults: response.numFound,
+      results: response.docs.map((doc) =>
+        mapOpenLibrarySearchDoc(
+          doc,
+          mediaByOpenLibraryId.get(doc.key.replace('/works/', ''))
+        )
+      ),
+    });
+  } catch (e) {
+    logger.error('Failed to search books', {
+      label: 'Book',
+      errorMessage: e instanceof Error ? e.message : 'Unknown error',
+      query,
+    });
+    return next({ status: 500, message: 'Unable to search books.' });
+  }
+});
+
+bookRoutes.get('/:id', async (req, res, next) => {
+  try {
+    const openLibrary = new OpenLibraryAPI();
+    const [work, identifiers] = await Promise.all([
+      openLibrary.getWork(req.params.id),
+      getRepository(MediaIdentifier).find({
+        where: {
+          provider: MediaIdentifierProvider.OPENLIBRARY,
+          value: req.params.id,
+        },
+        relations: {
+          media: {
+            requests: {
+              requestedBy: true,
+              modifiedBy: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const media = identifiers.find(
+      (identifier) => identifier.media.mediaType === MediaType.BOOK
+    )?.media;
+
+    return res.status(200).json(mapOpenLibraryWork(work, media));
+  } catch (e) {
+    logger.error('Failed to retrieve book details', {
+      label: 'Book',
+      errorMessage: e instanceof Error ? e.message : 'Unknown error',
+      bookId: req.params.id,
+    });
+    return next({ status: 500, message: 'Unable to retrieve book details.' });
+  }
+});
+
+export default bookRoutes;

@@ -16,6 +16,7 @@ export type AvailableCacheIds =
   | 'musicbrainz'
   | 'listenbrainz'
   | 'coverartarchive'
+  | 'openlibrary'
   | 'tadb';
 
 const DEFAULT_TTL = 300;
@@ -92,6 +93,10 @@ class CacheManager {
       checkPeriod: 60 * 30,
     }),
     coverartarchive: new Cache('coverartarchive', 'Cover Art Archive API', {
+      stdTtl: 43200,
+      checkPeriod: 60 * 30,
+    }),
+    openlibrary: new Cache('openlibrary', 'Open Library API', {
       stdTtl: 43200,
       checkPeriod: 60 * 30,
     }),

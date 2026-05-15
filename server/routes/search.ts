@@ -1,9 +1,14 @@
 import MusicBrainz from '@server/api/musicbrainz';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import TheAudioDb from '@server/api/theaudiodb';
 import TheMovieDb from '@server/api/themoviedb';
 import TmdbPersonMapper from '@server/api/themoviedb/personMapper';
+import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import MetadataAlbum from '@server/entity/MetadataAlbum';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import {
@@ -11,6 +16,7 @@ import {
   type CombinedSearchResponse,
 } from '@server/lib/search';
 import logger from '@server/logger';
+import { mapOpenLibrarySearchDoc } from '@server/models/Book';
 import { mapSearchResults } from '@server/models/Search';
 import { Router } from 'express';
 import { In } from 'typeorm';
@@ -38,6 +44,7 @@ searchRoutes.get('/', async (req, res, next) => {
     } else {
       const tmdb = new TheMovieDb();
       const musicbrainz = new MusicBrainz();
+      const openLibrary = new OpenLibraryAPI();
       const theAudioDb = new TheAudioDb();
       const personMapper = new TmdbPersonMapper();
 
@@ -55,6 +62,11 @@ searchRoutes.get('/', async (req, res, next) => {
           query: queryString,
           limit: 20,
         }),
+        openLibrary.searchBooks({
+          query: queryString,
+          page,
+          limit: 20,
+        }),
       ]);
 
       const tmdbResults =
@@ -65,6 +77,10 @@ searchRoutes.get('/', async (req, res, next) => {
         responses[1].status === 'fulfilled' ? responses[1].value : [];
       const artistResults =
         responses[2].status === 'fulfilled' ? responses[2].value : [];
+      const bookResults =
+        responses[3].status === 'fulfilled'
+          ? responses[3].value
+          : { numFound: 0, start: 0, docs: [] };
 
       const personIds = tmdbResults.results
         .filter(
@@ -258,15 +274,41 @@ searchRoutes.get('/', async (req, res, next) => {
         (a, b) => (b.score || 0) - (a.score || 0)
       );
 
-      const totalItems = tmdbResults.total_results + musicResults.length;
+      const totalItems =
+        tmdbResults.total_results + musicResults.length + bookResults.numFound;
       const totalPages = Math.max(
         tmdbResults.total_pages,
         Math.ceil(totalItems / 20)
       );
 
+      const bookIds = bookResults.docs.map((doc) =>
+        doc.key.replace('/works/', '')
+      );
+      const bookIdentifiers =
+        bookIds.length > 0
+          ? await getRepository(MediaIdentifier).find({
+              where: {
+                provider: MediaIdentifierProvider.OPENLIBRARY,
+                value: In(bookIds),
+              },
+              relations: { media: true },
+            })
+          : [];
+      const bookMediaMap = new Map(
+        bookIdentifiers
+          .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
+          .map((identifier) => [identifier.value, identifier.media])
+      );
+      const mappedBookResults = bookResults.docs.map((doc) =>
+        mapOpenLibrarySearchDoc(
+          doc,
+          bookMediaMap.get(doc.key.replace('/works/', ''))
+        )
+      );
+
       const combinedResults =
         page === 1
-          ? [...tmdbResults.results, ...musicResults]
+          ? [...tmdbResults.results, ...musicResults, ...mappedBookResults]
           : tmdbResults.results;
 
       results = {
@@ -279,14 +321,17 @@ searchRoutes.get('/', async (req, res, next) => {
 
     const movieTvIds = results.results
       .filter(
-        (result) => result.media_type === 'movie' || result.media_type === 'tv'
+        (result) =>
+          'media_type' in result &&
+          (result.media_type === 'movie' || result.media_type === 'tv')
       )
       .map((result) => Number(result.id));
 
     const musicIds = results.results
       .filter(
         (result) =>
-          result.media_type === 'album' || result.media_type === 'artist'
+          'media_type' in result &&
+          (result.media_type === 'album' || result.media_type === 'artist')
       )
       .map((result) => result.id.toString());
 

@@ -16,6 +16,7 @@ export enum MediaIdentifierProvider {
   MUSICBRAINZ = 'musicbrainz',
   LISTENBRAINZ = 'listenbrainz',
   HARDCOVER = 'hardcover',
+  OPENLIBRARY = 'openlibrary',
   ISBN = 'isbn',
   READARR = 'readarr',
   LIDARR = 'lidarr',

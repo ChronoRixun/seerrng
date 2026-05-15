@@ -20,6 +20,7 @@ import {
   mapPersonDetailsToResult,
   mapTvDetailsToResult,
 } from '@server/models/Search';
+import type { BookResult } from '@server/models/Book';
 import {
   isMovie,
   isMovieDetails,
@@ -37,6 +38,7 @@ export type CombinedSearchResponse = {
     | TmdbTvResult
     | TmdbPersonResult
     | TmdbCollectionResult
+    | BookResult
   )[];
 };
 interface SearchProvider {

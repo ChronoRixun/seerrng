@@ -30,6 +30,7 @@ import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
 import authRoutes from './auth';
 import blocklistRoutes from './blocklist';
+import bookRoutes from './book';
 import collectionRoutes from './collection';
 import discoverRoutes, { createTmdbWithRegionLanguage } from './discover';
 import issueRoutes from './issue';
@@ -168,6 +169,7 @@ router.use(
 router.use('/movie', isAuthenticated(), movieRoutes);
 router.use('/tv', isAuthenticated(), tvRoutes);
 router.use('/music', isAuthenticated(), musicRoutes);
+router.use('/book', isAuthenticated(), bookRoutes);
 router.use('/artist', isAuthenticated(), artistRoutes);
 router.use('/media', isAuthenticated(), mediaRoutes);
 router.use('/person', isAuthenticated(), personRoutes);

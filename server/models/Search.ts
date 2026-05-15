@@ -2,6 +2,7 @@ import type {
   MbAlbumResult,
   MbArtistResult,
 } from '@server/api/musicbrainz/interfaces';
+import type { BookResult } from '@server/models/Book';
 import type {
   TmdbCollectionResult,
   TmdbMovieDetails,
@@ -19,7 +20,8 @@ export type MediaType =
   | 'person'
   | 'collection'
   | 'artist'
-  | 'album';
+  | 'album'
+  | 'book';
 
 interface TmdbSearchResult {
   id: number;
@@ -120,7 +122,8 @@ export type Results =
   | PersonResult
   | CollectionResult
   | ArtistResult
-  | AlbumResult;
+  | AlbumResult
+  | BookResult;
 
 export const mapMovieResult = (
   movieResult: TmdbMovieResult,
@@ -237,8 +240,9 @@ const isTmdbMovie = (
     | TmdbCollectionResult
     | MbArtistResult
     | MbAlbumResult
+    | BookResult
 ): result is TmdbMovieResult => {
-  return result.media_type === 'movie';
+  return 'media_type' in result && result.media_type === 'movie';
 };
 
 const isTmdbTv = (
@@ -249,8 +253,9 @@ const isTmdbTv = (
     | TmdbCollectionResult
     | MbArtistResult
     | MbAlbumResult
+    | BookResult
 ): result is TmdbTvResult => {
-  return result.media_type === 'tv';
+  return 'media_type' in result && result.media_type === 'tv';
 };
 
 const isTmdbPerson = (
@@ -261,8 +266,9 @@ const isTmdbPerson = (
     | TmdbCollectionResult
     | MbArtistResult
     | MbAlbumResult
+    | BookResult
 ): result is TmdbPersonResult => {
-  return result.media_type === 'person';
+  return 'media_type' in result && result.media_type === 'person';
 };
 
 const isTmdbCollection = (
@@ -273,8 +279,9 @@ const isTmdbCollection = (
     | TmdbCollectionResult
     | MbArtistResult
     | MbAlbumResult
+    | BookResult
 ): result is TmdbCollectionResult => {
-  return result.media_type === 'collection';
+  return 'media_type' in result && result.media_type === 'collection';
 };
 
 const isMbArtist = (
@@ -285,8 +292,9 @@ const isMbArtist = (
     | TmdbCollectionResult
     | MbArtistResult
     | MbAlbumResult
+    | BookResult
 ): result is MbArtistResult => {
-  return result.media_type === 'artist';
+  return 'media_type' in result && result.media_type === 'artist';
 };
 
 const isMbAlbum = (
@@ -297,8 +305,22 @@ const isMbAlbum = (
     | TmdbCollectionResult
     | MbArtistResult
     | MbAlbumResult
+    | BookResult
 ): result is MbAlbumResult => {
-  return result.media_type === 'album';
+  return 'media_type' in result && result.media_type === 'album';
+};
+
+const isBookResult = (
+  result:
+    | TmdbMovieResult
+    | TmdbTvResult
+    | TmdbPersonResult
+    | TmdbCollectionResult
+    | MbArtistResult
+    | MbAlbumResult
+    | BookResult
+): result is BookResult => {
+  return 'mediaType' in result && result.mediaType === 'book';
 };
 
 export const mapSearchResults = async (
@@ -309,6 +331,7 @@ export const mapSearchResults = async (
     | TmdbCollectionResult
     | MbArtistResult
     | MbAlbumResult
+    | BookResult
   )[],
   media?: Media[]
 ): Promise<Results[]> =>
@@ -344,6 +367,8 @@ export const mapSearchResults = async (
               req.mbId === result.id && req.mediaType === MainMediaType.MUSIC
           )
         );
+      } else if (isBookResult(result)) {
+        return result;
       }
 
       throw new Error(`Unhandled result type: ${JSON.stringify(result)}`);
