@@ -23,6 +23,7 @@ import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { RequestResultsResponse } from '@server/interfaces/api/requestInterfaces';
 import type { MovieDetails } from '@server/models/Movie';
+import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import Link from 'next/link';
@@ -45,13 +46,26 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   cancelRequest: 'Cancel Request',
   tmdbid: 'TMDB ID',
   tvdbid: 'TheTVDB ID',
+  mbid: 'MusicBrainz ID',
   unknowntitle: 'Unknown Title',
   removearr: 'Remove from {arr}',
   profileName: 'Profile',
+  music: 'Music',
 });
 
-const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
-  return (movie as MovieDetails).title !== undefined;
+const isMovie = (
+  media: MovieDetails | TvDetails | MusicDetails
+): media is MovieDetails => {
+  return (
+    (media as MovieDetails).title !== undefined &&
+    (media as MusicDetails).artist === undefined
+  );
+};
+
+const isMusic = (
+  media: MovieDetails | TvDetails | MusicDetails
+): media is MusicDetails => {
+  return (media as MusicDetails).artist !== undefined;
 };
 
 interface RequestItemErrorProps {
@@ -89,21 +103,25 @@ const RequestItemError = ({
                 requestData?.type
                   ? requestData?.type === 'movie'
                     ? globalMessages.movie
-                    : globalMessages.tvshow
+                    : requestData?.type === 'tv'
+                      ? globalMessages.tvshow
+                      : messages.music
                   : globalMessages.request
               ),
             })}
           </div>
           {requestData && hasPermission(Permission.MANAGE_REQUESTS) && (
             <>
-              <div className="card-field">
-                <span className="card-field-name">
-                  {intl.formatMessage(messages.tmdbid)}
-                </span>
-                <span className="flex truncate text-sm text-gray-300">
-                  {requestData.media.tmdbId}
-                </span>
-              </div>
+              {requestData.type !== 'music' && (
+                <div className="card-field">
+                  <span className="card-field-name">
+                    {intl.formatMessage(messages.tmdbid)}
+                  </span>
+                  <span className="flex truncate text-sm text-gray-300">
+                    {requestData.media.tmdbId}
+                  </span>
+                </div>
+              )}
               {requestData.media.tvdbId && (
                 <div className="card-field">
                   <span className="card-field-name">
@@ -111,6 +129,16 @@ const RequestItemError = ({
                   </span>
                   <span className="flex truncate text-sm text-gray-300">
                     {requestData?.media.tvdbId}
+                  </span>
+                </div>
+              )}
+              {requestData.media.mbId && requestData.type === 'music' && (
+                <div className="card-field">
+                  <span className="card-field-name">
+                    {intl.formatMessage(messages.mbid)}
+                  </span>
+                  <span className="flex truncate text-sm text-gray-300">
+                    {requestData.media.mbId}
                   </span>
                 </div>
               )}
@@ -154,7 +182,13 @@ const RequestItemError = ({
                       ).length > 0
                     }
                     is4k={requestData.is4k}
-                    mediaType={requestData.type === 'tv' ? 'tv' : 'movie'}
+                    mediaType={
+                      requestData.type === 'music'
+                        ? undefined
+                        : requestData.type === 'tv'
+                          ? 'tv'
+                          : 'movie'
+                    }
                     plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
                     serviceUrl={
                       requestData.is4k
@@ -306,8 +340,12 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
   const url =
     request.type === 'movie'
       ? `/api/v1/movie/${request.media.tmdbId}`
-      : `/api/v1/tv/${request.media.tmdbId}`;
-  const { data: title, error } = useSWR<MovieDetails | TvDetails>(
+      : request.type === 'tv'
+        ? `/api/v1/tv/${request.media.tmdbId}`
+        : `/api/v1/music/${request.media.mbId}`;
+  const { data: title, error } = useSWR<
+    MovieDetails | TvDetails | MusicDetails
+  >(
     inView ? url : null
   );
   const { data: requestData, mutate: revalidate } = useSWR<
@@ -406,8 +444,15 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
     <>
       <RequestModal
         show={showEditModal}
-        tmdbId={request.media.tmdbId}
-        type={request.type === 'tv' ? 'tv' : 'movie'}
+        tmdbId={request.type === 'music' ? undefined : request.media.tmdbId}
+        mbId={request.type === 'music' ? request.media.mbId ?? undefined : undefined}
+        type={
+          request.type === 'music'
+            ? 'music'
+            : request.type === 'tv'
+              ? 'tv'
+              : 'movie'
+        }
         is4k={request.is4k}
         editRequest={request}
         onCancel={() => setShowEditModal(false)}
@@ -417,7 +462,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
         }}
       />
       <div className="relative flex w-full flex-col justify-between overflow-hidden rounded-xl bg-gray-800 py-2 text-gray-400 shadow-md ring-1 ring-gray-700 xl:h-28 xl:flex-row">
-        {title.backdropPath && (
+        {!isMusic(title) && title.backdropPath && (
           <div className="absolute inset-0 z-0 w-full bg-cover bg-center xl:w-2/3">
             <CachedImage
               type="tmdb"
@@ -441,14 +486,18 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               href={
                 requestData.type === 'movie'
                   ? `/movie/${requestData.media.tmdbId}`
-                  : `/tv/${requestData.media.tmdbId}`
+                  : requestData.type === 'tv'
+                    ? `/tv/${requestData.media.tmdbId}`
+                    : `/music/${requestData.media.mbId}`
               }
               className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
             >
               <CachedImage
-                type="tmdb"
+                type={isMusic(title) ? 'music' : 'tmdb'}
                 src={
-                  title.posterPath
+                  isMusic(title) && title.posterPath
+                    ? title.posterPath
+                    : !isMusic(title) && title.posterPath
                     ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
                     : '/images/seerr_poster_not_found.png'
                 }
@@ -463,20 +512,28 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               <div className="pt-0.5 text-xs font-medium text-white sm:pt-1">
                 {(isMovie(title)
                   ? title.releaseDate
-                  : title.firstAirDate
+                  : isMusic(title)
+                    ? title.releaseDate
+                    : title.firstAirDate
                 )?.slice(0, 4)}
               </div>
               <Link
                 href={
                   requestData.type === 'movie'
-                    ? `/movie/${requestData.media.tmdbId}`
-                    : `/tv/${requestData.media.tmdbId}`
+                  ? `/movie/${requestData.media.tmdbId}`
+                  : requestData.type === 'tv'
+                    ? `/tv/${requestData.media.tmdbId}`
+                    : `/music/${requestData.media.mbId}`
                 }
                 className="mr-2 min-w-0 truncate text-lg font-bold text-white hover:underline xl:text-xl"
               >
-                {isMovie(title) ? title.title : title.name}
+                {isMovie(title)
+                  ? title.title
+                  : isMusic(title)
+                    ? title.title
+                    : title.name}
               </Link>
-              {!isMovie(title) && request.seasons.length > 0 && (
+              {!isMovie(title) && !isMusic(title) && request.seasons.length > 0 && (
                 <div className="card-field">
                   <span className="card-field-name">
                     {intl.formatMessage(messages.seasons, {
@@ -533,7 +590,13 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                       requestData.is4k ? 'downloadStatus4k' : 'downloadStatus'
                     ]
                   }
-                  title={isMovie(title) ? title.title : title.name}
+                  title={
+                    isMovie(title)
+                      ? title.title
+                      : isMusic(title)
+                        ? title.title
+                        : title.name
+                  }
                   inProgress={
                     (
                       requestData.media[
@@ -542,8 +605,18 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                     ).length > 0
                   }
                   is4k={requestData.is4k}
-                  tmdbId={requestData.media.tmdbId}
-                  mediaType={requestData.type === 'tv' ? 'tv' : 'movie'}
+                  tmdbId={
+                    requestData.type === 'music'
+                      ? undefined
+                      : requestData.media.tmdbId
+                  }
+                  mediaType={
+                    requestData.type === 'music'
+                      ? undefined
+                      : requestData.type === 'tv'
+                        ? 'tv'
+                        : 'movie'
+                  }
                   plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
                   serviceUrl={
                     requestData.is4k
