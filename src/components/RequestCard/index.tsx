@@ -48,6 +48,11 @@ const messages = defineMessages('components.RequestCard', {
   unknowntitle: 'Unknown Title',
   music: 'Music',
   book: 'Book',
+  bookFormat: 'Format',
+  ebook: 'Ebook',
+  audiobook: 'Audiobook',
+  both: 'Both',
+  partialBookService: 'Partial Bookshelf link',
 });
 
 const isMovie = (
@@ -324,6 +329,13 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
       ),
     }
   );
+  const hasPartialBookService =
+    requestData?.type === 'book' &&
+    requestData.bookFormat === 'both' &&
+    !!(
+      requestData.media.serviceId !== requestData.media.audiobookServiceId &&
+      (requestData.media.serviceId || requestData.media.audiobookServiceId)
+    );
 
   const { mediaUrl: plexUrl, mediaUrl4k: plexUrl4k } = useDeepLinks({
     mediaUrl: requestData?.media?.mediaUrl,
@@ -537,6 +549,34 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 </div>
               </div>
             )}
+          {requestData.type === 'book' && requestData.bookFormat && (
+            <div className="card-field">
+              <span className="card-field-name">
+                {intl.formatMessage(messages.bookFormat)}
+              </span>
+              <span className="flex truncate text-sm text-gray-300">
+                {intl.formatMessage(
+                  requestData.bookFormat === 'audiobook'
+                    ? messages.audiobook
+                    : requestData.bookFormat === 'both'
+                      ? messages.both
+                      : messages.ebook
+                )}
+              </span>
+            </div>
+          )}
+          {hasPartialBookService && (
+            <div className="card-field">
+              <span className="card-field-name">
+                {intl.formatMessage(messages.partialBookService)}
+              </span>
+              <span className="flex truncate text-sm text-gray-300">
+                {requestData.media.serviceId
+                  ? intl.formatMessage(messages.ebook)
+                  : intl.formatMessage(messages.audiobook)}
+              </span>
+            </div>
+          )}
           <div className="mt-2 flex items-center text-sm sm:mt-1">
             <span className="mr-2 hidden font-bold sm:block">
               {intl.formatMessage(globalMessages.status)}
