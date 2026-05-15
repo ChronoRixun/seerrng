@@ -22,7 +22,7 @@ export const blocklistAdd = z.object({
   externalProvider: z.nativeEnum(MediaIdentifierProvider).optional(),
   mediaType: z.nativeEnum(MediaType),
   title: z.coerce.string().optional(),
-  user: z.coerce.number(),
+  user: z.coerce.number().optional(),
   blocklistedTags: z.string().optional(),
 });
 
@@ -168,7 +168,10 @@ blocklistRoutes.post(
       }
 
       await Blocklist.addToBlocklist({
-        blocklistRequest: values,
+        blocklistRequest: {
+          ...values,
+          user: req.user,
+        },
       });
 
       return res.status(201).send();

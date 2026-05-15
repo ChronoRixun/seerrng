@@ -76,6 +76,7 @@ export class Blocklist implements BlocklistItem {
         tmdbId?: ZodNumber['_output'];
         externalId?: string;
         externalProvider?: MediaIdentifierProvider;
+        user?: User;
         blocklistedTags?: string;
       };
     },
