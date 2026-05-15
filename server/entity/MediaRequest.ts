@@ -225,14 +225,17 @@ export class MediaRequest {
         type: 'or',
       });
 
-      let rootFolder = requestBody.rootFolder;
-      let profileId = requestBody.profileId;
-      let tags = requestBody.tags;
+      const defaultLidarr = settings.lidarr.find((lidarr) => lidarr.isDefault);
+      const serverId = requestBody.serverId ?? defaultLidarr?.id;
+      let rootFolder = requestBody.rootFolder ?? defaultLidarr?.activeDirectory;
+      let profileId = requestBody.profileId ?? defaultLidarr?.activeProfileId;
+      const metadataProfileId =
+        requestBody.metadataProfileId ?? defaultLidarr?.activeMetadataProfileId;
+      let tags = requestBody.tags ?? defaultLidarr?.tags;
 
       if (useOverrides) {
-        const defaultLidarrId = settings.lidarr.find((l) => l.isDefault)?.id;
         const overrideRules = await getRepository(OverrideRule).find({
-          where: { lidarrServiceId: defaultLidarrId },
+          where: { lidarrServiceId: serverId },
         });
         const prioritizedRule = overrideRules.find(
           (rule) =>
@@ -278,8 +281,9 @@ export class MediaRequest {
           : MediaRequestStatus.PENDING,
         modifiedBy: autoApproved ? user : undefined,
         is4k: false,
-        serverId: requestBody.serverId,
+        serverId,
         profileId,
+        metadataProfileId,
         rootFolder,
         tags,
         isAutoRequest: options.isAutoRequest ?? false,
@@ -453,7 +457,9 @@ export class MediaRequest {
         }
       }
 
-      const defaultReadarr = settings.readarr.find((readarr) => readarr.isDefault);
+      const defaultReadarr = settings.readarr.find(
+        (readarr) => readarr.isDefault
+      );
       const autoApproved = user.hasPermission(
         [
           Permission.AUTO_APPROVE,

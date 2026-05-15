@@ -17,6 +17,7 @@ import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import type { NotificationPayload } from '@server/lib/notifications/agents/agent';
 import notificationManager, { Notification } from '@server/lib/notifications';
+import { getSettings } from '@server/lib/settings';
 import { setupTestDb } from '@server/test/db';
 
 setupTestDb();
@@ -179,5 +180,60 @@ describe('MediaRequest.sendNotification', () => {
         value: '9780441478125',
       },
     ]);
+  });
+});
+
+describe('MediaRequest.request', () => {
+  it('uses default Lidarr settings when requesting music without overrides', async (t) => {
+    const settings = getSettings();
+    const originalLidarr = settings.lidarr;
+    settings.lidarr = [
+      {
+        id: 9,
+        name: 'Default Lidarr',
+        hostname: '127.0.0.1',
+        port: 8686,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Lossless',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/music',
+        tags: [3, 4],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+      },
+    ];
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () =>
+        ({
+          release_group_mbid: 'defaulted-release-group',
+        } as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>)
+    );
+    t.after(() => {
+      settings.lidarr = originalLidarr;
+      getAlbumMock.mock.restore();
+    });
+
+    const mediaRequest = await MediaRequest.request(
+      {
+        mediaType: MediaType.MUSIC,
+        mediaId: 'listenbrainz-release-id',
+      },
+      await getFriendUser()
+    );
+
+    assert.strictEqual(mediaRequest.serverId, 9);
+    assert.strictEqual(mediaRequest.profileId, 11);
+    assert.strictEqual(mediaRequest.metadataProfileId, 12);
+    assert.strictEqual(mediaRequest.rootFolder, '/music');
+    assert.deepStrictEqual(mediaRequest.tags, [3, 4]);
   });
 });
