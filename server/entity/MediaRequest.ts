@@ -1099,9 +1099,18 @@ export class MediaRequest {
     type: Notification
   ) {
     const tmdb = new TheMovieDb();
+    const listenbrainz = new ListenBrainzAPI();
+    const openLibrary = new OpenLibraryAPI();
 
     try {
-      const mediaType = entity.type === MediaType.MOVIE ? 'Movie' : 'Series';
+      const mediaType =
+        entity.type === MediaType.MOVIE
+          ? 'Movie'
+          : entity.type === MediaType.TV
+            ? 'Series'
+            : entity.type === MediaType.MUSIC
+              ? 'Music'
+              : 'Book';
       let event: string | undefined;
       let notifyAdmin = true;
       let notifySystem = true;
@@ -1184,6 +1193,91 @@ export class MediaRequest {
                 .join(', '),
             },
           ],
+        });
+      } else if (entity.type === MediaType.MUSIC && media.mbId) {
+        const album = await listenbrainz.getAlbum(media.mbId);
+        const releaseGroup = album.release_group_metadata.release_group;
+        const artist = album.release_group_metadata.artist;
+        const releaseYear = releaseGroup.date?.slice(0, 4);
+
+        notificationManager.sendNotification(type, {
+          media,
+          request: entity,
+          notifyAdmin,
+          notifySystem,
+          notifyUser: notifyAdmin ? undefined : entity.requestedBy,
+          event,
+          subject: `${releaseGroup.name}${
+            releaseYear ? ` (${releaseYear})` : ''
+          }`,
+          message: artist.name,
+          extra: [
+            {
+              name: 'Artist',
+              value: artist.name,
+            },
+          ],
+        });
+      } else if (entity.type === MediaType.BOOK) {
+        const mediaWithIdentifiers =
+          media.identifiers !== undefined
+            ? media
+            : await getRepository(Media).findOne({
+                where: { id: media.id },
+                relations: { identifiers: true },
+              });
+        const openLibraryId = mediaWithIdentifiers?.identifiers?.find(
+          (identifier) =>
+            identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+        )?.value;
+
+        if (!openLibraryId) {
+          throw new Error('Missing Open Library identifier for book request.');
+        }
+
+        const [work, editions] = await Promise.all([
+          openLibrary.getWork(openLibraryId),
+          openLibrary.getWorkEditions(openLibraryId).catch(() => ({
+            size: 0,
+            entries: [],
+          })),
+        ]);
+        const description =
+          typeof work.description === 'string'
+            ? work.description
+            : work.description?.value;
+        const releaseYear = work.first_publish_date?.match(/\d{4}/)?.[0];
+        const coverId = work.covers?.[0];
+        const isbn =
+          editions.entries.find((edition) => edition.isbn_13?.[0])?.isbn_13?.[0] ??
+          editions.entries.find((edition) => edition.isbn_10?.[0])?.isbn_10?.[0];
+
+        notificationManager.sendNotification(type, {
+          media,
+          request: entity,
+          notifyAdmin,
+          notifySystem,
+          notifyUser: notifyAdmin ? undefined : entity.requestedBy,
+          event,
+          subject: `${work.title}${releaseYear ? ` (${releaseYear})` : ''}`,
+          message: description
+            ? truncate(description, {
+                length: 500,
+                separator: /\s/,
+                omission: '…',
+              })
+            : undefined,
+          image: coverId
+            ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
+            : undefined,
+          extra: isbn
+            ? [
+                {
+                  name: 'ISBN',
+                  value: isbn,
+                },
+              ]
+            : undefined,
         });
       }
     } catch (e) {
