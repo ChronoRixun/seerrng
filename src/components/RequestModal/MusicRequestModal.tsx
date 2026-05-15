@@ -1,5 +1,7 @@
 import Alert from '@app/components/Common/Alert';
 import Modal from '@app/components/Common/Modal';
+import type { RequestOverrides } from '@app/components/RequestModal/AdvancedRequester';
+import AdvancedRequester from '@app/components/RequestModal/AdvancedRequester';
 import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -38,6 +40,8 @@ const MusicRequestModal = ({
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [requestOverrides, setRequestOverrides] =
+    useState<RequestOverrides | null>(null);
   const { data, error } = useSWR<MusicDetails>(`/api/v1/music/${mbId}`, {
     revalidateOnMount: true,
   });
@@ -53,9 +57,19 @@ const MusicRequestModal = ({
     setIsUpdating(true);
 
     try {
+      const overrideParams = requestOverrides
+        ? {
+            serverId: requestOverrides.server,
+            profileId: requestOverrides.profile,
+            rootFolder: requestOverrides.folder,
+            userId: requestOverrides.user?.id,
+            tags: requestOverrides.tags,
+          }
+        : {};
       const response = await axios.post<MediaRequest>('/api/v1/request', {
         mediaId: data?.mbId ?? mbId,
         mediaType: MediaType.MUSIC,
+        ...overrideParams,
       });
 
       mutate('/api/v1/request?filter=all&take=10&sort=modified&skip=0');
@@ -87,7 +101,16 @@ const MusicRequestModal = ({
     } finally {
       setIsUpdating(false);
     }
-  }, [addToast, data?.mbId, data?.title, hasPermission, intl, mbId, onComplete]);
+  }, [
+    addToast,
+    data?.mbId,
+    data?.title,
+    hasPermission,
+    intl,
+    mbId,
+    onComplete,
+    requestOverrides,
+  ]);
 
   const hasAutoApprove = hasPermission(
     [Permission.MANAGE_REQUESTS, Permission.AUTO_APPROVE, Permission.AUTO_APPROVE_MUSIC],
@@ -121,6 +144,14 @@ const MusicRequestModal = ({
       )}
       {(quota?.music?.limit ?? 0) > 0 && (
         <QuotaDisplay mediaType="music" quota={quota?.music} />
+      )}
+      {(hasPermission(Permission.REQUEST_ADVANCED) ||
+        hasPermission(Permission.MANAGE_REQUESTS)) && (
+        <AdvancedRequester
+          type="music"
+          is4k={false}
+          onChange={(overrides) => setRequestOverrides(overrides)}
+        />
       )}
     </Modal>
   );
