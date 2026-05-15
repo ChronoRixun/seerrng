@@ -25,8 +25,11 @@ import { ArrowPathIcon } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
 import { MediaType } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import type Issue from '@server/entity/Issue';
+import type { BookDetails } from '@server/models/Book';
 import type { MovieDetails } from '@server/models/Movie';
+import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
@@ -73,8 +76,22 @@ const messages = defineMessages('components.IssueDetails', {
   commentplaceholder: 'Add a comment…',
 });
 
-const isMovie = (movie: MovieDetails | TvDetails): movie is MovieDetails => {
-  return (movie as MovieDetails).title !== undefined;
+type IssueMediaDetails = MovieDetails | TvDetails | MusicDetails | BookDetails;
+
+const isMusic = (media: IssueMediaDetails): media is MusicDetails => {
+  return (media as MusicDetails).mediaType === 'album';
+};
+
+const isBook = (media: IssueMediaDetails): media is BookDetails => {
+  return (media as BookDetails).mediaType === 'book';
+};
+
+const isMovie = (media: IssueMediaDetails): media is MovieDetails => {
+  return (
+    !isMusic(media) &&
+    !isBook(media) &&
+    (media as MovieDetails).title !== undefined
+  );
 };
 
 const IssueDetails = () => {
@@ -86,11 +103,21 @@ const IssueDetails = () => {
   const { data: issueData, mutate: revalidateIssue } = useSWR<Issue>(
     `/api/v1/issue/${router.query.issueId}`
   );
-  const { data, error } = useSWR<MovieDetails | TvDetails>(
-    issueData?.media.tmdbId
-      ? `/api/v1/${issueData.media.mediaType}/${issueData.media.tmdbId}`
-      : null
-  );
+  const bookId = issueData?.media.identifiers?.find(
+    (identifier) => identifier.provider === MediaIdentifierProvider.OPENLIBRARY
+  )?.value;
+  const detailUrl =
+    issueData?.media.mediaType === MediaType.MOVIE
+      ? `/api/v1/movie/${issueData.media.tmdbId}`
+      : issueData?.media.mediaType === MediaType.TV
+        ? `/api/v1/tv/${issueData.media.tmdbId}`
+        : issueData?.media.mediaType === MediaType.MUSIC &&
+            issueData.media.mbId
+          ? `/api/v1/music/${issueData.media.mbId}`
+          : issueData?.media.mediaType === MediaType.BOOK && bookId
+            ? `/api/v1/book/${bookId}`
+            : null;
+  const { data, error } = useSWR<IssueMediaDetails>(detailUrl);
 
   const { mediaUrl, mediaUrl4k } = useDeepLinks({
     mediaUrl: data?.mediaInfo?.mediaUrl,
@@ -175,8 +202,43 @@ const IssueDetails = () => {
     }
   };
 
-  const title = isMovie(data) ? data.title : data.name;
-  const releaseYear = isMovie(data) ? data.releaseDate : data.firstAirDate;
+  const title = isMovie(data) || isMusic(data) || isBook(data) ? data.title : data.name;
+  const releaseYear = isMovie(data)
+    ? data.releaseDate
+    : isMusic(data)
+      ? data.releaseDate
+      : isBook(data)
+        ? data.firstPublishYear?.toString()
+        : data.firstAirDate;
+  const mediaLink =
+    issueData.media.mediaType === MediaType.MOVIE
+      ? `/movie/${issueData.media.tmdbId}`
+      : issueData.media.mediaType === MediaType.TV
+        ? `/tv/${issueData.media.tmdbId}`
+        : issueData.media.mediaType === MediaType.MUSIC
+          ? `/music/${issueData.media.mbId}`
+          : `/book/${bookId}`;
+  const posterPath =
+    isMusic(data) || isBook(data)
+      ? data.posterPath
+      : data.posterPath
+        ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${data.posterPath}`
+        : undefined;
+  const backdropPath = isMusic(data)
+    ? data.artistBackdrop
+    : isBook(data)
+      ? data.posterPath
+      : data.backdropPath
+        ? `https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${data.backdropPath}`
+        : undefined;
+  const arrName =
+    issueData.media.mediaType === MediaType.MOVIE
+      ? 'Radarr'
+      : issueData.media.mediaType === MediaType.TV
+        ? 'Sonarr'
+        : issueData.media.mediaType === MediaType.MUSIC
+          ? 'Lidarr'
+          : 'Readarr';
 
   return (
     <div
@@ -206,12 +268,12 @@ const IssueDetails = () => {
           {intl.formatMessage(messages.deleteissueconfirm)}
         </Modal>
       </Transition>
-      {data.backdropPath && (
+      {backdropPath && (
         <div className="media-page-bg-image">
           <CachedImage
-            type="tmdb"
+            type={isMusic(data) || isBook(data) ? 'music' : 'tmdb'}
             alt=""
-            src={`https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${data.backdropPath}`}
+            src={backdropPath}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             fill
             priority
@@ -228,12 +290,8 @@ const IssueDetails = () => {
       <div className="media-header">
         <div className="media-poster">
           <CachedImage
-            type="tmdb"
-            src={
-              data.posterPath
-                ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${data.posterPath}`
-                : '/images/seerr_poster_not_found.png'
-            }
+            type={isMusic(data) || isBook(data) ? 'music' : 'tmdb'}
+            src={posterPath ?? '/images/seerr_poster_not_found.png'}
             alt=""
             sizes="100vw"
             style={{ width: '100%', height: 'auto' }}
@@ -256,12 +314,7 @@ const IssueDetails = () => {
             )}
           </div>
           <h1>
-            <Link
-              href={`/${
-                issueData.media.mediaType === MediaType.MOVIE ? 'movie' : 'tv'
-              }/${data.id}`}
-              className="hover:underline"
-            >
+            <Link href={mediaLink} className="hover:underline">
               {title}
             </Link>{' '}
             {releaseYear && (
@@ -412,9 +465,7 @@ const IssueDetails = () => {
                     <span>
                       {intl.formatMessage(messages.openinarr, {
                         arr:
-                          issueData.media.mediaType === MediaType.MOVIE
-                            ? 'Radarr'
-                            : 'Sonarr',
+                          arrName,
                       })}
                     </span>
                   </Button>
@@ -460,9 +511,7 @@ const IssueDetails = () => {
                     <span>
                       {intl.formatMessage(messages.openin4karr, {
                         arr:
-                          issueData.media.mediaType === MediaType.MOVIE
-                            ? 'Radarr'
-                            : 'Sonarr',
+                          arrName,
                       })}
                     </span>
                   </Button>
@@ -677,9 +726,7 @@ const IssueDetails = () => {
                 <span>
                   {intl.formatMessage(messages.openinarr, {
                     arr:
-                      issueData.media.mediaType === MediaType.MOVIE
-                        ? 'Radarr'
-                        : 'Sonarr',
+                      arrName,
                   })}
                 </span>
               </Button>
@@ -725,9 +772,7 @@ const IssueDetails = () => {
                   <span>
                     {intl.formatMessage(messages.openin4karr, {
                       arr:
-                        issueData.media.mediaType === MediaType.MOVIE
-                          ? 'Radarr'
-                          : 'Sonarr',
+                        arrName,
                     })}
                   </span>
                 </Button>
