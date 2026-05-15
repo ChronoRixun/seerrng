@@ -33,6 +33,9 @@ const messages = defineMessages('components.BookDetails', {
   book: 'Book',
   author: 'Author',
   firstPublished: 'First Published',
+  identifiers: 'Identifiers',
+  openLibrary: 'Open Library',
+  isbnCandidates: 'ISBN Candidates',
   subjects: 'Subjects',
   manage: 'Manage',
   reportissue: 'Report an Issue',
@@ -208,6 +211,50 @@ const BookDetails = () => {
               {data.description}
             </div>
           )}
+          <div className="mt-6 grid max-w-4xl grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+            <div className="rounded-lg bg-gray-800/70 p-3 ring-1 ring-gray-700">
+              <div className="mb-2 font-semibold text-white">
+                {intl.formatMessage(messages.identifiers)}
+              </div>
+              <div className="space-y-1 text-gray-300">
+                <div>
+                  {intl.formatMessage(messages.openLibrary)}: {data.id}
+                </div>
+                {data.isbn13 && <div>ISBN: {data.isbn13}</div>}
+                {data.editionId && <div>Edition: {data.editionId}</div>}
+              </div>
+            </div>
+            {!!data.isbnCandidates?.length && (
+              <div className="rounded-lg bg-gray-800/70 p-3 ring-1 ring-gray-700">
+                <div className="mb-2 font-semibold text-white">
+                  {intl.formatMessage(messages.isbnCandidates)}
+                </div>
+                <div className="space-y-1 text-gray-300">
+                  {data.isbnCandidates.slice(0, 5).map((candidate) => (
+                    <div
+                      key={`${candidate.editionId ?? candidate.isbn}-${candidate.isbn}`}
+                      className="truncate"
+                      title={[
+                        candidate.isbn,
+                        candidate.title,
+                        candidate.format,
+                      ]
+                        .filter(Boolean)
+                        .join(' - ')}
+                    >
+                      {[
+                        candidate.isbn,
+                        candidate.title,
+                        candidate.format,
+                      ]
+                        .filter(Boolean)
+                        .join(' - ')}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           {(canShowRequest || canReportIssue || canBlocklist || canManage) && (
             <div className="mt-6 flex flex-wrap gap-2">
               {canShowRequest && (
