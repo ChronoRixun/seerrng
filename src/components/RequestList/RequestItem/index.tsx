@@ -22,10 +22,10 @@ import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { RequestResultsResponse } from '@server/interfaces/api/requestInterfaces';
+import type { BookDetails } from '@server/models/Book';
 import type { MovieDetails } from '@server/models/Movie';
 import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
-import type { BookDetails } from '@server/models/Book';
 import axios from 'axios';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -86,6 +86,25 @@ const getBookId = (request: NonFunctionProperties<MediaRequest>) =>
   request.media.identifiers?.find(
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
+
+const getRequestDownloadStatus = (
+  request: NonFunctionProperties<MediaRequest>
+) => {
+  if (request.type === 'book') {
+    if (request.bookFormat === 'audiobook') {
+      return request.media.audiobookDownloadStatus;
+    }
+
+    if (request.bookFormat === 'both') {
+      return [
+        ...(request.media.downloadStatus ?? []),
+        ...(request.media.audiobookDownloadStatus ?? []),
+      ];
+    }
+  }
+
+  return request.media[request.is4k ? 'downloadStatus4k' : 'downloadStatus'];
+};
 
 interface RequestItemErrorProps {
   requestData?: NonFunctionProperties<MediaRequest>;
@@ -197,20 +216,10 @@ const RequestItemError = ({
                         requestData.is4k ? 'status4k' : 'status'
                       ]
                     }
-                    downloadItem={
-                      requestData.media[
-                        requestData.is4k ? 'downloadStatus4k' : 'downloadStatus'
-                      ]
-                    }
+                    downloadItem={getRequestDownloadStatus(requestData)}
                     title={intl.formatMessage(messages.unknowntitle)}
                     inProgress={
-                      (
-                        requestData.media[
-                          requestData.is4k
-                            ? 'downloadStatus4k'
-                            : 'downloadStatus'
-                        ] ?? []
-                      ).length > 0
+                      (getRequestDownloadStatus(requestData) ?? []).length > 0
                     }
                     is4k={requestData.is4k}
                     externalId={
@@ -223,9 +232,9 @@ const RequestItemError = ({
                         ? 'music'
                         : requestData.type === 'book'
                           ? 'book'
-                        : requestData.type === 'tv'
-                          ? 'tv'
-                          : 'movie'
+                          : requestData.type === 'tv'
+                            ? 'tv'
+                            : 'movie'
                     }
                     plexUrl={requestData.is4k ? plexUrl4k : plexUrl}
                     serviceUrl={
@@ -385,9 +394,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
           : `/api/v1/book/${getBookId(request)}`;
   const { data: title, error } = useSWR<
     MovieDetails | TvDetails | MusicDetails | BookDetails
-  >(
-    inView && !url.endsWith('/undefined') ? url : null
-  );
+  >(inView && !url.endsWith('/undefined') ? url : null);
   const { data: requestData, mutate: revalidate } = useSWR<
     NonFunctionProperties<MediaRequest>
   >(`/api/v1/request/${request.id}`, {
@@ -396,6 +403,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
       {
         downloadStatus: request.media.downloadStatus,
         downloadStatus4k: request.media.downloadStatus4k,
+        audiobookDownloadStatus: request.media.audiobookDownloadStatus,
       },
       15000
     ),
@@ -497,7 +505,9 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
             : request.media.tmdbId
         }
         mbId={
-          request.type === 'music' ? request.media.mbId ?? undefined : undefined
+          request.type === 'music'
+            ? (request.media.mbId ?? undefined)
+            : undefined
         }
         bookId={request.type === 'book' ? getBookId(request) : undefined}
         type={
@@ -558,8 +568,8 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   (isMusic(title) || isBook(title)) && title.posterPath
                     ? title.posterPath
                     : !isMusic(title) && !isBook(title) && title.posterPath
-                    ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
-                    : '/images/seerr_poster_not_found.png'
+                      ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
+                      : '/images/seerr_poster_not_found.png'
                 }
                 alt=""
                 sizes="100vw"
@@ -582,12 +592,12 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               <Link
                 href={
                   requestData.type === 'movie'
-                  ? `/movie/${requestData.media.tmdbId}`
-                  : requestData.type === 'tv'
-                    ? `/tv/${requestData.media.tmdbId}`
-                    : requestData.type === 'music'
-                      ? `/music/${requestData.media.mbId}`
-                      : `/book/${getBookId(requestData)}`
+                    ? `/movie/${requestData.media.tmdbId}`
+                    : requestData.type === 'tv'
+                      ? `/tv/${requestData.media.tmdbId}`
+                      : requestData.type === 'music'
+                        ? `/music/${requestData.media.mbId}`
+                        : `/book/${getBookId(requestData)}`
                 }
                 className="mr-2 min-w-0 truncate text-lg font-bold text-white hover:underline xl:text-xl"
               >
@@ -603,25 +613,25 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                 !isMusic(title) &&
                 !isBook(title) &&
                 request.seasons.length > 0 && (
-                <div className="card-field">
-                  <span className="card-field-name">
-                    {intl.formatMessage(messages.seasons, {
-                      seasonCount: request.seasons.length,
-                    })}
-                  </span>
-                  <div className="hide-scrollbar flex flex-nowrap overflow-x-scroll">
-                    {request.seasons.map((season) => (
-                      <span key={`season-${season.id}`} className="mr-2">
-                        <Badge>
-                          {season.seasonNumber === 0
-                            ? intl.formatMessage(globalMessages.specials)
-                            : season.seasonNumber}
-                        </Badge>
-                      </span>
-                    ))}
+                  <div className="card-field">
+                    <span className="card-field-name">
+                      {intl.formatMessage(messages.seasons, {
+                        seasonCount: request.seasons.length,
+                      })}
+                    </span>
+                    <div className="hide-scrollbar flex flex-nowrap overflow-x-scroll">
+                      {request.seasons.map((season) => (
+                        <span key={`season-${season.id}`} className="mr-2">
+                          <Badge>
+                            {season.seasonNumber === 0
+                              ? intl.formatMessage(globalMessages.specials)
+                              : season.seasonNumber}
+                          </Badge>
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           </div>
           <div className="z-10 ml-4 mt-4 flex w-full flex-col justify-center gap-1 overflow-hidden pr-4 text-sm sm:ml-2 sm:mt-0 xl:flex-1 xl:pr-0">
@@ -666,11 +676,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   status={
                     requestData.media[requestData.is4k ? 'status4k' : 'status']
                   }
-                  downloadItem={
-                    requestData.media[
-                      requestData.is4k ? 'downloadStatus4k' : 'downloadStatus'
-                    ]
-                  }
+                  downloadItem={getRequestDownloadStatus(requestData)}
                   title={
                     isMovie(title)
                       ? title.title
@@ -681,11 +687,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                           : title.name
                   }
                   inProgress={
-                    (
-                      requestData.media[
-                        requestData.is4k ? 'downloadStatus4k' : 'downloadStatus'
-                      ] ?? []
-                    ).length > 0
+                    (getRequestDownloadStatus(requestData) ?? []).length > 0
                   }
                   is4k={requestData.is4k}
                   tmdbId={
@@ -693,7 +695,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                       ? undefined
                       : requestData.type === 'book'
                         ? undefined
-                      : requestData.media.tmdbId
+                        : requestData.media.tmdbId
                   }
                   mbId={
                     requestData.type === 'music'
