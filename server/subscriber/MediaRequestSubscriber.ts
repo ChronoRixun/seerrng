@@ -1107,6 +1107,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       media.serviceId = lidarrSettings.id;
       await mediaRepository.save(media);
 
+      const requestRepository = getRepository(MediaRequest);
+      entity.status = MediaRequestStatus.COMPLETED;
+      await requestRepository.save(entity);
+
       logger.info('Sent request to Lidarr', {
         label: 'Media Request',
         requestId: entity.id,
@@ -1328,6 +1332,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           )
         );
       }
+
+      const requestRepository = getRepository(MediaRequest);
+      entity.status = MediaRequestStatus.COMPLETED;
+      await requestRepository.save(entity);
 
       logger.info('Sent request to Readarr', {
         label: 'Media Request',
