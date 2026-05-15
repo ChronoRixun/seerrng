@@ -35,7 +35,9 @@ const RecentRequestsSlider = () => {
   const hasServiceErrors =
     requests?.serviceErrors &&
     (requests.serviceErrors.radarr.length > 0 ||
-      requests.serviceErrors.sonarr.length > 0);
+      requests.serviceErrors.sonarr.length > 0 ||
+      requests.serviceErrors.lidarr.length > 0 ||
+      requests.serviceErrors.readarr.length > 0);
 
   return (
     <>
@@ -56,6 +58,8 @@ const RecentRequestsSlider = () => {
                 services: [
                   ...requests.serviceErrors.radarr.map((s) => s.name),
                   ...requests.serviceErrors.sonarr.map((s) => s.name),
+                  ...requests.serviceErrors.lidarr.map((s) => s.name),
+                  ...requests.serviceErrors.readarr.map((s) => s.name),
                 ].join(', '),
               })}
             </span>

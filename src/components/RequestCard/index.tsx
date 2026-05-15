@@ -197,6 +197,11 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
                         ).length > 0
                       }
                       is4k={requestData.is4k}
+                      externalId={
+                        requestData.type === 'book'
+                          ? getBookId(requestData)
+                          : undefined
+                      }
                       mediaType={
                         requestData.type === 'music'
                           ? 'music'
@@ -587,6 +592,11 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 mbId={
                   requestData.type === 'music'
                     ? (requestData.media.mbId ?? undefined)
+                    : undefined
+                }
+                externalId={
+                  requestData.type === 'book'
+                    ? getBookId(requestData)
                     : undefined
                 }
                 mediaType={

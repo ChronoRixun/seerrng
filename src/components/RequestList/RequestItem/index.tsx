@@ -213,6 +213,11 @@ const RequestItemError = ({
                       ).length > 0
                     }
                     is4k={requestData.is4k}
+                    externalId={
+                      requestData.type === 'book'
+                        ? getBookId(requestData)
+                        : undefined
+                    }
                     mediaType={
                       requestData.type === 'music'
                         ? 'music'
@@ -693,6 +698,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   mbId={
                     requestData.type === 'music'
                       ? (requestData.media.mbId ?? undefined)
+                      : undefined
+                  }
+                  externalId={
+                    requestData.type === 'book'
+                      ? getBookId(requestData)
                       : undefined
                   }
                   mediaType={
