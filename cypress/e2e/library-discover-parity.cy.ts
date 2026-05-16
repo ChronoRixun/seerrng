@@ -588,6 +588,118 @@ describe('Books and Music discover parity', () => {
     cy.location('search').should('include', 'mediaType=music');
   });
 
+  it('deep-links failed book and music requests to their manage slideovers', () => {
+    const requestedBy = {
+      id: 1,
+      displayName: 'Admin',
+      avatar: '/avatar.png',
+    };
+    const failedBookRequest = {
+      id: 301,
+      type: 'book',
+      status: 4,
+      is4k: false,
+      bookFormat: 'ebook',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+      requestedBy,
+      modifiedBy: null,
+      canRemove: false,
+      profileName: 'Default',
+      seasons: [],
+      media: {
+        id: 9301,
+        mediaType: 'book',
+        status: 1,
+        status4k: 1,
+        tmdbId: 0,
+        identifiers: [{ provider: 'openlibrary', value: 'OLFAILEDW' }],
+        requests: [],
+        issues: [],
+      },
+    };
+    const failedMusicRequest = {
+      id: 302,
+      type: 'music',
+      status: 4,
+      is4k: false,
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+      requestedBy,
+      modifiedBy: null,
+      canRemove: false,
+      profileName: 'Default',
+      seasons: [],
+      media: {
+        id: 9302,
+        mediaType: 'music',
+        status: 1,
+        status4k: 1,
+        tmdbId: 0,
+        mbId: 'dededede-dede-dede-dede-dededededede',
+        requests: [],
+        issues: [],
+      },
+    };
+
+    cy.intercept('GET', '/api/v1/request?*', {
+      pageInfo: { pages: 1, pageSize: 10, results: 2, page: 1 },
+      results: [failedBookRequest, failedMusicRequest],
+      serviceErrors: {
+        radarr: [],
+        sonarr: [],
+        lidarr: [],
+        readarr: [],
+      },
+    }).as('getFailedRequests');
+    cy.intercept('GET', '/api/v1/request/301', failedBookRequest);
+    cy.intercept('GET', '/api/v1/request/302', failedMusicRequest);
+    cy.intercept('GET', '/api/v1/book/OLFAILEDW', {
+      id: 'OLFAILEDW',
+      mediaType: 'book',
+      title: 'Failed Book',
+      author: 'Failed Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/8-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+    });
+    cy.intercept(
+      'GET',
+      '/api/v1/music/dededede-dede-dede-dede-dededededede',
+      {
+        id: 'dededede-dede-dede-dede-dededededede',
+        mbId: 'dededede-dede-dede-dede-dededededede',
+        mediaType: 'album',
+        title: 'Failed Album',
+        type: 'Album',
+        releaseDate: '2026-05-01',
+        artist: {
+          id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+          name: 'Failed Artist',
+        },
+        tracks: [],
+      }
+    );
+
+    cy.visit('/requests?filter=failed&mediaType=all');
+    cy.wait('@getFailedRequests');
+    cy.contains('Failed Book')
+      .parents('.relative.flex.w-full')
+      .contains('.card-field', 'Status')
+      .find('a')
+      .should('have.attr', 'href', '/book/OLFAILEDW?manage=1');
+    cy.contains('Failed Album')
+      .parents('.relative.flex.w-full')
+      .contains('.card-field', 'Status')
+      .find('a')
+      .should(
+        'have.attr',
+        'href',
+        '/music/dededede-dede-dede-dede-dededededede?manage=1'
+      );
+  });
+
   it('shows book and music download status in manage slideovers', () => {
     const downloadStatus = {
       mediaType: 'book',
