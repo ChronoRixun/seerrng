@@ -45,6 +45,8 @@ const messages = defineMessages('components.MusicDetails', {
   album: 'Album',
   artist: 'Artist',
   releasedate: 'Release Date',
+  identifiers: 'Identifiers',
+  musicbrainz: 'MusicBrainz',
   tracks: 'Tracks',
   noTracks: 'No tracks available.',
   manage: 'Manage',
@@ -412,6 +414,40 @@ const MusicDetails = () => {
               )}
             </div>
           )}
+          <div className="media-facts mt-6 max-w-4xl">
+            <div className="media-fact">
+              <span>{intl.formatMessage(messages.artist)}</span>
+              <span className="media-fact-value">
+                <Link href={`/artist/${data.artist.id}`}>
+                  {data.artist.name}
+                </Link>
+              </span>
+            </div>
+            {data.releaseDate && (
+              <div className="media-fact">
+                <span>{intl.formatMessage(messages.releasedate)}</span>
+                <span className="media-fact-value">{data.releaseDate}</span>
+              </div>
+            )}
+            {data.type && (
+              <div className="media-fact">
+                <span>{intl.formatMessage(messages.album)}</span>
+                <span className="media-fact-value">{data.type}</span>
+              </div>
+            )}
+            <div className="media-fact">
+              <span>{intl.formatMessage(messages.identifiers)}</span>
+              <span className="media-fact-value">
+                <a
+                  href={`https://musicbrainz.org/release-group/${data.mbId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {intl.formatMessage(messages.musicbrainz)}
+                </a>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 

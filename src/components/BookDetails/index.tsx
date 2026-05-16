@@ -359,25 +359,43 @@ const BookDetails = () => {
               {data.description}
             </div>
           )}
-          <div className="mt-6 grid max-w-4xl grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-            <div className="rounded-lg bg-gray-800/70 p-3 ring-1 ring-gray-700">
-              <div className="mb-2 font-semibold text-white">
-                {intl.formatMessage(messages.identifiers)}
+          <div className="media-facts mt-6 max-w-4xl">
+            {data.author && (
+              <div className="media-fact">
+                <span>{intl.formatMessage(messages.author)}</span>
+                <span className="media-fact-value">{data.author}</span>
               </div>
-              <div className="space-y-1 text-gray-300">
-                <div>
-                  {intl.formatMessage(messages.openLibrary)}: {data.id}
-                </div>
-                {data.isbn13 && <div>ISBN: {data.isbn13}</div>}
-                {data.editionId && <div>Edition: {data.editionId}</div>}
+            )}
+            {data.firstPublishYear && (
+              <div className="media-fact">
+                <span>{intl.formatMessage(messages.firstPublished)}</span>
+                <span className="media-fact-value">
+                  {data.firstPublishYear}
+                </span>
               </div>
+            )}
+            <div className="media-fact">
+              <span>{intl.formatMessage(messages.identifiers)}</span>
+              <span className="media-fact-value">
+                <a
+                  href={`https://openlibrary.org/works/${data.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {intl.formatMessage(messages.openLibrary)}
+                </a>
+                {data.isbn13 && (
+                  <span className="ml-2">ISBN {data.isbn13}</span>
+                )}
+                {data.editionId && (
+                  <span className="ml-2">Edition {data.editionId}</span>
+                )}
+              </span>
             </div>
             {!!data.isbnCandidates?.length && (
-              <div className="rounded-lg bg-gray-800/70 p-3 ring-1 ring-gray-700">
-                <div className="mb-2 font-semibold text-white">
-                  {intl.formatMessage(messages.isbnCandidates)}
-                </div>
-                <div className="space-y-1 text-gray-300">
+              <div className="media-fact">
+                <span>{intl.formatMessage(messages.isbnCandidates)}</span>
+                <div className="media-fact-value max-w-full space-y-1">
                   {data.isbnCandidates.slice(0, 5).map((candidate) => (
                     <div
                       key={`${candidate.editionId ?? candidate.isbn}-${candidate.isbn}`}

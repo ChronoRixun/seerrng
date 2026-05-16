@@ -84,6 +84,9 @@ describe('Books and Music discover parity', () => {
     cy.contains('[data-testid=media-title]', 'Parity Book').should(
       'be.visible'
     );
+    cy.contains('.media-fact', 'Identifiers')
+      .contains('Open Library')
+      .should('be.visible');
 
     cy.intercept('GET', '/api/v1/discover/music*', {
       page: 1,
@@ -104,6 +107,12 @@ describe('Books and Music discover parity', () => {
     cy.wait('@getMusic');
     cy.contains('[data-testid=page-header]', 'Music').should('be.visible');
     cy.get('select[name=sortBy]').should('be.visible');
+    cy.get('select[name=sortBy]').select('release_date.asc');
+    cy.location('search').should('include', 'sortBy=release_date.asc');
+    cy.contains('button', '1 Active Filter').click();
+    cy.contains('Filters').should('be.visible');
+    cy.contains('button', 'Clear Active Filters').click();
+    cy.location('search').should('not.include', 'sortBy=release_date.asc');
     cy.contains('button', '0 Active Filters').click();
     cy.contains('Filters').should('be.visible');
     cy.get('label[for=music-discover-query]').should('be.visible');
@@ -129,6 +138,9 @@ describe('Books and Music discover parity', () => {
     cy.contains('[data-testid=media-title]', 'Parity Album').should(
       'be.visible'
     );
+    cy.contains('.media-fact', 'Identifiers')
+      .contains('MusicBrainz')
+      .should('be.visible');
   });
 
   it('opens book and music request modals with matching workflow controls', () => {

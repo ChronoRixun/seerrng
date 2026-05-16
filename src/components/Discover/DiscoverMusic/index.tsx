@@ -84,6 +84,7 @@ const DiscoverMusic = () => {
             type="music"
             query={query}
             days={days}
+            sortBy={sortBy}
             onClose={() => setShowFilters(false)}
             show={showFilters}
           />
@@ -92,7 +93,12 @@ const DiscoverMusic = () => {
               <FunnelIcon />
               <span>
                 {intl.formatMessage(messages.activefilters, {
-                  count: countLibraryFilters({ type: 'music', query, days }),
+                  count: countLibraryFilters({
+                    type: 'music',
+                    query,
+                    days,
+                    sortBy,
+                  }),
                 })}
               </span>
             </Button>

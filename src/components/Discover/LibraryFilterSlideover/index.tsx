@@ -32,11 +32,13 @@ export const countLibraryFilters = ({
   query,
   subject,
   days,
+  sortBy,
 }: {
   type: 'book' | 'music';
   query?: string;
   subject?: string;
   days?: string;
+  sortBy?: string;
 }): number => {
   let count = 0;
 
@@ -52,6 +54,10 @@ export const countLibraryFilters = ({
     count += 1;
   }
 
+  if (type === 'music' && sortBy && sortBy !== 'release_date.desc') {
+    count += 1;
+  }
+
   return count;
 };
 
@@ -62,6 +68,7 @@ type LibraryFilterSlideoverProps = {
   query?: string;
   subject?: string;
   days?: string;
+  sortBy?: string;
 };
 
 const LibraryFilterSlideover = ({
@@ -71,6 +78,7 @@ const LibraryFilterSlideover = ({
   query = '',
   subject = 'fiction',
   days = '7',
+  sortBy = 'release_date.desc',
 }: LibraryFilterSlideoverProps) => {
   const intl = useIntl();
   const updateQueryParams = useBatchUpdateQueryParams({});
@@ -80,6 +88,7 @@ const LibraryFilterSlideover = ({
     query,
     subject,
     days,
+    sortBy,
   });
 
   useEffect(() => {
@@ -218,6 +227,7 @@ const LibraryFilterSlideover = ({
                 query: undefined,
                 subject: type === 'book' ? undefined : subject,
                 days: type === 'music' ? undefined : days,
+                sortBy: type === 'music' ? undefined : sortBy,
                 page: undefined,
               });
               onClose();
