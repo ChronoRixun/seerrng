@@ -18,8 +18,30 @@ env:
   DOCKER_HUB: seerr/seerr
 
 jobs:
+  validate-main-tag:
+    name: Validate main release tag
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Ensure tag is on main
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Release tags must point at commits contained in origin/main."
+            exit 1
+          fi
+
   changelog:
     name: Generate changelog
+    needs: validate-main-tag
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -62,6 +84,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.arch }})
+    needs: validate-main-tag
     strategy:
       matrix:
         include:
@@ -306,3 +329,53 @@ jobs:
         run: gh release edit "${{ env.VERSION }}" --draft=false --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  announce-discord:
+    name: Announce release to Discord
+    needs: [changelog, publish, publish-release]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ github.ref_name }}
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+      RELEASE_BODY: ${{ needs.changelog.outputs.release_body }}
+      IMAGE_DIGEST: ${{ needs.publish.outputs.image_digest }}
+    steps:
+      - name: Send Discord announcement
+        if: env.DISCORD_WEBHOOK != ''
+        shell: bash
+        run: |
+          release_url="${{ github.server_url }}/${{ github.repository }}/releases/tag/${VERSION}"
+          image_ref="ghcr.io/${{ github.repository }}:${VERSION}"
+          body="${RELEASE_BODY}"
+          body="${body//$'\r'/}"
+          body="$(printf '%s' "$body" | head -c 3500)"
+
+          jq -n \
+            --arg username "SeerrNG Releases" \
+            --arg title "SeerrNG ${VERSION} is live" \
+            --arg url "$release_url" \
+            --arg description "$body" \
+            --arg image "$image_ref" \
+            --arg digest "$IMAGE_DIGEST" \
+            --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              username: $username,
+              embeds: [{
+                title: $title,
+                url: $url,
+                description: (if $description == "" then "Release notes are available on GitHub." else $description end),
+                color: 5814783,
+                fields: [
+                  { name: "Image", value: ("`" + $image + "`"), inline: false },
+                  { name: "Digest", value: ("`" + $digest + "`"), inline: false },
+                  { name: "Workflow", value: $run_url, inline: false }
+                ]
+              }]
+            }' > payload.json
+
+          curl -sS -H "Content-Type: application/json" \
+            -X POST \
+            --data @payload.json \
+            "$DISCORD_WEBHOOK"
