@@ -1546,7 +1546,7 @@ discoverRoutes.get('/books', async (req, res) => {
     const shouldBlendDefaultSubjects =
       !hasSearchQuery && !hasSubjectFilter && sortByValue === 'ranked';
     const books = shouldBlendDefaultSubjects
-      ? await Promise.all(
+      ? await Promise.allSettled(
           rotateItems(
             defaultBookDiscoverySubjects,
             getDailyRotationOffset(defaultBookDiscoverySubjects.length)
@@ -1559,7 +1559,24 @@ discoverRoutes.get('/books', async (req, res) => {
                 limit: Math.ceil(itemsPerPage / 2),
               })
             )
-        ).then((responses) => {
+        ).then((results) => {
+          const responses = results.flatMap((result) =>
+            result.status === 'fulfilled' ? [result.value] : []
+          );
+
+          if (!responses.length) {
+            throw new Error('No book discovery subjects were available');
+          }
+
+          const rejectedCount = results.length - responses.length;
+
+          if (rejectedCount > 0) {
+            logger.warn('Some book discovery subjects failed during blend', {
+              label: 'Discover Books',
+              failedSubjects: rejectedCount,
+            });
+          }
+
           const docsByKey = new Map<string, OpenLibrarySearchDoc>();
 
           responses
