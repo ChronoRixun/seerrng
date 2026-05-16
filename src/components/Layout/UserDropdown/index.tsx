@@ -47,7 +47,7 @@ const UserDropdown = () => {
   };
 
   return (
-    <Menu as="div" className="relative ml-3">
+    <Menu as="div" className="relative">
       <div>
         <Menu.Button
           className="flex max-w-xs items-center rounded-full text-sm ring-1 ring-gray-700 hover:ring-gray-500 focus:outline-none focus:ring-gray-500"
@@ -73,7 +73,7 @@ const UserDropdown = () => {
         leaveTo="opacity-0 scale-95"
         appear
       >
-        <Menu.Items className="absolute right-0 mt-2 w-72 origin-top-right rounded-md shadow-lg">
+        <Menu.Items className="absolute right-0 z-50 mt-2 w-72 origin-top-right rounded-md shadow-lg">
           <div className="divide-y divide-gray-700 rounded-md bg-gray-800/80 ring-1 ring-gray-700 backdrop-blur">
             <div className="flex flex-col space-y-4 px-4 py-4">
               <div className="flex items-center space-x-2">

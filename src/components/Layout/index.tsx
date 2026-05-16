@@ -2,6 +2,7 @@ import MobileMenu from '@app/components/Layout/MobileMenu';
 import PullToRefresh from '@app/components/Layout/PullToRefresh';
 import SearchInput from '@app/components/Layout/SearchInput';
 import Sidebar from '@app/components/Layout/Sidebar';
+import ThemePicker from '@app/components/Layout/ThemePicker';
 import UserDropdown from '@app/components/Layout/UserDropdown';
 import UserWarnings from '@app/components/Layout/UserWarnings';
 import useLocale from '@app/hooks/useLocale';
@@ -181,8 +182,11 @@ const Layout = ({ children }: LayoutProps) => {
             >
               <ArrowLeftIcon className="w-7" />
             </button>
-            <SearchInput />
-            <div className="flex items-center">
+            <div className="min-w-0 flex-1">
+              <SearchInput />
+            </div>
+            <div className="relative z-20 ml-2 flex shrink-0 items-center gap-2">
+              <ThemePicker />
               <UserDropdown />
             </div>
           </div>

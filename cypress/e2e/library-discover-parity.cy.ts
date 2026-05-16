@@ -53,6 +53,32 @@ describe('Books and Music discover parity', () => {
     cy.loginAsAdmin();
   });
 
+  it('opens the theme picker and persists document theme attributes', () => {
+    cy.viewport(1400, 900);
+    cy.intercept('GET', '/api/v1/discover/movies*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
+    }).as('getMoviesForTheme');
+
+    cy.visit('/discover/movies', {
+      onBeforeLoad(win) {
+        win.localStorage.removeItem('seerr-theme-mode');
+        win.localStorage.removeItem('seerr-theme-palette');
+      },
+    });
+    cy.wait('@getMoviesForTheme');
+
+    cy.get('button[aria-label="Theme picker"]').click();
+    cy.contains('button', 'Lagoon').click();
+    cy.get('html').should('have.attr', 'data-theme-palette', 'lagoon');
+
+    cy.get('button[aria-label="Theme picker"]').click();
+    cy.contains('button', 'Dark mode').click();
+    cy.get('html').should('have.attr', 'data-theme-mode', 'light');
+  });
+
   it('matches the video discover toolbar shape for books and music', () => {
     cy.viewport(1400, 900);
     cy.intercept('GET', '/api/v1/discover/movies*', {

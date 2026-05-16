@@ -4,11 +4,12 @@ import PWAHeader from '@app/components/PWAHeader';
 import { InteractionProvider } from '@app/context/InteractionContext';
 import { LanguageContext } from '@app/context/LanguageContext';
 import { SettingsProvider } from '@app/context/SettingsContext';
+import { ThemeProvider } from '@app/context/ThemeContext';
 import { UserContext } from '@app/context/UserContext';
 import useSettings from '@app/hooks/useSettings';
+import enMessages from '@app/i18n/locale/en.json';
 import '@app/styles/globals.css';
 import { polyfillIntl } from '@app/utils/polyfillIntl';
-import enMessages from '@app/i18n/locale/en.json';
 import '@fontsource-variable/inter';
 import type { AvailableLocale } from '@server/types/languages';
 import axios from 'axios';
@@ -173,28 +174,30 @@ const CoreApp = ({ Component, pageProps, router }: AppProps) => {
           messages={loadedMessages}
         >
           <LoadingBar />
-          <SettingsProvider>
-            <InteractionProvider>
-              <Head>
-                <meta
-                  name="viewport"
-                  content="initial-scale=1, viewport-fit=cover, width=device-width"
+          <ThemeProvider>
+            <SettingsProvider>
+              <InteractionProvider>
+                <Head>
+                  <meta
+                    name="viewport"
+                    content="initial-scale=1, viewport-fit=cover, width=device-width"
+                  />
+                </Head>
+                <AppHead />
+                <StatusChecker />
+                <ServiceWorkerSetup />
+                <UserContext>{component}</UserContext>
+                <Toaster
+                  position="top-right"
+                  toastOptions={{ duration: 4000 }}
+                  containerStyle={{
+                    zIndex: 10000,
+                    paddingTop: 'env(safe-area-inset-top)',
+                  }}
                 />
-              </Head>
-              <AppHead />
-              <StatusChecker />
-              <ServiceWorkerSetup />
-              <UserContext>{component}</UserContext>
-              <Toaster
-                position="top-right"
-                toastOptions={{ duration: 4000 }}
-                containerStyle={{
-                  zIndex: 10000,
-                  paddingTop: 'env(safe-area-inset-top)',
-                }}
-              />
-            </InteractionProvider>
-          </SettingsProvider>
+              </InteractionProvider>
+            </SettingsProvider>
+          </ThemeProvider>
         </IntlProvider>
       </LanguageContext.Provider>
     </SWRConfig>
