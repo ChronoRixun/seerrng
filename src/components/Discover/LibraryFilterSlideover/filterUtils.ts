@@ -1,3 +1,22 @@
+const bookSortOptions = new Set([
+  'ranked',
+  'newest',
+  'oldest',
+  'random',
+  'rating',
+  'editions',
+]);
+
+const musicSortOptions = new Set([
+  'ranked',
+  'popular.week',
+  'popular.month',
+  'popular.year',
+  'listen_count.desc',
+  'release_date.desc',
+  'release_date.asc',
+]);
+
 export const countLibraryFilters = ({
   type,
   query,
@@ -25,7 +44,12 @@ export const countLibraryFilters = ({
     count += 1;
   }
 
-  if (type === 'book' && sortBy && sortBy !== 'ranked') {
+  if (
+    type === 'book' &&
+    sortBy &&
+    bookSortOptions.has(sortBy) &&
+    sortBy !== 'ranked'
+  ) {
     count += 1;
   }
 
@@ -33,7 +57,12 @@ export const countLibraryFilters = ({
     count += 1;
   }
 
-  if (type === 'music' && sortBy && sortBy !== 'ranked') {
+  if (
+    type === 'music' &&
+    sortBy &&
+    musicSortOptions.has(sortBy) &&
+    sortBy !== 'ranked'
+  ) {
     count += 1;
   }
 
