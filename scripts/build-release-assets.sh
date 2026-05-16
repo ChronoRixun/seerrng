@@ -24,6 +24,7 @@ work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 stage="${work_dir}/${asset}"
 mkdir -p "$stage"
+rm -f "${dist_abs}/${asset}.tar.gz" "${dist_abs}/${asset}.zip" "${dist_abs}/${asset}.sha256"
 
 if command -v corepack >/dev/null 2>&1; then
   corepack enable

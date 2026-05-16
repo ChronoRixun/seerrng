@@ -1,0 +1,95 @@
+name: Build Flatpak
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.inputs.tag }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Install Flatpak tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder xz-utils
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+      - name: Download release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            if gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --clobber; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
+      - name: Prepare Flatpak sources
+        run: |
+          set -euo pipefail
+          mkdir -p flatpak-src/seerrng flatpak-src/node
+          tar -xzf "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --strip-components=1 -C flatpak-src/seerrng
+          curl -fsSLo node.tar.xz https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz
+          tar -xJf node.tar.xz --strip-components=1 -C flatpak-src/node
+          cat > flatpak-release.yml <<'EOF'
+          app-id: io.github.snapetech.seerrng
+          runtime: org.freedesktop.Platform
+          runtime-version: '24.08'
+          sdk: org.freedesktop.Sdk
+          command: seerrng-wrapper
+          finish-args:
+            - --share=network
+            - --filesystem=xdg-config/seerrng:create
+          modules:
+            - name: node
+              buildsystem: simple
+              build-commands:
+                - mkdir -p /app/node /app/bin
+                - cp -R . /app/node/
+                - ln -sf /app/node/bin/node /app/bin/node
+              sources:
+                - type: dir
+                  path: flatpak-src/node
+            - name: seerrng
+              buildsystem: simple
+              build-commands:
+                - mkdir -p /app/lib/seerrng /app/bin
+                - cp -R . /app/lib/seerrng/
+                - |
+                  cat > /app/bin/seerrng-wrapper <<'WRAPPER'
+                  #!/usr/bin/env sh
+                  set -eu
+                  export NODE_ENV=production
+                  export CONFIG_DIRECTORY="${XDG_CONFIG_HOME:-$HOME/.config}/seerrng"
+                  mkdir -p "$CONFIG_DIRECTORY"
+                  exec /app/bin/node /app/lib/seerrng/dist/index.js "$@"
+                  WRAPPER
+                  chmod 0755 /app/bin/seerrng-wrapper
+              sources:
+                - type: dir
+                  path: flatpak-src/seerrng
+          EOF
+      - name: Build Flatpak bundle
+        run: |
+          set -euo pipefail
+          flatpak-builder --force-clean --repo=flatpak-repo flatpak-build flatpak-release.yml
+          flatpak build-bundle flatpak-repo "SeerrNG-${{ steps.version.outputs.version }}-x86_64.flatpak" io.github.snapetech.seerrng
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: SeerrNG-*.flatpak

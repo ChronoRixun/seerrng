@@ -348,6 +348,7 @@ jobs:
           for workflow in \
             release-assets.yml \
             release-linux-packages.yml \
+            release-flatpak.yml \
             release-aur.yml \
             release-snap.yml \
             release-ppa.yml \
