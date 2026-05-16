@@ -446,6 +446,51 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
               />
             );
             break;
+          case DiscoverSliderType.OPENLIBRARY_BOOK_SUBJECT:
+            sliderComponent = (
+              <MediaSlider
+                sliderKey={`custom-slider-${slider.id}`}
+                title={slider.title ?? ''}
+                url="/api/v1/discover/books"
+                extraParams={`subject=${encodeURIExtraParams(
+                  slider.data ?? ''
+                )}&sortBy=ranked`}
+                linkUrl={`/discover/books?subject=${encodeURIExtraParams(
+                  slider.data ?? ''
+                )}&sortBy=ranked`}
+              />
+            );
+            break;
+          case DiscoverSliderType.MUSICBRAINZ_MUSIC_GENRE:
+            sliderComponent = (
+              <MediaSlider
+                sliderKey={`custom-slider-${slider.id}`}
+                title={slider.title ?? ''}
+                url="/api/v1/discover/music"
+                extraParams={`genre=${encodeURIExtraParams(
+                  slider.data ?? ''
+                )}&sortBy=ranked`}
+                linkUrl={`/discover/music?genre=${encodeURIExtraParams(
+                  slider.data ?? ''
+                )}&sortBy=ranked`}
+              />
+            );
+            break;
+          case DiscoverSliderType.LISTENBRAINZ_MUSIC_CHART:
+            sliderComponent = (
+              <MediaSlider
+                sliderKey={`custom-slider-${slider.id}`}
+                title={slider.title ?? ''}
+                url="/api/v1/discover/music"
+                extraParams={`sortBy=${encodeURIExtraParams(
+                  slider.data ?? ''
+                )}`}
+                linkUrl={`/discover/music?sortBy=${encodeURIExtraParams(
+                  slider.data ?? ''
+                )}`}
+              />
+            );
+            break;
         }
 
         if (isEditing) {

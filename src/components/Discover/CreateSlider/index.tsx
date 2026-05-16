@@ -31,6 +31,9 @@ const messages = defineMessages('components.Discover.CreateSlider', {
   providetmdbsearch: 'Provide a search query',
   providetmdbstudio: 'Provide TMDB Studio ID',
   providetmdbnetwork: 'Provide TMDB Network ID',
+  providebooksubject: 'Provide an Open Library subject',
+  providemusicgenre: 'Provide a MusicBrainz tag',
+  providemusicchart: 'Select a ListenBrainz chart',
   addsuccess: 'Created new slider and saved discover customization settings.',
   addfail: 'Failed to create new slider.',
   editsuccess: 'Edited slider and saved discover customization settings.',
@@ -44,6 +47,26 @@ const messages = defineMessages('components.Discover.CreateSlider', {
   searchStudios: 'Search studios…',
   starttyping: 'Starting typing to search.',
   nooptions: 'No results.',
+  fiction: 'Fiction',
+  fantasy: 'Fantasy',
+  scienceFiction: 'Science Fiction',
+  mystery: 'Mystery',
+  biography: 'Biography',
+  romance: 'Romance',
+  history: 'History',
+  thriller: 'Thriller',
+  alternative: 'Alternative',
+  classical: 'Classical',
+  country: 'Country',
+  electronic: 'Electronic',
+  hipHop: 'Hip-Hop',
+  jazz: 'Jazz',
+  metal: 'Metal',
+  pop: 'Pop',
+  rock: 'Rock',
+  popularWeek: 'Popular This Week',
+  popularMonth: 'Popular This Month',
+  popularYear: 'Popular This Year',
 });
 
 type CreateSliderProps = {
@@ -228,6 +251,41 @@ const CreateSlider = ({ onCreate, slider }: CreateSliderProps) => {
     }));
   };
 
+  const bookSubjectOptions = [
+    { label: intl.formatMessage(messages.fiction), value: 'fiction' },
+    { label: intl.formatMessage(messages.fantasy), value: 'fantasy' },
+    {
+      label: intl.formatMessage(messages.scienceFiction),
+      value: 'science_fiction',
+    },
+    { label: intl.formatMessage(messages.mystery), value: 'mystery' },
+    { label: intl.formatMessage(messages.biography), value: 'biography' },
+    { label: intl.formatMessage(messages.romance), value: 'romance' },
+    { label: intl.formatMessage(messages.history), value: 'history' },
+    { label: intl.formatMessage(messages.thriller), value: 'thriller' },
+  ];
+
+  const musicGenreOptions = [
+    { label: intl.formatMessage(messages.alternative), value: 'alternative' },
+    { label: intl.formatMessage(messages.classical), value: 'classical' },
+    { label: intl.formatMessage(messages.country), value: 'country' },
+    { label: intl.formatMessage(messages.electronic), value: 'electronic' },
+    { label: intl.formatMessage(messages.hipHop), value: 'hip hop' },
+    { label: intl.formatMessage(messages.jazz), value: 'jazz' },
+    { label: intl.formatMessage(messages.metal), value: 'metal' },
+    { label: intl.formatMessage(messages.pop), value: 'pop' },
+    { label: intl.formatMessage(messages.rock), value: 'rock' },
+  ];
+
+  const musicChartOptions = [
+    { label: intl.formatMessage(messages.popularWeek), value: 'popular.week' },
+    {
+      label: intl.formatMessage(messages.popularMonth),
+      value: 'popular.month',
+    },
+    { label: intl.formatMessage(messages.popularYear), value: 'popular.year' },
+  ];
+
   const options: CreateOption[] = [
     {
       type: DiscoverSliderType.TMDB_MOVIE_KEYWORD,
@@ -294,6 +352,30 @@ const CreateSlider = ({ onCreate, slider }: CreateSliderProps) => {
       dataUrl: '/api/v1/discover/tv',
       params: 'watchRegion=$regionValue&watchProviders=$providersValue',
       titlePlaceholderText: intl.formatMessage(messages.slidernameplaceholder),
+    },
+    {
+      type: DiscoverSliderType.OPENLIBRARY_BOOK_SUBJECT,
+      title: intl.formatMessage(sliderTitles.openlibrarybooksubject),
+      dataUrl: '/api/v1/discover/books',
+      params: 'subject=$value&sortBy=ranked',
+      titlePlaceholderText: intl.formatMessage(messages.slidernameplaceholder),
+      dataPlaceholderText: intl.formatMessage(messages.providebooksubject),
+    },
+    {
+      type: DiscoverSliderType.MUSICBRAINZ_MUSIC_GENRE,
+      title: intl.formatMessage(sliderTitles.musicbrainzmusicgenre),
+      dataUrl: '/api/v1/discover/music',
+      params: 'genre=$value&sortBy=ranked',
+      titlePlaceholderText: intl.formatMessage(messages.slidernameplaceholder),
+      dataPlaceholderText: intl.formatMessage(messages.providemusicgenre),
+    },
+    {
+      type: DiscoverSliderType.LISTENBRAINZ_MUSIC_CHART,
+      title: intl.formatMessage(sliderTitles.listenbrainzmusicchart),
+      dataUrl: '/api/v1/discover/music',
+      params: 'sortBy=$value',
+      titlePlaceholderText: intl.formatMessage(messages.slidernameplaceholder),
+      dataPlaceholderText: intl.formatMessage(messages.providemusicchart),
     },
   ];
 
@@ -468,6 +550,42 @@ const CreateSlider = ({ onCreate, slider }: CreateSliderProps) => {
                   setFieldValue('data', `${region},${providers.join('|')}`);
                 }}
               />
+            );
+            break;
+          case DiscoverSliderType.OPENLIBRARY_BOOK_SUBJECT:
+            dataInput = (
+              <Field as="select" name="data" id="data">
+                <option value="">{activeOption.dataPlaceholderText}</option>
+                {bookSubjectOptions.map((option) => (
+                  <option value={option.value} key={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Field>
+            );
+            break;
+          case DiscoverSliderType.MUSICBRAINZ_MUSIC_GENRE:
+            dataInput = (
+              <Field as="select" name="data" id="data">
+                <option value="">{activeOption.dataPlaceholderText}</option>
+                {musicGenreOptions.map((option) => (
+                  <option value={option.value} key={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Field>
+            );
+            break;
+          case DiscoverSliderType.LISTENBRAINZ_MUSIC_CHART:
+            dataInput = (
+              <Field as="select" name="data" id="data">
+                <option value="">{activeOption.dataPlaceholderText}</option>
+                {musicChartOptions.map((option) => (
+                  <option value={option.value} key={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Field>
             );
             break;
           default:

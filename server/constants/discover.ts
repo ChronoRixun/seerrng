@@ -24,6 +24,9 @@ export enum DiscoverSliderType {
   TMDB_TV_STREAMING_SERVICES,
   POPULAR_MUSIC,
   POPULAR_BOOKS,
+  OPENLIBRARY_BOOK_SUBJECT,
+  MUSICBRAINZ_MUSIC_GENRE,
+  LISTENBRAINZ_MUSIC_CHART,
 }
 
 export const defaultSliders: Partial<DiscoverSlider>[] = [

@@ -90,6 +90,9 @@ export const sliderTitles = defineMessages('components.Discover', {
   tmdbsearch: 'TMDB Search',
   tmdbmoviestreamingservices: 'TMDB Movie Streaming Services',
   tmdbtvstreamingservices: 'TMDB TV Streaming Services',
+  openlibrarybooksubject: 'Open Library Book Subject',
+  musicbrainzmusicgenre: 'MusicBrainz Music Genre',
+  listenbrainzmusicchart: 'ListenBrainz Music Chart',
 });
 
 export const QueryFilterOptions = z.object({
