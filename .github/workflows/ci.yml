@@ -201,17 +201,19 @@ jobs:
         run: echo "CHANNEL=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        if: matrix.platform == 'linux/arm64'
+        if: github.ref != 'refs/heads/main' && matrix.platform == 'linux/arm64'
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
         with:
           platforms: arm64
 
       - name: Set up Docker Buildx
+        if: github.ref != 'refs/heads/main' || matrix.arch == 'amd64'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
         with:
           driver-opts: network=host
 
       - name: Warm cache (no push) — ${{ matrix.platform }}
+        if: github.ref != 'refs/heads/main' || matrix.arch == 'amd64'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -249,6 +251,7 @@ jobs:
         run: echo "CHANNEL=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
+        if: github.ref != 'refs/heads/main'
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
         with:
           platforms: arm64
@@ -289,7 +292,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ github.ref == 'refs/heads/main' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: true
           build-args: |
             COMMIT_TAG=${{ github.sha }}
