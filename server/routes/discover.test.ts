@@ -296,6 +296,40 @@ describe('GET /discover/music', () => {
 });
 
 describe('GET /discover/books', () => {
+  it('uses the selected subject when browsing without a search query', async () => {
+    const searchBooksMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'searchBooks',
+      async ({
+        query,
+        page,
+        limit,
+      }: {
+        query: string;
+        page?: number;
+        limit?: number;
+      }) => {
+        assert.strictEqual(query, 'subject:science_fiction');
+        assert.strictEqual(page, 2);
+        assert.strictEqual(limit, 20);
+
+        return {
+          numFound: 0,
+          start: 20,
+          docs: [],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/books?subject=science_fiction&page=2'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(searchBooksMock.mock.callCount(), 1);
+  });
+
   it('returns mapped Open Library book discovery results', async () => {
     mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
       numFound: 1,

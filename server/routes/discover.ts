@@ -1073,10 +1073,14 @@ discoverRoutes.get('/books', async (req, res, next) => {
   const openLibrary = new OpenLibraryAPI();
   const itemsPerPage = 20;
   const page = req.query.page ? Number(req.query.page) : 1;
+  const subject =
+    typeof req.query.subject === 'string' && req.query.subject.trim()
+      ? req.query.subject.trim()
+      : 'fiction';
   const query =
     typeof req.query.query === 'string' && req.query.query.trim()
       ? req.query.query.trim()
-      : 'subject:fiction';
+      : `subject:${subject}`;
 
   try {
     const books = await openLibrary.searchBooks({
