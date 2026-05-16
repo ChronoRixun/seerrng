@@ -44,6 +44,21 @@ const LibraryTitleCard = ({
     }
   );
 
+  if (!title && !error && fallbackTitle) {
+    return (
+      <div ref={ref}>
+        <TitleCard
+          id={id}
+          title={fallbackTitle}
+          mediaType={type}
+          isAddedToWatchlist={isAddedToWatchlist}
+          canExpand={canExpand}
+          mutateParent={mutateParent}
+        />
+      </div>
+    );
+  }
+
   if (!title && !error) {
     return (
       <div ref={ref}>

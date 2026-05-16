@@ -178,6 +178,67 @@ describe('GET /discover/movies', () => {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(callCount, 1);
   });
+
+  it('ranks movie genre discovery by quality signals within the TMDB page', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      if (endpoint === '/genre/movie/list') {
+        return { genres: [{ id: 28, name: 'Action' }] };
+      }
+
+      assert.strictEqual(endpoint, '/discover/movie');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: [
+          {
+            id: 1,
+            media_type: 'movie',
+            title: 'Thin Genre Movie',
+            original_title: 'Thin Genre Movie',
+            release_date: '2026-01-01',
+            adult: false,
+            video: false,
+            popularity: 100,
+            poster_path: '/thin.jpg',
+            backdrop_path: '/thin-backdrop.jpg',
+            vote_count: 1,
+            vote_average: 4,
+            genre_ids: [28],
+            overview: '',
+            original_language: 'en',
+          },
+          {
+            id: 2,
+            media_type: 'movie',
+            title: 'Proven Genre Movie',
+            original_title: 'Proven Genre Movie',
+            release_date: '2025-01-01',
+            adult: false,
+            video: false,
+            popularity: 20,
+            poster_path: '/proven.jpg',
+            backdrop_path: '/proven-backdrop.jpg',
+            vote_count: 1000,
+            vote_average: 8,
+            genre_ids: [28],
+            overview: '',
+            original_language: 'en',
+          },
+        ],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/movies/genre/28');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Proven Genre Movie', 'Thin Genre Movie']
+    );
+  });
 });
 
 describe('GET /discover/tv', () => {
@@ -261,6 +322,65 @@ describe('GET /discover/tv', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(callCount, 1);
+  });
+
+  it('ranks series genre discovery by quality signals within the TMDB page', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      if (endpoint === '/genre/tv/list') {
+        return { genres: [{ id: 18, name: 'Drama' }] };
+      }
+
+      assert.strictEqual(endpoint, '/discover/tv');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: [
+          {
+            id: 1,
+            media_type: 'tv',
+            name: 'Thin Genre Series',
+            original_name: 'Thin Genre Series',
+            origin_country: ['US'],
+            first_air_date: '2026-01-01',
+            popularity: 100,
+            poster_path: '/thin.jpg',
+            backdrop_path: '/thin-backdrop.jpg',
+            vote_count: 1,
+            vote_average: 4,
+            genre_ids: [18],
+            overview: '',
+            original_language: 'en',
+          },
+          {
+            id: 2,
+            media_type: 'tv',
+            name: 'Proven Genre Series',
+            original_name: 'Proven Genre Series',
+            origin_country: ['US'],
+            first_air_date: '2025-01-01',
+            popularity: 20,
+            poster_path: '/proven.jpg',
+            backdrop_path: '/proven-backdrop.jpg',
+            vote_count: 1000,
+            vote_average: 8,
+            genre_ids: [18],
+            overview: '',
+            original_language: 'en',
+          },
+        ],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/tv/genre/18');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { name: string }) => result.name),
+      ['Proven Genre Series', 'Thin Genre Series']
+    );
   });
 });
 

@@ -306,14 +306,16 @@ const CreateSlider = ({ onCreate, slider }: CreateSliderProps) => {
     {
       type: DiscoverSliderType.TMDB_MOVIE_GENRE,
       title: intl.formatMessage(sliderTitles.tmdbmoviegenre),
-      dataUrl: '/api/v1/discover/movies/genre/$value',
+      dataUrl: '/api/v1/discover/movies',
+      params: 'genre=$value',
       titlePlaceholderText: intl.formatMessage(messages.slidernameplaceholder),
       dataPlaceholderText: intl.formatMessage(messages.providetmdbgenreid),
     },
     {
       type: DiscoverSliderType.TMDB_TV_GENRE,
       title: intl.formatMessage(sliderTitles.tmdbtvgenre),
-      dataUrl: '/api/v1/discover/tv/genre/$value',
+      dataUrl: '/api/v1/discover/tv',
+      params: 'genre=$value',
       titlePlaceholderText: intl.formatMessage(messages.slidernameplaceholder),
       dataPlaceholderText: intl.formatMessage(messages.providetmdbgenreid),
     },

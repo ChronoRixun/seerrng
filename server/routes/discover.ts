@@ -611,10 +611,11 @@ discoverRoutes.get<{ genreId: string }>(
         language: (req.query.language as string) ?? req.locale,
         genre: req.params.genreId as string,
       });
+      const rankedResults = rankTmdbMovieResults(data.results);
 
       const media = await Media.getRelatedMedia(
         req.user,
-        data.results.map((result) => ({
+        rankedResults.map((result) => ({
           tmdbId: result.id,
           mediaType: MediaType.MOVIE,
         }))
@@ -625,7 +626,7 @@ discoverRoutes.get<{ genreId: string }>(
         totalPages: data.total_pages,
         totalResults: data.total_results,
         genre,
-        results: data.results.map((result) =>
+        results: rankedResults.map((result) =>
           mapMovieResult(
             result,
             media.find(
@@ -921,10 +922,11 @@ discoverRoutes.get<{ genreId: string }>(
         language: (req.query.language as string) ?? req.locale,
         genre: req.params.genreId,
       });
+      const rankedResults = rankTmdbTvResults(data.results);
 
       const media = await Media.getRelatedMedia(
         req.user,
-        data.results.map((result) => ({
+        rankedResults.map((result) => ({
           tmdbId: result.id,
           mediaType: MediaType.TV,
         }))
@@ -935,7 +937,7 @@ discoverRoutes.get<{ genreId: string }>(
         totalPages: data.total_pages,
         totalResults: data.total_results,
         genre,
-        results: data.results.map((result) =>
+        results: rankedResults.map((result) =>
           mapTvResult(
             result,
             media.find(
