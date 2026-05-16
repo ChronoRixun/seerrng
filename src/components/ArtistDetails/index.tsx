@@ -3,6 +3,7 @@ import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
+import MediaSlider from '@app/components/MediaSlider';
 import BulkRequestModal from '@app/components/RequestModal/BulkRequestModal';
 import TitleCard from '@app/components/TitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -28,6 +29,7 @@ const messages = defineMessages('components.ArtistDetails', {
   broadcast: 'Broadcast',
   demo: 'Demo',
   other: 'Other',
+  similarartists: 'Similar Artists',
   showall: 'Show All',
   showless: 'Show Less',
   requestdiscography: 'Request Discography',
@@ -269,6 +271,14 @@ const ArtistDetails = () => {
       </div>
 
       <div className="space-y-8">
+        {artistId && (
+          <MediaSlider
+            sliderKey="artist-similar-artists"
+            title={intl.formatMessage(messages.similarartists)}
+            url={`/api/v1/artist/${artistId}/similar`}
+            hideWhenEmpty
+          />
+        )}
         {albumTypeOrder
           .filter((type) => (albumTypes[type]?.albums.length ?? 0) > 0)
           .map((type) => {

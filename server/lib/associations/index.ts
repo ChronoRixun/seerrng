@@ -1,6 +1,8 @@
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
+import TheAudioDb from '@server/api/theaudiodb';
 import TheMovieDb from '@server/api/themoviedb';
+import TmdbPersonMapper from '@server/api/themoviedb/personMapper';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
@@ -127,14 +129,17 @@ const buildForScreen = async (
       edges.push({
         weight: scoreScreenResult(r) * 0.4,
         type: 'shared-genre',
-        reason: `Also ${rootGenres.get(sharedGenre)}`,
+        reason: `Shares ${rootGenres.get(sharedGenre)}`,
         node,
       });
     } else {
       edges.push({
         weight: scoreScreenResult(r) * (type === 'similar' ? 1 : 0.85),
         type,
-        reason: type === 'similar' ? 'Similar title' : 'Recommended for fans',
+        reason:
+          type === 'similar'
+            ? 'Similar tone and audience'
+            : 'Often recommended with this',
         node,
       });
     }
@@ -176,6 +181,57 @@ const hydrateArtistThumbs = async (
   } catch {
     return new Map();
   }
+};
+
+const hydrateSimilarArtists = async (
+  artists: { artist_mbid: string; name: string; type?: string | null }[]
+): Promise<{
+  metadata: Map<string, MetadataArtist>;
+  images: Record<
+    string,
+    { artistThumb: string | null; artistBackground: string | null }
+  >;
+}> => {
+  const mbIds = artists.map((artist) => artist.artist_mbid).filter(Boolean);
+  const metadataArtistRepository = getRepository(MetadataArtist);
+  const theAudioDb = new TheAudioDb();
+  const personMapper = new TmdbPersonMapper();
+
+  const initialMetadata = await hydrateArtistThumbs(mbIds);
+  const artistsNeedingImages = mbIds.filter((id) => {
+    const metadata = initialMetadata.get(id);
+    return !metadata?.tadbThumb && !metadata?.tadbCover;
+  });
+  const personArtists = artists
+    .filter((artist) => artist.type === 'Person')
+    .filter((artist) => !initialMetadata.get(artist.artist_mbid)?.tmdbPersonId)
+    .map((artist) => ({
+      artistId: artist.artist_mbid,
+      artistName: artist.name,
+    }));
+
+  const [imageResult, mappingResult] = await Promise.allSettled([
+    artistsNeedingImages.length > 0
+      ? theAudioDb.batchGetArtistImages(artistsNeedingImages)
+      : Promise.resolve({}),
+    personArtists.length > 0
+      ? personMapper.batchGetMappings(personArtists).then(() =>
+          metadataArtistRepository.find({
+            where: { mbArtistId: In(mbIds) },
+          })
+        )
+      : Promise.resolve(Array.from(initialMetadata.values())),
+  ]);
+
+  const metadataRows =
+    mappingResult.status === 'fulfilled'
+      ? mappingResult.value
+      : Array.from(initialMetadata.values());
+
+  return {
+    metadata: new Map(metadataRows.map((row) => [row.mbArtistId, row])),
+    images: imageResult.status === 'fulfilled' ? imageResult.value : {},
+  };
 };
 
 const findBookMediaByOpenLibraryIds = async (
@@ -234,10 +290,13 @@ const buildArtistEdges = async (
     .slice(0, ASSOCIATION_LIMITS.MAX_SAME_MEDIUM);
 
   const maxScore = similar.reduce((m, a) => Math.max(m, a.score), 0) || 1;
-  const thumbs = await hydrateArtistThumbs(similar.map((a) => a.artist_mbid));
+  const { metadata, images } = await hydrateSimilarArtists(similar);
 
   const edges: AssociationEdge[] = similar.map((a, idx) => {
-    const meta = thumbs.get(a.artist_mbid);
+    const meta = metadata.get(a.artist_mbid);
+    const imageResult = images[a.artist_mbid];
+    const artistThumb =
+      meta?.tadbThumb ?? imageResult?.artistThumb ?? null;
     const node: ArtistResult = {
       id: a.artist_mbid,
       score: a.score,
@@ -245,15 +304,16 @@ const buildArtistEdges = async (
       name: a.name,
       type: a.type === 'Group' ? 'Group' : 'Person',
       'sort-name': a.name,
-      artistThumb: meta?.tmdbThumb ?? meta?.tadbThumb ?? null,
-      artistBackdrop: meta?.tadbCover ?? null,
+      artistThumb: meta?.tmdbThumb ?? artistThumb,
+      artistBackdrop: meta?.tadbCover ?? imageResult?.artistBackground ?? null,
+      tmdbPersonId: meta?.tmdbPersonId ? Number(meta.tmdbPersonId) : undefined,
     };
     // Tail of the similar list is treated as weak genre-proximity.
     const isWeakTail = idx >= 10;
     return {
       weight: clamp01(a.score / maxScore) * (isWeakTail ? 0.4 : 1),
       type: isWeakTail ? 'shared-genre' : 'similar',
-      reason: isWeakTail ? 'Adjacent sound' : 'Similar artist',
+      reason: isWeakTail ? 'Nearby listener overlap' : 'Similar artist',
       node,
     };
   });

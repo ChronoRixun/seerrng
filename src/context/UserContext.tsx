@@ -4,7 +4,7 @@ import { useRouter } from 'next/dist/client/router';
 import { useEffect, useRef } from 'react';
 
 interface UserContextProps {
-  initialUser: User;
+  initialUser?: User;
   children?: React.ReactNode;
 }
 
@@ -14,7 +14,9 @@ interface UserContextProps {
  * the login page if their session ever becomes invalid.
  */
 export const UserContext = ({ initialUser, children }: UserContextProps) => {
-  const { user, error, revalidate } = useUser({ initialData: initialUser });
+  const { user, loading, error, revalidate } = useUser({
+    initialData: initialUser,
+  });
   const router = useRouter();
   const routing = useRef(false);
   const previousPathname = useRef(router.pathname);
@@ -31,13 +33,14 @@ export const UserContext = ({ initialUser, children }: UserContextProps) => {
   useEffect(() => {
     if (
       !router.pathname.match(/(setup|login|resetpassword)/) &&
+      !loading &&
       (!user || error) &&
       !routing.current
     ) {
       routing.current = true;
       location.href = '/login';
     }
-  }, [router, user, error]);
+  }, [router, user, loading, error]);
 
   return <>{children}</>;
 };

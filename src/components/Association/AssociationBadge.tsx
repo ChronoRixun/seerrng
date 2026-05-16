@@ -2,8 +2,8 @@ import type { AssociationMediaType } from '@app/hooks/useAssociations';
 import useAssociations, {
   toAssociationMediaType,
 } from '@app/hooks/useAssociations';
+import LinkedNodesIcon from '@app/assets/linked-nodes.svg';
 import defineMessages from '@app/utils/defineMessages';
-import { ShareIcon } from '@heroicons/react/24/solid';
 import { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useIntl } from 'react-intl';
@@ -86,7 +86,7 @@ const AssociationBadge = ({
           setIsOpen((open) => !open);
         }}
       >
-        <ShareIcon className="h-4 w-4" />
+        <LinkedNodesIcon className="h-4 w-4" />
       </button>
       {isOpen &&
         ReactDOM.createPortal(

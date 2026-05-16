@@ -454,7 +454,7 @@ class ImageProxy {
       const expireAt = Date.now() + maxAge * 1000;
       const etag = (response.headers.etag ?? '').replace(/"/g, '');
 
-      await this.writeToCacheDir(
+      const filePath = await this.writeToCacheDir(
         directory,
         extension,
         maxAge,
@@ -485,7 +485,9 @@ class ImageProxy {
           cacheKey,
           cacheMiss: true,
         },
-        imageBuffer: buffer,
+        ...(buffer.length <= LRU_ITEM_MAX_BYTES
+          ? { imageBuffer: buffer }
+          : { filePath }),
       };
     } catch (e) {
       logger.debug('Something went wrong caching image.', {
@@ -503,7 +505,7 @@ class ImageProxy {
     expireAt: number,
     buffer: Buffer,
     etag: string
-  ) {
+  ): Promise<string> {
     const filename = join(dir, `${maxAge}.${expireAt}.${etag}.${extension}`);
 
     await promises.rm(dir, { force: true, recursive: true }).catch(() => {
@@ -512,6 +514,8 @@ class ImageProxy {
 
     await promises.mkdir(dir, { recursive: true });
     await promises.writeFile(filename, buffer);
+
+    return filename;
   }
 
   private getCacheKey(path: string) {

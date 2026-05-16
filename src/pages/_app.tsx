@@ -5,16 +5,14 @@ import { InteractionProvider } from '@app/context/InteractionContext';
 import { LanguageContext } from '@app/context/LanguageContext';
 import { SettingsProvider } from '@app/context/SettingsContext';
 import { UserContext } from '@app/context/UserContext';
-import type { User } from '@app/hooks/useUser';
+import useSettings from '@app/hooks/useSettings';
 import '@app/styles/globals.css';
 import { polyfillIntl } from '@app/utils/polyfillIntl';
+import enMessages from '@app/i18n/locale/en.json';
 import '@fontsource-variable/inter';
-import { MediaServerType } from '@server/constants/server';
-import type { PublicSettingsResponse } from '@server/interfaces/api/settingsInterfaces';
 import type { AvailableLocale } from '@server/types/languages';
 import axios from 'axios';
-import type { AppInitialProps, AppProps } from 'next/app';
-import App from 'next/app';
+import type { AppProps } from 'next/app';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { useEffect, useRef, useState } from 'react';
@@ -110,32 +108,32 @@ const loadLocaleData = (locale: AvailableLocale): Promise<any> => {
   }
 };
 
-// Custom types so we can correctly type our GetInitialProps function
-// with our combined user prop
-// This is specific to _app.tsx. Other pages will not need to do this!
-type NextAppComponentType = typeof App;
 type MessagesType = Record<string, string>;
 
-interface ExtendedAppProps extends AppProps {
-  user: User;
-  messages: MessagesType;
-  locale: AvailableLocale;
-  currentSettings: PublicSettingsResponse;
-}
+// Reads settings from context (populated client-side by SettingsProvider)
+// to set the document title and PWA meta tags.
+const AppHead = () => {
+  const { currentSettings } = useSettings();
 
-const CoreApp: Omit<NextAppComponentType, 'origGetInitialProps'> = ({
-  Component,
-  pageProps,
-  router,
-  user,
-  messages,
-  locale,
-  currentSettings,
-}: ExtendedAppProps) => {
+  return (
+    <Head>
+      <title>{currentSettings.applicationTitle}</title>
+      <PWAHeader applicationTitle={currentSettings.applicationTitle} />
+    </Head>
+  );
+};
+
+const CoreApp = ({ Component, pageProps, router }: AppProps) => {
   let component: React.ReactNode;
-  const [loadedMessages, setMessages] = useState<MessagesType>(messages);
-  const [currentLocale, setLocale] = useState<AvailableLocale>(locale);
-  const loadedLocale = useRef<AvailableLocale>(locale);
+  const [loadedMessages, setMessages] = useState<MessagesType>(
+    enMessages as MessagesType
+  );
+  const [currentLocale, setLocale] = useState<AvailableLocale>('en');
+  const loadedLocale = useRef<AvailableLocale>('en');
+
+  useEffect(() => {
+    polyfillIntl();
+  }, []);
 
   useEffect(() => {
     if (currentLocale === loadedLocale.current) {
@@ -162,9 +160,10 @@ const CoreApp: Omit<NextAppComponentType, 'origGetInitialProps'> = ({
     <SWRConfig
       value={{
         fetcher: (url) => axios.get(url).then((res) => res.data),
-        fallback: {
-          '/api/v1/auth/me': user,
-        },
+        revalidateOnFocus: false,
+        focusThrottleInterval: 30000,
+        dedupingInterval: 30000,
+        keepPreviousData: true,
       }}
     >
       <LanguageContext.Provider value={{ locale: currentLocale, setLocale }}>
@@ -174,21 +173,18 @@ const CoreApp: Omit<NextAppComponentType, 'origGetInitialProps'> = ({
           messages={loadedMessages}
         >
           <LoadingBar />
-          <SettingsProvider currentSettings={currentSettings}>
+          <SettingsProvider>
             <InteractionProvider>
               <Head>
-                <title>{currentSettings.applicationTitle}</title>
                 <meta
                   name="viewport"
                   content="initial-scale=1, viewport-fit=cover, width=device-width"
                 />
-                <PWAHeader
-                  applicationTitle={currentSettings.applicationTitle}
-                />
               </Head>
+              <AppHead />
               <StatusChecker />
               <ServiceWorkerSetup />
-              <UserContext initialUser={user}>{component}</UserContext>
+              <UserContext>{component}</UserContext>
               <Toaster
                 position="top-right"
                 toastOptions={{ duration: 4000 }}
@@ -203,104 +199,6 @@ const CoreApp: Omit<NextAppComponentType, 'origGetInitialProps'> = ({
       </LanguageContext.Provider>
     </SWRConfig>
   );
-};
-
-CoreApp.getInitialProps = async (initialProps) => {
-  const { ctx, router } = initialProps;
-  let user: User | undefined = undefined;
-  let currentSettings: PublicSettingsResponse = {
-    initialized: false,
-    applicationTitle: '',
-    applicationUrl: '',
-    hideAvailable: false,
-    hideBlocklisted: false,
-    movie4kEnabled: false,
-    series4kEnabled: false,
-    localLogin: true,
-    mediaServerLogin: true,
-    discoverRegion: '',
-    streamingRegion: '',
-    originalLanguage: '',
-    mediaServerType: MediaServerType.NOT_CONFIGURED,
-    partialRequestsEnabled: true,
-    enableSpecialEpisodes: false,
-    cacheImages: true,
-    vapidPublic: '',
-    enablePushRegistration: false,
-    locale: 'en',
-    emailEnabled: false,
-    newPlexLogin: true,
-    youtubeUrl: '',
-    plexClientIdentifier: '',
-  };
-
-  if (ctx.res) {
-    const apiBaseUrl = `http://${process.env.HOST || 'localhost'}:${
-      process.env.PORT || 5055
-    }`;
-    const authRequest = axios
-      .get<User>(`${apiBaseUrl}/api/v1/auth/me`, {
-        headers:
-          ctx.req && ctx.req.headers.cookie
-            ? { cookie: ctx.req.headers.cookie }
-            : undefined,
-      })
-      .catch(() => undefined);
-
-    // Check if app is initialized and redirect if necessary
-    const response = await axios.get<PublicSettingsResponse>(
-      `${apiBaseUrl}/api/v1/settings/public`
-    );
-
-    currentSettings = response.data;
-
-    const initialized = response.data.initialized;
-
-    if (!initialized) {
-      if (!router.pathname.match(/(setup|login\/plex)/)) {
-        ctx.res.writeHead(307, {
-          Location: '/setup',
-        });
-        ctx.res.end();
-      }
-    } else {
-      const authResponse = await authRequest;
-
-      if (authResponse) {
-        user = authResponse.data;
-
-        if (router.pathname.match(/(setup|login)/)) {
-          ctx.res.writeHead(307, {
-            Location: '/',
-          });
-          ctx.res.end();
-        }
-      } else {
-        // If there is no user, and ctx.res is set (to check if we are on the server side)
-        // _AND_ we are not already on the login or setup route, redirect to /login with a 307
-        // before anything actually renders
-        if (!router.pathname.match(/(login|setup|resetpassword)/)) {
-          ctx.res.writeHead(307, {
-            Location: '/login',
-          });
-          ctx.res.end();
-        }
-      }
-    }
-  }
-
-  // Run the default getInitialProps for the main nextjs initialProps
-  const appInitialProps: AppInitialProps =
-    await App.getInitialProps(initialProps);
-
-  const locale = user?.settings?.locale
-    ? user.settings.locale
-    : currentSettings.locale;
-
-  const messages = await loadLocaleData(locale as AvailableLocale);
-  await polyfillIntl();
-
-  return { ...appInitialProps, user, messages, locale, currentSettings };
 };
 
 export default CoreApp;

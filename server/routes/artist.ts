@@ -6,11 +6,48 @@ import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import MetadataAlbum from '@server/entity/MetadataAlbum';
 import MetadataArtist from '@server/entity/MetadataArtist';
+import { getAssociations } from '@server/lib/associations';
 import logger from '@server/logger';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
 const artistRoutes = Router();
+
+artistRoutes.get('/:id/similar', async (req, res, next) => {
+  const page = Number(req.query.page) || 1;
+  const pageSize = Number(req.query.pageSize) || 20;
+
+  try {
+    const graph = await getAssociations('artist', req.params.id, req.user, {
+      includeWeak: false,
+      limit: 60,
+    });
+    const results = graph.edges
+      .filter(
+        (edge) => edge.type === 'similar' && edge.node.mediaType === 'artist'
+      )
+      .map((edge) => edge.node);
+    const totalResults = results.length;
+    const totalPages = Math.max(Math.ceil(totalResults / pageSize), 1);
+
+    return res.status(200).json({
+      page,
+      totalPages,
+      totalResults,
+      results: results.slice((page - 1) * pageSize, page * pageSize),
+    });
+  } catch (e) {
+    logger.error('Something went wrong retrieving similar artists', {
+      label: 'Artist API',
+      errorMessage: e.message,
+      artistId: req.params.id,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve similar artists.',
+    });
+  }
+});
 
 artistRoutes.get('/:id', async (req, res, next) => {
   const listenbrainz = new ListenBrainzAPI();

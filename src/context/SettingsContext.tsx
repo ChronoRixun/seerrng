@@ -41,7 +41,10 @@ export const SettingsContext = React.createContext<SettingsContextProps>({
 export const SettingsProvider = ({
   children,
   currentSettings,
-}: SettingsContextProps) => {
+}: {
+  currentSettings?: PublicSettingsResponse;
+  children?: React.ReactNode;
+}) => {
   const { data, error } = useSWR<PublicSettingsResponse>(
     '/api/v1/settings/public',
     {

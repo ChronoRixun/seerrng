@@ -25,6 +25,7 @@ const messages = defineMessages('components.Association', {
 
 type ViewMode = 'wall' | 'graph';
 const STORAGE_KEY = 'association-view-mode';
+const GRAPH_MEDIA_QUERY = '(min-width: 640px)';
 
 const AssociationExplorer = () => {
   const intl = useIntl();
@@ -33,6 +34,7 @@ const AssociationExplorer = () => {
   const id = router.query.id as string;
 
   const [view, setView] = useState<ViewMode>('wall');
+  const [isGraphAvailable, setIsGraphAvailable] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -41,7 +43,31 @@ const AssociationExplorer = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(GRAPH_MEDIA_QUERY);
+
+    const updateGraphAvailability = () => {
+      const canShowGraph = mediaQuery.matches;
+      setIsGraphAvailable(canShowGraph);
+
+      if (!canShowGraph) {
+        setView('wall');
+      }
+    };
+
+    updateGraphAvailability();
+    mediaQuery.addEventListener('change', updateGraphAvailability);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateGraphAvailability);
+    };
+  }, []);
+
   const setMode = (mode: ViewMode) => {
+    if (mode === 'graph' && !isGraphAvailable) {
+      return;
+    }
+
     setView(mode);
     window.localStorage.setItem(STORAGE_KEY, mode);
   };
@@ -62,6 +88,8 @@ const AssociationExplorer = () => {
     );
   }
 
+  const effectiveView = isGraphAvailable ? view : 'wall';
+
   return (
     <>
       <PageTitle
@@ -75,25 +103,27 @@ const AssociationExplorer = () => {
         </h1>
         <div className="flex flex-shrink-0 flex-wrap gap-2">
           <Button
-            buttonType={view === 'wall' ? 'primary' : 'default'}
+            buttonType={effectiveView === 'wall' ? 'primary' : 'default'}
             buttonSize="sm"
             onClick={() => setMode('wall')}
           >
             <ListBulletIcon />
             <span>{intl.formatMessage(messages.wallview)}</span>
           </Button>
-          <Button
-            buttonType={view === 'graph' ? 'primary' : 'default'}
-            buttonSize="sm"
-            onClick={() => setMode('graph')}
-          >
-            <ShareIcon />
-            <span>{intl.formatMessage(messages.graphview)}</span>
-          </Button>
+          {isGraphAvailable && (
+            <Button
+              buttonType={effectiveView === 'graph' ? 'primary' : 'default'}
+              buttonSize="sm"
+              onClick={() => setMode('graph')}
+            >
+              <ShareIcon />
+              <span>{intl.formatMessage(messages.graphview)}</span>
+            </Button>
+          )}
         </div>
       </div>
 
-      {view === 'wall' ? (
+      {effectiveView === 'wall' ? (
         <AssociationWall graph={graph} />
       ) : (
         <AssociationGraph graph={graph} />

@@ -22,7 +22,7 @@ const associationGraph = {
     {
       weight: 0.8,
       type: 'similar',
-      reason: 'Similar title',
+      reason: 'Similar tone and audience',
       node: {
         id: 'OLOTHERW',
         mediaType: 'book',
@@ -164,5 +164,14 @@ describe('Associations', () => {
     cy.contains('[data-testid=association-graph-node]', 'Related Book')
       .should('be.visible')
       .click();
+  });
+
+  it('keeps the list view on mobile where the graph would be cramped', () => {
+    cy.viewport('iphone-6');
+    cy.visit('/associations/book/OLROOTW');
+    cy.wait('@getAssociations');
+
+    cy.contains('button', 'Map').should('not.exist');
+    cy.get('[data-testid=association-wall]').should('be.visible');
   });
 });
