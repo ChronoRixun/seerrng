@@ -6,7 +6,7 @@ import UserDropdown from '@app/components/Layout/UserDropdown';
 import UserWarnings from '@app/components/Layout/UserWarnings';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
-import { useUser } from '@app/hooks/useUser';
+import { Permission, useUser } from '@app/hooks/useUser';
 import { ArrowLeftIcon, Bars3BottomLeftIcon } from '@heroicons/react/24/solid';
 import type { AvailableLocale } from '@server/types/languages';
 import { useRouter } from 'next/router';
@@ -21,7 +21,7 @@ const Layout = ({ children }: LayoutProps) => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const isScrolledRef = useRef(false);
-  const { user } = useUser();
+  const { hasPermission, user } = useUser();
   const router = useRouter();
   const { currentSettings } = useSettings();
   const { setLocale } = useLocale();
@@ -67,6 +67,49 @@ const Layout = ({ children }: LayoutProps) => {
 
     return () => globalThis.clearTimeout(timeout);
   }, []);
+
+  useEffect(() => {
+    if (!countsEnabled) {
+      return;
+    }
+
+    const handleFocus = () => {
+      revalidateRequestsCount();
+      revalidateIssueCount();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [countsEnabled, revalidateIssueCount, revalidateRequestsCount]);
+
+  useEffect(() => {
+    const newNavigator = navigator as unknown as {
+      setAppBadge?: (count: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+
+    if (!('setAppBadge' in newNavigator)) {
+      return;
+    }
+
+    if (!hasPermission(Permission.ADMIN)) {
+      newNavigator.clearAppBadge?.();
+      return;
+    }
+
+    const pendingRequests = requestResponse?.pending;
+
+    if (typeof pendingRequests !== 'number') {
+      return;
+    }
+
+    if (pendingRequests > 0) {
+      newNavigator.setAppBadge?.(pendingRequests);
+    } else {
+      newNavigator.clearAppBadge?.();
+    }
+  }, [hasPermission, requestResponse?.pending]);
 
   useEffect(() => {
     const updateScrolled = () => {

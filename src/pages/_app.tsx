@@ -6,7 +6,6 @@ import { LanguageContext } from '@app/context/LanguageContext';
 import { SettingsProvider } from '@app/context/SettingsContext';
 import { UserContext } from '@app/context/UserContext';
 import type { User } from '@app/hooks/useUser';
-import { Permission, useUser } from '@app/hooks/useUser';
 import '@app/styles/globals.css';
 import { polyfillIntl } from '@app/utils/polyfillIntl';
 import '@fontsource-variable/inter';
@@ -148,64 +147,6 @@ const CoreApp: Omit<NextAppComponentType, 'origGetInitialProps'> = ({
       setMessages(localeMessages);
     });
   }, [currentLocale]);
-
-  const { hasPermission } = useUser();
-
-  useEffect(() => {
-    const requestsCount = async () => {
-      const response = await axios.get('/api/v1/request/count');
-      return response.data;
-    };
-
-    // Cast navigator to a type that includes setAppBadge and clearAppBadge
-    // to avoid TypeScript errors while ensuring these methods exist before calling them.
-    const newNavigator = navigator as unknown as {
-      setAppBadge?: (count: number) => Promise<void>;
-      clearAppBadge?: () => Promise<void>;
-    };
-
-    const handleBadgeUpdate = () => {
-      if ('setAppBadge' in newNavigator) {
-        if (
-          !router.pathname.match(/(login|setup|resetpassword)/) &&
-          hasPermission(Permission.ADMIN)
-        ) {
-          requestsCount().then((data) => {
-            if (data.pending > 0) {
-              newNavigator.setAppBadge?.(data.pending);
-            } else {
-              newNavigator.clearAppBadge?.();
-            }
-          });
-        } else {
-          newNavigator.clearAppBadge?.();
-        }
-      }
-    };
-
-    let idleCallback: number | undefined;
-    let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
-
-    if ('requestIdleCallback' in window) {
-      idleCallback = window.requestIdleCallback(handleBadgeUpdate, {
-        timeout: 5000,
-      });
-    } else {
-      timeout = globalThis.setTimeout(handleBadgeUpdate, 2000);
-    }
-
-    window.addEventListener('focus', handleBadgeUpdate);
-
-    return () => {
-      if (idleCallback !== undefined) {
-        window.cancelIdleCallback(idleCallback);
-      }
-      if (timeout !== undefined) {
-        globalThis.clearTimeout(timeout);
-      }
-      window.removeEventListener('focus', handleBadgeUpdate);
-    };
-  }, [hasPermission, router.pathname]);
 
   if (router.pathname.match(/(login|setup|resetpassword)/)) {
     component = <Component {...pageProps} />;
