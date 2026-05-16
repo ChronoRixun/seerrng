@@ -71,7 +71,11 @@ const messages = defineMessages('components.Discover', {
   createnewslider: 'Create New Slider',
 });
 
-const Discover = () => {
+type DiscoverProps = {
+  initialSliders?: DiscoverSlider[];
+};
+
+const Discover = ({ initialSliders }: DiscoverProps) => {
   const intl = useIntl();
   const { hasPermission } = useUser();
   const { addToast } = useToasts();
@@ -79,7 +83,12 @@ const Discover = () => {
     data: discoverData,
     error: discoverError,
     mutate,
-  } = useSWR<DiscoverSlider[]>('/api/v1/settings/discover');
+  } = useSWR<DiscoverSlider[]>('/api/v1/settings/discover', {
+    fallbackData: initialSliders,
+    revalidateOnMount: !initialSliders,
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
   const [sliders, setSliders] = useState<Partial<DiscoverSlider>[]>([]);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -292,6 +301,7 @@ const Discover = () => {
                 title={intl.formatMessage(sliderTitles.popularmusic)}
                 url="/api/v1/discover/music"
                 linkUrl="/discover/music"
+                extraParams="sortBy=ranked"
               />
             );
             break;
@@ -302,6 +312,7 @@ const Discover = () => {
                 title={intl.formatMessage(sliderTitles.popularbooks)}
                 url="/api/v1/discover/books"
                 linkUrl="/discover/books"
+                extraParams="sortBy=ranked"
               />
             );
             break;
