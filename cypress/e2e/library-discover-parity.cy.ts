@@ -297,6 +297,85 @@ describe('Books and Music discover parity', () => {
     cy.get('[data-testid=modal-cancel-button]').should('contain', 'Cancel');
   });
 
+  it('keeps book and music service setup modals aligned with video services', () => {
+    cy.intercept('GET', '/api/v1/settings/radarr', []);
+    cy.intercept('GET', '/api/v1/settings/sonarr', []);
+    cy.intercept('GET', '/api/v1/settings/lidarr', []);
+    cy.intercept('GET', '/api/v1/settings/readarr', []);
+    cy.intercept('GET', '/api/v1/overrideRule', []);
+
+    cy.visit('/settings/services');
+
+    cy.contains('h3', 'Radarr Settings').should('be.visible');
+    cy.contains('h3', 'Lidarr Settings').scrollIntoView().should('be.visible');
+    cy.contains('h3', 'Bookshelf Settings')
+      .scrollIntoView()
+      .should('be.visible');
+
+    cy.contains('button', 'Add Lidarr Server').click();
+    cy.contains('[data-testid=modal-title]', 'Add New Lidarr Server').should(
+      'be.visible'
+    );
+    cy.contains('label', 'API Key')
+      .scrollIntoView()
+      .contains('Find it in Lidarr')
+      .should('be.visible');
+    cy.contains('label', 'URL Base')
+      .scrollIntoView()
+      .contains('If you set a URL Base in Lidarr')
+      .should('be.visible');
+    cy.contains('label', 'External URL')
+      .scrollIntoView()
+      .contains('For clickable links on media pages')
+      .should('be.visible');
+    cy.contains('label', 'Enable Scan')
+      .scrollIntoView()
+      .contains('Scan Lidarr for existing media')
+      .should('be.visible');
+    cy.contains('label', 'Enable Automatic Search')
+      .scrollIntoView()
+      .contains('Automatically trigger a search in Lidarr')
+      .should('be.visible');
+    cy.get('select[name=activeMetadataProfileId]')
+      .scrollIntoView()
+      .should('be.visible');
+    cy.get('[data-testid=modal-cancel-button]').click();
+
+    cy.contains('button', 'Add Bookshelf Server').click();
+    cy.contains(
+      '[data-testid=modal-title]',
+      'Add New Bookshelf Server'
+    ).should('be.visible');
+    cy.contains(
+      'Bookshelf is the recommended book backend. Readarr-compatible servers can also be used.'
+    ).should('be.visible');
+    cy.contains('label', 'Book Format').should('be.visible');
+    cy.get('select[name=serviceType]').should('be.visible');
+    cy.contains('label', 'API Key')
+      .scrollIntoView()
+      .contains('Find it in Bookshelf or Readarr')
+      .should('be.visible');
+    cy.contains('label', 'URL Base')
+      .scrollIntoView()
+      .contains('If you set a URL Base in Bookshelf or Readarr')
+      .should('be.visible');
+    cy.contains('label', 'External URL')
+      .scrollIntoView()
+      .contains('For clickable links on media pages')
+      .should('be.visible');
+    cy.contains('label', 'Enable Scan')
+      .scrollIntoView()
+      .contains('Scan Bookshelf for existing books')
+      .should('be.visible');
+    cy.contains('label', 'Enable Automatic Search')
+      .scrollIntoView()
+      .contains('Automatically trigger a search in Bookshelf')
+      .should('be.visible');
+    cy.get('select[name=activeMetadataProfileId]')
+      .scrollIntoView()
+      .should('be.visible');
+  });
+
   it('uses medium-appropriate issue choices for books and music', () => {
     cy.intercept('GET', '/api/v1/book/OLISSUEW', {
       id: 'OLISSUEW',
