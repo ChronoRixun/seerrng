@@ -1113,7 +1113,7 @@ discoverRoutes.get('/books', async (req, res, next) => {
 
     return res.status(200).json({
       page,
-      totalPages: Math.ceil(books.numFound / itemsPerPage),
+      totalPages: Math.max(Math.ceil(books.numFound / itemsPerPage), 1),
       totalResults: books.numFound,
       results: books.docs.map((doc) =>
         mapOpenLibrarySearchDoc(

@@ -338,6 +338,9 @@ describe('GET /discover/books', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(searchBooksMock.mock.callCount(), 1);
+    assert.strictEqual(res.body.totalPages, 1);
+    assert.strictEqual(res.body.totalResults, 0);
+    assert.deepStrictEqual(res.body.results, []);
   });
 
   it('returns mapped Open Library book discovery results', async () => {
