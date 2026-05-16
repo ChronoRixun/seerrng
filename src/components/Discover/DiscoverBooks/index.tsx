@@ -9,6 +9,7 @@ import defineMessages from '@app/utils/defineMessages';
 import {
   BarsArrowDownIcon,
   MagnifyingGlassIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type { BookResult } from '@server/models/Book';
 import { useRouter } from 'next/router';
@@ -19,6 +20,7 @@ const messages = defineMessages('components.Discover.DiscoverBooks', {
   books: 'Books',
   searchPlaceholder: 'Search books',
   search: 'Search',
+  clearSearch: 'Clear Search',
   fiction: 'Fiction',
   fantasy: 'Fantasy',
   scienceFiction: 'Science Fiction',
@@ -93,6 +95,19 @@ const DiscoverBooks = () => {
               <MagnifyingGlassIcon />
               <span>{intl.formatMessage(messages.search)}</span>
             </Button>
+            {!!query && (
+              <Button
+                className="ml-2"
+                type="button"
+                onClick={() => {
+                  setSearchValue('');
+                  updateQueryParams({ query: undefined, page: undefined });
+                }}
+              >
+                <XMarkIcon />
+                <span>{intl.formatMessage(messages.clearSearch)}</span>
+              </Button>
+            )}
           </form>
           <div className="flex flex-grow lg:flex-grow-0">
             <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">

@@ -203,6 +203,115 @@ describe('GET /search', () => {
     assert.equal(book.isbn13, '9780000000002');
   });
 
+  it('keeps global book and music search active after the first page', async () => {
+    let albumSearchOffset: number | undefined;
+    let artistSearchOffset: number | undefined;
+    let bookSearchPage: number | undefined;
+
+    mock.method(
+      MusicBrainz.prototype,
+      'searchAlbum',
+      async (options: unknown) => {
+        const { offset } = options as { offset?: number };
+        albumSearchOffset = offset;
+
+        return [
+          {
+            id: 'album-page-2',
+            media_type: 'album',
+            title: 'Paged Album',
+            score: 95,
+            'primary-type': 'Album',
+            'first-release-date': '2026-02-01',
+            'artist-credit': [
+              {
+                name: 'Paged Artist',
+                artist: {
+                  id: 'artist-page-2',
+                  name: 'Paged Artist',
+                  'sort-name': 'Artist, Paged',
+                },
+              },
+            ],
+            posterPath: undefined,
+          },
+        ];
+      }
+    );
+    mock.method(
+      MusicBrainz.prototype,
+      'searchArtist',
+      async (options: unknown) => {
+        const { offset } = options as { offset?: number };
+        artistSearchOffset = offset;
+
+        return [
+          {
+            id: 'artist-page-2',
+            media_type: 'artist',
+            name: 'Paged Artist',
+            type: 'Group',
+            'sort-name': 'Artist, Paged',
+            score: 90,
+          },
+        ];
+      }
+    );
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint, options) => {
+      const endpointString = endpoint as string;
+      if (endpointString === '/search/multi') {
+        return {
+          page: 2,
+          total_pages: 2,
+          total_results: 20,
+          results: [],
+        };
+      }
+
+      if (endpointString === '/search.json') {
+        bookSearchPage = Number(
+          (options as { params?: { page?: string } })?.params?.page
+        );
+
+        return {
+          numFound: 30,
+          start: 20,
+          docs: [
+            {
+              key: '/works/OLPAGE2W',
+              title: 'Paged Book',
+              author_name: ['Paged Author'],
+              first_publish_year: 2026,
+              cover_i: 456,
+              isbn: ['9780000000003'],
+              edition_key: ['OLPAGE2M'],
+            },
+          ],
+        };
+      }
+
+      throw new Error(`Unexpected endpoint: ${endpointString}`);
+    });
+    mock.method(
+      TmdbPersonMapper.prototype,
+      'batchGetMappings',
+      async () => ({})
+    );
+    mock.method(TheAudioDb.prototype, 'batchGetArtistImages', async () => ({}));
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.get('/search').query({ query: 'paged', page: 2 });
+
+    assert.strictEqual(res.status, 200);
+    assert.equal(albumSearchOffset, 20);
+    assert.equal(artistSearchOffset, 20);
+    assert.equal(bookSearchPage, 2);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { mediaType: string }) => result.mediaType),
+      ['album', 'artist', 'book']
+    );
+  });
+
   it('keeps unmapped artists visible and suppresses TMDB-mapped duplicates', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint) => {
       const endpointString = endpoint as string;

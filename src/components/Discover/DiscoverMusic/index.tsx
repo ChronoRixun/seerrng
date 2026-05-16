@@ -13,6 +13,7 @@ import {
   BarsArrowDownIcon,
   CalendarDaysIcon,
   MagnifyingGlassIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type { AlbumResult } from '@server/models/Search';
 import { useRouter } from 'next/router';
@@ -23,6 +24,7 @@ const messages = defineMessages('components.Discover.DiscoverMusic', {
   music: 'Music',
   searchPlaceholder: 'Search music',
   search: 'Search',
+  clearSearch: 'Clear Search',
   dateDesc: 'Newest First',
   dateAsc: 'Oldest First',
   last7Days: 'Last 7 Days',
@@ -100,6 +102,22 @@ const DiscoverMusic = () => {
               <MagnifyingGlassIcon />
               <span>{intl.formatMessage(messages.search)}</span>
             </Button>
+            {!!query && (
+              <Button
+                className="ml-2"
+                type="button"
+                onClick={() => {
+                  setSearchValue('');
+                  updateBatchQueryParams({
+                    query: undefined,
+                    page: undefined,
+                  });
+                }}
+              >
+                <XMarkIcon />
+                <span>{intl.formatMessage(messages.clearSearch)}</span>
+              </Button>
+            )}
           </form>
           <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 lg:flex-grow-0">
             <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">

@@ -47,6 +47,7 @@ searchRoutes.get('/', async (req, res, next) => {
       const openLibrary = new OpenLibraryAPI();
       const theAudioDb = new TheAudioDb();
       const personMapper = new TmdbPersonMapper();
+      const musicOffset = (page - 1) * 20;
 
       const responses = await Promise.allSettled([
         tmdb.searchMulti({
@@ -57,10 +58,12 @@ searchRoutes.get('/', async (req, res, next) => {
         musicbrainz.searchAlbum({
           query: queryString,
           limit: 20,
+          offset: musicOffset,
         }),
         musicbrainz.searchArtist({
           query: queryString,
           limit: 20,
+          offset: musicOffset,
         }),
         openLibrary.searchBooks({
           query: queryString,
@@ -314,10 +317,11 @@ searchRoutes.get('/', async (req, res, next) => {
         )
       );
 
-      const combinedResults =
-        page === 1
-          ? [...tmdbResults.results, ...musicResults, ...mappedBookResults]
-          : tmdbResults.results;
+      const combinedResults = [
+        ...tmdbResults.results,
+        ...musicResults,
+        ...mappedBookResults,
+      ];
 
       results = {
         page: tmdbResults.page,
