@@ -56,7 +56,6 @@ import type { MovieDetails as MovieDetailsType } from '@server/models/Movie';
 import axios from 'axios';
 import { countries } from 'country-flag-icons';
 import 'country-flag-icons/3x2/flags.css';
-import { uniqBy } from 'lodash';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -246,10 +245,13 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
   // 4. Digital
   // 5. Physical
   // 6. TV
-  const filteredReleases = uniqBy(
-    releases?.filter((r) => r.type > 2 && r.type < 6),
-    'type'
-  );
+  const filteredReleases = [
+    ...new Map(
+      releases
+        ?.filter((r) => r.type > 2 && r.type < 6)
+        .map((release) => [release.type, release])
+    ).values(),
+  ];
 
   const movieAttributes: React.ReactNode[] = [];
 

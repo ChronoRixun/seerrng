@@ -20,7 +20,6 @@ import type { PlexDevice } from '@server/interfaces/api/plexInterfaces';
 import type { PlexSettings, TautulliSettings } from '@server/lib/settings';
 import axios from 'axios';
 import { Field, Formik } from 'formik';
-import { orderBy } from 'lodash';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -234,7 +233,10 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
       );
     });
 
-    return orderBy(finalPresets, ['status', 'ssl'], ['desc', 'desc']);
+    return finalPresets.sort(
+      (a, b) =>
+        Number(b.status) - Number(a.status) || Number(b.ssl) - Number(a.ssl)
+    );
   }, [availableServers]);
 
   const syncLibraries = async () => {

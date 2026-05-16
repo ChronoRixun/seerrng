@@ -24,7 +24,6 @@ import {
 import { MediaStatus } from '@server/constants/media';
 import type { Collection } from '@server/models/Collection';
 import axios from 'axios';
-import { uniq } from 'lodash';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useMemo, useState } from 'react';
@@ -248,12 +247,14 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
 
   if (genres && data.parts.some((part) => part.genreIds.length)) {
     collectionAttributes.push(
-      uniq(
-        data.parts.reduce(
-          (genresList: number[], curr) => genresList.concat(curr.genreIds),
-          []
-        )
-      )
+      [
+        ...new Set(
+          data.parts.reduce(
+            (genresList: number[], curr) => genresList.concat(curr.genreIds),
+            []
+          )
+        ),
+      ]
         .map((genreId) => (
           <Link
             href={`/discover/movies/genre/${genreId}`}

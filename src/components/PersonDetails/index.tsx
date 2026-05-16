@@ -11,7 +11,6 @@ import defineMessages from '@app/utils/defineMessages';
 import { CircleStackIcon } from '@heroicons/react/24/solid';
 import type { PersonCombinedCreditsResponse } from '@server/interfaces/api/personInterfaces';
 import type { PersonDetails as PersonDetailsType } from '@server/models/Person';
-import { groupBy } from 'lodash';
 import { useRouter } from 'next/router';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
@@ -28,6 +27,13 @@ const messages = defineMessages('components.PersonDetails', {
 });
 
 type MediaType = 'all' | 'movie' | 'tv';
+
+const groupById = <T extends { id: number | string }>(items: T[]) =>
+  items.reduce<Record<string, T[]>>((groups, item) => {
+    const key = item.id.toString();
+    groups[key] = [...(groups[key] ?? []), item];
+    return groups;
+  }, {});
 
 const PersonDetails = () => {
   const intl = useIntl();
@@ -48,7 +54,7 @@ const PersonDetails = () => {
       (media) =>
         currentMediaType === 'all' || media.mediaType === currentMediaType
     );
-    const grouped = groupBy(filtered, 'id');
+    const grouped = groupById(filtered);
 
     const reduced = Object.values(grouped).map((objs) => ({
       ...objs[0],
@@ -70,7 +76,7 @@ const PersonDetails = () => {
       (media) =>
         currentMediaType === 'all' || media.mediaType === currentMediaType
     );
-    const grouped = groupBy(filtered, 'id');
+    const grouped = groupById(filtered);
 
     const reduced = Object.values(grouped).map((objs) => ({
       ...objs[0],
