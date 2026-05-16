@@ -314,6 +314,7 @@ const RequestItemError = ({
                       {intl.formatMessage(messages.modifieduserdate, {
                         date: (
                           <FormattedRelativeTime
+                            key="date"
                             value={Math.floor(
                               (new Date(requestData.createdAt).getTime() -
                                 Date.now()) /
@@ -325,6 +326,7 @@ const RequestItemError = ({
                         ),
                         user: (
                           <Link
+                            key="user"
                             href={`/users/${requestData.requestedBy.id}`}
                             className="group flex items-center truncate"
                           >
@@ -353,6 +355,7 @@ const RequestItemError = ({
                     </span>
                     <span className="flex truncate text-sm text-gray-300">
                       <FormattedRelativeTime
+                        key="date"
                         value={Math.floor(
                           (new Date(requestData.createdAt).getTime() -
                             Date.now()) /
@@ -374,6 +377,7 @@ const RequestItemError = ({
                     {intl.formatMessage(messages.modifieduserdate, {
                       date: (
                         <FormattedRelativeTime
+                          key="date"
                           value={Math.floor(
                             (new Date(requestData.updatedAt).getTime() -
                               Date.now()) /
@@ -385,6 +389,7 @@ const RequestItemError = ({
                       ),
                       user: (
                         <Link
+                          key="user"
                           href={`/users/${requestData.modifiedBy.id}`}
                           className="group flex items-center truncate"
                         >
@@ -799,6 +804,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                     {intl.formatMessage(messages.modifieduserdate, {
                       date: (
                         <FormattedRelativeTime
+                          key="date"
                           value={Math.floor(
                             (new Date(requestData.createdAt).getTime() -
                               Date.now()) /
@@ -810,6 +816,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                       ),
                       user: (
                         <Link
+                          key="user"
                           href={`/users/${requestData.requestedBy.id}`}
                           className="group flex items-center truncate"
                         >
@@ -838,6 +845,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   </span>
                   <span className="flex truncate text-sm text-gray-300">
                     <FormattedRelativeTime
+                      key="date"
                       value={Math.floor(
                         (new Date(requestData.createdAt).getTime() -
                           Date.now()) /
@@ -859,6 +867,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                   {intl.formatMessage(messages.modifieduserdate, {
                     date: (
                       <FormattedRelativeTime
+                        key="date"
                         value={Math.floor(
                           (new Date(requestData.updatedAt).getTime() -
                             Date.now()) /
@@ -870,6 +879,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                     ),
                     user: (
                       <Link
+                        key="user"
                         href={`/users/${requestData.modifiedBy.id}`}
                         className="group flex items-center truncate"
                       >

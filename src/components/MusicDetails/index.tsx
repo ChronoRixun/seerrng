@@ -159,7 +159,9 @@ const MusicDetails = () => {
         <span>
           {intl.formatMessage(globalMessages.blocklistSuccess, {
             title: data.title,
-            strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+            strong: (msg: React.ReactNode) => (
+              <strong key="strong">{msg}</strong>
+            ),
           })}
         </span>,
         { appearance: 'success', autoDismiss: true }
@@ -191,7 +193,9 @@ const MusicDetails = () => {
           <span>
             {intl.formatMessage(messages.watchlistSuccess, {
               title: data.title,
-              strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+              strong: (msg: React.ReactNode) => (
+                <strong key="strong">{msg}</strong>
+              ),
             })}
           </span>,
           { appearance: 'success', autoDismiss: true }
@@ -220,7 +224,9 @@ const MusicDetails = () => {
         <span>
           {intl.formatMessage(messages.watchlistDeleted, {
             title: data.title,
-            strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
+            strong: (msg: React.ReactNode) => (
+              <strong key="strong">{msg}</strong>
+            ),
           })}
         </span>,
         { appearance: 'info', autoDismiss: true }
@@ -426,11 +432,15 @@ const MusicDetails = () => {
                 </Tooltip>
               )}
               {canBlocklist && (
-                <Tooltip content={intl.formatMessage(globalMessages.addToBlocklist)}>
+                <Tooltip
+                  content={intl.formatMessage(globalMessages.addToBlocklist)}
+                >
                   <Button
                     buttonType="ghost"
                     onClick={() => setShowBlocklistModal(true)}
-                    aria-label={intl.formatMessage(globalMessages.addToBlocklist)}
+                    aria-label={intl.formatMessage(
+                      globalMessages.addToBlocklist
+                    )}
                   >
                     <EyeSlashIcon className="!mr-0" />
                   </Button>

@@ -399,7 +399,9 @@ const RequestList = () => {
                       : (pageIndex + 1) * currentPageSize,
                   total: data.pageInfo.results,
                   strong: (msg: React.ReactNode) => (
-                    <span className="font-medium">{msg}</span>
+                    <span key="strong" className="font-medium">
+                      {msg}
+                    </span>
                   ),
                 })}
             </p>
