@@ -357,7 +357,7 @@ musicRoutes.get('/:id/artist-discography', async (req, res, next) => {
 
     return res.status(200).json({
       page,
-      totalPages: Math.ceil(totalReleaseGroups / pageSize),
+      totalPages: Math.max(Math.ceil(totalReleaseGroups / pageSize), 1),
       totalResults: totalReleaseGroups,
       results: transformedReleaseGroups,
     });
@@ -409,7 +409,7 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
       ) ?? [];
 
     const totalResults = allSimilarArtists.length;
-    const totalPages = Math.ceil(totalResults / pageSize);
+    const totalPages = Math.max(Math.ceil(totalResults / pageSize), 1);
 
     const paginatedSimilarArtists = allSimilarArtists.slice(
       (page - 1) * pageSize,
