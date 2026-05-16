@@ -45,6 +45,7 @@ jobs:
           mkdir -p flatpak-src/seerrng flatpak-src/node
           tar -xzf "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --strip-components=1 -C flatpak-src/seerrng
           curl -fsSLo node.tar.xz https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz
+          echo "88fd1ce767091fd8d4a99fdb2356e98c819f93f3b1f8663853a2dee9b438068a  node.tar.xz" | sha256sum -c -
           tar -xJf node.tar.xz --strip-components=1 -C flatpak-src/node
       - name: Build Flatpak bundle
         run: |
