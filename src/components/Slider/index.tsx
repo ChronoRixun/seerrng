@@ -1,8 +1,6 @@
 import TitleCard from '@app/components/TitleCard';
 import globalMessages from '@app/i18n/globalMessages';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { useSpring } from '@react-spring/web';
-import { debounce } from 'lodash';
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
 import { useIntl } from 'react-intl';
 
@@ -30,6 +28,7 @@ const Slider = ({
 }: SliderProps) => {
   const intl = useIntl();
   const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<number | undefined>(undefined);
   const [scrollPos, setScrollPos] = useState({ isStart: true, isEnd: false });
 
   const handleScroll = useCallback(() => {
@@ -55,11 +54,10 @@ const Slider = ({
     }
   }, [items]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedScroll = useCallback(
-    debounce(() => handleScroll(), 50),
-    [handleScroll]
-  );
+  const debouncedScroll = useCallback(() => {
+    window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(handleScroll, 50);
+  }, [handleScroll]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -70,6 +68,7 @@ const Slider = ({
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.clearTimeout(debounceRef.current);
     };
   }, [debouncedScroll]);
 
@@ -81,18 +80,19 @@ const Slider = ({
     debouncedScroll();
   };
 
-  const [, setX] = useSpring(() => ({
-    from: { x: 0 },
-    to: { x: 0 },
-  }));
-
-  const slide = async (direction: Direction) => {
+  const slide = (direction: Direction) => {
     const clientWidth =
       containerRef.current?.getBoundingClientRect().width ?? 0;
     const cardWidth =
       containerRef.current?.firstElementChild?.getBoundingClientRect().width ??
       0;
     const scrollPosition = containerRef.current?.scrollLeft ?? 0;
+    const scrollWidth = containerRef.current?.scrollWidth ?? 0;
+
+    if (!containerRef.current || !clientWidth || !cardWidth) {
+      return;
+    }
+
     const visibleItems = Math.floor(clientWidth / cardWidth);
     const scrollOffset = scrollPosition % cardWidth;
 
@@ -101,17 +101,7 @@ const Slider = ({
         scrollPosition - scrollOffset - visibleItems * cardWidth,
         0
       );
-      await setX.start({
-        from: { x: scrollPosition },
-        to: { x: newX },
-        onChange: (results) => {
-          if (containerRef.current) {
-            containerRef.current.scrollLeft = results.value.x;
-          }
-        },
-        reset: true,
-        config: { friction: 60, tension: 500, velocity: 20 },
-      })[0];
+      containerRef.current.scrollTo({ left: newX, behavior: 'smooth' });
 
       if (newX === 0) {
         setScrollPos({ isStart: true, isEnd: false });
@@ -121,21 +111,11 @@ const Slider = ({
     } else if (direction === Direction.RIGHT) {
       const newX = Math.min(
         scrollPosition - scrollOffset + visibleItems * cardWidth,
-        containerRef.current?.scrollWidth ?? 0 - clientWidth
+        scrollWidth - clientWidth
       );
-      await setX.start({
-        from: { x: scrollPosition },
-        to: { x: newX },
-        onChange: (results) => {
-          if (containerRef.current) {
-            containerRef.current.scrollLeft = results.value.x;
-          }
-        },
-        reset: true,
-        config: { friction: 60, tension: 500, velocity: 20 },
-      })[0];
+      containerRef.current.scrollTo({ left: newX, behavior: 'smooth' });
 
-      if (newX >= (containerRef.current?.scrollWidth ?? 0) - clientWidth) {
+      if (newX >= scrollWidth - clientWidth) {
         setScrollPos({ isStart: false, isEnd: true });
       } else {
         setScrollPos({ isStart: false, isEnd: false });

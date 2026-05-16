@@ -1,4 +1,3 @@
-import { debounce } from 'lodash';
 import type { MutableRefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -20,6 +19,8 @@ const useVerticalScroll = (
   type SetTimeoutReturnType = ReturnType<typeof setTimeout>;
   const scrollingTimer: MutableRefObject<SetTimeoutReturnType | undefined> =
     useRef(undefined);
+  const callbackTimer: MutableRefObject<SetTimeoutReturnType | undefined> =
+    useRef(undefined);
 
   const runCallback = () => {
     if (shouldFetch) {
@@ -37,7 +38,13 @@ const useVerticalScroll = (
     }
   };
 
-  const debouncedCallback = debounce(runCallback, 50);
+  const debouncedCallback = () => {
+    if (callbackTimer.current !== undefined) {
+      clearTimeout(callbackTimer.current);
+    }
+
+    callbackTimer.current = setTimeout(runCallback, 50);
+  };
 
   useEffect(() => {
     runCallback();
@@ -70,6 +77,9 @@ const useVerticalScroll = (
 
       if (scrollingTimer.current !== undefined) {
         clearTimeout(scrollingTimer.current);
+      }
+      if (callbackTimer.current !== undefined) {
+        clearTimeout(callbackTimer.current);
       }
     };
   });
