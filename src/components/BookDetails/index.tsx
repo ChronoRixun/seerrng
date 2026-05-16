@@ -158,6 +158,10 @@ const BookDetails = () => {
     });
   const canBlocklist =
     hasPermission(Permission.MANAGE_BLOCKLIST) &&
+    data.mediaInfo?.status !== MediaStatus.PROCESSING &&
+    data.mediaInfo?.status !== MediaStatus.AVAILABLE &&
+    data.mediaInfo?.status !== MediaStatus.PARTIALLY_AVAILABLE &&
+    data.mediaInfo?.status !== MediaStatus.PENDING &&
     data.mediaInfo?.status !== MediaStatus.BLOCKLISTED;
   const canManage =
     hasPermission(Permission.MANAGE_REQUESTS) &&

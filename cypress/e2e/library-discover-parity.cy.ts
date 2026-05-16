@@ -569,6 +569,61 @@ describe('Books and Music discover parity', () => {
     cy.get('[data-testid=modal-cancel-button]').click();
   });
 
+  it('hides book and music blocklist actions for in-flight and owned media', () => {
+    cy.intercept('GET', '/api/v1/book/OLAVAILABLEW', {
+      id: 'OLAVAILABLEW',
+      mediaType: 'book',
+      title: 'Available Book',
+      author: 'Available Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/9-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+      mediaInfo: {
+        id: 9111,
+        status: 5,
+        serviceId: 1,
+        externalServiceId: 101,
+        requests: [],
+        issues: [],
+      },
+    }).as('getAvailableBook');
+
+    cy.visit('/book/OLAVAILABLEW');
+    cy.wait('@getAvailableBook');
+    cy.contains('[data-testid=media-title]', 'Available Book').should(
+      'be.visible'
+    );
+    cy.get('button[aria-label="Add to Blocklist"]').should('not.exist');
+
+    cy.intercept('GET', '/api/v1/music/12121212-1212-1212-1212-121212121212', {
+      id: '12121212-1212-1212-1212-121212121212',
+      mbId: '12121212-1212-1212-1212-121212121212',
+      mediaType: 'album',
+      title: 'Processing Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      artist: {
+        id: '34343434-3434-3434-3434-343434343434',
+        name: 'Processing Artist',
+      },
+      tracks: [],
+      mediaInfo: {
+        id: 9112,
+        status: 3,
+        requests: [],
+        issues: [],
+      },
+    }).as('getProcessingMusic');
+
+    cy.visit('/music/12121212-1212-1212-1212-121212121212');
+    cy.wait('@getProcessingMusic');
+    cy.contains('[data-testid=media-title]', 'Processing Album').should(
+      'be.visible'
+    );
+    cy.get('button[aria-label="Add to Blocklist"]').should('not.exist');
+  });
+
   it('honors hide available for music and dual-format books', () => {
     cy.intercept('GET', '/api/v1/settings/public', {
       ...publicSettings,
