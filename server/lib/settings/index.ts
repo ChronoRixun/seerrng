@@ -421,7 +421,7 @@ class Settings {
         apiKey: '',
         applicationTitle: 'Seerr',
         applicationUrl: '',
-        cacheImages: false,
+        cacheImages: true,
         defaultPermissions: Permission.REQUEST,
         defaultQuotas: {
           movie: {},

@@ -24,7 +24,7 @@ const defaultSettings = {
   mediaServerType: MediaServerType.NOT_CONFIGURED,
   partialRequestsEnabled: true,
   enableSpecialEpisodes: false,
-  cacheImages: false,
+  cacheImages: true,
   vapidPublic: '',
   enablePushRegistration: false,
   locale: 'en',

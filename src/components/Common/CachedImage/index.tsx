@@ -42,8 +42,35 @@ const CachedImage = ({
   } else if (type === 'avatar') {
     // jellyfin avatar (if any)
     imageUrl = src;
-  } else if (type === 'music' || type === 'book') {
-    imageUrl = src;
+  } else if (type === 'music') {
+    if (
+      currentSettings.cacheImages &&
+      src.startsWith('https://coverartarchive.org/')
+    ) {
+      imageUrl = src.replace(
+        /^https:\/\/coverartarchive\.org\//,
+        '/imageproxy/coverartarchive/'
+      );
+    } else if (
+      currentSettings.cacheImages &&
+      src.startsWith('https://archive.org/')
+    ) {
+      imageUrl = src.replace(
+        /^https:\/\/archive\.org\//,
+        '/imageproxy/archiveorg/'
+      );
+    } else {
+      imageUrl = src;
+    }
+  } else if (type === 'book') {
+    imageUrl =
+      currentSettings.cacheImages &&
+      src.startsWith('https://covers.openlibrary.org/')
+        ? src.replace(
+            /^https:\/\/covers\.openlibrary\.org\//,
+            '/imageproxy/openlibrarycovers/'
+          )
+        : src;
   } else {
     return null;
   }

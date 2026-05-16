@@ -29,6 +29,54 @@ function initTvdbImageProxy() {
   }
   return _tvdbImageProxy;
 }
+let _coverArtArchiveImageProxy: ImageProxy;
+function initCoverArtArchiveImageProxy() {
+  if (!_coverArtArchiveImageProxy) {
+    _coverArtArchiveImageProxy = new ImageProxy(
+      'coverartarchive',
+      'https://coverartarchive.org',
+      {
+        rateLimitOptions: {
+          maxRequests: 10,
+          maxRPS: 20,
+        },
+      }
+    );
+  }
+  return _coverArtArchiveImageProxy;
+}
+let _archiveOrgImageProxy: ImageProxy;
+function initArchiveOrgImageProxy() {
+  if (!_archiveOrgImageProxy) {
+    _archiveOrgImageProxy = new ImageProxy(
+      'archiveorg',
+      'https://archive.org',
+      {
+        rateLimitOptions: {
+          maxRequests: 10,
+          maxRPS: 20,
+        },
+      }
+    );
+  }
+  return _archiveOrgImageProxy;
+}
+let _openLibraryCoversImageProxy: ImageProxy;
+function initOpenLibraryCoversImageProxy() {
+  if (!_openLibraryCoversImageProxy) {
+    _openLibraryCoversImageProxy = new ImageProxy(
+      'openlibrarycovers',
+      'https://covers.openlibrary.org',
+      {
+        rateLimitOptions: {
+          maxRequests: 10,
+          maxRPS: 20,
+        },
+      }
+    );
+  }
+  return _openLibraryCoversImageProxy;
+}
 
 router.get<{
   type: string;
@@ -47,6 +95,12 @@ router.get<{
       imageData = await initTmdbImageProxy().getImage(imagePath);
     } else if (req.params.type === 'tvdb') {
       imageData = await initTvdbImageProxy().getImage(imagePath);
+    } else if (req.params.type === 'coverartarchive') {
+      imageData = await initCoverArtArchiveImageProxy().getImage(imagePath);
+    } else if (req.params.type === 'archiveorg') {
+      imageData = await initArchiveOrgImageProxy().getImage(imagePath);
+    } else if (req.params.type === 'openlibrarycovers') {
+      imageData = await initOpenLibraryCoversImageProxy().getImage(imagePath);
     } else {
       logger.error('Unsupported image type', {
         imagePath,
