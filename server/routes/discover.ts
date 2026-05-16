@@ -1537,7 +1537,7 @@ discoverRoutes.get('/music', async (req, res) => {
         count: providerWindow.limit,
       });
     }
-    const releases = freshReleases.payload.releases
+    const sortedReleases = freshReleases.payload.releases
       .filter((release) => release.release_group_mbid && release.release_name)
       .filter(
         (release) =>
@@ -1560,8 +1560,25 @@ discoverRoutes.get('/music', async (req, res) => {
         return sortAscending
           ? left.localeCompare(right)
           : right.localeCompare(left);
-      })
-      .slice(providerWindow.sliceStart, providerWindow.sliceEnd);
+      });
+    const releases =
+      sortByValue === 'ranked'
+        ? diversifyMusicAlbumsByArtist(
+            sortedReleases.map(mapFreshReleaseAlbum),
+            providerWindow.sliceEnd
+          )
+            .slice(providerWindow.sliceStart, providerWindow.sliceEnd)
+            .map((album) => {
+              const release = sortedReleases.find(
+                (sortedRelease) => sortedRelease.release_group_mbid === album.id
+              );
+
+              return release as LbRelease;
+            })
+        : sortedReleases.slice(
+            providerWindow.sliceStart,
+            providerWindow.sliceEnd
+          );
     const mbIds = releases.map((release) => release.release_group_mbid);
     const relatedMedia = mbIds.length
       ? await getRepository(Media).find({

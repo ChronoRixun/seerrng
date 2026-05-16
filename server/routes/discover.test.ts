@@ -589,6 +589,84 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('diversifies ranked fresh music discovery results by artist', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: {
+        releases: [
+          {
+            artist_credit_name: 'Artist One',
+            artist_mbids: ['artist-one'],
+            caa_id: 1,
+            caa_release_mbid: 'release-artist-one-a',
+            listen_count: 9000,
+            release_date: '2026-05-01',
+            release_group_mbid: 'album-artist-one-a',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-artist-one-a',
+            release_name: 'Artist One Album A',
+            release_tags: [],
+          },
+          {
+            artist_credit_name: 'Artist One',
+            artist_mbids: ['artist-one'],
+            caa_id: 1,
+            caa_release_mbid: 'release-artist-one-b',
+            listen_count: 8000,
+            release_date: '2026-04-01',
+            release_group_mbid: 'album-artist-one-b',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-artist-one-b',
+            release_name: 'Artist One Album B',
+            release_tags: [],
+          },
+          {
+            artist_credit_name: 'Artist One',
+            artist_mbids: ['artist-one'],
+            caa_id: 1,
+            caa_release_mbid: 'release-artist-one-c',
+            listen_count: 7000,
+            release_date: '2026-03-01',
+            release_group_mbid: 'album-artist-one-c',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-artist-one-c',
+            release_name: 'Artist One Album C',
+            release_tags: [],
+          },
+          {
+            artist_credit_name: 'Artist Two',
+            artist_mbids: ['artist-two'],
+            caa_id: 1,
+            caa_release_mbid: 'release-artist-two',
+            listen_count: 1,
+            release_date: '2026-02-01',
+            release_group_mbid: 'album-artist-two',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-artist-two',
+            release_name: 'Artist Two Album',
+            release_tags: [],
+          },
+        ],
+      },
+    }));
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/music?sortBy=ranked&releaseType=Album'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results
+        .slice(0, 3)
+        .map((result: { title: string }) => result.title),
+      ['Artist One Album A', 'Artist One Album B', 'Artist Two Album']
+    );
+  });
+
   it('blends ListenBrainz charts and fresh releases for default ranked music discovery', async () => {
     const topAlbumsMock = mock.method(
       ListenBrainzAPI.prototype,
