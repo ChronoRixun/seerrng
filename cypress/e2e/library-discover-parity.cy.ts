@@ -608,6 +608,87 @@ describe('Books and Music discover parity', () => {
     cy.contains('Open in Lidarr').should('be.visible');
   });
 
+  it('renders rich book and music cards from sparse watchlist rows', () => {
+    cy.intercept('GET', '/api/v1/discover/watchlist*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 2,
+      results: [
+        {
+          id: 1,
+          ratingKey: 'music-watchlist',
+          mediaType: 'music',
+          mbId: '99999999-9999-9999-9999-999999999999',
+          title: 'Sparse Album',
+        },
+        {
+          id: 2,
+          ratingKey: 'book-watchlist',
+          mediaType: 'book',
+          externalId: 'OLWATCHW',
+          title: 'Sparse Book',
+        },
+      ],
+    }).as('getWatchlist');
+
+    cy.intercept(
+      'GET',
+      '/api/v1/music/99999999-9999-9999-9999-999999999999',
+      {
+        id: '99999999-9999-9999-9999-999999999999',
+        mbId: '99999999-9999-9999-9999-999999999999',
+        mediaType: 'album',
+        title: 'Resolved Album',
+        type: 'Album',
+        releaseDate: '2026-05-01',
+        posterPath: 'https://coverartarchive.org/release-group/999/front',
+        artist: {
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          name: 'Resolved Artist',
+        },
+        tracks: [],
+        mediaInfo: {
+          id: 9201,
+          status: 2,
+          watchlists: [{}],
+          downloadStatus: [],
+          requests: [],
+        },
+      }
+    ).as('getWatchlistMusic');
+    cy.intercept('GET', '/api/v1/book/OLWATCHW', {
+      id: 'OLWATCHW',
+      mediaType: 'book',
+      title: 'Resolved Book',
+      author: 'Resolved Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/6-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+      mediaInfo: {
+        id: 9202,
+        status: 5,
+        serviceId: 1,
+        externalServiceId: 11,
+        audiobookServiceId: null,
+        audiobookExternalServiceId: null,
+        watchlists: [{}],
+        downloadStatus: [],
+        audiobookDownloadStatus: [],
+        requests: [],
+      },
+    }).as('getWatchlistBook');
+
+    cy.visit('/discover/watchlist');
+    cy.wait('@getWatchlist');
+    cy.wait('@getWatchlistMusic');
+    cy.wait('@getWatchlistBook');
+    cy.contains('Resolved Album').should('be.visible');
+    cy.contains('Resolved Artist').should('be.visible');
+    cy.contains('Resolved Book').should('be.visible');
+    cy.contains('Resolved Author').should('be.visible');
+  });
+
   it('keeps the top search bar global across video, books, and music', () => {
     cy.intercept('GET', '/api/v1/discover/movies*', {
       page: 1,

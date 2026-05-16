@@ -1,11 +1,16 @@
 import ArtistCard from '@app/components/ArtistCard';
 import PersonCard from '@app/components/PersonCard';
 import TitleCard from '@app/components/TitleCard';
+import LibraryTitleCard from '@app/components/TitleCard/LibraryTitleCard';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
 import useVerticalScroll from '@app/hooks/useVerticalScroll';
 import globalMessages from '@app/i18n/globalMessages';
-import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
+import {
+  canRequestMissingBookFormat,
+  isBookInProgress,
+} from '@app/utils/libraryMedia';
+import { MediaStatus } from '@server/constants/media';
 import type { WatchlistItem } from '@server/interfaces/api/discoverInterfaces';
 import type {
   AlbumResult,
@@ -53,48 +58,6 @@ const ListView = ({
     [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
     { type: 'or' }
   );
-  const isBookInProgress = (title: BookResult) =>
-    (title.mediaInfo?.downloadStatus ?? []).length > 0 ||
-    (title.mediaInfo?.audiobookDownloadStatus ?? []).length > 0;
-  const canRequestMissingBookFormat = (title: BookResult) => {
-    if (
-      !title.mediaInfo ||
-      title.mediaInfo.status === MediaStatus.BLOCKLISTED
-    ) {
-      return false;
-    }
-
-    const hasEbookServiceLink =
-      title.mediaInfo.serviceId !== null &&
-      title.mediaInfo.serviceId !== undefined &&
-      title.mediaInfo.externalServiceId !== null &&
-      title.mediaInfo.externalServiceId !== undefined;
-    const hasAudiobookServiceLink =
-      title.mediaInfo.audiobookServiceId !== null &&
-      title.mediaInfo.audiobookServiceId !== undefined &&
-      title.mediaInfo.audiobookExternalServiceId !== null &&
-      title.mediaInfo.audiobookExternalServiceId !== undefined;
-    const activeBookRequests =
-      title.mediaInfo.requests?.filter(
-        (request) =>
-          request.status !== MediaRequestStatus.DECLINED &&
-          request.status !== MediaRequestStatus.COMPLETED
-      ) ?? [];
-    const hasActiveEbookRequest = activeBookRequests.some(
-      (request) =>
-        (request.bookFormat ?? 'ebook') === 'ebook' ||
-        request.bookFormat === 'both'
-    );
-    const hasActiveAudiobookRequest = activeBookRequests.some(
-      (request) =>
-        request.bookFormat === 'audiobook' || request.bookFormat === 'both'
-    );
-
-    return (
-      !(hasEbookServiceLink || hasActiveEbookRequest) ||
-      !(hasAudiobookServiceLink || hasActiveAudiobookRequest)
-    );
-  };
 
   return (
     <>
@@ -108,19 +71,19 @@ const ListView = ({
           return (
             <li key={`${title.ratingKey}-${index}`}>
               {title.mediaType === 'music' && title.mbId ? (
-                <TitleCard
+                <LibraryTitleCard
                   id={title.mbId}
+                  type="album"
                   title={title.title}
-                  mediaType="album"
                   isAddedToWatchlist={true}
                   canExpand
                   mutateParent={mutateParent}
                 />
               ) : title.mediaType === 'book' && title.externalId ? (
-                <TitleCard
+                <LibraryTitleCard
                   id={title.externalId}
+                  type="book"
                   title={title.title}
-                  mediaType="book"
                   isAddedToWatchlist={true}
                   canExpand
                   mutateParent={mutateParent}

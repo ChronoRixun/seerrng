@@ -55,6 +55,7 @@ export interface MusicDetails {
   mediaInfo?: Media;
   onUserWatchlist?: boolean;
   posterPath?: string;
+  needsCoverArt?: boolean;
   artistWikipedia?: {
     content: string;
     title: string;

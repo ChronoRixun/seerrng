@@ -1,0 +1,103 @@
+import TitleCard from '@app/components/TitleCard';
+import { Permission, useUser } from '@app/hooks/useUser';
+import {
+  canRequestMissingBookFormat,
+  isBookInProgress,
+} from '@app/utils/libraryMedia';
+import type { BookDetails } from '@server/models/Book';
+import type { MusicDetails } from '@server/models/Music';
+import { useInView } from 'react-intersection-observer';
+import useSWR from 'swr';
+
+export interface LibraryTitleCardProps {
+  id: string;
+  type: 'album' | 'book';
+  title?: string;
+  canExpand?: boolean;
+  isAddedToWatchlist?: boolean;
+  mutateParent?: () => void;
+}
+
+const LibraryTitleCard = ({
+  id,
+  type,
+  title: fallbackTitle,
+  canExpand,
+  isAddedToWatchlist = false,
+  mutateParent,
+}: LibraryTitleCardProps) => {
+  const { hasPermission } = useUser();
+  const { ref, inView } = useInView({
+    triggerOnce: true,
+  });
+  const url = type === 'album' ? `/api/v1/music/${id}` : `/api/v1/book/${id}`;
+  const { data: title, error } = useSWR<MusicDetails | BookDetails>(
+    inView ? url : null
+  );
+
+  if (!title && !error) {
+    return (
+      <div ref={ref}>
+        <TitleCard.Placeholder canExpand={canExpand} />
+      </div>
+    );
+  }
+
+  if (!title) {
+    return hasPermission(Permission.ADMIN) ? (
+      <TitleCard
+        id={id}
+        title={fallbackTitle ?? id}
+        mediaType={type}
+        isAddedToWatchlist={isAddedToWatchlist}
+        canExpand={canExpand}
+        mutateParent={mutateParent}
+      />
+    ) : null;
+  }
+
+  if (type === 'album') {
+    const album = title as MusicDetails;
+
+    return (
+      <TitleCard
+        key={album.id}
+        id={album.id}
+        isAddedToWatchlist={album.mediaInfo?.watchlists?.length ?? true}
+        image={album.posterPath}
+        status={album.mediaInfo?.status}
+        title={album.title}
+        artist={album.artist?.name}
+        type={album.type}
+        year={album.releaseDate}
+        mediaType="album"
+        inProgress={(album.mediaInfo?.downloadStatus ?? []).length > 0}
+        needsCoverArt={album.needsCoverArt}
+        canExpand={canExpand}
+        mutateParent={mutateParent}
+      />
+    );
+  }
+
+  const book = title as BookDetails;
+
+  return (
+    <TitleCard
+      key={book.id}
+      id={book.id}
+      image={book.posterPath}
+      isAddedToWatchlist={book.mediaInfo?.watchlists?.length ?? true}
+      status={book.mediaInfo?.status}
+      title={book.title}
+      artist={book.author}
+      year={book.firstPublishYear?.toString()}
+      mediaType="book"
+      inProgress={isBookInProgress(book)}
+      canRequestAdditionalFormat={canRequestMissingBookFormat(book)}
+      canExpand={canExpand}
+      mutateParent={mutateParent}
+    />
+  );
+};
+
+export default LibraryTitleCard;
