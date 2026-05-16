@@ -5,6 +5,7 @@ export interface ServiceCommonServer {
   id: number;
   name: string;
   is4k: boolean;
+  isAlt?: boolean;
   isDefault: boolean;
   activeProfileId: number;
   activeMetadataProfileId?: number;

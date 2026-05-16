@@ -1335,6 +1335,48 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             ? [...entity.tags]
             : [...(readarrSettings.tags ?? [])];
 
+        if (readarrSettings.tagRequests) {
+          const readarrTags = await readarr.getTags();
+          // old tags had space around the hyphen
+          let userTag = readarrTags.find((v) =>
+            v.label.startsWith(entity.requestedBy.id + ' - ')
+          );
+          // new tags do not have spaces around the hyphen, since spaces are not allowed anymore
+          if (!userTag) {
+            userTag = readarrTags.find((v) =>
+              v.label.startsWith(entity.requestedBy.id + '-')
+            );
+          }
+          if (!userTag) {
+            logger.info(`Requester has no active tag. Creating new`, {
+              label: 'Media Request',
+              requestId: entity.id,
+              mediaId: entity.media.id,
+              userId: entity.requestedBy.id,
+              newTag:
+                entity.requestedBy.id + '-' + entity.requestedBy.displayName,
+            });
+            userTag = await readarr.createTag({
+              label:
+                entity.requestedBy.id + '-' + entity.requestedBy.displayName,
+            });
+          }
+          if (userTag.id) {
+            if (!tags?.find((v) => v === userTag?.id)) {
+              tags?.push(userTag.id);
+            }
+          } else {
+            logger.warn(`Requester has no tag and failed to add one`, {
+              label: 'Media Request',
+              requestId: entity.id,
+              mediaId: entity.media.id,
+              userId: entity.requestedBy.id,
+              radarrServer:
+                readarrSettings.hostname + ':' + readarrSettings.port,
+            });
+          }
+        }
+
         const result = await readarr.addBook({
           ...bookInfo,
           monitored: true,
@@ -1508,7 +1550,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     }
 
     if (
-      media.mediaType === MediaType.MOVIE &&
+      (media.mediaType === MediaType.MOVIE ||
+        media.mediaType === MediaType.BOOK) &&
       entity.status === MediaRequestStatus.DECLINED &&
       media[statusKey] !== MediaStatus.DELETED
     ) {
