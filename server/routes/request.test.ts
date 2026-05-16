@@ -173,6 +173,94 @@ function createLidarrSettings(id: number, isDefault = true) {
   };
 }
 
+describe('GET /request/count', () => {
+  it('counts approved book requests by requested format availability', async () => {
+    const userRepo = getRepository(User);
+    const mediaRepo = getRepository(Media);
+    const requestRepo = getRepository(MediaRequest);
+    const requestedBy = await userRepo.findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+
+    const ebookOnlyMedia = await mediaRepo.save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PARTIALLY_AVAILABLE,
+        status4k: MediaStatus.UNKNOWN,
+        externalServiceId: 101,
+        audiobookExternalServiceId: null,
+      })
+    );
+    const bothFormatsMedia = await mediaRepo.save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.AVAILABLE,
+        status4k: MediaStatus.UNKNOWN,
+        externalServiceId: 201,
+        audiobookExternalServiceId: 202,
+      })
+    );
+    const missingFormatsMedia = await mediaRepo.save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+
+    const savedRequests = await requestRepo.save([
+      new MediaRequest({
+        type: MediaType.BOOK,
+        status: MediaRequestStatus.PENDING,
+        media: ebookOnlyMedia,
+        requestedBy,
+        is4k: false,
+        bookFormat: 'ebook',
+      }),
+      new MediaRequest({
+        type: MediaType.BOOK,
+        status: MediaRequestStatus.PENDING,
+        media: ebookOnlyMedia,
+        requestedBy,
+        is4k: false,
+        bookFormat: 'both',
+      }),
+      new MediaRequest({
+        type: MediaType.BOOK,
+        status: MediaRequestStatus.PENDING,
+        media: bothFormatsMedia,
+        requestedBy,
+        is4k: false,
+        bookFormat: 'both',
+      }),
+      new MediaRequest({
+        type: MediaType.BOOK,
+        status: MediaRequestStatus.PENDING,
+        media: missingFormatsMedia,
+        requestedBy,
+        is4k: false,
+        bookFormat: 'audiobook',
+      }),
+    ]);
+    await requestRepo.update(
+      savedRequests.map((request) => request.id),
+      { status: MediaRequestStatus.APPROVED }
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.get('/request/count');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.book, 4);
+    assert.strictEqual(res.body.approved, 4);
+    assert.strictEqual(res.body.available, 2);
+    assert.strictEqual(res.body.processing, 2);
+  });
+});
+
 describe('DELETE /request/:requestId', () => {
   it('allows the owner to delete their own pending request', async () => {
     const mediaRequest = await seedRequest();

@@ -115,6 +115,47 @@ const validateExternalServiceConfiguration = (
   }
 };
 
+const hasBookFormat = (
+  media: Media,
+  format: 'ebook' | 'audiobook'
+): boolean => {
+  if (format === 'audiobook') {
+    return (
+      media.audiobookExternalServiceId !== null &&
+      media.audiobookExternalServiceId !== undefined
+    );
+  }
+
+  return (
+    media.externalServiceId !== null && media.externalServiceId !== undefined
+  );
+};
+
+const isRequestAvailable = (mediaRequest: MediaRequest): boolean => {
+  if (!mediaRequest.media) {
+    return false;
+  }
+
+  if (mediaRequest.type === MediaType.BOOK) {
+    const bookFormat = mediaRequest.bookFormat ?? 'ebook';
+
+    if (bookFormat === 'both') {
+      return (
+        hasBookFormat(mediaRequest.media, 'ebook') &&
+        hasBookFormat(mediaRequest.media, 'audiobook')
+      );
+    }
+
+    return hasBookFormat(mediaRequest.media, bookFormat);
+  }
+
+  if (mediaRequest.is4k) {
+    return mediaRequest.media.status4k === MediaStatus.AVAILABLE;
+  }
+
+  return mediaRequest.media.status === MediaStatus.AVAILABLE;
+};
+
 requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
   '/',
   async (req, res, next) => {
@@ -604,29 +645,13 @@ requestRoutes.get('/count', async (_req, res, next) => {
       })
       .getCount();
 
-    const processingCount = await query
-      .where('request.status = :requestStatus', {
-        requestStatus: MediaRequestStatus.APPROVED,
-      })
-      .andWhere(
-        '((request.is4k = false AND media.status != :availableStatus) OR (request.is4k = true AND media.status4k != :availableStatus))',
-        {
-          availableStatus: MediaStatus.AVAILABLE,
-        }
-      )
-      .getCount();
+    const approvedRequests = await requestRepository.find({
+      where: { status: MediaRequestStatus.APPROVED },
+      relations: { media: true },
+    });
 
-    const availableCount = await query
-      .where('request.status = :requestStatus', {
-        requestStatus: MediaRequestStatus.APPROVED,
-      })
-      .andWhere(
-        '((request.is4k = false AND media.status = :availableStatus) OR (request.is4k = true AND media.status4k = :availableStatus))',
-        {
-          availableStatus: MediaStatus.AVAILABLE,
-        }
-      )
-      .getCount();
+    const availableCount = approvedRequests.filter(isRequestAvailable).length;
+    const processingCount = approvedRequests.length - availableCount;
 
     const completedCount = await query
       .where('request.status = :requestStatus', {
