@@ -13,6 +13,7 @@ import type {
   TvResult,
 } from '@server/models/Search';
 import { useRouter } from 'next/router';
+import { useMemo } from 'react';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Search', {
@@ -23,6 +24,12 @@ const messages = defineMessages('components.Search', {
 const Search = () => {
   const intl = useIntl();
   const router = useRouter();
+  const searchOptions = useMemo(
+    () => ({
+      query: router.query.query,
+    }),
+    [router.query.query]
+  );
 
   const {
     isLoadingInitialData,
@@ -39,13 +46,10 @@ const Search = () => {
     | AlbumResult
     | ArtistResult
     | BookResult
-  >(
-    `/api/v1/search`,
-    {
-      query: router.query.query,
-    },
-    { hideAvailable: false, hideBlocklisted: false }
-  );
+  >(`/api/v1/search`, searchOptions, {
+    hideAvailable: false,
+    hideBlocklisted: false,
+  });
 
   if (error) {
     return <ErrorPage statusCode={500} />;

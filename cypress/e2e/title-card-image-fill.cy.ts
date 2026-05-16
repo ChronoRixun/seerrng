@@ -15,7 +15,7 @@ describe('Title card image fill', () => {
           title: 'Filled Book',
           author: 'Card Author',
           firstPublishYear: 2026,
-          posterPath: 'https://covers.openlibrary.org/b/id/1-L.jpg',
+          posterPath: 'http://localhost:5055/images/seerr_poster_not_found.png',
         },
       ],
     }).as('getBooks');
@@ -41,7 +41,7 @@ describe('Title card image fill', () => {
           title: 'Filled Album',
           'primary-type': 'Album',
           'first-release-date': '2026-05-01',
-          posterPath: 'https://covers.openlibrary.org/b/id/1-L.jpg',
+          posterPath: 'http://localhost:5055/images/seerr_poster_not_found.png',
           'artist-credit': [{ name: 'Card Artist' }],
         },
       ],

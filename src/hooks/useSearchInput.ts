@@ -2,7 +2,7 @@
 import type { Nullable } from '@app/utils/typeHelpers';
 import { useRouter } from 'next/router';
 import type { Dispatch, SetStateAction } from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { UrlObject } from 'url';
 import useDebouncedState from './useDebouncedState';
 
@@ -106,18 +106,21 @@ const useSearchInput = (): SearchObject => {
     }
   }, [router, setSearchValue]);
 
-  const clear = () => {
+  const clear = useCallback(() => {
     setIsOpen(false);
     setSearchValue('');
-  };
+  }, [setSearchValue]);
 
-  return {
-    searchValue,
-    searchOpen,
-    setIsOpen,
-    setSearchValue,
-    clear,
-  };
+  return useMemo(
+    () => ({
+      searchValue,
+      searchOpen,
+      setIsOpen,
+      setSearchValue,
+      clear,
+    }),
+    [clear, searchOpen, searchValue, setSearchValue]
+  );
 };
 
 export default useSearchInput;
