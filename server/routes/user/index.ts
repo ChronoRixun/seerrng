@@ -9,7 +9,6 @@ import Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import { UserPushSubscription } from '@server/entity/UserPushSubscription';
-import { Watchlist } from '@server/entity/Watchlist';
 import type { WatchlistResponse } from '@server/interfaces/api/discoverInterfaces';
 import type {
   QuotaResponse,
@@ -19,6 +18,7 @@ import type {
 } from '@server/interfaces/api/userInterfaces';
 import { Permission, hasPermission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
+import { getCombinedWatchlist } from '@server/lib/watchlist';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { getHostname } from '@server/utils/getHostname';
@@ -949,93 +949,20 @@ router.get<{ id: string }, WatchlistResponse>(
 
     const itemsPerPage = 20;
     const page = req.query.page ? Number(req.query.page) : 1;
-    const offset = (page - 1) * itemsPerPage;
 
     const user = await getRepository(User).findOneOrFail({
       where: { id: Number(req.params.id) },
       select: ['id', 'plexToken'],
     });
 
-    if (user) {
-      const watchlistRepository = getRepository(Watchlist);
-      const localWhere = { requestedBy: { id: user.id } };
-      const localTotal = await watchlistRepository.count({
-        where: localWhere,
-      });
-      const localTake = Math.max(
-        itemsPerPage - Math.max(offset - localTotal, 0),
-        0
-      );
-      const localSkip = Math.min(offset, localTotal);
-      const localResult =
-        localTake > 0
-          ? await watchlistRepository.find({
-              where: localWhere,
-              take: localTake,
-              skip: localSkip,
-            })
-          : [];
-      const localItems = localResult
-        .filter(
-          (item) =>
-            ((item.mediaType === MediaType.MOVIE ||
-              item.mediaType === MediaType.TV) &&
-              item.tmdbId !== undefined) ||
-            (item.mediaType === MediaType.MUSIC && !!item.mbId) ||
-            (item.mediaType === MediaType.BOOK && !!item.externalId)
-        )
-        .map((item) => ({
-          id: item.id,
-          ratingKey:
-            item.ratingKey ||
-            item.mbId ||
-            item.externalId ||
-            item.id.toString(),
-          tmdbId: item.tmdbId,
-          mbId: item.mbId,
-          externalId: item.externalId,
-          mediaType: item.mediaType as 'movie' | 'tv' | 'music' | 'book',
-          title: item.title,
-        }));
-
-      if (!user.plexToken) {
-        return res.json({
-          page: page,
-          totalPages: Math.max(Math.ceil(localTotal / itemsPerPage), 1),
-          totalResults: localTotal,
-          results: localItems,
-        });
-      }
-
-      const plexTV = new PlexTvAPI(user.plexToken);
-      const plexOffset = Math.max(offset - localTotal, 0);
-      const plexWatchlist = await plexTV.getWatchlist({ offset: plexOffset });
-      const remainingItems = itemsPerPage - localItems.length;
-      const plexItems = plexWatchlist.items
-        .slice(0, remainingItems)
-        .map((item) => ({
-          id: item.tmdbId,
-          ratingKey: item.ratingKey,
-          title: item.title,
-          mediaType: item.type === 'show' ? MediaType.TV : MediaType.MOVIE,
-          tmdbId: item.tmdbId,
-        }));
-      const totalResults = localTotal + plexWatchlist.totalSize;
-
-      return res.json({
+    return res.json(
+      await getCombinedWatchlist({
+        userId: user?.id,
+        plexToken: user?.plexToken,
         page,
-        totalPages: Math.max(Math.ceil(totalResults / itemsPerPage), 1),
-        totalResults,
-        results: [...localItems, ...plexItems],
-      });
-    }
-
-    return res.json({
-      page: 1,
-      totalPages: 1,
-      totalResults: 0,
-      results: [],
-    });
+        itemsPerPage,
+      })
+    );
   }
 );
 

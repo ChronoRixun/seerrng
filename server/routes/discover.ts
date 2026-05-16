@@ -1,6 +1,5 @@
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
-import PlexTvAPI from '@server/api/plextv';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
@@ -12,12 +11,12 @@ import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
 import { User } from '@server/entity/User';
-import { Watchlist } from '@server/entity/Watchlist';
 import type {
   GenreSliderItem,
   WatchlistResponse,
 } from '@server/interfaces/api/discoverInterfaces';
 import { getSettings } from '@server/lib/settings';
+import { getCombinedWatchlist } from '@server/lib/watchlist';
 import logger from '@server/logger';
 import { mapOpenLibrarySearchDoc } from '@server/models/Book';
 import { mapProductionCompany } from '@server/models/Movie';
@@ -1095,93 +1094,20 @@ discoverRoutes.get<Record<string, unknown>, WatchlistResponse>(
     const userRepository = getRepository(User);
     const itemsPerPage = 20;
     const page = req.query.page ? Number(req.query.page) : 1;
-    const offset = (page - 1) * itemsPerPage;
 
     const activeUser = await userRepository.findOne({
       where: { id: req.user?.id },
       select: ['id', 'plexToken'],
     });
 
-    if (activeUser) {
-      const watchlistRepository = getRepository(Watchlist);
-      const localWhere = { requestedBy: { id: activeUser.id } };
-      const localTotal = await watchlistRepository.count({
-        where: localWhere,
-      });
-      const localTake = Math.max(
-        itemsPerPage - Math.max(offset - localTotal, 0),
-        0
-      );
-      const localSkip = Math.min(offset, localTotal);
-      const localResult =
-        localTake > 0
-          ? await watchlistRepository.find({
-              where: localWhere,
-              take: localTake,
-              skip: localSkip,
-            })
-          : [];
-      const localItems = localResult
-        .filter(
-          (item) =>
-            ((item.mediaType === MediaType.MOVIE ||
-              item.mediaType === MediaType.TV) &&
-              item.tmdbId !== undefined) ||
-            (item.mediaType === MediaType.MUSIC && !!item.mbId) ||
-            (item.mediaType === MediaType.BOOK && !!item.externalId)
-        )
-        .map((item) => ({
-          id: item.id,
-          ratingKey:
-            item.ratingKey ||
-            item.mbId ||
-            item.externalId ||
-            item.id.toString(),
-          tmdbId: item.tmdbId,
-          mbId: item.mbId,
-          externalId: item.externalId,
-          mediaType: item.mediaType as 'movie' | 'tv' | 'music' | 'book',
-          title: item.title,
-        }));
-
-      if (!activeUser.plexToken) {
-        return res.json({
-          page: page,
-          totalPages: Math.max(Math.ceil(localTotal / itemsPerPage), 1),
-          totalResults: localTotal,
-          results: localItems,
-        });
-      }
-
-      const plexTV = new PlexTvAPI(activeUser.plexToken);
-      const plexOffset = Math.max(offset - localTotal, 0);
-      const plexWatchlist = await plexTV.getWatchlist({ offset: plexOffset });
-      const remainingItems = itemsPerPage - localItems.length;
-      const plexItems = plexWatchlist.items
-        .slice(0, remainingItems)
-        .map((item) => ({
-          id: item.tmdbId,
-          ratingKey: item.ratingKey,
-          title: item.title,
-          mediaType: item.type === 'show' ? MediaType.TV : MediaType.MOVIE,
-          tmdbId: item.tmdbId,
-        }));
-      const totalResults = localTotal + plexWatchlist.totalSize;
-
-      return res.json({
+    return res.json(
+      await getCombinedWatchlist({
+        userId: activeUser?.id,
+        plexToken: activeUser?.plexToken,
         page,
-        totalPages: Math.max(Math.ceil(totalResults / itemsPerPage), 1),
-        totalResults,
-        results: [...localItems, ...plexItems],
-      });
-    }
-
-    return res.json({
-      page: 1,
-      totalPages: 1,
-      totalResults: 0,
-      results: [],
-    });
+        itemsPerPage,
+      })
+    );
   }
 );
 
