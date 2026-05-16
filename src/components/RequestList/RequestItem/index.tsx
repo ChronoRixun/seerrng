@@ -475,12 +475,10 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
     'approve' | 'decline' | null
   >(null);
   const hasPartialBookService =
-    requestData?.type === 'book' &&
-    requestData.bookFormat === 'both' &&
-    !!(
-      requestData.media.serviceId !== requestData.media.audiobookServiceId &&
-      (requestData.media.serviceId || requestData.media.audiobookServiceId)
-    );
+    requestData?.type === 'book' && requestData.bookFormat === 'both'
+      ? hasBookFormat(requestData, 'ebook') !==
+        hasBookFormat(requestData, 'audiobook')
+      : false;
 
   const modifyRequest = async (type: 'approve' | 'decline') => {
     setUpdatingType(type);

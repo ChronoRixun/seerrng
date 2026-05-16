@@ -722,6 +722,103 @@ describe('Books and Music discover parity', () => {
     cy.location('search').should('include', 'mediaType=music');
   });
 
+  it('only marks dual-format book requests partial when one format is missing', () => {
+    const requestedBy = {
+      id: 1,
+      displayName: 'Admin',
+      avatar: '/avatar.png',
+    };
+    const completeBothRequest = {
+      id: 291,
+      type: 'book',
+      status: 2,
+      is4k: false,
+      bookFormat: 'both',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+      requestedBy,
+      modifiedBy: null,
+      canRemove: true,
+      profileName: 'Default',
+      seasons: [],
+      media: {
+        id: 9291,
+        mediaType: 'book',
+        status: 5,
+        status4k: 1,
+        tmdbId: 0,
+        serviceId: 1,
+        externalServiceId: 101,
+        audiobookServiceId: 2,
+        audiobookExternalServiceId: 202,
+        identifiers: [{ provider: 'openlibrary', value: 'OLBOTHW' }],
+        requests: [],
+        issues: [],
+      },
+    };
+    const partialBothRequest = {
+      ...completeBothRequest,
+      id: 292,
+      media: {
+        ...completeBothRequest.media,
+        id: 9292,
+        audiobookServiceId: null,
+        audiobookExternalServiceId: null,
+        identifiers: [{ provider: 'openlibrary', value: 'OLPARTIALBOTHW' }],
+      },
+    };
+
+    cy.intercept('GET', '/api/v1/request?*', {
+      pageInfo: { pages: 1, pageSize: 10, results: 2, page: 1 },
+      results: [completeBothRequest, partialBothRequest],
+      serviceErrors: {
+        radarr: [],
+        sonarr: [],
+        lidarr: [],
+        readarr: [],
+      },
+    }).as('getBookRequests');
+    cy.intercept('GET', '/api/v1/request/291', completeBothRequest);
+    cy.intercept('GET', '/api/v1/request/292', partialBothRequest);
+    cy.intercept('GET', '/api/v1/book/OLBOTHW', {
+      id: 'OLBOTHW',
+      mediaType: 'book',
+      title: 'Complete Dual Book',
+      author: 'Dual Author',
+      firstPublishYear: 2026,
+      isbnCandidates: [],
+      subjects: [],
+    });
+    cy.intercept('GET', '/api/v1/book/OLPARTIALBOTHW', {
+      id: 'OLPARTIALBOTHW',
+      mediaType: 'book',
+      title: 'Partial Dual Book',
+      author: 'Partial Author',
+      firstPublishYear: 2026,
+      isbnCandidates: [],
+      subjects: [],
+    });
+
+    cy.visit('/requests?mediaType=book&filter=approved');
+    cy.wait('@getBookRequests');
+
+    cy.contains('Complete Dual Book')
+      .parents('.relative.flex.w-full.flex-col.justify-between')
+      .first()
+      .within(() => {
+        cy.contains('Format').should('be.visible');
+        cy.contains('Both').should('be.visible');
+        cy.contains('Partial Bookshelf link').should('not.exist');
+      });
+    cy.contains('Partial Dual Book')
+      .parents('.relative.flex.w-full.flex-col.justify-between')
+      .first()
+      .within(() => {
+        cy.contains('Partial Bookshelf link').should('be.visible');
+        cy.contains('Ebook').should('be.visible');
+      });
+  });
+
   it('deep-links failed book and music requests to their manage slideovers', () => {
     const requestedBy = {
       id: 1,
