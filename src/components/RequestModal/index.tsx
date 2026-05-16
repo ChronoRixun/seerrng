@@ -1,12 +1,29 @@
-import BookRequestModal from '@app/components/RequestModal/BookRequestModal';
-import CollectionRequestModal from '@app/components/RequestModal/CollectionRequestModal';
-import MovieRequestModal from '@app/components/RequestModal/MovieRequestModal';
-import MusicRequestModal from '@app/components/RequestModal/MusicRequestModal';
-import TvRequestModal from '@app/components/RequestModal/TvRequestModal';
 import { Transition } from '@headlessui/react';
 import type { MediaStatus } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
+import dynamic from 'next/dynamic';
+
+const BookRequestModal = dynamic(
+  () => import('@app/components/RequestModal/BookRequestModal'),
+  { ssr: false }
+);
+const CollectionRequestModal = dynamic(
+  () => import('@app/components/RequestModal/CollectionRequestModal'),
+  { ssr: false }
+);
+const MovieRequestModal = dynamic(
+  () => import('@app/components/RequestModal/MovieRequestModal'),
+  { ssr: false }
+);
+const MusicRequestModal = dynamic(
+  () => import('@app/components/RequestModal/MusicRequestModal'),
+  { ssr: false }
+);
+const TvRequestModal = dynamic(
+  () => import('@app/components/RequestModal/TvRequestModal'),
+  { ssr: false }
+);
 
 interface RequestModalProps {
   show: boolean;

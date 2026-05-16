@@ -368,29 +368,33 @@ const RequestButton = ({
 
   return (
     <>
-      <RequestModal
-        tmdbId={tmdbId}
-        show={showRequestModal}
-        type={mediaType}
-        editRequest={editRequest ? activeRequest : undefined}
-        onComplete={() => {
-          onUpdate();
-          setShowRequestModal(false);
-        }}
-        onCancel={() => setShowRequestModal(false)}
-      />
-      <RequestModal
-        tmdbId={tmdbId}
-        show={showRequest4kModal}
-        type={mediaType}
-        editRequest={editRequest ? active4kRequest : undefined}
-        is4k
-        onComplete={() => {
-          onUpdate();
-          setShowRequest4kModal(false);
-        }}
-        onCancel={() => setShowRequest4kModal(false)}
-      />
+      {showRequestModal && (
+        <RequestModal
+          tmdbId={tmdbId}
+          show={showRequestModal}
+          type={mediaType}
+          editRequest={editRequest ? activeRequest : undefined}
+          onComplete={() => {
+            onUpdate();
+            setShowRequestModal(false);
+          }}
+          onCancel={() => setShowRequestModal(false)}
+        />
+      )}
+      {showRequest4kModal && (
+        <RequestModal
+          tmdbId={tmdbId}
+          show={showRequest4kModal}
+          type={mediaType}
+          editRequest={editRequest ? active4kRequest : undefined}
+          is4k
+          onComplete={() => {
+            onUpdate();
+            setShowRequest4kModal(false);
+          }}
+          onCancel={() => setShowRequest4kModal(false)}
+        />
+      )}
       <ButtonWithDropdown
         text={
           <>

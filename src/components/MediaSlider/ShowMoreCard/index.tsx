@@ -1,5 +1,5 @@
 import CachedImage from '@app/components/Common/CachedImage';
-import TitleCard from '@app/components/TitleCard';
+import Placeholder from '@app/components/TitleCard/Placeholder';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
@@ -26,7 +26,7 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
   if (!inView) {
     return (
       <div ref={ref}>
-        <TitleCard.Placeholder />
+        <Placeholder />
       </div>
     );
   }

@@ -92,7 +92,7 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
 
   return (
     <div className="block">
-      {request.media && (
+      {request.media && showEditModal && (
         <RequestModal
           show={showEditModal}
           tmdbId={

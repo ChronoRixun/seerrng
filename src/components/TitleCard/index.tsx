@@ -1,10 +1,8 @@
 import Spinner from '@app/assets/spinner.svg';
-import BlocklistModal from '@app/components/BlocklistModal';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
 import Tooltip from '@app/components/Common/Tooltip';
-import RequestModal from '@app/components/RequestModal';
 import ErrorCard from '@app/components/TitleCard/ErrorCard';
 import Placeholder from '@app/components/TitleCard/Placeholder';
 import { useIsTouch } from '@app/hooks/useIsTouch';
@@ -25,10 +23,18 @@ import { MediaStatus } from '@server/constants/media';
 import type { Watchlist } from '@server/entity/Watchlist';
 import type { MediaType } from '@server/models/Search';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { mutate } from 'swr';
+
+const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
+  ssr: false,
+});
+const BlocklistModal = dynamic(() => import('@app/components/BlocklistModal'), {
+  ssr: false,
+});
 
 interface TitleCardProps {
   id: number | string;
@@ -394,57 +400,61 @@ const TitleCard = ({
       data-testid="title-card"
       ref={cardRef}
     >
-      {canUseVideoActions && (
+      {canUseVideoActions && showRequestModal && (
+        <RequestModal
+          tmdbId={numericId}
+          show={showRequestModal}
+          type={
+            mediaType === 'movie'
+              ? 'movie'
+              : mediaType === 'collection'
+                ? 'collection'
+                : 'tv'
+          }
+          onComplete={requestComplete}
+          onUpdating={requestUpdating}
+          onCancel={closeModal}
+        />
+      )}
+      {canUseVideoActions && showBlocklistModal && (
+        <BlocklistModal
+          tmdbId={numericId}
+          type={
+            mediaType === 'movie'
+              ? 'movie'
+              : mediaType === 'collection'
+                ? 'collection'
+                : 'tv'
+          }
+          show={showBlocklistModal}
+          onCancel={closeBlocklistModal}
+          onComplete={onClickHideItemBtn}
+          isUpdating={isUpdating}
+        />
+      )}
+      {showRequestModal && (
         <>
-          <RequestModal
-            tmdbId={numericId}
-            show={showRequestModal}
-            type={
-              mediaType === 'movie'
-                ? 'movie'
-                : mediaType === 'collection'
-                  ? 'collection'
-                  : 'tv'
-            }
-            onComplete={requestComplete}
-            onUpdating={requestUpdating}
-            onCancel={closeModal}
-          />
-          <BlocklistModal
-            tmdbId={numericId}
-            type={
-              mediaType === 'movie'
-                ? 'movie'
-                : mediaType === 'collection'
-                  ? 'collection'
-                  : 'tv'
-            }
-            show={showBlocklistModal}
-            onCancel={closeBlocklistModal}
-            onComplete={onClickHideItemBtn}
-            isUpdating={isUpdating}
-          />
+          {isAlbum && typeof id === 'string' && (
+            <RequestModal
+              mbId={id}
+              show={showRequestModal}
+              type="music"
+              onComplete={requestComplete}
+              onUpdating={requestUpdating}
+              onCancel={closeModal}
+            />
+          )}
+          {isBook && typeof id === 'string' && (
+            <RequestModal
+              bookId={id}
+              show={showRequestModal}
+              type="book"
+              onComplete={requestComplete}
+              onUpdating={requestUpdating}
+              onCancel={closeModal}
+            />
+          )}
         </>
-      )}
-      {isAlbum && typeof id === 'string' && (
-        <RequestModal
-          mbId={id}
-          show={showRequestModal}
-          type="music"
-          onComplete={requestComplete}
-          onUpdating={requestUpdating}
-          onCancel={closeModal}
-        />
-      )}
-      {isBook && typeof id === 'string' && (
-        <RequestModal
-          bookId={id}
-          show={showRequestModal}
-          type="book"
-          onComplete={requestComplete}
-          onUpdating={requestUpdating}
-          onCancel={closeModal}
-        />
       )}
       <div
         className={`relative transform-gpu cursor-default overflow-hidden rounded-xl bg-gray-800 bg-cover outline-none ring-1 transition duration-300 ${
@@ -541,13 +551,13 @@ const TitleCard = ({
                   ? intl.formatMessage(globalMessages.movie)
                   : mediaType === 'collection'
                     ? intl.formatMessage(globalMessages.collection)
-                      : mediaType === 'tv'
-                        ? intl.formatMessage(globalMessages.tvshow)
-                        : isAlbum
-                          ? intl.formatMessage(globalMessages.album)
-                          : isBook
-                            ? intl.formatMessage(globalMessages.book)
-                            : intl.formatMessage(globalMessages.artist)}
+                    : mediaType === 'tv'
+                      ? intl.formatMessage(globalMessages.tvshow)
+                      : isAlbum
+                        ? intl.formatMessage(globalMessages.album)
+                        : isBook
+                          ? intl.formatMessage(globalMessages.book)
+                          : intl.formatMessage(globalMessages.artist)}
               </div>
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (

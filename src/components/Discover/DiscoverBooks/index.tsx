@@ -2,15 +2,14 @@ import Button from '@app/components/Common/Button';
 import Header from '@app/components/Common/Header';
 import ListView from '@app/components/Common/ListView';
 import PageTitle from '@app/components/Common/PageTitle';
-import LibraryFilterSlideover, {
-  countLibraryFilters,
-} from '@app/components/Discover/LibraryFilterSlideover';
+import { countLibraryFilters } from '@app/components/Discover/LibraryFilterSlideover/filterUtils';
 import useDiscover from '@app/hooks/useDiscover';
 import { useBatchUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { BarsArrowDownIcon, FunnelIcon } from '@heroicons/react/24/solid';
 import type { BookResult } from '@server/models/Book';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
@@ -26,6 +25,11 @@ const messages = defineMessages('components.Discover.DiscoverBooks', {
   biography: 'Biography',
   romance: 'Romance',
 });
+
+const LibraryFilterSlideover = dynamic(
+  () => import('@app/components/Discover/LibraryFilterSlideover'),
+  { ssr: false }
+);
 
 const DiscoverBooks = () => {
   const intl = useIntl();
@@ -97,13 +101,15 @@ const DiscoverBooks = () => {
               </option>
             </select>
           </div>
-          <LibraryFilterSlideover
-            type="book"
-            query={query}
-            subject={subject}
-            onClose={() => setShowFilters(false)}
-            show={showFilters}
-          />
+          {showFilters && (
+            <LibraryFilterSlideover
+              type="book"
+              query={query}
+              subject={subject}
+              onClose={() => setShowFilters(false)}
+              show={showFilters}
+            />
+          )}
           <div className="mb-2 flex flex-grow sm:mb-0 lg:flex-grow-0">
             <Button onClick={() => setShowFilters(true)} className="w-full">
               <FunnelIcon />

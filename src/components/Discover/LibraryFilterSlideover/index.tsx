@@ -1,5 +1,6 @@
 import Button from '@app/components/Common/Button';
 import SlideOver from '@app/components/Common/SlideOver';
+import { countLibraryFilters } from '@app/components/Discover/LibraryFilterSlideover/filterUtils';
 import { useBatchUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import defineMessages from '@app/utils/defineMessages';
 import { MagnifyingGlassIcon, XCircleIcon } from '@heroicons/react/24/outline';
@@ -26,40 +27,6 @@ const messages = defineMessages('components.Discover.LibraryFilterSlideover', {
   last30Days: 'Last 30 Days',
   last90Days: 'Last 90 Days',
 });
-
-export const countLibraryFilters = ({
-  type,
-  query,
-  subject,
-  days,
-  sortBy,
-}: {
-  type: 'book' | 'music';
-  query?: string;
-  subject?: string;
-  days?: string;
-  sortBy?: string;
-}): number => {
-  let count = 0;
-
-  if (query) {
-    count += 1;
-  }
-
-  if (type === 'book' && subject && subject !== 'fiction') {
-    count += 1;
-  }
-
-  if (type === 'music' && days && days !== '7') {
-    count += 1;
-  }
-
-  if (type === 'music' && sortBy && sortBy !== 'release_date.desc') {
-    count += 1;
-  }
-
-  return count;
-};
 
 type LibraryFilterSlideoverProps = {
   show: boolean;
