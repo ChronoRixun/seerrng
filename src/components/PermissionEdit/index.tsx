@@ -39,11 +39,9 @@ export const messages = defineMessages('components.PermissionEdit', {
   autoapproveSeriesDescription:
     'Grant automatic approval for non-4K series requests.',
   autoapproveMusic: 'Auto-Approve Music',
-  autoapproveMusicDescription:
-    'Grant automatic approval for music requests.',
+  autoapproveMusicDescription: 'Grant automatic approval for music requests.',
   autoapproveBooks: 'Auto-Approve Books',
-  autoapproveBooksDescription:
-    'Grant automatic approval for book requests.',
+  autoapproveBooksDescription: 'Grant automatic approval for book requests.',
   autoapprove4k: 'Auto-Approve 4K',
   autoapprove4kDescription:
     'Grant automatic approval for all 4K media requests.',
@@ -65,7 +63,7 @@ export const messages = defineMessages('components.PermissionEdit', {
     'Grant permission to modify advanced media request options.',
   autorequest: 'Auto-Request',
   autorequestDescription:
-    'Grant permission to automatically submit requests for non-4K media via Plex Watchlist.',
+    'Grant permission to automatically submit requests for non-4K media via watchlists.',
   autorequestMovies: 'Auto-Request Movies',
   autorequestMoviesDescription:
     'Grant permission to automatically submit requests for non-4K movies via Plex Watchlist.',
@@ -91,9 +89,9 @@ export const messages = defineMessages('components.PermissionEdit', {
   viewrecent: 'View Recently Added',
   viewrecentDescription:
     'Grant permission to view the list of recently added media.',
-  viewwatchlists: 'View {mediaServerName} Watchlists',
+  viewwatchlists: 'View Watchlists',
   viewwatchlistsDescription:
-    "Grant permission to view other users' {mediaServerName} Watchlists.",
+    "Grant permission to view other users' watchlists.",
   manageblocklist: 'Manage Blocklist',
   manageblocklistDescription: 'Grant permission to manage blocklisted media.',
   blocklistedItems: 'Blocklist media.',
@@ -250,9 +248,7 @@ export const PermissionEdit = ({
         {
           id: 'autoapprovemusic',
           name: intl.formatMessage(messages.autoapproveMusic),
-          description: intl.formatMessage(
-            messages.autoapproveMusicDescription
-          ),
+          description: intl.formatMessage(messages.autoapproveMusicDescription),
           permission: Permission.AUTO_APPROVE_MUSIC,
           requires: [
             {
@@ -264,9 +260,7 @@ export const PermissionEdit = ({
         {
           id: 'autoapprovebooks',
           name: intl.formatMessage(messages.autoapproveBooks),
-          description: intl.formatMessage(
-            messages.autoapproveBooksDescription
-          ),
+          description: intl.formatMessage(messages.autoapproveBooksDescription),
           permission: Permission.AUTO_APPROVE_BOOK,
           requires: [
             {
@@ -315,9 +309,7 @@ export const PermissionEdit = ({
         {
           id: 'autorequestmusic',
           name: intl.formatMessage(messages.autorequestMusic),
-          description: intl.formatMessage(
-            messages.autorequestMusicDescription
-          ),
+          description: intl.formatMessage(messages.autorequestMusicDescription),
           permission: Permission.AUTO_REQUEST_MUSIC,
           requires: [
             {
@@ -329,9 +321,7 @@ export const PermissionEdit = ({
         {
           id: 'autorequestbooks',
           name: intl.formatMessage(messages.autorequestBooks),
-          description: intl.formatMessage(
-            messages.autorequestBooksDescription
-          ),
+          description: intl.formatMessage(messages.autorequestBooksDescription),
           permission: Permission.AUTO_REQUEST_BOOK,
           requires: [
             {
