@@ -1369,11 +1369,11 @@ discoverRoutes.get('/music', async (req, res) => {
         offset: providerWindow.offset,
         count: providerWindow.limit,
       });
-      const releaseGroups = topAlbums.payload.release_groups.slice(
-        providerWindow.sliceStart,
+      const albums = diversifyMusicAlbumsByArtist(
+        topAlbums.payload.release_groups.map(mapTopAlbumRelease),
         providerWindow.sliceEnd
-      );
-      const mbIds = releaseGroups.map((release) => release.release_group_mbid);
+      ).slice(providerWindow.sliceStart, providerWindow.sliceEnd);
+      const mbIds = albums.map((album) => album.id);
       const relatedMedia = mbIds.length
         ? await getRepository(Media).find({
             where: { mbId: In(mbIds), mediaType: MediaType.MUSIC },
@@ -1394,12 +1394,10 @@ discoverRoutes.get('/music', async (req, res) => {
           Math.ceil(topAlbums.payload.count / itemsPerPage)
         ),
         totalResults: topAlbums.payload.count,
-        results: releaseGroups.map((releaseGroup) =>
+        results: albums.map((album) =>
           mapAlbumResult(
-            mapTopAlbumRelease(releaseGroup),
-            relatedMedia.find(
-              (media) => media.mbId === releaseGroup.release_group_mbid
-            )
+            album,
+            relatedMedia.find((media) => media.mbId === album.id)
           )
         ),
       });

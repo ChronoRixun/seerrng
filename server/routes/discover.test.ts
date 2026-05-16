@@ -316,6 +316,64 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('diversifies popular music chart discovery by artist', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => ({
+      payload: {
+        count: 4,
+        from_ts: 0,
+        last_updated: 0,
+        offset: 0,
+        range: 'week',
+        to_ts: 0,
+        release_groups: [
+          {
+            artist_mbids: ['artist-one'],
+            artist_name: 'Artist One',
+            caa_release_mbid: 'release-artist-one-a',
+            listen_count: 9000,
+            release_group_mbid: 'album-artist-one-a',
+            release_group_name: 'Artist One Album A',
+          },
+          {
+            artist_mbids: ['artist-one'],
+            artist_name: 'Artist One',
+            caa_release_mbid: 'release-artist-one-b',
+            listen_count: 8000,
+            release_group_mbid: 'album-artist-one-b',
+            release_group_name: 'Artist One Album B',
+          },
+          {
+            artist_mbids: ['artist-one'],
+            artist_name: 'Artist One',
+            caa_release_mbid: 'release-artist-one-c',
+            listen_count: 7000,
+            release_group_mbid: 'album-artist-one-c',
+            release_group_name: 'Artist One Album C',
+          },
+          {
+            artist_mbids: ['artist-two'],
+            artist_name: 'Artist Two',
+            caa_release_mbid: 'release-artist-two',
+            listen_count: 1,
+            release_group_mbid: 'album-artist-two',
+            release_group_name: 'Artist Two Album',
+          },
+        ],
+      },
+    }));
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=popular.week');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results
+        .slice(0, 3)
+        .map((result: { title: string }) => result.title),
+      ['Artist One Album A', 'Artist One Album B', 'Artist Two Album']
+    );
+  });
+
   it('ranks MusicBrainz genre discovery results by score and metadata', async () => {
     const searchByTagMock = mock.method(
       MusicBrainz.prototype,
