@@ -31,7 +31,14 @@ import {
 } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { cloneElement, useEffect, useRef, useState, type JSX } from 'react';
+import {
+  cloneElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type JSX,
+} from 'react';
 import { useIntl } from 'react-intl';
 
 interface MobileMenuProps {
@@ -74,100 +81,107 @@ const MobileMenu = ({
 
   const toggle = () => setIsOpen(!isOpen);
 
-  const menuLinks: MenuLink[] = [
-    {
-      href: '/',
-      content: intl.formatMessage(menuMessages.dashboard),
-      svgIcon: <SparklesIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledSparklesIcon className="h-6 w-6" />,
-      activeRegExp: /^\/(discover\/?)?$/,
-    },
-    {
-      href: '/discover/movies',
-      content: intl.formatMessage(menuMessages.browsemovies),
-      svgIcon: <FilmIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledFilmIcon className="h-6 w-6" />,
-      activeRegExp: /^\/discover\/movies$/,
-    },
-    {
-      href: '/discover/tv',
-      content: intl.formatMessage(menuMessages.browsetv),
-      svgIcon: <TvIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledTvIcon className="h-6 w-6" />,
-      activeRegExp: /^\/discover\/tv$/,
-    },
-    {
-      href: '/discover/music',
-      content: intl.formatMessage(menuMessages.browsemusic),
-      svgIcon: <MusicalNoteIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledMusicalNoteIcon className="h-6 w-6" />,
-      activeRegExp: /^\/discover\/music$/,
-    },
-    {
-      href: '/discover/books',
-      content: intl.formatMessage(menuMessages.browsebooks),
-      svgIcon: <BookOpenIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledBookOpenIcon className="h-6 w-6" />,
-      activeRegExp: /^\/discover\/books$/,
-    },
-    {
-      href: '/requests',
-      content: intl.formatMessage(menuMessages.requests),
-      svgIcon: <ClockIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledClockIcon className="h-6 w-6" />,
-      activeRegExp: /^\/requests/,
-    },
-    {
-      href: '/blocklist',
-      content: intl.formatMessage(menuMessages.blocklist),
-      svgIcon: <EyeSlashIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledEyeSlashIcon className="h-6 w-6" />,
-      activeRegExp: /^\/blocklist/,
-      requiredPermission: [
-        Permission.MANAGE_BLOCKLIST,
-        Permission.VIEW_BLOCKLIST,
-      ],
-      permissionType: 'or',
-    },
-    {
-      href: '/issues',
-      content: intl.formatMessage(menuMessages.issues),
-      svgIcon: <ExclamationTriangleIcon className="h-6 w-6" />,
-      svgIconSelected: <FilledExclamationTriangleIcon className="h-6 w-6" />,
-      activeRegExp: /^\/issues/,
-      requiredPermission: [
-        Permission.MANAGE_ISSUES,
-        Permission.CREATE_ISSUES,
-        Permission.VIEW_ISSUES,
-      ],
-      permissionType: 'or',
-    },
-    {
-      href: '/users',
-      content: intl.formatMessage(menuMessages.users),
-      svgIcon: <UsersIcon className="mr-3 h-6 w-6" />,
-      svgIconSelected: <FilledUsersIcon className="mr-3 h-6 w-6" />,
-      activeRegExp: /^\/users/,
-      requiredPermission: Permission.MANAGE_USERS,
-      dataTestId: 'sidebar-menu-users',
-    },
-    {
-      href: '/settings',
-      content: intl.formatMessage(menuMessages.settings),
-      svgIcon: <CogIcon className="mr-3 h-6 w-6" />,
-      svgIconSelected: <FilledCogIcon className="mr-3 h-6 w-6" />,
-      activeRegExp: /^\/settings/,
-      requiredPermission: Permission.ADMIN,
-      dataTestId: 'sidebar-menu-settings',
-    },
-  ];
+  const menuLinks: MenuLink[] = useMemo(
+    () => [
+      {
+        href: '/',
+        content: intl.formatMessage(menuMessages.dashboard),
+        svgIcon: <SparklesIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledSparklesIcon className="h-6 w-6" />,
+        activeRegExp: /^\/(discover\/?)?$/,
+      },
+      {
+        href: '/discover/movies',
+        content: intl.formatMessage(menuMessages.browsemovies),
+        svgIcon: <FilmIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledFilmIcon className="h-6 w-6" />,
+        activeRegExp: /^\/discover\/movies$/,
+      },
+      {
+        href: '/discover/tv',
+        content: intl.formatMessage(menuMessages.browsetv),
+        svgIcon: <TvIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledTvIcon className="h-6 w-6" />,
+        activeRegExp: /^\/discover\/tv$/,
+      },
+      {
+        href: '/discover/music',
+        content: intl.formatMessage(menuMessages.browsemusic),
+        svgIcon: <MusicalNoteIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledMusicalNoteIcon className="h-6 w-6" />,
+        activeRegExp: /^\/discover\/music$/,
+      },
+      {
+        href: '/discover/books',
+        content: intl.formatMessage(menuMessages.browsebooks),
+        svgIcon: <BookOpenIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledBookOpenIcon className="h-6 w-6" />,
+        activeRegExp: /^\/discover\/books$/,
+      },
+      {
+        href: '/requests',
+        content: intl.formatMessage(menuMessages.requests),
+        svgIcon: <ClockIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledClockIcon className="h-6 w-6" />,
+        activeRegExp: /^\/requests/,
+      },
+      {
+        href: '/blocklist',
+        content: intl.formatMessage(menuMessages.blocklist),
+        svgIcon: <EyeSlashIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledEyeSlashIcon className="h-6 w-6" />,
+        activeRegExp: /^\/blocklist/,
+        requiredPermission: [
+          Permission.MANAGE_BLOCKLIST,
+          Permission.VIEW_BLOCKLIST,
+        ],
+        permissionType: 'or',
+      },
+      {
+        href: '/issues',
+        content: intl.formatMessage(menuMessages.issues),
+        svgIcon: <ExclamationTriangleIcon className="h-6 w-6" />,
+        svgIconSelected: <FilledExclamationTriangleIcon className="h-6 w-6" />,
+        activeRegExp: /^\/issues/,
+        requiredPermission: [
+          Permission.MANAGE_ISSUES,
+          Permission.CREATE_ISSUES,
+          Permission.VIEW_ISSUES,
+        ],
+        permissionType: 'or',
+      },
+      {
+        href: '/users',
+        content: intl.formatMessage(menuMessages.users),
+        svgIcon: <UsersIcon className="mr-3 h-6 w-6" />,
+        svgIconSelected: <FilledUsersIcon className="mr-3 h-6 w-6" />,
+        activeRegExp: /^\/users/,
+        requiredPermission: Permission.MANAGE_USERS,
+        dataTestId: 'sidebar-menu-users',
+      },
+      {
+        href: '/settings',
+        content: intl.formatMessage(menuMessages.settings),
+        svgIcon: <CogIcon className="mr-3 h-6 w-6" />,
+        svgIconSelected: <FilledCogIcon className="mr-3 h-6 w-6" />,
+        activeRegExp: /^\/settings/,
+        requiredPermission: Permission.ADMIN,
+        dataTestId: 'sidebar-menu-settings',
+      },
+    ],
+    [intl]
+  );
 
-  const filteredLinks = menuLinks.filter(
-    (link) =>
-      !link.requiredPermission ||
-      hasPermission(link.requiredPermission, {
-        type: link.permissionType ?? 'and',
-      })
+  const filteredLinks = useMemo(
+    () =>
+      menuLinks.filter(
+        (link) =>
+          !link.requiredPermission ||
+          hasPermission(link.requiredPermission, {
+            type: link.permissionType ?? 'and',
+          })
+      ),
+    [hasPermission, menuLinks]
   );
 
   useEffect(() => {
@@ -184,6 +198,12 @@ const MobileMenu = ({
     pendingRequestsCount,
     openIssuesCount,
   ]);
+
+  useEffect(() => {
+    filteredLinks.forEach((link) => {
+      router.prefetch(link.href);
+    });
+  }, [filteredLinks, router]);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50">

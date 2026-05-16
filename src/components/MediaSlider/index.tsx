@@ -16,6 +16,7 @@ import type {
 } from '@server/models/Search';
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { useInView } from 'react-intersection-observer';
 import useSWRInfinite from 'swr/infinite';
 
 interface MixedResult {
@@ -46,8 +47,17 @@ const MediaSlider = ({
 }: MediaSliderProps) => {
   const settings = useSettings();
   const { hasPermission } = useUser();
+  const { ref, inView } = useInView({
+    rootMargin: '900px 0px',
+    triggerOnce: true,
+  });
+  const shouldLoad = isEditingSafe() || inView;
   const { data, error, setSize, size } = useSWRInfinite<MixedResult>(
     (pageIndex: number, previousPageData: MixedResult | null) => {
+      if (!shouldLoad) {
+        return null;
+      }
+
       if (previousPageData && pageIndex + 1 > previousPageData.totalPages) {
         return null;
       }
@@ -102,7 +112,7 @@ const MediaSlider = ({
     }
   }, [titles, setSize, size, data, onNewTitles]);
 
-  if (hideWhenEmpty && (data?.[0].results ?? []).length === 0) {
+  if (hideWhenEmpty && data && (data[0]?.results ?? []).length === 0) {
     return null;
   }
 
@@ -213,7 +223,7 @@ const MediaSlider = ({
   }
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         {linkUrl ? (
           <Link href={linkUrl} className="slider-title min-w-0 pr-16">
@@ -232,8 +242,10 @@ const MediaSlider = ({
         isEmpty={false}
         items={finalTitles}
       />
-    </>
+    </div>
   );
 };
+
+const isEditingSafe = () => typeof window === 'undefined';
 
 export default MediaSlider;

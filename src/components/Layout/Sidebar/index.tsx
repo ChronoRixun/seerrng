@@ -163,6 +163,18 @@ const Sidebar = ({
     openIssuesCount,
   ]);
 
+  useEffect(() => {
+    SidebarLinks.filter(
+      (link) =>
+        !link.requiredPermission ||
+        hasPermission(link.requiredPermission, {
+          type: link.permissionType ?? 'and',
+        })
+    ).forEach((link) => {
+      router.prefetch(link.href);
+    });
+  }, [hasPermission, router]);
+
   return (
     <>
       <div className="lg:hidden">

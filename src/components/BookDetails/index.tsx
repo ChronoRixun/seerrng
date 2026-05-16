@@ -4,11 +4,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
-import ExternalBlocklistModal from '@app/components/ExternalBlocklistModal';
-import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
-import IssueModal from '@app/components/IssueModal';
-import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -35,10 +31,26 @@ import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
+
+const ExternalBlocklistModal = dynamic(
+  () => import('@app/components/ExternalBlocklistModal'),
+  { ssr: false }
+);
+const ExternalMediaManageSlideOver = dynamic(
+  () => import('@app/components/ExternalMediaManageSlideOver'),
+  { ssr: false }
+);
+const IssueModal = dynamic(() => import('@app/components/IssueModal'), {
+  ssr: false,
+});
+const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
+  ssr: false,
+});
 
 const messages = defineMessages('components.BookDetails', {
   book: 'Book',
@@ -277,51 +289,59 @@ const BookDetails = () => {
   return (
     <>
       <PageTitle title={data.title} />
-      <ExternalMediaManageSlideOver
-        data={data}
-        mediaType={MediaType.BOOK}
-        onClose={() => {
-          setShowManager(false);
-          router.push({
-            pathname: router.pathname,
-            query: { bookId: router.query.bookId },
-          });
-        }}
-        revalidate={() => revalidate()}
-        show={showManager}
-      />
-      <ExternalBlocklistModal
-        show={showBlocklistModal}
-        type="book"
-        title={data.title}
-        backdrop={data.posterPath}
-        onCancel={() => setShowBlocklistModal(false)}
-        onComplete={blocklistBook}
-        isUpdating={isBlocklisting}
-      />
-      <IssueModal
-        show={showIssueModal}
-        mediaType="book"
-        mediaId={data.mediaInfo?.id}
-        title={data.title}
-        backdrop={data.posterPath}
-        onCancel={() => setShowIssueModal(false)}
-      />
-      <RequestModal
-        bookId={data.id}
-        editRequest={editRequest}
-        show={showRequestModal}
-        type="book"
-        onComplete={() => {
-          setEditRequest(undefined);
-          setShowRequestModal(false);
-          revalidate();
-        }}
-        onCancel={() => {
-          setEditRequest(undefined);
-          setShowRequestModal(false);
-        }}
-      />
+      {showManager && (
+        <ExternalMediaManageSlideOver
+          data={data}
+          mediaType={MediaType.BOOK}
+          onClose={() => {
+            setShowManager(false);
+            router.push({
+              pathname: router.pathname,
+              query: { bookId: router.query.bookId },
+            });
+          }}
+          revalidate={() => revalidate()}
+          show={showManager}
+        />
+      )}
+      {showBlocklistModal && (
+        <ExternalBlocklistModal
+          show={showBlocklistModal}
+          type="book"
+          title={data.title}
+          backdrop={data.posterPath}
+          onCancel={() => setShowBlocklistModal(false)}
+          onComplete={blocklistBook}
+          isUpdating={isBlocklisting}
+        />
+      )}
+      {showIssueModal && (
+        <IssueModal
+          show={showIssueModal}
+          mediaType="book"
+          mediaId={data.mediaInfo?.id}
+          title={data.title}
+          backdrop={data.posterPath}
+          onCancel={() => setShowIssueModal(false)}
+        />
+      )}
+      {showRequestModal && (
+        <RequestModal
+          bookId={data.id}
+          editRequest={editRequest}
+          show={showRequestModal}
+          type="book"
+          onComplete={() => {
+            setEditRequest(undefined);
+            setShowRequestModal(false);
+            revalidate();
+          }}
+          onCancel={() => {
+            setEditRequest(undefined);
+            setShowRequestModal(false);
+          }}
+        />
+      )}
       <div className="relative z-10 mt-4 flex flex-col gap-6 lg:flex-row">
         <div className="w-full max-w-xs flex-shrink-0">
           <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">

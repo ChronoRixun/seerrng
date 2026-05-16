@@ -4,11 +4,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
-import ExternalBlocklistModal from '@app/components/ExternalBlocklistModal';
-import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
-import IssueModal from '@app/components/IssueModal';
-import RequestModal from '@app/components/RequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -35,11 +31,27 @@ import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { MusicDetails as MusicDetailsType } from '@server/models/Music';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
+
+const ExternalBlocklistModal = dynamic(
+  () => import('@app/components/ExternalBlocklistModal'),
+  { ssr: false }
+);
+const ExternalMediaManageSlideOver = dynamic(
+  () => import('@app/components/ExternalMediaManageSlideOver'),
+  { ssr: false }
+);
+const IssueModal = dynamic(() => import('@app/components/IssueModal'), {
+  ssr: false,
+});
+const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
+  ssr: false,
+});
 
 const messages = defineMessages('components.MusicDetails', {
   album: 'Album',
@@ -250,51 +262,59 @@ const MusicDetails = () => {
   return (
     <>
       <PageTitle title={data.title} />
-      <ExternalMediaManageSlideOver
-        data={data}
-        mediaType={MediaType.MUSIC}
-        onClose={() => {
-          setShowManager(false);
-          router.push({
-            pathname: router.pathname,
-            query: { musicId: router.query.musicId },
-          });
-        }}
-        revalidate={() => revalidate()}
-        show={showManager}
-      />
-      <ExternalBlocklistModal
-        show={showBlocklistModal}
-        type="music"
-        title={data.title}
-        backdrop={data.artistBackdrop}
-        onCancel={() => setShowBlocklistModal(false)}
-        onComplete={blocklistAlbum}
-        isUpdating={isBlocklisting}
-      />
-      <IssueModal
-        show={showIssueModal}
-        mediaType="music"
-        mediaId={data.mediaInfo?.id}
-        title={data.title}
-        backdrop={data.artistBackdrop}
-        onCancel={() => setShowIssueModal(false)}
-      />
-      <RequestModal
-        editRequest={editRequest}
-        show={showRequestModal}
-        type="music"
-        mbId={data.id}
-        onCancel={() => {
-          setEditRequest(undefined);
-          setShowRequestModal(false);
-        }}
-        onComplete={() => {
-          setEditRequest(undefined);
-          setShowRequestModal(false);
-          revalidate();
-        }}
-      />
+      {showManager && (
+        <ExternalMediaManageSlideOver
+          data={data}
+          mediaType={MediaType.MUSIC}
+          onClose={() => {
+            setShowManager(false);
+            router.push({
+              pathname: router.pathname,
+              query: { musicId: router.query.musicId },
+            });
+          }}
+          revalidate={() => revalidate()}
+          show={showManager}
+        />
+      )}
+      {showBlocklistModal && (
+        <ExternalBlocklistModal
+          show={showBlocklistModal}
+          type="music"
+          title={data.title}
+          backdrop={data.artistBackdrop}
+          onCancel={() => setShowBlocklistModal(false)}
+          onComplete={blocklistAlbum}
+          isUpdating={isBlocklisting}
+        />
+      )}
+      {showIssueModal && (
+        <IssueModal
+          show={showIssueModal}
+          mediaType="music"
+          mediaId={data.mediaInfo?.id}
+          title={data.title}
+          backdrop={data.artistBackdrop}
+          onCancel={() => setShowIssueModal(false)}
+        />
+      )}
+      {showRequestModal && (
+        <RequestModal
+          editRequest={editRequest}
+          show={showRequestModal}
+          type="music"
+          mbId={data.id}
+          onCancel={() => {
+            setEditRequest(undefined);
+            setShowRequestModal(false);
+          }}
+          onComplete={() => {
+            setEditRequest(undefined);
+            setShowRequestModal(false);
+            revalidate();
+          }}
+        />
+      )}
       <div className="relative z-10 mt-4 flex flex-col gap-6 lg:flex-row">
         <div className="w-full max-w-xs flex-shrink-0">
           <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
