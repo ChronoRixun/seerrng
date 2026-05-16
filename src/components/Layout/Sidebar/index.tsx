@@ -24,7 +24,7 @@ import { Fragment, useEffect, useRef } from 'react';
 import { useIntl } from 'react-intl';
 
 export const menuMessages = defineMessages('components.Layout.Sidebar', {
-  dashboard: 'Discover',
+  discover: 'Discover',
   browsemovies: 'Movies',
   browsemusic: 'Music',
   browsebooks: 'Books',
@@ -59,7 +59,7 @@ interface SidebarLinkProps {
 const SidebarLinks: SidebarLinkProps[] = [
   {
     href: '/',
-    messagesKey: 'dashboard',
+    messagesKey: 'discover',
     svgIcon: <SparklesIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/(discover\/?)?$/,
   },

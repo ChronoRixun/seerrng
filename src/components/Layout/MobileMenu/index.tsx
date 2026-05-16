@@ -85,7 +85,7 @@ const MobileMenu = ({
     () => [
       {
         href: '/',
-        content: intl.formatMessage(menuMessages.dashboard),
+        content: intl.formatMessage(menuMessages.discover),
         svgIcon: <SparklesIcon className="h-6 w-6" />,
         svgIconSelected: <FilledSparklesIcon className="h-6 w-6" />,
         activeRegExp: /^\/(discover\/?)?$/,

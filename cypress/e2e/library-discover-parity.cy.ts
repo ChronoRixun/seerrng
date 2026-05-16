@@ -54,6 +54,7 @@ describe('Books and Music discover parity', () => {
   });
 
   it('matches the video discover toolbar shape for books and music', () => {
+    cy.viewport(1400, 900);
     cy.intercept('GET', '/api/v1/discover/movies*', {
       page: 1,
       totalPages: 1,
@@ -62,6 +63,13 @@ describe('Books and Music discover parity', () => {
     }).as('getMovies');
     cy.visit('/discover/movies');
     cy.wait('@getMovies');
+    cy.get('.sidebar')
+      .filter(':visible')
+      .first()
+      .within(() => {
+        cy.contains(/^Discover$/).should('be.visible');
+        cy.contains(/^Video$/).should('not.exist');
+      });
     cy.contains('[data-testid=page-header]', 'Movies').should('be.visible');
     cy.get('select[name=sortBy]').should('be.visible');
     cy.contains('button', '0 Active Filters').click();
