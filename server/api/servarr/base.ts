@@ -2,6 +2,7 @@ import ExternalAPI from '@server/api/externalapi';
 import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 import { getSettings, type DVRSettings } from '@server/lib/settings';
+import logger from '@server/logger';
 
 export interface SystemStatus {
   version: string;
@@ -78,6 +79,10 @@ interface QueueResponse<QueueItemAppendT> {
   records: (QueueItem & QueueItemAppendT)[];
 }
 
+const EXTERNAL_READ_ONLY =
+  process.env.SEERR_EXTERNAL_READ_ONLY?.toLowerCase() === 'true' ||
+  process.env.SEERR_EXTERNAL_READ_ONLY === '1';
+
 class ServarrBase<QueueItemAppendT> extends ExternalAPI {
   static buildUrl(settings: DVRSettings, path?: string): string {
     return `${settings.useSsl ? 'https' : 'http'}://${settings.hostname}:${
@@ -112,6 +117,26 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
     );
 
     this.apiName = apiName;
+
+    if (EXTERNAL_READ_ONLY) {
+      this.axios.interceptors.request.use((config) => {
+        const method = (config.method ?? 'get').toUpperCase();
+
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+          logger.warn('Blocked mutating Servarr request in read-only mode.', {
+            label: this.apiName,
+            method,
+            url: config.url,
+          });
+
+          throw new Error(
+            `[${this.apiName}] Mutating API request blocked by SEERR_EXTERNAL_READ_ONLY`
+          );
+        }
+
+        return config;
+      });
+    }
   }
 
   public getSystemStatus = async (): Promise<SystemStatus> => {
