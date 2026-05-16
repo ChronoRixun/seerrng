@@ -74,10 +74,17 @@ const MediaSlider = ({
     }
   );
 
-  let titles = (data ?? []).reduce(
-    (a, v) => [...a, ...v.results],
-    [] as (MovieResult | TvResult | PersonResult | AlbumResult | BookResult)[]
-  );
+  let titles: (
+    | MovieResult
+    | TvResult
+    | PersonResult
+    | AlbumResult
+    | BookResult
+  )[] = [];
+
+  for (const page of data ?? []) {
+    titles.push(...page.results);
+  }
 
   if (settings.currentSettings.hideAvailable) {
     titles = titles.filter(

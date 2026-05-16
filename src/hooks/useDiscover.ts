@@ -116,18 +116,16 @@ const useDiscover = <
     setSize(size + 1);
   };
 
-  let titles = (data ?? []).reduce((a, v) => {
-    const results: T[] = [];
+  let titles: T[] = [];
 
-    for (const result of v.results) {
+  for (const page of data ?? []) {
+    for (const result of page.results) {
       if (!resultIds.has(result.id)) {
         resultIds.add(result.id);
-        results.push(result);
+        titles.push(result);
       }
     }
-
-    return [...a, ...results];
-  }, [] as T[]);
+  }
 
   const hasLinkedBookFormat = (
     mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
