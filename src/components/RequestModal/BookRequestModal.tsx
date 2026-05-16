@@ -549,14 +549,14 @@ const BookRequestModal = ({
           <Alert title={intl.formatMessage(formatWarning)} type="warning" />
         </div>
       )}
-      {(data?.isbnCandidates?.length ?? 0) > 1 && (
+      {!!data?.isbnCandidates?.length && (
         <div className="mt-6">
-          <label htmlFor="bookEdition" className="text-label">
+          <label htmlFor="isbn" className="text-label">
             {intl.formatMessage(messages.edition)}
           </label>
           <select
-            id="bookEdition"
-            name="bookEdition"
+            id="isbn"
+            name="isbn"
             value={selectedIsbn}
             onChange={(e) => setSelectedIsbn(e.target.value)}
             className="border-gray-700 bg-gray-800"

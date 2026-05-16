@@ -1,4 +1,28 @@
 describe('Books and Music discover parity', () => {
+  const unrestrictedQuota = {
+    movie: { used: 0, restricted: false },
+    tv: { used: 0, restricted: false },
+    music: { used: 0, restricted: false },
+    book: { used: 0, restricted: false },
+  };
+
+  const serviceDetails = (serverName: string, path: string) => ({
+    server: {
+      id: 1,
+      name: serverName,
+      is4k: false,
+      isDefault: true,
+      activeProfileId: 1,
+      activeMetadataProfileId: 1,
+      activeDirectory: path,
+      activeTags: [],
+    },
+    profiles: [{ id: 1, name: 'Default' }],
+    metadataProfiles: [{ id: 1, name: 'Default' }],
+    rootFolders: [{ id: 1, path, freeSpace: 1000000000 }],
+    tags: [],
+  });
+
   beforeEach(() => {
     cy.loginAsAdmin();
   });
@@ -105,5 +129,133 @@ describe('Books and Music discover parity', () => {
     cy.contains('[data-testid=media-title]', 'Parity Album').should(
       'be.visible'
     );
+  });
+
+  it('opens book and music request modals with matching workflow controls', () => {
+    cy.intercept('GET', '/api/v1/user/*/quota', unrestrictedQuota);
+
+    cy.intercept('GET', '/api/v1/book/OLREQW', {
+      id: 'OLREQW',
+      mediaType: 'book',
+      title: 'Requestable Book',
+      author: 'Request Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/2-L.jpg',
+      isbn13: '9780000000002',
+      editionId: 'OLREQM',
+      isbnCandidates: [
+        {
+          isbn: '9780000000002',
+          title: 'Requestable Book',
+          editionId: 'OLREQM',
+          format: 'hardcover',
+        },
+      ],
+      subjects: ['fiction'],
+    }).as('getRequestBook');
+    cy.intercept('GET', '/api/v1/service/readarr', [
+      {
+        id: 1,
+        name: 'Bookshelf Ebooks',
+        is4k: false,
+        isDefault: true,
+        activeProfileId: 1,
+        activeMetadataProfileId: 1,
+        activeDirectory: '/books',
+        activeTags: [],
+        serviceType: 'ebook',
+      },
+      {
+        id: 2,
+        name: 'Bookshelf Audio',
+        is4k: false,
+        isDefault: true,
+        activeProfileId: 1,
+        activeMetadataProfileId: 1,
+        activeDirectory: '/audiobooks',
+        activeTags: [],
+        serviceType: 'audiobook',
+      },
+    ]);
+    cy.intercept('GET', '/api/v1/service/readarr/1', {
+      ...serviceDetails('Bookshelf Ebooks', '/books'),
+      server: {
+        ...serviceDetails('Bookshelf Ebooks', '/books').server,
+        serviceType: 'ebook',
+      },
+    });
+    cy.intercept('GET', '/api/v1/service/readarr/2', {
+      ...serviceDetails('Bookshelf Audio', '/audiobooks'),
+      server: {
+        ...serviceDetails('Bookshelf Audio', '/audiobooks').server,
+        id: 2,
+        serviceType: 'audiobook',
+      },
+    });
+
+    cy.visit('/book/OLREQW');
+    cy.wait('@getRequestBook');
+    cy.contains('[data-testid=media-title]', 'Requestable Book').should(
+      'be.visible'
+    );
+    cy.contains('button', 'Request').click();
+    cy.contains('[data-testid=modal-title]', 'Request Book').should(
+      'be.visible'
+    );
+    cy.contains('[data-testid=modal-title]', 'Requestable Book').should(
+      'be.visible'
+    );
+    cy.contains('label', 'Format').should('be.visible');
+    cy.get('select[name=bookFormat]').should('be.visible');
+    cy.contains('label', 'Edition / ISBN').should('be.visible');
+    cy.get('select[name=isbn]').should('be.visible');
+    cy.contains('Automatic best match').should('be.visible');
+    cy.contains('Advanced').should('be.visible');
+    cy.get('[data-testid=modal-cancel-button]').click();
+
+    cy.intercept('GET', '/api/v1/music/33333333-3333-3333-3333-333333333333', {
+      id: '33333333-3333-3333-3333-333333333333',
+      mbId: '33333333-3333-3333-3333-333333333333',
+      mediaType: 'album',
+      title: 'Requestable Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      artist: {
+        id: '44444444-4444-4444-4444-444444444444',
+        name: 'Request Artist',
+      },
+      tracks: [{ position: 1, name: 'Track One', recordingMbid: 'track-1' }],
+    }).as('getRequestMusic');
+    cy.intercept('GET', '/api/v1/service/lidarr', [
+      {
+        id: 1,
+        name: 'Lidarr',
+        is4k: false,
+        isDefault: true,
+        activeProfileId: 1,
+        activeMetadataProfileId: 1,
+        activeDirectory: '/music',
+        activeTags: [],
+      },
+    ]);
+    cy.intercept('GET', '/api/v1/service/lidarr/1', {
+      ...serviceDetails('Lidarr', '/music'),
+    });
+
+    cy.visit('/music/33333333-3333-3333-3333-333333333333');
+    cy.wait('@getRequestMusic');
+    cy.contains('[data-testid=media-title]', 'Requestable Album').should(
+      'be.visible'
+    );
+    cy.contains('button', 'Request').click();
+    cy.contains('[data-testid=modal-title]', 'Request Music').should(
+      'be.visible'
+    );
+    cy.contains(
+      '[data-testid=modal-title]',
+      'Request Artist - Requestable Album'
+    ).should('be.visible');
+    cy.get('[data-testid=modal-ok-button]').should('contain', 'Request');
+    cy.get('[data-testid=modal-cancel-button]').should('contain', 'Cancel');
   });
 });
