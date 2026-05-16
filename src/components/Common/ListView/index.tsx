@@ -21,6 +21,7 @@ import type {
   PersonResult,
   TvResult,
 } from '@server/models/Search';
+import { useMemo } from 'react';
 import { useIntl } from 'react-intl';
 
 type ListViewProps = {
@@ -58,6 +59,199 @@ const ListView = ({
     [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
     { type: 'or' }
   );
+  const plexCards = useMemo(
+    () =>
+      plexItems?.map((title, index) => (
+        <li key={`${title.ratingKey}-${index}`}>
+          {title.mediaType === 'music' && title.mbId ? (
+            <LibraryTitleCard
+              id={title.mbId}
+              type="album"
+              title={title.title}
+              isAddedToWatchlist={true}
+              canExpand
+              mutateParent={mutateParent}
+            />
+          ) : title.mediaType === 'book' && title.externalId ? (
+            <LibraryTitleCard
+              id={title.externalId}
+              type="book"
+              title={title.title}
+              isAddedToWatchlist={true}
+              canExpand
+              mutateParent={mutateParent}
+            />
+          ) : title.tmdbId ? (
+            <TmdbTitleCard
+              id={title.tmdbId}
+              tmdbId={title.tmdbId}
+              type={title.mediaType === 'tv' ? 'tv' : 'movie'}
+              isAddedToWatchlist={true}
+              canExpand
+              mutateParent={mutateParent}
+            />
+          ) : null}
+        </li>
+      )),
+    [mutateParent, plexItems]
+  );
+  const itemCards = useMemo(
+    () =>
+      items
+        ?.filter((title) => {
+          if (!blocklistVisibility)
+            return (
+              (title as TvResult | MovieResult | AlbumResult | BookResult)
+                .mediaInfo?.status !== MediaStatus.BLOCKLISTED
+            );
+          return title;
+        })
+        .map((title, index) => {
+          let titleCard: React.ReactNode;
+
+          switch (title.mediaType) {
+            case 'movie':
+              titleCard = (
+                <TitleCard
+                  key={title.id}
+                  id={title.id}
+                  isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                  image={title.posterPath}
+                  status={title.mediaInfo?.status}
+                  summary={title.overview}
+                  title={title.title}
+                  userScore={title.voteAverage}
+                  year={title.releaseDate}
+                  mediaType={title.mediaType}
+                  inProgress={
+                    (title.mediaInfo?.downloadStatus ?? []).length > 0
+                  }
+                  canExpand
+                />
+              );
+              break;
+            case 'tv':
+              titleCard = (
+                <TitleCard
+                  key={title.id}
+                  id={title.id}
+                  isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                  image={title.posterPath}
+                  status={title.mediaInfo?.status}
+                  summary={title.overview}
+                  title={title.name}
+                  userScore={title.voteAverage}
+                  year={title.firstAirDate}
+                  mediaType={title.mediaType}
+                  inProgress={
+                    (title.mediaInfo?.downloadStatus ?? []).length > 0
+                  }
+                  canExpand
+                />
+              );
+              break;
+            case 'collection':
+              titleCard = (
+                <TitleCard
+                  id={title.id}
+                  image={title.posterPath}
+                  summary={title.overview}
+                  title={title.title}
+                  mediaType={title.mediaType}
+                  canExpand
+                />
+              );
+              break;
+            case 'person':
+              titleCard = (
+                <PersonCard
+                  personId={title.id}
+                  name={title.name}
+                  profilePath={title.profilePath}
+                  canExpand
+                />
+              );
+              break;
+            case 'album':
+              titleCard = (
+                <TitleCard
+                  key={title.id}
+                  id={title.id}
+                  isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                  image={title.posterPath}
+                  status={title.mediaInfo?.status}
+                  title={title.title}
+                  artist={title['artist-credit']?.[0]?.name}
+                  type={title['primary-type']}
+                  year={
+                    title.releaseDate ??
+                    title['first-release-date']?.split('-')[0]
+                  }
+                  mediaType={title.mediaType}
+                  inProgress={
+                    (title.mediaInfo?.downloadStatus ?? []).length > 0
+                  }
+                  needsCoverArt={title.needsCoverArt}
+                  canExpand
+                />
+              );
+              break;
+            case 'artist':
+              titleCard = title.tmdbPersonId ? (
+                <PersonCard
+                  key={title.id}
+                  personId={title.tmdbPersonId}
+                  name={title.name}
+                  profilePath={title.artistThumb ?? undefined}
+                  subName={title.disambiguation}
+                  canExpand
+                />
+              ) : (
+                <ArtistCard
+                  key={title.id}
+                  artistId={title.id}
+                  name={title.name}
+                  artistThumb={title.artistThumb}
+                  subName={title.disambiguation}
+                  canExpand
+                />
+              );
+              break;
+            case 'book':
+              titleCard = (
+                <TitleCard
+                  key={title.id}
+                  id={title.id}
+                  image={title.posterPath}
+                  isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                  status={title.mediaInfo?.status}
+                  title={title.title}
+                  artist={title.author}
+                  year={title.firstPublishYear?.toString()}
+                  mediaType={title.mediaType}
+                  inProgress={isBookInProgress(title)}
+                  canRequestAdditionalFormat={canRequestMissingBookFormat(
+                    title
+                  )}
+                  canExpand
+                />
+              );
+              break;
+          }
+
+          return <li key={`${title.id}-${index}`}>{titleCard}</li>;
+        }),
+    [blocklistVisibility, items]
+  );
+  const placeholderCards = useMemo(
+    () =>
+      [...Array(20)].map((_item, i) => (
+        <li key={`placeholder-${i}`}>
+          <TitleCard.Placeholder canExpand />
+        </li>
+      )),
+    []
+  );
 
   return (
     <>
@@ -67,199 +261,9 @@ const ListView = ({
         </div>
       )}
       <ul className="cards-vertical">
-        {plexItems?.map((title, index) => {
-          return (
-            <li key={`${title.ratingKey}-${index}`}>
-              {title.mediaType === 'music' && title.mbId ? (
-                <LibraryTitleCard
-                  id={title.mbId}
-                  type="album"
-                  title={title.title}
-                  isAddedToWatchlist={true}
-                  canExpand
-                  mutateParent={mutateParent}
-                />
-              ) : title.mediaType === 'book' && title.externalId ? (
-                <LibraryTitleCard
-                  id={title.externalId}
-                  type="book"
-                  title={title.title}
-                  isAddedToWatchlist={true}
-                  canExpand
-                  mutateParent={mutateParent}
-                />
-              ) : title.tmdbId ? (
-                <TmdbTitleCard
-                  id={title.tmdbId}
-                  tmdbId={title.tmdbId}
-                  type={title.mediaType === 'tv' ? 'tv' : 'movie'}
-                  isAddedToWatchlist={true}
-                  canExpand
-                  mutateParent={mutateParent}
-                />
-              ) : null}
-            </li>
-          );
-        })}
-        {items
-          ?.filter((title) => {
-            if (!blocklistVisibility)
-              return (
-                (title as TvResult | MovieResult | AlbumResult | BookResult)
-                  .mediaInfo?.status !== MediaStatus.BLOCKLISTED
-              );
-            return title;
-          })
-          .map((title, index) => {
-            let titleCard: React.ReactNode;
-
-            switch (title.mediaType) {
-              case 'movie':
-                titleCard = (
-                  <TitleCard
-                    key={title.id}
-                    id={title.id}
-                    isAddedToWatchlist={
-                      title.mediaInfo?.watchlists?.length ?? 0
-                    }
-                    image={title.posterPath}
-                    status={title.mediaInfo?.status}
-                    summary={title.overview}
-                    title={title.title}
-                    userScore={title.voteAverage}
-                    year={title.releaseDate}
-                    mediaType={title.mediaType}
-                    inProgress={
-                      (title.mediaInfo?.downloadStatus ?? []).length > 0
-                    }
-                    canExpand
-                  />
-                );
-                break;
-              case 'tv':
-                titleCard = (
-                  <TitleCard
-                    key={title.id}
-                    id={title.id}
-                    isAddedToWatchlist={
-                      title.mediaInfo?.watchlists?.length ?? 0
-                    }
-                    image={title.posterPath}
-                    status={title.mediaInfo?.status}
-                    summary={title.overview}
-                    title={title.name}
-                    userScore={title.voteAverage}
-                    year={title.firstAirDate}
-                    mediaType={title.mediaType}
-                    inProgress={
-                      (title.mediaInfo?.downloadStatus ?? []).length > 0
-                    }
-                    canExpand
-                  />
-                );
-                break;
-              case 'collection':
-                titleCard = (
-                  <TitleCard
-                    id={title.id}
-                    image={title.posterPath}
-                    summary={title.overview}
-                    title={title.title}
-                    mediaType={title.mediaType}
-                    canExpand
-                  />
-                );
-                break;
-              case 'person':
-                titleCard = (
-                  <PersonCard
-                    personId={title.id}
-                    name={title.name}
-                    profilePath={title.profilePath}
-                    canExpand
-                  />
-                );
-                break;
-              case 'album':
-                titleCard = (
-                  <TitleCard
-                    key={title.id}
-                    id={title.id}
-                    isAddedToWatchlist={
-                      title.mediaInfo?.watchlists?.length ?? 0
-                    }
-                    image={title.posterPath}
-                    status={title.mediaInfo?.status}
-                    title={title.title}
-                    artist={title['artist-credit']?.[0]?.name}
-                    type={title['primary-type']}
-                    year={
-                      title.releaseDate ??
-                      title['first-release-date']?.split('-')[0]
-                    }
-                    mediaType={title.mediaType}
-                    inProgress={
-                      (title.mediaInfo?.downloadStatus ?? []).length > 0
-                    }
-                    needsCoverArt={title.needsCoverArt}
-                    canExpand
-                  />
-                );
-                break;
-              case 'artist':
-                titleCard = title.tmdbPersonId ? (
-                  <PersonCard
-                    key={title.id}
-                    personId={title.tmdbPersonId}
-                    name={title.name}
-                    profilePath={title.artistThumb ?? undefined}
-                    subName={title.disambiguation}
-                    canExpand
-                  />
-                ) : (
-                  <ArtistCard
-                    key={title.id}
-                    artistId={title.id}
-                    name={title.name}
-                    artistThumb={title.artistThumb}
-                    subName={title.disambiguation}
-                    canExpand
-                  />
-                );
-                break;
-              case 'book':
-                titleCard = (
-                  <TitleCard
-                    key={title.id}
-                    id={title.id}
-                    image={title.posterPath}
-                    isAddedToWatchlist={
-                      title.mediaInfo?.watchlists?.length ?? 0
-                    }
-                    status={title.mediaInfo?.status}
-                    title={title.title}
-                    artist={title.author}
-                    year={title.firstPublishYear?.toString()}
-                    mediaType={title.mediaType}
-                    inProgress={isBookInProgress(title)}
-                    canRequestAdditionalFormat={canRequestMissingBookFormat(
-                      title
-                    )}
-                    canExpand
-                  />
-                );
-                break;
-            }
-
-            return <li key={`${title.id}-${index}`}>{titleCard}</li>;
-          })}
-        {isLoading &&
-          !isReachingEnd &&
-          [...Array(20)].map((_item, i) => (
-            <li key={`placeholder-${i}`}>
-              <TitleCard.Placeholder canExpand />
-            </li>
-          ))}
+        {plexCards}
+        {itemCards}
+        {isLoading && !isReachingEnd && placeholderCards}
       </ul>
     </>
   );
