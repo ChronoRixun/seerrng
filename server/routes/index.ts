@@ -28,6 +28,7 @@ import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
 import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
+import artistRoutes from './artist';
 import authRoutes from './auth';
 import blocklistRoutes from './blocklist';
 import bookRoutes from './book';
@@ -38,7 +39,6 @@ import issueCommentRoutes from './issueComment';
 import mediaRoutes from './media';
 import movieRoutes from './movie';
 import musicRoutes from './music';
-import artistRoutes from './artist';
 import personRoutes from './person';
 import requestRoutes from './request';
 import searchRoutes from './search';
@@ -318,13 +318,12 @@ router.get('/backdrops', async (req, res, next) => {
       | TmdbTvResult
     )[];
 
-    return res
-      .status(200)
-      .json(
-        data
-          .map((result) => result.backdrop_path)
-          .filter((backdropPath) => !!backdropPath)
-      );
+    return res.status(200).json(
+      data
+        .map((result) => result.backdrop_path)
+        .filter((backdropPath) => !!backdropPath)
+        .slice(0, 8)
+    );
   } catch (e) {
     logger.debug('Something went wrong retrieving backdrops', {
       label: 'API',

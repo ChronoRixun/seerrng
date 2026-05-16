@@ -13,7 +13,14 @@ export type CachedImageProps = ImageProps & {
  * The CachedImage component should be used wherever
  * we want to offer the option to locally cache images.
  **/
-const CachedImage = ({ src, type, ...props }: CachedImageProps) => {
+const CachedImage = ({
+  src,
+  type,
+  decoding = 'async',
+  loading,
+  priority,
+  ...props
+}: CachedImageProps) => {
   const { currentSettings } = useSettings();
 
   let imageUrl: string;
@@ -41,7 +48,17 @@ const CachedImage = ({ src, type, ...props }: CachedImageProps) => {
     return null;
   }
 
-  return <Image unoptimized loader={imageLoader} src={imageUrl} {...props} />;
+  return (
+    <Image
+      unoptimized
+      loader={imageLoader}
+      src={imageUrl}
+      decoding={decoding}
+      loading={priority ? undefined : (loading ?? 'lazy')}
+      priority={priority}
+      {...props}
+    />
+  );
 };
 
 export default CachedImage;

@@ -469,7 +469,7 @@ export const WatchProviderSelector = ({
                     <div className="relative m-2 aspect-1">
                       <CachedImage
                         type="tmdb"
-                        src={`https://image.tmdb.org/t/p/original${provider.logoPath}`}
+                        src={`https://image.tmdb.org/t/p/w185${provider.logoPath}`}
                         alt=""
                         fill
                         className="rounded-lg object-contain"
@@ -512,7 +512,7 @@ export const WatchProviderSelector = ({
                       <div className="relative m-2 aspect-1">
                         <CachedImage
                           type="tmdb"
-                          src={`https://image.tmdb.org/t/p/original${provider.logoPath}`}
+                          src={`https://image.tmdb.org/t/p/w185${provider.logoPath}`}
                           alt=""
                           fill
                           className="rounded-lg object-contain"

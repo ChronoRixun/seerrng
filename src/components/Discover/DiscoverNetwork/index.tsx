@@ -51,7 +51,7 @@ const DiscoverTvNetwork = () => {
             <div className="relative mb-6 flex h-24 justify-center sm:h-32">
               <CachedImage
                 type="tmdb"
-                src={`https://image.tmdb.org/t/p/w780_filter(duotone,ffffff,bababa)${firstResultData.network.logoPath}`}
+                src={`https://image.tmdb.org/t/p/w300_filter(duotone,ffffff,bababa)${firstResultData.network.logoPath}`}
                 alt={firstResultData.network.name}
                 className="object-contain"
                 fill
