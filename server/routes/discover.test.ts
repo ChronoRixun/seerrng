@@ -507,4 +507,64 @@ describe('GET /discover/watchlist', () => {
     );
     assert.strictEqual(res.body.totalResults, 3);
   });
+
+  it('ignores incomplete local book and music watchlist rows when paginating', async () => {
+    mock.method(
+      PlexTvAPI.prototype,
+      'getWatchlist',
+      async (options: unknown) => {
+        const { offset } = options as { offset?: number };
+        assert.strictEqual(offset, 0);
+
+        return {
+          totalSize: 1,
+          items: [
+            {
+              ratingKey: 'plex-movie-key',
+              title: 'Plex Movie',
+              type: 'movie',
+              tmdbId: 123,
+            },
+          ],
+        };
+      }
+    );
+
+    const userRepository = getRepository(User);
+    const admin = await userRepository.findOneOrFail({
+      where: { email: 'admin@seerr.dev' },
+    });
+    admin.plexToken = 'plex-token';
+    await userRepository.save(admin);
+
+    await getRepository(Watchlist).save([
+      new Watchlist({
+        mediaType: MediaType.MUSIC,
+        title: 'Broken Album',
+        requestedBy: admin,
+      }),
+      new Watchlist({
+        mediaType: MediaType.BOOK,
+        title: 'Broken Book',
+        requestedBy: admin,
+      }),
+      new Watchlist({
+        externalId: 'OLvalidW',
+        mediaType: MediaType.BOOK,
+        title: 'Valid Book',
+        requestedBy: admin,
+      }),
+    ]);
+
+    const agent = await login();
+    const res = await agent.get('/discover/watchlist');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((item: { title: string }) => item.title),
+      ['Valid Book', 'Plex Movie']
+    );
+    assert.strictEqual(res.body.totalResults, 2);
+    assert.strictEqual(res.body.totalPages, 1);
+  });
 });

@@ -47,23 +47,20 @@ export const getCombinedWatchlist = async ({
   const offset = (page - 1) * itemsPerPage;
   const watchlistRepository = getRepository(Watchlist);
   const localWhere = { requestedBy: { id: userId } };
-  const localTotal = await watchlistRepository.count({ where: localWhere });
+  const renderableLocalWatchlists = (
+    await watchlistRepository.find({ where: localWhere })
+  ).filter(isRenderableWatchlistItem);
+  const localTotal = renderableLocalWatchlists.length;
   const localTake = Math.max(
     itemsPerPage - Math.max(offset - localTotal, 0),
     0
   );
   const localSkip = Math.min(offset, localTotal);
-  const localResult =
-    localTake > 0
-      ? await watchlistRepository.find({
-          where: localWhere,
-          take: localTake,
-          skip: localSkip,
-        })
-      : [];
-  const localItems = localResult
-    .filter(isRenderableWatchlistItem)
-    .map(mapLocalWatchlistItem);
+  const localResult = renderableLocalWatchlists.slice(
+    localSkip,
+    localSkip + localTake
+  );
+  const localItems = localResult.map(mapLocalWatchlistItem);
 
   if (!plexToken) {
     return {
