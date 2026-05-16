@@ -2,25 +2,23 @@ import Button from '@app/components/Common/Button';
 import Header from '@app/components/Common/Header';
 import ListView from '@app/components/Common/ListView';
 import PageTitle from '@app/components/Common/PageTitle';
+import LibraryFilterSlideover, {
+  countLibraryFilters,
+} from '@app/components/Discover/LibraryFilterSlideover';
 import useDiscover from '@app/hooks/useDiscover';
 import { useBatchUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
-import {
-  BarsArrowDownIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/solid';
+import { BarsArrowDownIcon, FunnelIcon } from '@heroicons/react/24/solid';
 import type { BookResult } from '@server/models/Book';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Discover.DiscoverBooks', {
   books: 'Books',
-  searchPlaceholder: 'Search books',
-  search: 'Search',
-  clearSearch: 'Clear Search',
+  activefilters:
+    '{count, plural, one {# Active Filter} other {# Active Filters}}',
   fiction: 'Fiction',
   fantasy: 'Fantasy',
   scienceFiction: 'Science Fiction',
@@ -38,7 +36,7 @@ const DiscoverBooks = () => {
     typeof router.query.query === 'string' ? router.query.query : '';
   const subject =
     typeof router.query.subject === 'string' ? router.query.subject : 'fiction';
-  const [searchValue, setSearchValue] = useState(query);
+  const [showFilters, setShowFilters] = useState(false);
   const {
     isLoadingInitialData,
     isEmpty,
@@ -53,10 +51,6 @@ const DiscoverBooks = () => {
     { hideAvailable: false, hideBlocklisted: false }
   );
 
-  useEffect(() => {
-    setSearchValue(query);
-  }, [query]);
-
   if (error) {
     return <ErrorPage statusCode={500} />;
   }
@@ -67,49 +61,7 @@ const DiscoverBooks = () => {
       <div className="mb-4 flex flex-col justify-between lg:flex-row lg:items-end">
         <Header>{title}</Header>
         <div className="mt-2 flex flex-grow flex-col gap-2 sm:flex-row lg:mt-0 lg:flex-grow-0">
-          <form
-            className="flex w-full sm:w-96"
-            onSubmit={(e) => {
-              e.preventDefault();
-              updateQueryParams({
-                query: searchValue.trim() || undefined,
-                page: undefined,
-              });
-            }}
-          >
-            <div className="flex min-w-0 flex-1">
-              <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">
-                <MagnifyingGlassIcon className="h-6 w-6" />
-              </span>
-              <input
-                id="book-query"
-                name="book-query"
-                type="search"
-                className="rounded-r-none"
-                placeholder={intl.formatMessage(messages.searchPlaceholder)}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-              />
-            </div>
-            <Button buttonType="primary" className="ml-2" type="submit">
-              <MagnifyingGlassIcon />
-              <span>{intl.formatMessage(messages.search)}</span>
-            </Button>
-            {!!query && (
-              <Button
-                className="ml-2"
-                type="button"
-                onClick={() => {
-                  setSearchValue('');
-                  updateQueryParams({ query: undefined, page: undefined });
-                }}
-              >
-                <XMarkIcon />
-                <span>{intl.formatMessage(messages.clearSearch)}</span>
-              </Button>
-            )}
-          </form>
-          <div className="flex flex-grow lg:flex-grow-0">
+          <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 lg:flex-grow-0">
             <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">
               <BarsArrowDownIcon className="h-6 w-6" />
             </span>
@@ -145,6 +97,23 @@ const DiscoverBooks = () => {
                 {intl.formatMessage(messages.romance)}
               </option>
             </select>
+          </div>
+          <LibraryFilterSlideover
+            type="book"
+            query={query}
+            subject={subject}
+            onClose={() => setShowFilters(false)}
+            show={showFilters}
+          />
+          <div className="mb-2 flex flex-grow sm:mb-0 lg:flex-grow-0">
+            <Button onClick={() => setShowFilters(true)} className="w-full">
+              <FunnelIcon />
+              <span>
+                {intl.formatMessage(messages.activefilters, {
+                  count: countLibraryFilters({ type: 'book', query, subject }),
+                })}
+              </span>
+            </Button>
           </div>
         </div>
       </div>
