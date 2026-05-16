@@ -47,6 +47,8 @@ const messages = defineMessages('components.ExternalMediaManageSlideOver', {
   markavailable: 'Mark as Available',
   music: 'music',
   book: 'book',
+  musicTitle: 'Music',
+  bookTitle: 'Book',
 });
 
 const filterDuplicateDownloads = (
@@ -90,6 +92,9 @@ const ExternalMediaManageSlideOver = ({
     mediaType === MediaType.MUSIC ? (data as MusicDetails).mbId : data.id;
   const mediaLabel = intl.formatMessage(
     mediaType === MediaType.MUSIC ? messages.music : messages.book
+  );
+  const mediaTitleLabel = intl.formatMessage(
+    mediaType === MediaType.MUSIC ? messages.musicTitle : messages.bookTitle
   );
   const serviceLinks = (
     [
@@ -173,7 +178,7 @@ const ExternalMediaManageSlideOver = ({
     <SlideOver
       show={show}
       title={intl.formatMessage(messages.manageModalTitle, {
-        mediaType: mediaLabel,
+        mediaType: mediaTitleLabel,
       })}
       onClose={onClose}
       subText={data.title}

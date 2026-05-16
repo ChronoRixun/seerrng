@@ -631,7 +631,7 @@ describe('Books and Music discover parity', () => {
 
     cy.visit('/book/OLMANAGEW?manage=1');
     cy.wait('@getManagedBook');
-    cy.contains('Manage book').should('be.visible');
+    cy.contains('Manage Book').should('be.visible');
     cy.contains('Downloads').should('be.visible');
     cy.contains('Managed Book (Ebook)').should('be.visible');
     cy.contains('Managed Book (Audiobook)').should('be.visible');
@@ -670,7 +670,7 @@ describe('Books and Music discover parity', () => {
 
     cy.visit('/music/55555555-5555-5555-5555-555555555555?manage=1');
     cy.wait('@getManagedMusic');
-    cy.contains('Manage music').should('be.visible');
+    cy.contains('Manage Music').should('be.visible');
     cy.contains('Downloads').should('be.visible');
     cy.contains('Managed Album').should('be.visible');
     cy.contains('Open in Lidarr').should('be.visible');
