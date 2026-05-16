@@ -1,6 +1,6 @@
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
-import { MediaStatus } from '@server/constants/media';
+import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import { useEffect } from 'react';
 import { useIntl } from 'react-intl';
 import useSWRInfinite from 'swr/infinite';
@@ -19,6 +19,14 @@ interface BaseMedia {
   mediaType: string;
   mediaInfo?: {
     status: MediaStatus;
+    serviceId?: number | null;
+    externalServiceId?: number | null;
+    audiobookServiceId?: number | null;
+    audiobookExternalServiceId?: number | null;
+    requests?: {
+      status: MediaRequestStatus;
+      bookFormat?: 'ebook' | 'audiobook' | 'both' | null;
+    }[];
   };
 }
 
@@ -121,12 +129,73 @@ const useDiscover = <
     return [...a, ...results];
   }, [] as T[]);
 
+  const hasLinkedBookFormat = (
+    mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
+    format: 'ebook' | 'audiobook'
+  ) => {
+    if (format === 'audiobook') {
+      return (
+        mediaInfo.audiobookServiceId !== null &&
+        mediaInfo.audiobookServiceId !== undefined &&
+        mediaInfo.audiobookExternalServiceId !== null &&
+        mediaInfo.audiobookExternalServiceId !== undefined
+      );
+    }
+
+    return (
+      mediaInfo.serviceId !== null &&
+      mediaInfo.serviceId !== undefined &&
+      mediaInfo.externalServiceId !== null &&
+      mediaInfo.externalServiceId !== undefined
+    );
+  };
+
+  const hasActiveBookRequest = (
+    mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
+    format: 'ebook' | 'audiobook'
+  ) => {
+    return (mediaInfo.requests ?? []).some((request) => {
+      if (
+        request.status === MediaRequestStatus.DECLINED ||
+        request.status === MediaRequestStatus.COMPLETED
+      ) {
+        return false;
+      }
+
+      const requestFormat = request.bookFormat ?? 'ebook';
+
+      return requestFormat === 'both' || requestFormat === format;
+    });
+  };
+
+  const isMissingBookFormat = (item: BaseMedia) => {
+    if (
+      item.mediaType !== 'book' ||
+      !item.mediaInfo ||
+      item.mediaInfo.status === MediaStatus.BLOCKLISTED
+    ) {
+      return false;
+    }
+
+    const hasEbook =
+      hasLinkedBookFormat(item.mediaInfo, 'ebook') ||
+      hasActiveBookRequest(item.mediaInfo, 'ebook');
+    const hasAudiobook =
+      hasLinkedBookFormat(item.mediaInfo, 'audiobook') ||
+      hasActiveBookRequest(item.mediaInfo, 'audiobook');
+
+    return !hasEbook || !hasAudiobook;
+  };
+
   if (settings.currentSettings.hideAvailable && hideAvailable) {
     titles = titles.filter(
       (i) =>
         !i.mediaInfo ||
-        (i.mediaInfo.status !== MediaStatus.AVAILABLE &&
-          i.mediaInfo.status !== MediaStatus.PARTIALLY_AVAILABLE)
+        !(
+          i.mediaInfo.status === MediaStatus.AVAILABLE ||
+          i.mediaInfo.status === MediaStatus.PARTIALLY_AVAILABLE
+        ) ||
+        isMissingBookFormat(i)
     );
   }
 
@@ -136,8 +205,7 @@ const useDiscover = <
     hasPermission(Permission.MANAGE_BLOCKLIST)
   ) {
     titles = titles.filter(
-      (i) =>
-        !i.mediaInfo || i.mediaInfo.status !== MediaStatus.BLOCKLISTED
+      (i) => !i.mediaInfo || i.mediaInfo.status !== MediaStatus.BLOCKLISTED
     );
   }
 

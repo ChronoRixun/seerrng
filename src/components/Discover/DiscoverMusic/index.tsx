@@ -47,7 +47,7 @@ const DiscoverMusic = () => {
   } = useDiscover<AlbumResult>(
     '/api/v1/discover/music',
     query ? { query } : { days, sortBy },
-    { hideAvailable: false, hideBlocklisted: false }
+    { hideBlocklisted: false }
   );
 
   if (error) {

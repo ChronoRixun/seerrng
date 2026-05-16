@@ -23,6 +23,32 @@ describe('Books and Music discover parity', () => {
     tags: [],
   });
 
+  const publicSettings = {
+    initialized: true,
+    applicationTitle: 'SeerrNG',
+    applicationUrl: '',
+    hideAvailable: false,
+    hideBlocklisted: false,
+    movie4kEnabled: false,
+    series4kEnabled: false,
+    localLogin: true,
+    mediaServerLogin: true,
+    discoverRegion: '',
+    streamingRegion: '',
+    originalLanguage: '',
+    mediaServerType: 4,
+    partialRequestsEnabled: true,
+    enableSpecialEpisodes: false,
+    cacheImages: false,
+    vapidPublic: '',
+    enablePushRegistration: false,
+    locale: 'en',
+    emailEnabled: false,
+    newPlexLogin: true,
+    youtubeUrl: '',
+    plexClientIdentifier: '',
+  };
+
   beforeEach(() => {
     cy.loginAsAdmin();
   });
@@ -339,6 +365,130 @@ describe('Books and Music discover parity', () => {
       cy.contains('Video').should('not.exist');
       cy.contains('Subtitle').should('not.exist');
     });
+  });
+
+  it('honors hide available for music and dual-format books', () => {
+    cy.intercept('GET', '/api/v1/settings/public', {
+      ...publicSettings,
+      hideAvailable: true,
+    }).as('getPublicSettings');
+
+    cy.intercept('GET', '/api/v1/discover/books*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 4,
+      results: [
+        {
+          id: 'OLFULLW',
+          mediaType: 'book',
+          title: 'Fully Owned Book',
+          author: 'Owned Author',
+          firstPublishYear: 2026,
+          mediaInfo: {
+            status: 5,
+            serviceId: 1,
+            externalServiceId: 11,
+            audiobookServiceId: 2,
+            audiobookExternalServiceId: 22,
+            requests: [],
+          },
+        },
+        {
+          id: 'OLEBOOKW',
+          mediaType: 'book',
+          title: 'Ebook Only Book',
+          author: 'Missing Audio Author',
+          firstPublishYear: 2026,
+          mediaInfo: {
+            status: 5,
+            serviceId: 1,
+            externalServiceId: 11,
+            audiobookServiceId: null,
+            audiobookExternalServiceId: null,
+            requests: [],
+          },
+        },
+        {
+          id: 'OLPENDINGAUDIOW',
+          mediaType: 'book',
+          title: 'Audio Already Requested Book',
+          author: 'Queued Author',
+          firstPublishYear: 2026,
+          mediaInfo: {
+            status: 5,
+            serviceId: 1,
+            externalServiceId: 11,
+            audiobookServiceId: null,
+            audiobookExternalServiceId: null,
+            requests: [{ status: 1, bookFormat: 'audiobook' }],
+          },
+        },
+        {
+          id: 'OLPARTIALW',
+          mediaType: 'book',
+          title: 'Partially Owned Book',
+          author: 'Partial Author',
+          firstPublishYear: 2026,
+          mediaInfo: {
+            status: 4,
+            serviceId: null,
+            externalServiceId: null,
+            audiobookServiceId: 2,
+            audiobookExternalServiceId: 22,
+            requests: [],
+          },
+        },
+      ],
+    }).as('getHideBooks');
+
+    cy.visit('/discover/books');
+    cy.wait('@getHideBooks');
+    cy.contains('[data-testid=title-card-title]', 'Ebook Only Book').should(
+      'be.visible'
+    );
+    cy.contains(
+      '[data-testid=title-card-title]',
+      'Partially Owned Book'
+    ).should('be.visible');
+    cy.contains('Fully Owned Book').should('not.exist');
+    cy.contains('Audio Already Requested Book').should('not.exist');
+
+    cy.intercept('GET', '/api/v1/discover/music*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 2,
+      results: [
+        {
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          mediaType: 'album',
+          title: 'Owned Album',
+          'primary-type': 'Album',
+          'first-release-date': '2026-05-01',
+          'artist-credit': [{ name: 'Owned Artist' }],
+          mediaInfo: {
+            status: 5,
+          },
+        },
+        {
+          id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          mediaType: 'album',
+          title: 'Processing Album',
+          'primary-type': 'Album',
+          'first-release-date': '2026-05-01',
+          'artist-credit': [{ name: 'Processing Artist' }],
+          mediaInfo: {
+            status: 3,
+          },
+        },
+      ],
+    }).as('getHideMusic');
+
+    cy.visit('/discover/music');
+    cy.wait('@getHideMusic');
+    cy.contains('[data-testid=title-card-title]', 'Processing Album').should(
+      'be.visible'
+    );
+    cy.contains('Owned Album').should('not.exist');
   });
 
   it('keeps request list media filters addressable for book and music queues', () => {
