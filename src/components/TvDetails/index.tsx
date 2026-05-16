@@ -4,7 +4,6 @@ import RTFresh from '@app/assets/rt_fresh.svg';
 import RTRotten from '@app/assets/rt_rotten.svg';
 import Spinner from '@app/assets/spinner.svg';
 import TmdbLogo from '@app/assets/tmdb_logo.svg';
-import BlocklistModal from '@app/components/BlocklistModal';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
@@ -16,8 +15,6 @@ import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
 import Tag from '@app/components/Common/Tag';
 import Tooltip from '@app/components/Common/Tooltip';
 import ExternalLinkBlock from '@app/components/ExternalLinkBlock';
-import IssueModal from '@app/components/IssueModal';
-import ManageSlideOver from '@app/components/ManageSlideOver';
 import MediaSlider from '@app/components/MediaSlider';
 import PersonCard from '@app/components/PersonCard';
 import RequestButton from '@app/components/RequestButton';
@@ -70,6 +67,16 @@ import useSWR from 'swr';
 const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
   ssr: false,
 });
+const BlocklistModal = dynamic(() => import('@app/components/BlocklistModal'), {
+  ssr: false,
+});
+const IssueModal = dynamic(() => import('@app/components/IssueModal'), {
+  ssr: false,
+});
+const ManageSlideOver = dynamic(
+  () => import('@app/components/ManageSlideOver'),
+  { ssr: false }
+);
 
 const messages = defineMessages('components.TvDetails', {
   firstAirDate: 'First Air Date',
@@ -494,20 +501,24 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
         </div>
       )}
       <PageTitle title={data.name} />
-      <BlocklistModal
-        tmdbId={data.id}
-        type="tv"
-        show={showBlocklistModal}
-        onCancel={closeBlocklistModal}
-        onComplete={onClickHideItemBtn}
-        isUpdating={isBlocklistUpdating}
-      />
-      <IssueModal
-        onCancel={() => setShowIssueModal(false)}
-        show={showIssueModal}
-        mediaType="tv"
-        tmdbId={data.id}
-      />
+      {showBlocklistModal && (
+        <BlocklistModal
+          tmdbId={data.id}
+          type="tv"
+          show={showBlocklistModal}
+          onCancel={closeBlocklistModal}
+          onComplete={onClickHideItemBtn}
+          isUpdating={isBlocklistUpdating}
+        />
+      )}
+      {showIssueModal && (
+        <IssueModal
+          onCancel={() => setShowIssueModal(false)}
+          show={showIssueModal}
+          mediaType="tv"
+          tmdbId={data.id}
+        />
+      )}
       {showRequestModal && (
         <RequestModal
           tmdbId={data.id}
@@ -520,19 +531,21 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
           onCancel={() => setShowRequestModal(false)}
         />
       )}
-      <ManageSlideOver
-        data={data}
-        mediaType="tv"
-        onClose={() => {
-          setShowManager(false);
-          router.push({
-            pathname: router.pathname,
-            query: { tvId: router.query.tvId },
-          });
-        }}
-        revalidate={() => revalidate()}
-        show={showManager}
-      />
+      {showManager && (
+        <ManageSlideOver
+          data={data}
+          mediaType="tv"
+          onClose={() => {
+            setShowManager(false);
+            router.push({
+              pathname: router.pathname,
+              query: { tvId: router.query.tvId },
+            });
+          }}
+          revalidate={() => revalidate()}
+          show={showManager}
+        />
+      )}
       <div className="media-header">
         <div className="media-poster">
           <CachedImage

@@ -5,7 +5,6 @@ import RTRotten from '@app/assets/rt_rotten.svg';
 import ImdbLogo from '@app/assets/services/imdb.svg';
 import Spinner from '@app/assets/spinner.svg';
 import TmdbLogo from '@app/assets/tmdb_logo.svg';
-import BlocklistModal from '@app/components/BlocklistModal';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
@@ -15,8 +14,6 @@ import PlayButton from '@app/components/Common/PlayButton';
 import Tag from '@app/components/Common/Tag';
 import Tooltip from '@app/components/Common/Tooltip';
 import ExternalLinkBlock from '@app/components/ExternalLinkBlock';
-import IssueModal from '@app/components/IssueModal';
-import ManageSlideOver from '@app/components/ManageSlideOver';
 import MediaSlider from '@app/components/MediaSlider';
 import PersonCard from '@app/components/PersonCard';
 import RequestButton from '@app/components/RequestButton';
@@ -56,11 +53,23 @@ import type { MovieDetails as MovieDetailsType } from '@server/models/Movie';
 import axios from 'axios';
 import { countries } from 'country-flag-icons';
 import 'country-flag-icons/3x2/flags.css';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
+
+const BlocklistModal = dynamic(() => import('@app/components/BlocklistModal'), {
+  ssr: false,
+});
+const IssueModal = dynamic(() => import('@app/components/IssueModal'), {
+  ssr: false,
+});
+const ManageSlideOver = dynamic(
+  () => import('@app/components/ManageSlideOver'),
+  { ssr: false }
+);
 
 const messages = defineMessages('components.MovieDetails', {
   originaltitle: 'Original Title',
@@ -460,33 +469,39 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
         </div>
       )}
       <PageTitle title={data.title} />
-      <IssueModal
-        onCancel={() => setShowIssueModal(false)}
-        show={showIssueModal}
-        mediaType="movie"
-        tmdbId={data.id}
-      />
-      <ManageSlideOver
-        data={data}
-        mediaType="movie"
-        onClose={() => {
-          setShowManager(false);
-          router.push({
-            pathname: router.pathname,
-            query: { movieId: router.query.movieId },
-          });
-        }}
-        revalidate={() => revalidate()}
-        show={showManager}
-      />
-      <BlocklistModal
-        tmdbId={data.id}
-        type="movie"
-        show={showBlocklistModal}
-        onCancel={closeBlocklistModal}
-        onComplete={onClickHideItemBtn}
-        isUpdating={isBlocklistUpdating}
-      />
+      {showIssueModal && (
+        <IssueModal
+          onCancel={() => setShowIssueModal(false)}
+          show={showIssueModal}
+          mediaType="movie"
+          tmdbId={data.id}
+        />
+      )}
+      {showManager && (
+        <ManageSlideOver
+          data={data}
+          mediaType="movie"
+          onClose={() => {
+            setShowManager(false);
+            router.push({
+              pathname: router.pathname,
+              query: { movieId: router.query.movieId },
+            });
+          }}
+          revalidate={() => revalidate()}
+          show={showManager}
+        />
+      )}
+      {showBlocklistModal && (
+        <BlocklistModal
+          tmdbId={data.id}
+          type="movie"
+          show={showBlocklistModal}
+          onCancel={closeBlocklistModal}
+          onComplete={onClickHideItemBtn}
+          isUpdating={isBlocklistUpdating}
+        />
+      )}
       <div className="media-header">
         <div className="media-poster">
           <CachedImage

@@ -1,4 +1,3 @@
-import BlocklistModal from '@app/components/BlocklistModal';
 import Button from '@app/components/Common/Button';
 import ButtonWithDropdown from '@app/components/Common/ButtonWithDropdown';
 import CachedImage from '@app/components/Common/CachedImage';
@@ -31,6 +30,9 @@ import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
 const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
+  ssr: false,
+});
+const BlocklistModal = dynamic(() => import('@app/components/BlocklistModal'), {
   ssr: false,
 });
 
@@ -319,14 +321,16 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
           onCancel={() => setRequestModal(false)}
         />
       )}
-      <BlocklistModal
-        tmdbId={data.id}
-        type="collection"
-        show={showBlocklistModal}
-        onCancel={() => setShowBlocklistModal(false)}
-        onComplete={onClickHideItemBtn}
-        isUpdating={isBlocklistUpdating}
-      />
+      {showBlocklistModal && (
+        <BlocklistModal
+          tmdbId={data.id}
+          type="collection"
+          show={showBlocklistModal}
+          onCancel={() => setShowBlocklistModal(false)}
+          onComplete={onClickHideItemBtn}
+          isUpdating={isBlocklistUpdating}
+        />
+      )}
 
       <div className="media-header">
         <div className="media-poster">
