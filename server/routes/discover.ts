@@ -171,6 +171,33 @@ const scoreBookDoc = (doc: OpenLibrarySearchDoc): number => {
   );
 };
 
+const getBookAuthorDiversityKey = (doc: OpenLibrarySearchDoc): string =>
+  doc.author_key?.[0] ?? doc.author_name?.[0] ?? doc.key;
+
+const diversifyBookDocsByAuthor = (
+  docs: OpenLibrarySearchDoc[],
+  limit: number,
+  maxPerAuthor = 2
+): OpenLibrarySearchDoc[] => {
+  const selectedDocs: OpenLibrarySearchDoc[] = [];
+  const skippedDocs: OpenLibrarySearchDoc[] = [];
+  const authorCounts = new Map<string, number>();
+
+  docs.forEach((doc) => {
+    const authorKey = getBookAuthorDiversityKey(doc);
+    const authorCount = authorCounts.get(authorKey) ?? 0;
+
+    if (authorCount < maxPerAuthor) {
+      selectedDocs.push(doc);
+      authorCounts.set(authorKey, authorCount + 1);
+    } else {
+      skippedDocs.push(doc);
+    }
+  });
+
+  return [...selectedDocs, ...skippedDocs].slice(0, limit);
+};
+
 const mapTopAlbumRelease = (releaseGroup: LbReleaseGroup): MbAlbumResult => ({
   id: releaseGroup.release_group_mbid,
   score: releaseGroup.listen_count ?? 0,
@@ -1623,9 +1650,12 @@ discoverRoutes.get('/books', async (req, res) => {
               0
             ),
             start: 0,
-            docs: [...docsByKey.values()]
-              .sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a))
-              .slice(0, itemsPerPage),
+            docs: diversifyBookDocsByAuthor(
+              [...docsByKey.values()].sort(
+                (a, b) => scoreBookDoc(b) - scoreBookDoc(a)
+              ),
+              itemsPerPage
+            ),
           };
         })
       : await openLibrary.searchBooks({
@@ -1635,7 +1665,7 @@ discoverRoutes.get('/books', async (req, res) => {
           sort: openLibrarySort,
         });
     const sortedDocs =
-      sortByValue === 'ranked'
+      sortByValue === 'ranked' && !shouldBlendDefaultSubjects
         ? [...books.docs].sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a))
         : books.docs;
     const ids = sortedDocs.map((doc) => doc.key.replace('/works/', ''));

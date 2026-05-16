@@ -1008,6 +1008,82 @@ describe('GET /discover/books', () => {
     assert.strictEqual(res.body.results.length > 1, true);
   });
 
+  it('diversifies the default recommended book feed by author', async () => {
+    mock.method(
+      OpenLibraryAPI.prototype,
+      'searchBooks',
+      async ({ query }: { query: string }) => ({
+        numFound: 3,
+        start: 0,
+        docs: [
+          {
+            key: `/works/${query.replace(/[^a-z_]/g, '')}-author-one-a`,
+            title: `${query} Author One A`,
+            author_name: ['Author One'],
+            author_key: ['OLAUTHOR1A'],
+            cover_i: 1,
+            edition_count: 100,
+            ratings_average: 5,
+            ratings_count: 1000,
+            want_to_read_count: 1000,
+          },
+          {
+            key: `/works/${query.replace(/[^a-z_]/g, '')}-author-one-b`,
+            title: `${query} Author One B`,
+            author_name: ['Author One'],
+            author_key: ['OLAUTHOR1A'],
+            cover_i: 1,
+            edition_count: 90,
+            ratings_average: 5,
+            ratings_count: 900,
+            want_to_read_count: 900,
+          },
+          {
+            key: `/works/${query.replace(/[^a-z_]/g, '')}-author-one-c`,
+            title: `${query} Author One C`,
+            author_name: ['Author One'],
+            author_key: ['OLAUTHOR1A'],
+            cover_i: 1,
+            edition_count: 80,
+            ratings_average: 5,
+            ratings_count: 800,
+            want_to_read_count: 800,
+          },
+          {
+            key: `/works/${query.replace(/[^a-z_]/g, '')}-author-two`,
+            title: `${query} Author Two`,
+            author_name: ['Author Two'],
+            author_key: ['OLAUTHOR2A'],
+            cover_i: 1,
+            edition_count: 1,
+            ratings_average: 3,
+            ratings_count: 1,
+            want_to_read_count: 1,
+          },
+        ],
+      })
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/books?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results.length, 20);
+    assert.strictEqual(
+      res.body.results
+        .slice(0, 4)
+        .filter((result: { author: string }) => result.author === 'Author One')
+        .length,
+      2
+    );
+    assert.strictEqual(
+      res.body.results.some(
+        (result: { author: string }) => result.author === 'Author Two'
+      ),
+      true
+    );
+  });
+
   it('uses available subjects for the default book feed when one subject fails', async () => {
     mock.method(
       OpenLibraryAPI.prototype,
