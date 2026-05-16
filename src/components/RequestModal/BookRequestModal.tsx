@@ -100,12 +100,9 @@ const BookRequestModal = ({
   useEffect(() => {
     setBookFormat(editRequest?.bookFormat ?? 'ebook');
     setHasUserSelectedFormat(false);
+    setSelectedIsbn('');
     setRequestOverrides(null);
   }, [bookId, editRequest?.bookFormat, editRequest?.id]);
-
-  useEffect(() => {
-    setSelectedIsbn(data?.isbn13 ?? '');
-  }, [data?.isbn13]);
 
   const hasEbookServer = (bookServices ?? []).some(
     (service) => (service.serviceType ?? 'ebook') === 'ebook'
