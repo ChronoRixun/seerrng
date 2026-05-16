@@ -1516,6 +1516,85 @@ describe('POST /request/:requestId/:status', () => {
     });
     assert.strictEqual(persisted.status, MediaRequestStatus.PENDING);
   });
+
+  it('rejects approving a music request without a selected or default Lidarr server', async () => {
+    const settings = getSettings();
+    settings.lidarr = [];
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'release-group-no-default-approve',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const pending = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MUSIC,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+      })
+    );
+    const admin = await loginAs('admin@seerr.dev', 'test1234');
+
+    const res = await admin.post(`/request/${pending.id}/approve`);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /no default lidarr/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: pending.id },
+    });
+    assert.strictEqual(persisted.status, MediaRequestStatus.PENDING);
+  });
+
+  it('rejects approving a both-format book request without both default Bookshelf formats', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(11, 'ebook')];
+    t.after(() => {
+      settings.readarr = [];
+    });
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const pending = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'both',
+      })
+    );
+    const admin = await loginAs('admin@seerr.dev', 'test1234');
+
+    const res = await admin.post(`/request/${pending.id}/approve`);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /default ebook and audiobook/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: pending.id },
+    });
+    assert.strictEqual(persisted.status, MediaRequestStatus.PENDING);
+  });
 });
 
 describe('POST /request/:requestId/retry', () => {

@@ -40,11 +40,17 @@ const validateExternalServiceConfiguration = (
   const settings = getSettings();
 
   if (requestType === MediaType.MUSIC) {
-    if (
-      serverId !== undefined &&
-      serverId !== null &&
-      !settings.lidarr.some((lidarr) => lidarr.id === serverId)
-    ) {
+    if (serverId === undefined || serverId === null) {
+      if (!settings.lidarr.some((lidarr) => lidarr.isDefault)) {
+        throw new ServiceConfigurationError(
+          'No default Lidarr server is configured for music requests.'
+        );
+      }
+
+      return;
+    }
+
+    if (!settings.lidarr.some((lidarr) => lidarr.id === serverId)) {
       throw new ServiceConfigurationError(
         'The selected Lidarr server no longer exists.'
       );
@@ -52,7 +58,36 @@ const validateExternalServiceConfiguration = (
   }
 
   if (requestType === MediaType.BOOK) {
+    const requestedFormat = bookFormat ?? 'ebook';
+
     if (serverId === undefined || serverId === null) {
+      const hasDefaultEbook = settings.readarr.some(
+        (readarr) =>
+          readarr.isDefault && (readarr.serviceType ?? 'ebook') === 'ebook'
+      );
+      const hasDefaultAudiobook = settings.readarr.some(
+        (readarr) => readarr.isDefault && readarr.serviceType === 'audiobook'
+      );
+
+      if (requestedFormat === 'both') {
+        if (!hasDefaultEbook || !hasDefaultAudiobook) {
+          throw new ServiceConfigurationError(
+            'Both-format book requests require default ebook and audiobook Bookshelf services.'
+          );
+        }
+
+        return;
+      }
+
+      if (
+        (requestedFormat === 'ebook' && !hasDefaultEbook) ||
+        (requestedFormat === 'audiobook' && !hasDefaultAudiobook)
+      ) {
+        throw new ServiceConfigurationError(
+          `No default ${requestedFormat} Bookshelf server is configured for book requests.`
+        );
+      }
+
       return;
     }
 
@@ -65,8 +100,6 @@ const validateExternalServiceConfiguration = (
         'The selected Bookshelf server no longer exists.'
       );
     }
-
-    const requestedFormat = bookFormat ?? 'ebook';
 
     if (requestedFormat === 'both') {
       throw new ServiceConfigurationError(
