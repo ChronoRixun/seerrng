@@ -1,4 +1,5 @@
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import MusicBrainz from '@server/api/musicbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb from '@server/api/themoviedb';
@@ -929,12 +930,50 @@ discoverRoutes.get<{ language: string }, GenreSliderItem[]>(
 
 discoverRoutes.get('/music', async (req, res, next) => {
   const listenBrainz = new ListenBrainzAPI();
+  const musicBrainz = new MusicBrainz();
   const itemsPerPage = 20;
   const page = req.query.page ? Number(req.query.page) : 1;
   const days = req.query.days ? Number(req.query.days) : 7;
   const sortAscending = req.query.sortBy === 'release_date.asc';
+  const query =
+    typeof req.query.query === 'string' && req.query.query.trim()
+      ? req.query.query.trim()
+      : '';
 
   try {
+    if (query) {
+      const albums = await musicBrainz.searchAlbum({
+        query,
+        limit: itemsPerPage,
+        offset: (page - 1) * itemsPerPage,
+      });
+      const mbIds = albums.map((album) => album.id);
+      const relatedMedia = mbIds.length
+        ? await getRepository(Media).find({
+            where: { mbId: In(mbIds), mediaType: MediaType.MUSIC },
+            relations: { requests: true, watchlists: true },
+          })
+        : [];
+      relatedMedia.forEach((media) => {
+        media.watchlists =
+          media.watchlists?.filter(
+            (watchlist) => watchlist.requestedBy.id === req.user?.id
+          ) ?? [];
+      });
+
+      return res.status(200).json({
+        page,
+        totalPages: albums.length === itemsPerPage ? page + 1 : page,
+        totalResults: albums.length,
+        results: albums.map((album) =>
+          mapAlbumResult(
+            album,
+            relatedMedia.find((media) => media.mbId === album.id)
+          )
+        ),
+      });
+    }
+
     let freshReleases;
     try {
       freshReleases = await listenBrainz.getFreshReleases({

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import MusicBrainz from '@server/api/musicbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import PlexTvAPI from '@server/api/plextv';
 import { MediaType } from '@server/constants/media';
@@ -82,6 +83,71 @@ async function login() {
 }
 
 describe('GET /discover/music', () => {
+  it('returns MusicBrainz album search results when a query is provided', async () => {
+    const freshReleaseMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getFreshReleases',
+      async () => {
+        throw new Error('ListenBrainz should not be called for music search');
+      }
+    );
+    const searchAlbumMock = mock.method(
+      MusicBrainz.prototype,
+      'searchAlbum',
+      async ({
+        query,
+        limit,
+        offset,
+      }: {
+        query: string;
+        limit?: number;
+        offset?: number;
+      }) => {
+        assert.strictEqual(query, 'kind of blue');
+        assert.strictEqual(limit, 20);
+        assert.strictEqual(offset, 20);
+
+        return [
+          {
+            id: 'musicbrainz-release-group-id',
+            score: 100,
+            media_type: 'album',
+            title: 'Kind of Blue',
+            'primary-type': 'Album',
+            'primary-type-id': '',
+            'type-id': '',
+            'first-release-date': '1959',
+            'artist-credit': [
+              {
+                name: 'Miles Davis',
+                artist: {
+                  id: 'artist-id',
+                  name: 'Miles Davis',
+                  'sort-name': 'Davis, Miles',
+                },
+              },
+            ],
+            posterPath: undefined,
+            count: 1,
+            releases: [],
+            releasedate: '1959',
+          },
+        ];
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/music?query=kind%20of%20blue&page=2'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(freshReleaseMock.mock.callCount(), 0);
+    assert.strictEqual(searchAlbumMock.mock.callCount(), 1);
+    assert.strictEqual(res.body.page, 2);
+    assert.strictEqual(res.body.results[0].title, 'Kind of Blue');
+  });
+
   it('sorts locally and exposes music discovery as a single page', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
       payload: {
