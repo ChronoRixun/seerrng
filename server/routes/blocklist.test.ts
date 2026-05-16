@@ -93,7 +93,10 @@ describe('POST /blocklist', () => {
     assert.strictEqual(blocklistItem.user?.email, 'admin@seerr.dev');
     assert.strictEqual(blocklistItem.tmdbId, 0);
     assert.strictEqual(blocklistItem.media.status, MediaStatus.BLOCKLISTED);
-    assert.strictEqual(blocklistItem.media.mbId, 'musicbrainz-release-group-id');
+    assert.strictEqual(
+      blocklistItem.media.mbId,
+      'musicbrainz-release-group-id'
+    );
   });
 
   it('assigns the authenticated user and canonical identifier when blocklisting books', async () => {
@@ -131,6 +134,54 @@ describe('POST /blocklist', () => {
           canonical: true,
         },
       ]
+    );
+  });
+
+  it('allows multiple music and book blocklist entries with tmdbId zero', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const requests = [
+      {
+        mediaType: MediaType.MUSIC,
+        externalId: 'musicbrainz-release-group-one',
+        externalProvider: MediaIdentifierProvider.MUSICBRAINZ,
+        title: 'First Album',
+      },
+      {
+        mediaType: MediaType.MUSIC,
+        externalId: 'musicbrainz-release-group-two',
+        externalProvider: MediaIdentifierProvider.MUSICBRAINZ,
+        title: 'Second Album',
+      },
+      {
+        mediaType: MediaType.BOOK,
+        externalId: 'OL111W',
+        externalProvider: MediaIdentifierProvider.OPENLIBRARY,
+        title: 'First Book',
+      },
+      {
+        mediaType: MediaType.BOOK,
+        externalId: 'OL222W',
+        externalProvider: MediaIdentifierProvider.OPENLIBRARY,
+        title: 'Second Book',
+      },
+    ];
+
+    for (const body of requests) {
+      const res = await agent.post('/blocklist').send(body);
+      assert.strictEqual(res.status, 201);
+    }
+
+    assert.strictEqual(
+      await getRepository(Blocklist).count({
+        where: { mediaType: MediaType.MUSIC },
+      }),
+      2
+    );
+    assert.strictEqual(
+      await getRepository(Blocklist).count({
+        where: { mediaType: MediaType.BOOK },
+      }),
+      2
     );
   });
 

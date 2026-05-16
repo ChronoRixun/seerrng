@@ -16,12 +16,10 @@ import {
   ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
-  Unique,
 } from 'typeorm';
 import type { ZodNumber, ZodOptional, ZodString } from 'zod';
 
 @Entity()
-@Unique(['tmdbId', 'mediaType'])
 @Index(['externalId', 'mediaType'], { unique: true })
 export class Blocklist implements BlocklistItem {
   @PrimaryGeneratedColumn()
