@@ -246,6 +246,7 @@
   "components.IssueList.IssueItem.episodes": "{episodeCount, plural, one {Episode} other {Episodes}}",
   "components.IssueList.IssueItem.issuestatus": "Status",
   "components.IssueList.IssueItem.issuetype": "Type",
+  "components.IssueList.IssueItem.medianotfound": "Media Not Found",
   "components.IssueList.IssueItem.opened": "Opened",
   "components.IssueList.IssueItem.openeduserdate": "{date} by {user}",
   "components.IssueList.IssueItem.problemepisode": "Affected Episode",

@@ -28,6 +28,7 @@ const messages = defineMessages('components.IssueList.IssueItem', {
   issuestatus: 'Status',
   opened: 'Opened',
   viewissue: 'View Issue',
+  medianotfound: 'Media Not Found',
   unknownissuetype: 'Unknown',
   descriptionpreview: 'Issue Description',
 });
@@ -35,7 +36,11 @@ const messages = defineMessages('components.IssueList.IssueItem', {
 type IssueTitle = MovieDetails | TvDetails | MusicDetails | BookDetails;
 
 const isMovie = (movie: IssueTitle): movie is MovieDetails => {
-  return !isMusic(movie) && !isBook(movie) && (movie as MovieDetails).title !== undefined;
+  return (
+    !isMusic(movie) &&
+    !isBook(movie) &&
+    (movie as MovieDetails).title !== undefined
+  );
 };
 
 const isMusic = (title: IssueTitle): title is MusicDetails => {
@@ -71,6 +76,21 @@ const IssueItem = ({ issue }: IssueItemProps) => {
             : null;
   const { data: title, error } = useSWR<IssueTitle>(inView ? url : null);
 
+  if (!url && inView) {
+    return (
+      <div
+        className="flex h-64 w-full flex-col justify-center rounded-xl bg-gray-800 py-4 text-gray-400 shadow-md ring-1 ring-red-500 xl:h-28 xl:flex-row"
+        ref={ref}
+      >
+        <div className="flex w-full flex-col justify-center overflow-hidden px-4">
+          <div className="text-lg font-bold text-white xl:text-xl">
+            {intl.formatMessage(messages.medianotfound)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!title && !error) {
     return (
       <div
@@ -81,7 +101,18 @@ const IssueItem = ({ issue }: IssueItemProps) => {
   }
 
   if (!title) {
-    return <div>uh oh</div>;
+    return (
+      <div
+        className="flex h-64 w-full flex-col justify-center rounded-xl bg-gray-800 py-4 text-gray-400 shadow-md ring-1 ring-red-500 xl:h-28 xl:flex-row"
+        ref={ref}
+      >
+        <div className="flex w-full flex-col justify-center overflow-hidden px-4">
+          <div className="text-lg font-bold text-white xl:text-xl">
+            {intl.formatMessage(messages.medianotfound)}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const issueOption = issueOptions.find(
@@ -181,8 +212,8 @@ const IssueItem = ({ issue }: IssueItemProps) => {
                 (isMusic(title) || isBook(title)) && title.posterPath
                   ? title.posterPath
                   : !isMusic(title) && !isBook(title) && title.posterPath
-                  ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
-                  : '/images/seerr_poster_not_found.png'
+                    ? `https://image.tmdb.org/t/p/w600_and_h900_bestv2${title.posterPath}`
+                    : '/images/seerr_poster_not_found.png'
               }
               alt=""
               sizes="100vw"

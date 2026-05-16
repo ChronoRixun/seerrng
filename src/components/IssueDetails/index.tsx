@@ -135,6 +135,10 @@ const IssueDetails = () => {
   );
   const settings = useSettings();
 
+  if (issueData && !detailUrl) {
+    return <ErrorPage statusCode={404} />;
+  }
+
   if (!data && !error) {
     return <LoadingSpinner />;
   }
