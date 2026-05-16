@@ -90,6 +90,7 @@ beforeEach(() => {
   getAlbumMock.mock.resetCalls();
   getWorkMock.mock.resetCalls();
   mediaRequestMock.mock.resetCalls();
+  getSettings().readarr = [];
 });
 
 setupTestDb();
@@ -181,6 +182,55 @@ describe('POST /watchlist', () => {
       mediaRequestMock.mock.calls[0].arguments[2]?.isAutoRequest,
       true
     );
+  });
+
+  it('auto-requests audiobook when only an audiobook Bookshelf default exists', async () => {
+    getSettings().readarr = [
+      {
+        id: 20,
+        name: 'Audio Bookshelf',
+        hostname: 'audiobooks.local',
+        port: 8787,
+        apiKey: 'audio-key',
+        useSsl: false,
+        activeProfileId: 2,
+        activeProfileName: 'Audio',
+        activeMetadataProfileId: 2,
+        activeMetadataProfileName: 'Audio',
+        activeDirectory: '/audiobooks',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'audiobook',
+      },
+    ];
+
+    const userRepository = getRepository(User);
+    const admin = await userRepository.findOneOrFail({
+      where: { email: 'admin@seerr.dev' },
+    });
+    admin.settings = new UserSettings({
+      watchlistSyncBooks: true,
+    });
+    await userRepository.save(admin);
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/watchlist').send({
+      mediaType: MediaType.BOOK,
+      externalId: 'OLAudioW',
+      title: 'Audio Book',
+    });
+
+    assert.strictEqual(res.status, 201);
+    assert.deepStrictEqual(mediaRequestMock.mock.calls[0].arguments[0], {
+      mediaId: 'OLAudioW',
+      mediaType: MediaType.BOOK,
+      format: 'audiobook',
+    });
   });
 
   it('blocks duplicate book watchlist items by Open Library ID for the same user', async () => {

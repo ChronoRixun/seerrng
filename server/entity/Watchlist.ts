@@ -17,6 +17,7 @@ import {
 } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import { Permission } from '@server/lib/permissions';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { DbAwareColumn, resolveDbType } from '@server/utils/DbColumnHelper';
 import {
@@ -336,12 +337,26 @@ export class Watchlist {
       return;
     }
 
+    const readarrSettings = getSettings().readarr;
+    const hasDefaultEbook = readarrSettings.some(
+      (readarr) =>
+        readarr.isDefault && (readarr.serviceType ?? 'ebook') === 'ebook'
+    );
+    const hasDefaultAudiobook = readarrSettings.some(
+      (readarr) => readarr.isDefault && readarr.serviceType === 'audiobook'
+    );
+    const format = hasDefaultEbook
+      ? 'ebook'
+      : hasDefaultAudiobook
+        ? 'audiobook'
+        : 'ebook';
+
     try {
       await MediaRequest.request(
         {
           mediaId: openLibraryId,
           mediaType: MediaType.BOOK,
-          format: 'ebook',
+          format,
         },
         user,
         { isAutoRequest: true }
