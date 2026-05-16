@@ -14,7 +14,7 @@ import path from 'path';
 import validator from 'validator';
 import { Notification, shouldSendAdminNotification } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationActionUrl } from './agent';
 
 const messages = defineMessages('notifications.agents.email', {
   issueType: '{type} issue',
@@ -190,12 +190,7 @@ class EmailAgent
           imageUrl: embedPoster ? payload.image : undefined,
           timestamp: new Date().toTimeString(),
           requestedBy: payload.request.requestedBy.displayName,
-          actionUrl: applicationUrl
-            ? `${applicationUrl}${
-                payload.mediaUrl ??
-                `/${payload.media?.mediaType}/${payload.media?.tmdbId}`
-              }`
-            : undefined,
+          actionUrl: getNotificationActionUrl(payload, applicationUrl),
           applicationUrl,
           applicationTitle,
           recipientName,
@@ -261,9 +256,7 @@ class EmailAgent
           extra: payload.extra ?? [],
           imageUrl: embedPoster ? payload.image : undefined,
           timestamp: new Date().toTimeString(),
-          actionUrl: applicationUrl
-            ? `${applicationUrl}/issues/${payload.issue.id}`
-            : undefined,
+          actionUrl: getNotificationActionUrl(payload, applicationUrl),
           applicationUrl,
           applicationTitle,
           recipientName,

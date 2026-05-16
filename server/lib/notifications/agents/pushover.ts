@@ -15,7 +15,7 @@ import {
   shouldSendAdminNotification,
 } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationActionUrl } from './agent';
 
 interface PushoverImagePayload {
   attachment_base64: string;
@@ -159,16 +159,7 @@ class PushoverAgent
       message += `<small>\n<b>${extra.name}:</b> ${extra.value}</small>`;
     }
 
-    const url = applicationUrl
-      ? payload.issue
-        ? `${applicationUrl}/issues/${payload.issue.id}`
-        : payload.media
-          ? `${applicationUrl}${
-              payload.mediaUrl ??
-              `/${payload.media.mediaType}/${payload.media.tmdbId}`
-            }`
-          : undefined
-      : undefined;
+    const url = getNotificationActionUrl(payload, applicationUrl);
     const url_title = url
       ? intl.formatMessage(
           payload.issue ? globalMessages.viewIssue : globalMessages.viewMedia,

@@ -8,7 +8,7 @@ import type { AvailableLocale } from '@server/types/languages';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationActionUrl } from './agent';
 
 class NtfyAgent
   extends BaseAgent<NotificationAgentNtfy>
@@ -90,13 +90,7 @@ class NtfyAgent
 
     const attach = embedPoster ? payload.image : undefined;
 
-    let click;
-    if (applicationUrl && payload.media) {
-      click = `${applicationUrl}${
-        payload.mediaUrl ??
-        `/${payload.media.mediaType}/${payload.media.tmdbId}`
-      }`;
-    }
+    const click = getNotificationActionUrl(payload, applicationUrl);
 
     const ntfyPayload: Record<string, unknown> = {
       topic,

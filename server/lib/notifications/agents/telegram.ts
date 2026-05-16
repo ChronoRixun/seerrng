@@ -15,7 +15,7 @@ import {
   shouldSendAdminNotification,
 } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationActionUrl } from './agent';
 
 interface TelegramMessagePayload {
   text: string;
@@ -144,16 +144,7 @@ class TelegramAgent
       message += `\n\*${extra.name}:\* ${extra.value}`;
     }
 
-    const url = applicationUrl
-      ? payload.issue
-        ? `${applicationUrl}/issues/${payload.issue.id}`
-        : payload.media
-          ? `${applicationUrl}${
-              payload.mediaUrl ??
-              `/${payload.media.mediaType}/${payload.media.tmdbId}`
-            }`
-          : undefined
-      : undefined;
+    const url = getNotificationActionUrl(payload, applicationUrl);
 
     if (url) {
       message += `\n\n\[${this.escapeText(

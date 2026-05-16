@@ -24,6 +24,49 @@ export interface NotificationPayload {
   isAdmin?: boolean;
 }
 
+export const getNotificationMediaUrl = (
+  payload: Pick<NotificationPayload, 'media' | 'mediaUrl'>
+): string | undefined => {
+  if (payload.mediaUrl) {
+    return payload.mediaUrl;
+  }
+
+  if (!payload.media) {
+    return undefined;
+  }
+
+  if (payload.media.mediaType === 'music') {
+    return payload.media.mbId ? `/music/${payload.media.mbId}` : undefined;
+  }
+
+  if (payload.media.mediaType === 'book') {
+    const openLibraryId = payload.media.identifiers?.find(
+      (identifier) => identifier.provider === 'openlibrary'
+    )?.value;
+
+    return openLibraryId ? `/book/${openLibraryId}` : undefined;
+  }
+
+  return `/${payload.media.mediaType}/${payload.media.tmdbId}`;
+};
+
+export const getNotificationActionUrl = (
+  payload: Pick<NotificationPayload, 'issue' | 'media' | 'mediaUrl'>,
+  applicationUrl?: string
+): string | undefined => {
+  if (!applicationUrl) {
+    return undefined;
+  }
+
+  if (payload.issue) {
+    return `${applicationUrl}/issues/${payload.issue.id}`;
+  }
+
+  const mediaUrl = getNotificationMediaUrl(payload);
+
+  return mediaUrl ? `${applicationUrl}${mediaUrl}` : undefined;
+};
+
 export abstract class BaseAgent<T extends NotificationAgentConfig> {
   protected settings?: T;
   public constructor(settings?: T) {

@@ -7,7 +7,7 @@ import logger from '@server/logger';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationActionUrl } from './agent';
 
 interface EmbedField {
   type: 'plain_text' | 'mrkdwn';
@@ -184,16 +184,7 @@ class SlackAgent
       });
     }
 
-    const url = applicationUrl
-      ? payload.issue
-        ? `${applicationUrl}/issues/${payload.issue.id}`
-        : payload.media
-          ? `${applicationUrl}${
-              payload.mediaUrl ??
-              `/${payload.media.mediaType}/${payload.media.tmdbId}`
-            }`
-          : undefined
-      : undefined;
+    const url = getNotificationActionUrl(payload, applicationUrl);
 
     if (url) {
       blocks.push({

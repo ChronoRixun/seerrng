@@ -7,7 +7,7 @@ import logger from '@server/logger';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationActionUrl } from './agent';
 
 interface GotifyPayload {
   title: string;
@@ -102,11 +102,9 @@ class GotifyAgent
       message += `\n\n**${extra.name}**\n${extra.value}  `;
     }
 
-    if (applicationUrl && payload.media) {
-      const actionUrl = `${applicationUrl}${
-        payload.mediaUrl ??
-        `/${payload.media.mediaType}/${payload.media.tmdbId}`
-      }`;
+    const actionUrl = getNotificationActionUrl(payload, applicationUrl);
+
+    if (actionUrl) {
       const displayUrl =
         actionUrl.length > 40 ? `${actionUrl.slice(0, 41)}...` : actionUrl;
       message += `\n\n**${intl.formatMessage(globalMessages.openIn, { applicationTitle })}:** [${displayUrl}](${actionUrl})  `;

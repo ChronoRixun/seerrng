@@ -13,7 +13,7 @@ import type { AvailableLocale } from '@server/types/languages';
 import webpush from 'web-push';
 import { Notification, shouldSendAdminNotification } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationMediaUrl } from './agent';
 
 const messages = defineMessages('notifications.agents.webpush', {
   autoRequested: 'Automatically submitted a new {quality}{mediaType} request.',
@@ -175,8 +175,7 @@ class WebPushAgent
     const actionUrl = payload.issue
       ? `/issues/${payload.issue.id}`
       : payload.media
-        ? (payload.mediaUrl ??
-          `/${payload.media.mediaType}/${payload.media.tmdbId}`)
+        ? getNotificationMediaUrl(payload)
         : undefined;
 
     const actionUrlTitle = actionUrl

@@ -14,7 +14,7 @@ import {
   shouldSendAdminNotification,
 } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, getNotificationActionUrl } from './agent';
 
 enum EmbedColors {
   DEFAULT = 0,
@@ -214,16 +214,7 @@ class DiscordAgent
       });
     }
 
-    const url = applicationUrl
-      ? payload.issue
-        ? `${applicationUrl}/issues/${payload.issue.id}`
-        : payload.media
-          ? `${applicationUrl}${
-              payload.mediaUrl ??
-              `/${payload.media.mediaType}/${payload.media.tmdbId}`
-            }`
-          : undefined
-      : undefined;
+    const url = getNotificationActionUrl(payload, applicationUrl);
 
     return {
       title: payload.event

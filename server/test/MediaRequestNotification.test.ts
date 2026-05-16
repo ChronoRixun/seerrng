@@ -15,7 +15,11 @@ import MediaIdentifier, {
 import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import notificationManager, { Notification } from '@server/lib/notifications';
-import type { NotificationPayload } from '@server/lib/notifications/agents/agent';
+import {
+  getNotificationActionUrl,
+  getNotificationMediaUrl,
+  type NotificationPayload,
+} from '@server/lib/notifications/agents/agent';
 
 function createUser() {
   return new User({
@@ -181,5 +185,63 @@ describe('MediaRequest.sendNotification', () => {
         value: '9780441478125',
       },
     ]);
+  });
+});
+
+describe('notification media URLs', () => {
+  it('uses MusicBrainz and Open Library routes for music and books', () => {
+    const musicMedia = new Media({
+      mediaType: MediaType.MUSIC,
+      tmdbId: 0,
+      mbId: 'release-group-id',
+    });
+    const bookMedia = new Media({
+      mediaType: MediaType.BOOK,
+      tmdbId: 0,
+      identifiers: [
+        new MediaIdentifier({
+          provider: MediaIdentifierProvider.OPENLIBRARY,
+          value: 'OL45804W',
+          canonical: true,
+        }),
+      ],
+    });
+
+    assert.equal(
+      getNotificationMediaUrl({ media: musicMedia }),
+      '/music/release-group-id'
+    );
+    assert.equal(
+      getNotificationMediaUrl({ media: bookMedia }),
+      '/book/OL45804W'
+    );
+    assert.equal(
+      getNotificationActionUrl({ media: bookMedia }, 'https://seerr.example'),
+      'https://seerr.example/book/OL45804W'
+    );
+  });
+
+  it('does not generate broken fallback URLs for unresolved books or music', () => {
+    assert.equal(
+      getNotificationMediaUrl({
+        media: new Media({
+          mediaType: MediaType.MUSIC,
+          tmdbId: 0,
+        }),
+      }),
+      undefined
+    );
+    assert.equal(
+      getNotificationActionUrl(
+        {
+          media: new Media({
+            mediaType: MediaType.BOOK,
+            tmdbId: 0,
+          }),
+        },
+        'https://seerr.example'
+      ),
+      undefined
+    );
   });
 });
