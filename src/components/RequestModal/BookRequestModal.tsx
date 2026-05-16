@@ -14,10 +14,11 @@ import {
 } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
+import type { ServiceCommonServer } from '@server/interfaces/api/serviceInterfaces';
 import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
 import type { BookDetails } from '@server/models/Book';
 import axios from 'axios';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
 
@@ -46,6 +47,12 @@ const messages = defineMessages('components.RequestModal.Book', {
     'Automatic uses the first valid ISBN from Open Library. Pick a specific edition when testers report a mismatch.',
   noIsbnCandidates:
     'No valid ISBN candidates were found. Bookshelf will fall back to title matching.',
+  noEbookServer:
+    'No ebook Bookshelf service is configured. Ebook requests are unavailable.',
+  noAudiobookServer:
+    'No audiobook Bookshelf service is configured. Audiobook requests are unavailable.',
+  noBothServers:
+    'Both requires ebook and audiobook Bookshelf services to be configured.',
   ebook: 'Ebook',
   audiobook: 'Audiobook',
   both: 'Both',
@@ -80,6 +87,9 @@ const BookRequestModal = ({
   const { data, error } = useSWR<BookDetails>(`/api/v1/book/${bookId}`, {
     revalidateOnMount: true,
   });
+  const { data: bookServices } = useSWR<ServiceCommonServer[]>(
+    '/api/v1/service/readarr'
+  );
   const { data: quota } = useSWR<QuotaResponse>(
     user &&
       (!requestOverrides?.user?.id || hasPermission(Permission.MANAGE_USERS))
@@ -90,6 +100,43 @@ const BookRequestModal = ({
   useEffect(() => {
     setSelectedIsbn(data?.isbn13 ?? '');
   }, [data?.isbn13]);
+
+  const hasEbookServer = (bookServices ?? []).some(
+    (service) => (service.serviceType ?? 'ebook') === 'ebook'
+  );
+  const hasAudiobookServer = (bookServices ?? []).some(
+    (service) => service.serviceType === 'audiobook'
+  );
+  const formatAvailable = useMemo(
+    () => ({
+      ebook: hasEbookServer,
+      audiobook: hasAudiobookServer,
+      both: hasEbookServer && hasAudiobookServer,
+    }),
+    [hasAudiobookServer, hasEbookServer]
+  );
+
+  useEffect(() => {
+    if (!bookServices) {
+      return;
+    }
+
+    if (formatAvailable[bookFormat]) {
+      return;
+    }
+
+    if (hasEbookServer) {
+      setBookFormat('ebook');
+    } else if (hasAudiobookServer) {
+      setBookFormat('audiobook');
+    }
+  }, [
+    bookFormat,
+    bookServices,
+    formatAvailable,
+    hasAudiobookServer,
+    hasEbookServer,
+  ]);
 
   useEffect(() => {
     if (editRequest || hasUserSelectedFormat || !data?.mediaInfo) {
@@ -167,9 +214,26 @@ const BookRequestModal = ({
   }, [bookFormat, requestOverrides]);
 
   const handleBookFormatChange = (value: 'ebook' | 'audiobook' | 'both') => {
+    if (bookServices && !formatAvailable[value]) {
+      return;
+    }
+
     setHasUserSelectedFormat(true);
     setBookFormat(value);
   };
+
+  const formatWarning =
+    bookServices && !formatAvailable[bookFormat]
+      ? bookFormat === 'ebook'
+        ? messages.noEbookServer
+        : bookFormat === 'audiobook'
+          ? messages.noAudiobookServer
+          : messages.noBothServers
+      : bookServices &&
+          bookFormat === 'both' &&
+          (!hasEbookServer || !hasAudiobookServer)
+        ? messages.noBothServers
+        : null;
 
   const sendRequest = useCallback(async () => {
     setIsUpdating(true);
@@ -321,7 +385,7 @@ const BookRequestModal = ({
               ? updateRequest()
               : cancelRequest()
         }
-        okDisabled={isUpdating}
+        okDisabled={isUpdating || !!formatWarning}
         okText={
           hasPermission(Permission.MANAGE_REQUESTS)
             ? intl.formatMessage(messages.approve)
@@ -379,13 +443,22 @@ const BookRequestModal = ({
             }
             className="border-gray-700 bg-gray-800"
           >
-            <option value="ebook">{intl.formatMessage(messages.ebook)}</option>
-            <option value="audiobook">
+            <option value="ebook" disabled={!hasEbookServer}>
+              {intl.formatMessage(messages.ebook)}
+            </option>
+            <option value="audiobook" disabled={!hasAudiobookServer}>
               {intl.formatMessage(messages.audiobook)}
             </option>
-            <option value="both">{intl.formatMessage(messages.both)}</option>
+            <option value="both" disabled={!formatAvailable.both}>
+              {intl.formatMessage(messages.both)}
+            </option>
           </select>
         </div>
+        {formatWarning && (
+          <div className="mt-4">
+            <Alert title={intl.formatMessage(formatWarning)} type="warning" />
+          </div>
+        )}
         {bookFormat === 'both' &&
           (hasPermission(Permission.REQUEST_ADVANCED) ||
             hasPermission(Permission.MANAGE_REQUESTS)) && (
@@ -423,7 +496,7 @@ const BookRequestModal = ({
       backgroundClickable
       onCancel={onCancel}
       onOk={sendRequest}
-      okDisabled={isUpdating || quota?.book?.restricted}
+      okDisabled={isUpdating || quota?.book?.restricted || !!formatWarning}
       title={intl.formatMessage(messages.requestbook)}
       subTitle={data?.title}
       okText={
@@ -457,13 +530,22 @@ const BookRequestModal = ({
           }
           className="border-gray-700 bg-gray-800"
         >
-          <option value="ebook">{intl.formatMessage(messages.ebook)}</option>
-          <option value="audiobook">
+          <option value="ebook" disabled={!hasEbookServer}>
+            {intl.formatMessage(messages.ebook)}
+          </option>
+          <option value="audiobook" disabled={!hasAudiobookServer}>
             {intl.formatMessage(messages.audiobook)}
           </option>
-          <option value="both">{intl.formatMessage(messages.both)}</option>
+          <option value="both" disabled={!formatAvailable.both}>
+            {intl.formatMessage(messages.both)}
+          </option>
         </select>
       </div>
+      {formatWarning && (
+        <div className="mt-4">
+          <Alert title={intl.formatMessage(formatWarning)} type="warning" />
+        </div>
+      )}
       {(data?.isbnCandidates?.length ?? 0) > 1 && (
         <div className="mt-6">
           <label htmlFor="bookEdition" className="text-label">
