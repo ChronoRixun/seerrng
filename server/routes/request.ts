@@ -419,12 +419,26 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
               };
             }
             case MediaType.BOOK: {
-              const canRemoveEbook = readarrServers.some(
-                (server) => server.id === r.media.serviceId
-              );
-              const canRemoveAudiobook = readarrServers.some(
-                (server) => server.id === r.media.audiobookServiceId
-              );
+              const hasEbookLink =
+                r.media.serviceId !== null &&
+                r.media.serviceId !== undefined &&
+                r.media.externalServiceId !== null &&
+                r.media.externalServiceId !== undefined;
+              const hasAudiobookLink =
+                r.media.audiobookServiceId !== null &&
+                r.media.audiobookServiceId !== undefined &&
+                r.media.audiobookExternalServiceId !== null &&
+                r.media.audiobookExternalServiceId !== undefined;
+              const canRemoveEbook =
+                hasEbookLink &&
+                readarrServers.some(
+                  (server) => server.id === r.media.serviceId
+                );
+              const canRemoveAudiobook =
+                hasAudiobookLink &&
+                readarrServers.some(
+                  (server) => server.id === r.media.audiobookServiceId
+                );
 
               return {
                 ...r,
@@ -432,7 +446,9 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
                   r.bookFormat === 'audiobook'
                     ? canRemoveAudiobook
                     : r.bookFormat === 'both'
-                      ? canRemoveEbook || canRemoveAudiobook
+                      ? (hasEbookLink || hasAudiobookLink) &&
+                        (!hasEbookLink || canRemoveEbook) &&
+                        (!hasAudiobookLink || canRemoveAudiobook)
                       : canRemoveEbook,
               };
             }

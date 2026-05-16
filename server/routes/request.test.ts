@@ -349,6 +349,67 @@ describe('GET /request', () => {
     assert.strictEqual(res.body.results.length, 1);
     assert.strictEqual(res.body.results[0].canRemove, true);
   });
+
+  it('does not mark both-format book requests removable when one linked Bookshelf server is missing', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(10, 'ebook')];
+    const originalGetProfiles = Object.getOwnPropertyDescriptor(
+      ReadarrAPI.prototype,
+      'getProfiles'
+    );
+    Object.defineProperty(ReadarrAPI.prototype, 'getProfiles', {
+      set() {},
+      get() {
+        return async () => [{ id: 22, name: 'Ebooks' }];
+      },
+      configurable: true,
+    });
+    t.after(() => {
+      if (originalGetProfiles) {
+        Object.defineProperty(
+          ReadarrAPI.prototype,
+          'getProfiles',
+          originalGetProfiles
+        );
+      }
+      settings.readarr = [];
+    });
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.PARTIALLY_AVAILABLE,
+        status4k: MediaStatus.UNKNOWN,
+        serviceId: 10,
+        externalServiceId: 100,
+        externalServiceSlug: 'ebook-book',
+        audiobookServiceId: 20,
+        audiobookExternalServiceId: 200,
+        audiobookExternalServiceSlug: 'audio-book',
+      })
+    );
+    await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.COMPLETED,
+        is4k: false,
+        bookFormat: 'both',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.get('/request').query({ mediaType: 'book' });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results.length, 1);
+    assert.strictEqual(res.body.results[0].canRemove, false);
+  });
 });
 
 describe('POST /request', () => {
