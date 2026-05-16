@@ -6334,6 +6334,11 @@ paths:
               - release_date.desc
               - release_date.asc
             default: release_date.desc
+        - in: query
+          name: query
+          schema:
+            type: string
+            example: kind of blue
       responses:
         '200':
           description: Music discovery results
@@ -6374,6 +6379,12 @@ paths:
             type: string
             example: subject:fiction
             default: subject:fiction
+        - in: query
+          name: subject
+          schema:
+            type: string
+            example: fiction
+            default: fiction
       responses:
         '200':
           description: Book discovery results
