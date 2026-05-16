@@ -13,6 +13,100 @@ permissions:
   contents: write
 
 jobs:
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Install packaging tools
+        run: sudo apt-get update && sudo apt-get install -y debhelper devscripts dpkg-dev
+      - name: Download Linux asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            if gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --clobber; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
+      - name: Build deb
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          src="seerrng-${version}"
+          rm -rf "$src"
+          mkdir -p "$src/usr/lib/seerrng" "$src/usr/bin" "$src/lib/systemd/system" "$src/etc/seerrng" \
+            "$src/usr/lib/sysusers.d" "$src/usr/lib/tmpfiles.d"
+          tar -xzf "seerrng-v${version}-linux-x64.tar.gz" --strip-components=1 -C "$src/usr/lib/seerrng"
+          ln -s /usr/lib/seerrng/start.sh "$src/usr/bin/seerrng"
+          cp packaging/aur/seerrng.service "$src/lib/systemd/system/"
+          cp packaging/aur/seerrng.env "$src/etc/seerrng/"
+          cp packaging/aur/seerrng.sysusers "$src/usr/lib/sysusers.d/seerrng.conf"
+          cp packaging/aur/seerrng.tmpfiles "$src/usr/lib/tmpfiles.d/seerrng.conf"
+          cp -r packaging/debian "$src/debian"
+          cat > "$src/debian/changelog" <<EOF
+          seerrng (${version}) unstable; urgency=medium
+
+            * Release ${{ steps.version.outputs.tag }}
+
+           -- snapetech <seerrng@proton.me>  $(date -R)
+          EOF
+          (cd "$src" && dpkg-buildpackage -us -uc -b)
+          mv seerrng_*_amd64.deb "seerrng_${version}_amd64.deb"
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: seerrng_${{ steps.version.outputs.version }}_amd64.deb
+
+  rpm:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Install packaging tools
+        run: dnf install -y gh rpm-build rpmdevtools systemd-rpm-macros
+      - name: Download Linux asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            if gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --clobber; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
+      - name: Build rpm
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          rpmdev-setuptree
+          cp "seerrng-v${version}-linux-x64.tar.gz" ~/rpmbuild/SOURCES/
+          cp packaging/aur/seerrng.{service,env,sysusers,tmpfiles} ~/rpmbuild/SOURCES/
+          cp packaging/rpm/seerrng.spec ~/rpmbuild/SPECS/
+          sed -i "s/^Version:.*/Version:        ${version}/" ~/rpmbuild/SPECS/seerrng.spec
+          rpmbuild -bb ~/rpmbuild/SPECS/seerrng.spec
+          find ~/rpmbuild/RPMS -name '*.rpm' -exec cp {} . \;
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          files: '*.rpm'
+
   appimage:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +120,15 @@ jobs:
       - name: Download Linux asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz"
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            if gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --clobber; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
       - name: Build AppImage
         run: |
           set -euo pipefail

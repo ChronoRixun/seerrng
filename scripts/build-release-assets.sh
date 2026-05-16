@@ -22,7 +22,9 @@ stage="${dist_dir}/${asset}"
 rm -rf "$stage"
 mkdir -p "$stage"
 
-corepack enable
+if command -v corepack >/dev/null 2>&1; then
+  corepack enable
+fi
 CI=true CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile
 pnpm build
 rm -rf node_modules

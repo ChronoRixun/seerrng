@@ -30,7 +30,15 @@ jobs:
       - name: Download Linux asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz"
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            if gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --clobber; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
 
       - name: Install RPM/COPR tooling
         run: |
@@ -87,4 +95,3 @@ jobs:
         run: |
           srpm="$(find ~/rpmbuild/SRPMS -name '*.src.rpm' -print -quit)"
           copr-cli build "${COPR_PROJECT:-seerrng}" "$srpm" --nowait
-

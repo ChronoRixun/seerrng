@@ -33,7 +33,15 @@ jobs:
       - name: Download Linux asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz"
+        run: |
+          set -euo pipefail
+          for attempt in {1..20}; do
+            if gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --clobber; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
 
       - name: Import GPG key
         env:
@@ -85,4 +93,3 @@ jobs:
             curl --fail --show-error --ftp-create-dirs --user anonymous: --upload-file "$file" "${incoming}${file}"
           done
           curl --fail --show-error --ftp-create-dirs --user anonymous: --upload-file "$changes" "${incoming}$(basename "$changes")"
-
