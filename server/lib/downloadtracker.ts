@@ -13,6 +13,26 @@ interface EpisodeNumberResult {
   absoluteEpisodeNumber: number;
   id: number;
 }
+
+export const isMatchingReadarrDownloadServer = (
+  serverA: {
+    hostname: string;
+    port: number;
+    baseUrl?: string;
+    serviceType?: 'ebook' | 'audiobook';
+  },
+  serverB: {
+    hostname: string;
+    port: number;
+    baseUrl?: string;
+    serviceType?: 'ebook' | 'audiobook';
+  }
+): boolean =>
+  serverA.hostname === serverB.hostname &&
+  serverA.port === serverB.port &&
+  serverA.baseUrl === serverB.baseUrl &&
+  (serverA.serviceType ?? 'ebook') === (serverB.serviceType ?? 'ebook');
+
 export interface DownloadingItem {
   mediaType: MediaType;
   externalId: number;
@@ -338,11 +358,7 @@ class DownloadTracker {
     const settings = getSettings();
 
     const filteredServers = uniqWith(settings.readarr, (readarrA, readarrB) => {
-      return (
-        readarrA.hostname === readarrB.hostname &&
-        readarrA.port === readarrB.port &&
-        readarrA.baseUrl === readarrB.baseUrl
-      );
+      return isMatchingReadarrDownloadServer(readarrA, readarrB);
     });
 
     await Promise.all(
@@ -363,7 +379,9 @@ class DownloadTracker {
                 bookId: item.bookId ?? item.book?.id,
               }))
               .filter(
-                (queueItem): queueItem is typeof queueItem & { bookId: number } =>
+                (
+                  queueItem
+                ): queueItem is typeof queueItem & { bookId: number } =>
                   queueItem.bookId !== undefined
               )
               .map(({ item, bookId }) => ({
@@ -395,10 +413,7 @@ class DownloadTracker {
 
           const matchingServers = settings.readarr.filter(
             (rs) =>
-              rs.hostname === server.hostname &&
-              rs.port === server.port &&
-              rs.baseUrl === server.baseUrl &&
-              rs.id !== server.id
+              isMatchingReadarrDownloadServer(rs, server) && rs.id !== server.id
           );
 
           if (matchingServers.length > 0) {
