@@ -43,6 +43,27 @@ describe('Associations', () => {
       '/api/v1/association/book/OLROOTW?includeWeak=true',
       associationGraph
     ).as('getAssociations');
+    cy.intercept('GET', '/api/v1/association/book/OLRELATEDW', {
+      root: {
+        mediaType: 'book',
+        id: 'OLRELATEDW',
+        title: 'Related Book',
+      },
+      edges: [
+        {
+          weight: 0.8,
+          type: 'shared-person',
+          reason: 'Also by Book Author',
+          node: {
+            id: 'OLROOTW',
+            mediaType: 'book',
+            title: 'Root Book',
+            author: 'Book Author',
+            posterPath: 'https://covers.openlibrary.org/b/id/789-L.jpg',
+          },
+        },
+      ],
+    }).as('precheckRelatedAssociations');
     cy.intercept(
       'GET',
       '/api/v1/association/book/OLRELATEDW?includeWeak=true',
@@ -68,6 +89,14 @@ describe('Associations', () => {
         ],
       }
     ).as('getRelatedAssociations');
+    cy.intercept('GET', '/api/v1/association/book/OLOTHERW', {
+      root: {
+        mediaType: 'book',
+        id: 'OLOTHERW',
+        title: 'Adjacent Book',
+      },
+      edges: [],
+    }).as('precheckEmptyAssociations');
   });
 
   it('shows same-author book associations in the wall view', () => {
@@ -109,6 +138,17 @@ describe('Associations', () => {
     cy.contains('[data-testid=association-popover]', 'Root Book').should(
       'be.visible'
     );
+  });
+
+  it('hides card badges when a title has no strong associations', () => {
+    cy.visit('/associations/book/OLROOTW');
+    cy.wait('@getAssociations');
+
+    cy.get('[data-testid=association-wall]').within(() => {
+      cy.get('[data-testid=title-card]').first().trigger('mouseover');
+      cy.wait(500);
+      cy.get('[data-testid=association-badge]').should('not.exist');
+    });
   });
 
   it('renders the graph view with a legend and recenterable nodes', () => {

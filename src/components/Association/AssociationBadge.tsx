@@ -1,5 +1,7 @@
 import type { AssociationMediaType } from '@app/hooks/useAssociations';
-import { toAssociationMediaType } from '@app/hooks/useAssociations';
+import useAssociations, {
+  toAssociationMediaType,
+} from '@app/hooks/useAssociations';
 import defineMessages from '@app/utils/defineMessages';
 import { ShareIcon } from '@heroicons/react/24/solid';
 import { useMemo, useState } from 'react';
@@ -17,12 +19,14 @@ interface AssociationBadgeProps {
   id: string | number;
   /** 'card' floats over poster art; 'inline' sits next to a title. */
   variant?: 'card' | 'inline';
+  hideWhenEmpty?: boolean;
 }
 
 const AssociationBadge = ({
   mediaType,
   id,
   variant = 'card',
+  hideWhenEmpty = false,
 }: AssociationBadgeProps) => {
   const intl = useIntl();
   const [isOpen, setIsOpen] = useState(false);
@@ -41,8 +45,20 @@ const AssociationBadge = ({
   );
   const { getTooltipProps, setTooltipRef, setTriggerRef } =
     usePopperTooltip(popperConfig);
+  const { isLoading: isChecking, hasStrongEdges } = useAssociations(
+    associationType,
+    id,
+    {
+      enabled: hideWhenEmpty && !!associationType,
+      includeWeak: false,
+    }
+  );
 
   if (!associationType || id == null || id === '') {
+    return null;
+  }
+
+  if (hideWhenEmpty && !isChecking && !hasStrongEdges) {
     return null;
   }
 
@@ -60,9 +76,13 @@ const AssociationBadge = ({
         aria-label={intl.formatMessage(messages.associations)}
         title={intl.formatMessage(messages.associations)}
         className={buttonClass}
+        disabled={hideWhenEmpty && isChecking}
         onClick={(e: React.MouseEvent) => {
           e.preventDefault();
           e.stopPropagation();
+          if (hideWhenEmpty && isChecking) {
+            return;
+          }
           setIsOpen((open) => !open);
         }}
       >

@@ -97,6 +97,26 @@
     grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
   }
 
+  /*
+   * Skip rendering/layout/paint for offscreen cards. The `auto` keyword
+   * makes the browser remember each card's real size after its first
+   * render, so the placeholder estimate only matters before first paint.
+   */
+  ul.cards-vertical > li {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 20rem;
+  }
+
+  ul.cards-horizontal > li {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 14rem;
+  }
+
+  .slider-item {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 11rem auto 17rem;
+  }
+
   .provider-icons {
     grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr));
   }

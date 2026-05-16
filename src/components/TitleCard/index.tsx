@@ -538,6 +538,7 @@ const TitleCard = ({
                     mediaType={mediaType}
                     id={id}
                     variant="card"
+                    hideWhenEmpty
                   />
                 </div>
                 {canUseWatchlistActions &&

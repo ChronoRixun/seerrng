@@ -171,7 +171,7 @@ const Slider = ({
         {items?.map((item, index) => (
           <div
             key={`${sliderKey}-${index}`}
-            className="inline-block px-2 align-top"
+            className="slider-item inline-block px-2 align-top"
           >
             {item}
           </div>
@@ -180,7 +180,7 @@ const Slider = ({
           [...Array(10)].map((_item, i) => (
             <div
               key={`placeholder-${i}`}
-              className="inline-block px-2 align-top"
+              className="slider-item inline-block px-2 align-top"
             >
               {placeholder}
             </div>
