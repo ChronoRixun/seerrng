@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * useClickOutside
@@ -13,18 +13,27 @@ const useClickOutside = (
   ref: React.RefObject<HTMLElement | null>,
   callback: (e: MouseEvent) => void
 ): void => {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
   useEffect(() => {
     const handleBodyClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
-        callback(e);
+        callbackRef.current(e);
       }
     };
+
     document.body.addEventListener('click', handleBodyClick, { capture: true });
 
     return () => {
-      document.body.removeEventListener('click', handleBodyClick);
+      document.body.removeEventListener('click', handleBodyClick, {
+        capture: true,
+      });
     };
-  }, [ref, callback]);
+  }, [ref]);
 };
 
 export default useClickOutside;
