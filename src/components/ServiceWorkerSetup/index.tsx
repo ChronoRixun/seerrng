@@ -3,12 +3,19 @@
 import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
 import { verifyAndResubscribePushSubscription } from '@app/utils/pushSubscriptionHelpers';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 const ServiceWorkerSetup = () => {
   const { user } = useUser();
   const { currentSettings } = useSettings();
   const userId = user?.id;
+  const pushSettings = useMemo(
+    () => ({
+      enablePushRegistration: currentSettings.enablePushRegistration,
+      vapidPublic: currentSettings.vapidPublic,
+    }),
+    [currentSettings.enablePushRegistration, currentSettings.vapidPublic]
+  );
 
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !userId) {
@@ -54,7 +61,7 @@ const ServiceWorkerSetup = () => {
 
           const verified = await verifyAndResubscribePushSubscription(
             userId,
-            currentSettings
+            pushSettings
           );
 
           if (verified) {
@@ -81,7 +88,7 @@ const ServiceWorkerSetup = () => {
     const timeout = globalThis.setTimeout(registerServiceWorker, 2000);
 
     return () => globalThis.clearTimeout(timeout);
-  }, [currentSettings, userId]);
+  }, [pushSettings, userId]);
   return null;
 };
 

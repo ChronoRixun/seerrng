@@ -19,7 +19,7 @@ import axios from 'axios';
 import type { AppInitialProps, AppProps } from 'next/app';
 import App from 'next/app';
 import Head from 'next/head';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { IntlProvider } from 'react-intl';
 import { SWRConfig } from 'swr';
@@ -129,9 +129,17 @@ const CoreApp: Omit<NextAppComponentType, 'origGetInitialProps'> = ({
   let component: React.ReactNode;
   const [loadedMessages, setMessages] = useState<MessagesType>(messages);
   const [currentLocale, setLocale] = useState<AvailableLocale>(locale);
+  const loadedLocale = useRef<AvailableLocale>(locale);
 
   useEffect(() => {
-    loadLocaleData(currentLocale).then(setMessages);
+    if (currentLocale === loadedLocale.current) {
+      return;
+    }
+
+    loadLocaleData(currentLocale).then((localeMessages) => {
+      loadedLocale.current = currentLocale;
+      setMessages(localeMessages);
+    });
   }, [currentLocale]);
 
   const { hasPermission } = useUser();

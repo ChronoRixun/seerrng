@@ -2,6 +2,11 @@ import type { UserPushSubscription } from '@server/entity/UserPushSubscription';
 import type { PublicSettingsResponse } from '@server/interfaces/api/settingsInterfaces';
 import axios from 'axios';
 
+type PushSettings = Pick<
+  PublicSettingsResponse,
+  'enablePushRegistration' | 'vapidPublic'
+>;
+
 // Taken from https://www.npmjs.com/package/web-push
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -26,7 +31,7 @@ export const getPushSubscription = async () => {
 
 export const verifyPushSubscription = async (
   userId: number | undefined,
-  currentSettings: PublicSettingsResponse
+  currentSettings: PushSettings
 ): Promise<boolean> => {
   if (!('serviceWorker' in navigator) || !userId) {
     return false;
@@ -67,7 +72,7 @@ export const verifyPushSubscription = async (
 
 export const verifyAndResubscribePushSubscription = async (
   userId: number | undefined,
-  currentSettings: PublicSettingsResponse
+  currentSettings: PushSettings
 ): Promise<boolean> => {
   if (!userId) {
     return false;
@@ -115,7 +120,7 @@ export const verifyAndResubscribePushSubscription = async (
 
 export const subscribeToPushNotifications = async (
   userId: number | undefined,
-  currentSettings: PublicSettingsResponse
+  currentSettings: PushSettings
 ) => {
   if (
     !('serviceWorker' in navigator) ||
