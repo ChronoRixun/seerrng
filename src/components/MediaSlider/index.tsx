@@ -48,7 +48,7 @@ const MediaSlider = ({
   const settings = useSettings();
   const { hasPermission } = useUser();
   const { ref, inView } = useInView({
-    rootMargin: '900px 0px',
+    rootMargin: '450px 0px',
     triggerOnce: true,
   });
   const shouldLoad = isEditingSafe() || inView;
@@ -67,8 +67,10 @@ const MediaSlider = ({
       }`;
     },
     {
-      initialSize: 2,
+      initialSize: 1,
       revalidateFirstPage: false,
+      dedupingInterval: 30000,
+      revalidateOnFocus: false,
     }
   );
 
