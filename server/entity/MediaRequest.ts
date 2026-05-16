@@ -234,6 +234,26 @@ export class MediaRequest {
       });
 
       const defaultLidarr = settings.lidarr.find((lidarr) => lidarr.isDefault);
+      const requestedLidarr = settings.lidarr.find(
+        (lidarr) => lidarr.id === requestBody.serverId
+      );
+
+      if (
+        requestBody.serverId !== undefined &&
+        requestBody.serverId !== null &&
+        !requestedLidarr
+      ) {
+        throw new ServiceConfigurationError(
+          'Selected Lidarr server does not exist.'
+        );
+      }
+
+      if (!defaultLidarr && !requestBody.serverId) {
+        throw new ServiceConfigurationError(
+          'No default Lidarr server configured.'
+        );
+      }
+
       const serverId = requestBody.serverId ?? defaultLidarr?.id;
       let rootFolder = requestBody.rootFolder ?? defaultLidarr?.activeDirectory;
       let profileId = requestBody.profileId ?? defaultLidarr?.activeProfileId;
@@ -502,6 +522,16 @@ export class MediaRequest {
       const requestedServer = settings.readarr.find(
         (readarr) => readarr.id === requestBody.serverId
       );
+
+      if (
+        requestBody.serverId !== undefined &&
+        requestBody.serverId !== null &&
+        !requestedServer
+      ) {
+        throw new ServiceConfigurationError(
+          'Selected Bookshelf server does not exist.'
+        );
+      }
 
       if (
         requestBody.serverId !== undefined &&

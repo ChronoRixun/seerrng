@@ -302,6 +302,29 @@ describe('GET /request', () => {
 
 describe('POST /request', () => {
   it('creates a pending music request with the resolved MusicBrainz release group', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [
+      {
+        id: 10,
+        name: 'Lidarr',
+        hostname: 'lidarr.local',
+        port: 8686,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 20,
+        activeProfileName: 'Music',
+        activeMetadataProfileId: 30,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/music',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+      },
+    ];
     const getAlbumMock = mock.method(
       ListenBrainzAPI.prototype,
       'getAlbum',
@@ -318,7 +341,10 @@ describe('POST /request', () => {
           },
         }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
     );
-    t.after(() => getAlbumMock.mock.restore());
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+    });
 
     const agent = await loginAs('friend@seerr.dev', 'test1234');
     const res = await agent.post('/request').send({
@@ -349,7 +375,90 @@ describe('POST /request', () => {
     assert.strictEqual(savedMedia.requests.length, 1);
   });
 
+  it('rejects music requests without a default Lidarr server', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [];
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () =>
+        ({
+          release_group_mbid: 'release-group-no-lidarr',
+          release_group_metadata: {
+            release_group: {
+              name: 'No Lidarr Album',
+            },
+          },
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
+    );
+    t.after(() => getAlbumMock.mock.restore());
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.MUSIC,
+      mediaId: 'listenbrainz-release-id',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /no default lidarr/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
+  it('rejects music requests with an unknown Lidarr server override', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [];
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () =>
+        ({
+          release_group_mbid: 'release-group-bad-lidarr',
+          release_group_metadata: {
+            release_group: {
+              name: 'Bad Lidarr Album',
+            },
+          },
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
+    );
+    t.after(() => getAlbumMock.mock.restore());
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.MUSIC,
+      mediaId: 'listenbrainz-release-id',
+      serverId: 999,
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /selected lidarr/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
   it('creates a pending book request with normalized identifiers and format', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 11,
+        name: 'Audio Bookshelf',
+        hostname: 'audio.local',
+        port: 8787,
+        apiKey: 'audio-key',
+        useSsl: false,
+        activeProfileId: 22,
+        activeProfileName: 'Audiobooks',
+        activeMetadataProfileId: 33,
+        activeMetadataProfileName: 'Audio Standard',
+        activeDirectory: '/books',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'audiobook',
+      },
+    ];
     const getWorkMock = mock.method(
       OpenLibraryAPI.prototype,
       'getWork',
@@ -376,6 +485,7 @@ describe('POST /request', () => {
     t.after(() => {
       getWorkMock.mock.restore();
       getWorkEditionsMock.mock.restore();
+      settings.readarr = [];
     });
 
     const agent = await loginAs('friend@seerr.dev', 'test1234');
@@ -501,6 +611,47 @@ describe('POST /request', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /not configured for audiobook/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
+  it('rejects book requests with an unknown Bookshelf server override', async (t) => {
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async () =>
+        ({
+          key: '/works/OL45804W',
+          title: 'The Left Hand of Darkness',
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async () =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: '/books/OL1M',
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.BOOK,
+      mediaId: '/works/OL45804W',
+      serverId: 999,
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /selected bookshelf/i);
     assert.strictEqual(await getRepository(MediaRequest).count(), 0);
   });
 
