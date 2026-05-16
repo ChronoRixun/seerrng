@@ -30,6 +30,22 @@ const Slider = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<number | undefined>(undefined);
   const [scrollPos, setScrollPos] = useState({ isStart: true, isEnd: false });
+  const scrollPosRef = useRef(scrollPos);
+
+  const setScrollPosition = useCallback(
+    (nextScrollPos: { isStart: boolean; isEnd: boolean }) => {
+      if (
+        scrollPosRef.current.isStart === nextScrollPos.isStart &&
+        scrollPosRef.current.isEnd === nextScrollPos.isEnd
+      ) {
+        return;
+      }
+
+      scrollPosRef.current = nextScrollPos;
+      setScrollPos(nextScrollPos);
+    },
+    []
+  );
 
   const handleScroll = useCallback(() => {
     const margin = 5;
@@ -39,20 +55,20 @@ const Slider = ({
     const scrollPosition = containerRef.current?.scrollLeft ?? 0;
 
     if (!items || items?.length === 0) {
-      setScrollPos({ isStart: true, isEnd: true });
+      setScrollPosition({ isStart: true, isEnd: true });
     } else if (clientWidth >= scrollWidth) {
-      setScrollPos({ isStart: true, isEnd: true });
+      setScrollPosition({ isStart: true, isEnd: true });
     } else if (
       scrollPosition >=
       (containerRef.current?.scrollWidth ?? 0) - clientWidth - margin
     ) {
-      setScrollPos({ isStart: false, isEnd: true });
+      setScrollPosition({ isStart: false, isEnd: true });
     } else if (scrollPosition > margin) {
-      setScrollPos({ isStart: false, isEnd: false });
+      setScrollPosition({ isStart: false, isEnd: false });
     } else {
-      setScrollPos({ isStart: true, isEnd: false });
+      setScrollPosition({ isStart: true, isEnd: false });
     }
-  }, [items]);
+  }, [items, setScrollPosition]);
 
   const debouncedScroll = useCallback(() => {
     window.clearTimeout(debounceRef.current);
@@ -104,9 +120,9 @@ const Slider = ({
       containerRef.current.scrollTo({ left: newX, behavior: 'smooth' });
 
       if (newX === 0) {
-        setScrollPos({ isStart: true, isEnd: false });
+        setScrollPosition({ isStart: true, isEnd: false });
       } else {
-        setScrollPos({ isStart: false, isEnd: false });
+        setScrollPosition({ isStart: false, isEnd: false });
       }
     } else if (direction === Direction.RIGHT) {
       const newX = Math.min(
@@ -116,9 +132,9 @@ const Slider = ({
       containerRef.current.scrollTo({ left: newX, behavior: 'smooth' });
 
       if (newX >= scrollWidth - clientWidth) {
-        setScrollPos({ isStart: false, isEnd: true });
+        setScrollPosition({ isStart: false, isEnd: true });
       } else {
-        setScrollPos({ isStart: false, isEnd: false });
+        setScrollPosition({ isStart: false, isEnd: false });
       }
     }
   };
