@@ -44,6 +44,7 @@ export class QuotaRestrictedError extends Error {}
 export class DuplicateMediaRequestError extends Error {}
 export class NoSeasonsAvailableError extends Error {}
 export class BlocklistedMediaError extends Error {}
+export class ServiceConfigurationError extends Error {}
 
 type MediaRequestOptions = {
   isAutoRequest?: boolean;
@@ -498,6 +499,22 @@ export class MediaRequest {
 
       const requestedServiceType =
         requestedBookFormat === 'audiobook' ? 'audiobook' : 'ebook';
+      const requestedServer = settings.readarr.find(
+        (readarr) => readarr.id === requestBody.serverId
+      );
+
+      if (
+        requestBody.serverId !== undefined &&
+        requestBody.serverId !== null &&
+        requestedServer &&
+        requestedBookFormat !== 'both' &&
+        (requestedServer.serviceType ?? 'ebook') !== requestedServiceType
+      ) {
+        throw new ServiceConfigurationError(
+          `Selected Bookshelf server is not configured for ${requestedServiceType}.`
+        );
+      }
+
       const defaultReadarr = settings.readarr.find(
         (readarr) =>
           readarr.isDefault &&

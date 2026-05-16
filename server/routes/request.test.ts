@@ -437,6 +437,73 @@ describe('POST /request', () => {
     );
   });
 
+  it('rejects an audiobook request with an ebook-only Bookshelf server override', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 11,
+        name: 'Ebook Bookshelf',
+        hostname: 'ebooks.local',
+        port: 8787,
+        apiKey: 'ebook-key',
+        useSsl: false,
+        activeProfileId: 22,
+        activeProfileName: 'Ebooks',
+        activeMetadataProfileId: 33,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/books',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+    ];
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async () =>
+        ({
+          key: '/works/OL45804W',
+          title: 'The Left Hand of Darkness',
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async () =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: '/books/OL1M',
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+      settings.readarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.BOOK,
+      mediaId: '/works/OL45804W',
+      format: 'audiobook',
+      serverId: 11,
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /not configured for audiobook/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
   it('blocks duplicate book requests that resolve to an existing ISBN', async (t) => {
     const userRepo = getRepository(User);
     const mediaRepo = getRepository(Media);
