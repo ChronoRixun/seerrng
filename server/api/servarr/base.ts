@@ -255,6 +255,14 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
   };
 
   async refreshMonitoredDownloads(): Promise<void> {
+    if (EXTERNAL_READ_ONLY) {
+      logger.debug('Skipping monitored download refresh in read-only mode.', {
+        label: this.apiName,
+      });
+
+      return;
+    }
+
     await this.runCommand('RefreshMonitoredDownloads', {});
   }
 
