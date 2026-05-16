@@ -25,8 +25,9 @@ const Layout = ({ children }: LayoutProps) => {
   const router = useRouter();
   const { currentSettings } = useSettings();
   const { setLocale } = useLocale();
+  const [countsEnabled, setCountsEnabled] = useState(false);
   const { data: requestResponse, mutate: revalidateRequestsCount } = useSWR(
-    '/api/v1/request/count',
+    countsEnabled ? '/api/v1/request/count' : null,
     {
       revalidateOnMount: true,
       revalidateOnFocus: false,
@@ -34,7 +35,7 @@ const Layout = ({ children }: LayoutProps) => {
     }
   );
   const { data: issueResponse, mutate: revalidateIssueCount } = useSWR(
-    '/api/v1/issue/count',
+    countsEnabled ? '/api/v1/issue/count' : null,
     {
       revalidateOnMount: true,
       revalidateOnFocus: false,
@@ -51,6 +52,21 @@ const Layout = ({ children }: LayoutProps) => {
       );
     }
   }, [setLocale, currentSettings.locale, user]);
+
+  useEffect(() => {
+    if ('requestIdleCallback' in window) {
+      const idleCallback = window.requestIdleCallback(
+        () => setCountsEnabled(true),
+        { timeout: 5000 }
+      );
+
+      return () => window.cancelIdleCallback(idleCallback);
+    }
+
+    const timeout = globalThis.setTimeout(() => setCountsEnabled(true), 2000);
+
+    return () => globalThis.clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     const updateScrolled = () => {

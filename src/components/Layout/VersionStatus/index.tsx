@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import type { StatusResponse } from '@server/interfaces/api/settingsInterfaces';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -24,9 +25,30 @@ interface VersionStatusProps {
 
 const VersionStatus = ({ onClick }: VersionStatusProps) => {
   const intl = useIntl();
-  const { data } = useSWR<StatusResponse>('/api/v1/status', {
-    refreshInterval: 60 * 1000,
-  });
+  const [statusEnabled, setStatusEnabled] = useState(false);
+
+  useEffect(() => {
+    if ('requestIdleCallback' in window) {
+      const idleCallback = window.requestIdleCallback(
+        () => setStatusEnabled(true),
+        { timeout: 10000 }
+      );
+
+      return () => window.cancelIdleCallback(idleCallback);
+    }
+
+    const timeout = globalThis.setTimeout(() => setStatusEnabled(true), 5000);
+
+    return () => globalThis.clearTimeout(timeout);
+  }, []);
+
+  const { data } = useSWR<StatusResponse>(
+    statusEnabled ? '/api/v1/status' : null,
+    {
+      refreshInterval: 60 * 1000,
+      revalidateOnFocus: false,
+    }
+  );
 
   if (!data) {
     return null;
