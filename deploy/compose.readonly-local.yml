@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: Dockerfile
     image: seerrng:readonly-local
-    container_name: seerrng-readonly
+    container_name: ${SEERRNG_CONTAINER_NAME:-seerrng-readonly}
     restart: unless-stopped
     environment:
       TZ: ${TZ:-America/Regina}
