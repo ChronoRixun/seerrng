@@ -5,10 +5,11 @@
 <img src="https://github.com/snapetech/seerrng/actions/workflows/ci.yml/badge.svg" alt="SeerrNG CI">
 </p>
 <p align="center">
-<a href="https://discord.gg/seerr"><img src="https://img.shields.io/discord/783137440809746482" alt="Discord"></a>
+<a href="https://discord.gg/2N42G4RJCU"><img src="https://img.shields.io/badge/support-Discord-5865F2?logo=discord&logoColor=white" alt="Support on Discord"></a>
 <a href="https://hub.docker.com/r/seerr/seerr"><img src="https://img.shields.io/docker/pulls/seerr/seerr" alt="Docker pulls"></a>
 <a href="https://translate.seerr.dev/engage/seerr/"><img src="https://translate.seerr.dev/widget/seerr/svg-badge.svg" alt="Translation status" /></a>
 <a href="https://github.com/snapetech/seerrng/blob/develop/LICENSE"><img alt="GitHub" src="https://img.shields.io/github/license/snapetech/seerrng"></a>
+</p>
 
 # SeerrNG
 
@@ -77,9 +78,11 @@ Please follow our [migration guide](https://docs.seerr.dev/migration-guide) for 
 ## Support
 
 - Check out the [Seerr Documentation](https://docs.seerr.dev) before asking for help. Your question might already be in the docs!
-- You can get support on [Discord](https://discord.gg/seerr).
+- SeerrNG support is available on Discord in our community channel: https://discord.gg/2N42G4RJCU
 - You can ask questions in the Help category of our [GitHub Discussions](/../../discussions).
 - Bug reports and feature requests can be submitted via [GitHub Issues](/../../issues).
+
+For SeerrNG-specific help, development discussion, tester feedback, and books/music workflow support, join our Discord channel at https://discord.gg/2N42G4RJCU. Upstream Seerr documentation remains useful for inherited video, server, and deployment behavior, but SeerrNG fork-specific support should start in our Discord.
 
 ## API Documentation
 
@@ -89,7 +92,7 @@ You can access the API documentation from your local Seerr install at http://loc
 
 You can ask questions, share ideas, and more in [GitHub Discussions](/../../discussions).
 
-If you would like to chat with other members of our growing community, [join the Seerr Discord server](https://discord.gg/seerr)!
+If you would like to chat with other members of our growing community, [join the SeerrNG Discord channel](https://discord.gg/2N42G4RJCU)!
 
 Our [Code of Conduct](./CODE_OF_CONDUCT.md) applies to all Seerr community channels.
 
