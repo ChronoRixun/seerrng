@@ -6,6 +6,7 @@ import defineMessages from '@app/utils/defineMessages';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import type { WatchlistItem } from '@server/interfaces/api/discoverInterfaces';
 import Link from 'next/link';
+import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -17,14 +18,18 @@ const messages = defineMessages('components.Discover.PlexWatchlistSlider', {
 const PlexWatchlistSlider = () => {
   const intl = useIntl();
   const { user } = useUser();
+  const { ref, inView } = useInView({
+    rootMargin: '450px 0px',
+    triggerOnce: true,
+  });
 
   const { data: watchlistItems, error: watchlistError } = useSWR<{
     page: number;
     totalPages: number;
     totalResults: number;
     results: WatchlistItem[];
-  }>('/api/v1/discover/watchlist', {
-    revalidateOnMount: true,
+  }>(inView ? '/api/v1/discover/watchlist' : null, {
+    revalidateOnFocus: false,
   });
 
   if (
@@ -40,7 +45,7 @@ const PlexWatchlistSlider = () => {
   }
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         <Link href="/discover/watchlist" className="slider-title">
           <span>{intl.formatMessage(messages.plexwatchlist)}</span>
@@ -49,7 +54,7 @@ const PlexWatchlistSlider = () => {
       </div>
       <Slider
         sliderKey="watchlist"
-        isLoading={!watchlistItems}
+        isLoading={inView && !watchlistItems}
         isEmpty={!!watchlistItems && watchlistItems.results.length === 0}
         emptyMessage={intl.formatMessage(messages.emptywatchlist)}
         items={watchlistItems?.results.map((item) => (
@@ -79,7 +84,7 @@ const PlexWatchlistSlider = () => {
           </div>
         ))}
       />
-    </>
+    </div>
   );
 };
 

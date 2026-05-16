@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import type { RequestResultsResponse } from '@server/interfaces/api/requestInterfaces';
 import Link from 'next/link';
+import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -20,11 +21,15 @@ const messages = defineMessages('components.Discover.RecentRequestsSlider', {
 const RecentRequestsSlider = () => {
   const intl = useIntl();
   const { hasPermission } = useUser();
+  const { ref, inView } = useInView({
+    rootMargin: '450px 0px',
+    triggerOnce: true,
+  });
   const { data: requests, error: requestError } =
     useSWR<RequestResultsResponse>(
-      '/api/v1/request?filter=all&take=10&sort=modified&skip=0',
+      inView ? '/api/v1/request?filter=all&take=10&sort=modified&skip=0' : null,
       {
-        revalidateOnMount: true,
+        revalidateOnFocus: false,
       }
     );
 
@@ -40,7 +45,7 @@ const RecentRequestsSlider = () => {
       requests.serviceErrors.readarr.length > 0);
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         <Link href="/requests?filter=all" className="slider-title">
           <span>{intl.formatMessage(sliderTitles.recentrequests)}</span>
@@ -68,7 +73,7 @@ const RecentRequestsSlider = () => {
 
       <Slider
         sliderKey="requests"
-        isLoading={!requests}
+        isLoading={inView && !requests}
         items={(requests?.results ?? []).map((request) => (
           <RequestCard
             key={`request-slider-item-${request.id}`}
@@ -77,7 +82,7 @@ const RecentRequestsSlider = () => {
         ))}
         placeholder={<RequestCard.Placeholder />}
       />
-    </>
+    </div>
   );
 };
 

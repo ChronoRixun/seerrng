@@ -1,6 +1,7 @@
 import CompanyCard from '@app/components/CompanyCard';
 import Slider from '@app/components/Slider';
 import defineMessages from '@app/utils/defineMessages';
+import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Discover.StudioSlider', {
@@ -84,9 +85,13 @@ const studios: Studio[] = [
 
 const StudioSlider = () => {
   const intl = useIntl();
+  const { ref, inView } = useInView({
+    rootMargin: '450px 0px',
+    triggerOnce: true,
+  });
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         <div className="slider-title">
           <span>{intl.formatMessage(messages.studios)}</span>
@@ -94,20 +99,29 @@ const StudioSlider = () => {
       </div>
       <Slider
         sliderKey="studios"
-        isLoading={false}
+        isLoading={!inView}
         isEmpty={false}
-        items={studios.map((studio, index) => (
-          <CompanyCard
-            key={`studio-${index}`}
-            name={studio.name}
-            image={studio.image}
-            url={studio.url}
-          />
-        ))}
+        items={
+          inView
+            ? studios.map((studio, index) => (
+                <CompanyCard
+                  key={`studio-${index}`}
+                  name={studio.name}
+                  image={studio.image}
+                  url={studio.url}
+                />
+              ))
+            : []
+        }
+        placeholder={<CompanyCardPlaceholder />}
         emptyMessage=""
       />
-    </>
+    </div>
   );
 };
+
+const CompanyCardPlaceholder = () => (
+  <div className="h-32 w-56 animate-pulse rounded-xl bg-gray-700 sm:h-36 sm:w-72" />
+);
 
 export default StudioSlider;

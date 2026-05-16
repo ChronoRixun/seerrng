@@ -3,6 +3,7 @@ import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import type { MediaResultsResponse } from '@server/interfaces/api/mediaInterfaces';
+import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -13,9 +14,13 @@ const messages = defineMessages('components.Discover.RecentlyAddedSlider', {
 const RecentlyAddedSlider = () => {
   const intl = useIntl();
   const { hasPermission } = useUser();
+  const { ref, inView } = useInView({
+    rootMargin: '450px 0px',
+    triggerOnce: true,
+  });
   const { data: media, error: mediaError } = useSWR<MediaResultsResponse>(
-    '/api/v1/media?filter=allavailable&take=20&sort=mediaAdded',
-    { revalidateOnMount: true }
+    inView ? '/api/v1/media?filter=allavailable&take=20&sort=mediaAdded' : null,
+    { revalidateOnFocus: false }
   );
 
   if (
@@ -28,7 +33,7 @@ const RecentlyAddedSlider = () => {
   }
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         <div className="slider-title">
           <span>{intl.formatMessage(messages.recentlyAdded)}</span>
@@ -36,7 +41,7 @@ const RecentlyAddedSlider = () => {
       </div>
       <Slider
         sliderKey="media"
-        isLoading={!media}
+        isLoading={inView && !media}
         items={(media?.results ?? [])
           .filter(
             (item) => item.mediaType === 'movie' || item.mediaType === 'tv'
@@ -51,7 +56,7 @@ const RecentlyAddedSlider = () => {
             />
           ))}
       />
-    </>
+    </div>
   );
 };
 

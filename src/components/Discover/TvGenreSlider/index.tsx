@@ -6,6 +6,7 @@ import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import type { GenreSliderItem } from '@server/interfaces/api/discoverInterfaces';
 import Link from 'next/link';
 import React from 'react';
+import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -15,8 +16,12 @@ const messages = defineMessages('components.Discover.TvGenreSlider', {
 
 const TvGenreSlider = () => {
   const intl = useIntl();
+  const { ref, inView } = useInView({
+    rootMargin: '450px 0px',
+    triggerOnce: true,
+  });
   const { data, error } = useSWR<GenreSliderItem[]>(
-    `/api/v1/discover/genreslider/tv`,
+    inView ? `/api/v1/discover/genreslider/tv` : null,
     {
       refreshInterval: 0,
       revalidateOnFocus: false,
@@ -24,7 +29,7 @@ const TvGenreSlider = () => {
   );
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         <Link href="/discover/tv/genres" className="slider-title">
           <span>{intl.formatMessage(messages.tvgenres)}</span>
@@ -33,7 +38,7 @@ const TvGenreSlider = () => {
       </div>
       <Slider
         sliderKey="tv-genres"
-        isLoading={!data && !error}
+        isLoading={inView && !data && !error}
         isEmpty={false}
         items={(data ?? []).map((genre, index) => (
           <GenreCard
@@ -48,7 +53,7 @@ const TvGenreSlider = () => {
         placeholder={<GenreCard.Placeholder />}
         emptyMessage=""
       />
-    </>
+    </div>
   );
 };
 

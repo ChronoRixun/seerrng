@@ -1,6 +1,7 @@
 import CompanyCard from '@app/components/CompanyCard';
 import Slider from '@app/components/Slider';
 import defineMessages from '@app/utils/defineMessages';
+import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Discover.NetworkSlider', {
@@ -150,9 +151,13 @@ const networks: Network[] = [
 
 const NetworkSlider = () => {
   const intl = useIntl();
+  const { ref, inView } = useInView({
+    rootMargin: '450px 0px',
+    triggerOnce: true,
+  });
 
   return (
-    <>
+    <div ref={ref}>
       <div className="slider-header">
         <div className="slider-title">
           <span>{intl.formatMessage(messages.networks)}</span>
@@ -160,20 +165,29 @@ const NetworkSlider = () => {
       </div>
       <Slider
         sliderKey="networks"
-        isLoading={false}
+        isLoading={!inView}
         isEmpty={false}
-        items={networks.map((network, index) => (
-          <CompanyCard
-            key={`network-${index}`}
-            name={network.name}
-            image={network.image}
-            url={network.url}
-          />
-        ))}
+        items={
+          inView
+            ? networks.map((network, index) => (
+                <CompanyCard
+                  key={`network-${index}`}
+                  name={network.name}
+                  image={network.image}
+                  url={network.url}
+                />
+              ))
+            : []
+        }
+        placeholder={<CompanyCardPlaceholder />}
         emptyMessage=""
       />
-    </>
+    </div>
   );
 };
+
+const CompanyCardPlaceholder = () => (
+  <div className="h-32 w-56 animate-pulse rounded-xl bg-gray-700 sm:h-36 sm:w-72" />
+);
 
 export default NetworkSlider;
