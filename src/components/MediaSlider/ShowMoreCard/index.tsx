@@ -3,7 +3,6 @@ import Placeholder from '@app/components/TitleCard/Placeholder';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
-import { useState } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 
@@ -18,7 +17,6 @@ interface ShowMoreCardProps {
 
 const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
   const intl = useIntl();
-  const [isHovered, setHovered] = useState(false);
   const { ref, inView } = useInView({
     triggerOnce: true,
   });
@@ -56,25 +54,12 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
     <Link
       href={url}
       prefetch={false}
-      className={'w-36 sm:w-36 md:w-44'}
-      onMouseEnter={() => {
-        setHovered(true);
-      }}
-      onMouseLeave={() => setHovered(false)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          setHovered(true);
-        }
-      }}
+      className="group w-36 sm:w-36 md:w-44"
       role="link"
       tabIndex={0}
     >
       <div
-        className={`relative w-36 transform-gpu cursor-pointer overflow-hidden rounded-xl text-white shadow-lg ring-1 transition duration-150 ease-in-out sm:w-36 md:w-44 ${
-          isHovered
-            ? 'scale-105 bg-gray-600 ring-gray-500'
-            : 'scale-100 bg-gray-800 ring-gray-700'
-        }`}
+        className="relative w-36 transform-gpu cursor-pointer overflow-hidden rounded-xl bg-gray-800 text-white shadow-lg ring-1 ring-gray-700 transition duration-150 ease-in-out group-hover:scale-105 group-hover:bg-gray-600 group-hover:ring-gray-500 group-focus-visible:scale-105 group-focus-visible:bg-gray-600 group-focus-visible:ring-gray-500 sm:w-36 md:w-44"
       >
         <div style={{ paddingBottom: '150%' }}>
           <div className="absolute inset-0 flex h-full w-full flex-col items-center p-2">
