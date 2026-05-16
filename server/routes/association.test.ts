@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it, mock } from 'node:test';
 
 import ExternalAPI from '@server/api/externalapi';
+import ListenBrainzAPI from '@server/api/listenbrainz';
+import TmdbPersonMapper from '@server/api/themoviedb/personMapper';
 import { getRepository } from '@server/datasource';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import cacheManager from '@server/lib/cache';
@@ -121,6 +123,45 @@ const movieDetail = {
   },
 };
 
+const tvResult = (id: number, name: string, vote: number) => ({
+  id,
+  media_type: 'tv',
+  name,
+  original_name: name,
+  first_air_date: '2024-01-01',
+  origin_country: ['US'],
+  original_language: 'en',
+  popularity: 10,
+  poster_path: `/${id}.jpg`,
+  backdrop_path: `/${id}-bd.jpg`,
+  vote_count: 100,
+  vote_average: vote,
+  genre_ids: [18],
+  overview: '',
+});
+
+const tvDetail = {
+  id: 321,
+  name: 'Root Series',
+  genres: [{ id: 18, name: 'Drama' }],
+  aggregate_credits: {
+    cast: [
+      { id: 9002, name: 'Series Lead', order: 0, profile_path: '/tv-a.jpg' },
+    ],
+  },
+  credits: {
+    crew: [
+      {
+        id: 8888,
+        name: 'Series Composer',
+        job: 'Original Music Composer',
+        department: 'Sound',
+        profile_path: '/tv-c.jpg',
+      },
+    ],
+  },
+};
+
 function mockTmdb() {
   mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
     if (endpoint === '/movie/123') {
@@ -146,11 +187,116 @@ function mockTmdb() {
   });
 }
 
+function mockTmdbWithTv() {
+  mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+    if (endpoint === '/tv/321') {
+      return tvDetail;
+    }
+    if (endpoint === '/tv/321/similar') {
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 1,
+        results: [tvResult(400, 'Similar Series', 8)],
+      };
+    }
+    if (endpoint === '/tv/321/recommendations') {
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 1,
+        results: [tvResult(500, 'Recommended Series', 6)],
+      };
+    }
+    throw new Error(`Unexpected endpoint: ${String(endpoint)}`);
+  });
+}
+
+const artistDetails = (artistMbid: string, name: string, similarCount = 2) => ({
+  artist: {
+    area: 'US',
+    artist_mbid: artistMbid,
+    begin_year: 2000,
+    mbid: artistMbid,
+    name,
+    rels: {},
+    tag: { artist: [] },
+    type: 'Person',
+  },
+  coverArt: '',
+  listeningStats: { total_listen_count: 0, total_user_count: 0 },
+  popularRecordings: [],
+  releaseGroups: [],
+  similarArtists: {
+    artists: Array.from({ length: similarCount }, (_, index) => ({
+      artist_mbid: `similar-${index + 1}`,
+      name: `Similar Artist ${index + 1}`,
+      score: 100 - index,
+      type: index % 2 === 0 ? 'Person' : 'Group',
+    })),
+    topRecordingColor: { red: 0, green: 0, blue: 0 },
+    topReleaseGroupColor: { red: 0, green: 0, blue: 0 },
+  },
+});
+
+const albumDetails = {
+  caa_id: 0,
+  caa_release_mbid: '',
+  listening_stats: { total_listen_count: 0, total_user_count: 0 },
+  mediums: [],
+  recordings_release_mbid: '',
+  release_group_mbid: 'album-root',
+  release_group_metadata: {
+    artist: {
+      artist_credit_id: 1,
+      artists: [
+        {
+          area: 'US',
+          artist_mbid: 'album-artist',
+          begin_year: 2000,
+          join_phrase: '',
+          name: 'Album Artist',
+          rels: {},
+          type: 'Person',
+        },
+      ],
+      name: 'Album Artist',
+    },
+    release: {
+      caa_id: 0,
+      caa_release_mbid: '',
+      date: '2024-01-01',
+      name: 'Root Album',
+      rels: [],
+      type: 'Album',
+    },
+    release_group: {
+      caa_id: 0,
+      caa_release_mbid: '',
+      date: '2024-01-01',
+      name: 'Root Album',
+      rels: [],
+      type: 'Album',
+    },
+    tag: { artist: [], release_group: [] },
+  },
+  type: 'Album',
+};
+
 describe('GET /association/:mediaType/:id', () => {
   it('rejects an unknown media type', async () => {
     const agent = await login();
     const res = await agent.get('/association/podcast/abc');
     assert.strictEqual(res.status, 400);
+  });
+
+  it('rejects non-numeric movie and tv ids', async () => {
+    const agent = await login();
+    const movieRes = await agent.get('/association/movie/not-a-number');
+    const tvRes = await agent.get('/association/tv/not-a-number');
+
+    assert.strictEqual(movieRes.status, 400);
+    assert.strictEqual(tvRes.status, 400);
   });
 
   it('returns same-medium similar and recommended edges for a movie', async () => {
@@ -199,5 +345,110 @@ describe('GET /association/:mediaType/:id', () => {
     assert.ok(crossEdge, 'expected a shared-person edge to the composer');
     assert.strictEqual(crossEdge.node.mediaType, 'artist');
     assert.match(crossEdge.reason, /scored this/);
+  });
+
+  it('returns same-medium and composer edges for a tv series', async () => {
+    await getRepository(MetadataArtist).save(
+      new MetadataArtist({
+        mbArtistId: 'mb-series-composer',
+        tmdbPersonId: '8888',
+        tmdbUpdatedAt: new Date(),
+      })
+    );
+
+    mockTmdbWithTv();
+    const agent = await login();
+    const res = await agent.get('/association/tv/321?includeWeak=true');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.root.title, 'Root Series');
+    assert.ok(
+      res.body.edges.some(
+        (e: { type: string; node: { mediaType: string; id: number } }) =>
+          e.type === 'similar' && e.node.mediaType === 'tv' && e.node.id === 400
+      )
+    );
+    assert.ok(
+      res.body.edges.some(
+        (e: { type: string; node: { mediaType: string; id: string } }) =>
+          e.type === 'shared-person' &&
+          e.node.mediaType === 'artist' &&
+          e.node.id === 'mb-series-composer'
+      )
+    );
+  });
+
+  it('returns similar artist edges for an artist and respects weak filtering', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getArtist', async (mbid: string) =>
+      artistDetails(mbid, 'Root Artist', 12)
+    );
+    mock.method(TmdbPersonMapper.prototype, 'getMapping', async () => ({
+      personId: null,
+      profilePath: null,
+    }));
+
+    const agent = await login();
+    const defaultRes = await agent.get('/association/artist/root-artist');
+    const weakRes = await agent.get(
+      '/association/artist/root-artist?includeWeak=true'
+    );
+
+    assert.strictEqual(defaultRes.status, 200);
+    assert.strictEqual(defaultRes.body.root.title, 'Root Artist');
+    assert.strictEqual(
+      defaultRes.body.edges.some(
+        (e: { type: string }) => e.type === 'shared-genre'
+      ),
+      false
+    );
+    assert.ok(
+      weakRes.body.edges.some(
+        (e: { type: string }) => e.type === 'shared-genre'
+      )
+    );
+  });
+
+  it('builds album associations from the root album artist', async () => {
+    mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () => albumDetails
+    );
+    mock.method(ListenBrainzAPI.prototype, 'getArtist', async (mbid: string) =>
+      artistDetails(mbid, 'Album Artist', 2)
+    );
+    mock.method(TmdbPersonMapper.prototype, 'getMapping', async () => ({
+      personId: null,
+      profilePath: null,
+    }));
+
+    const agent = await login();
+    const res = await agent.get('/association/album/album-root');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.root.title, 'Root Album');
+    assert.ok(
+      res.body.edges.some(
+        (e: { type: string; node: { mediaType: string; name: string } }) =>
+          e.type === 'similar' &&
+          e.node.mediaType === 'artist' &&
+          e.node.name === 'Similar Artist 1'
+      )
+    );
+  });
+
+  it('keeps association cache entries separate by limit', async () => {
+    mockTmdb();
+    const agent = await login();
+    const limitedRes = await agent.get('/association/movie/123?limit=1');
+    const fullRes = await agent.get('/association/movie/123');
+
+    assert.strictEqual(limitedRes.status, 200);
+    assert.strictEqual(fullRes.status, 200);
+    assert.strictEqual(limitedRes.body.edges.length, 1);
+    assert.ok(
+      fullRes.body.edges.length > limitedRes.body.edges.length,
+      'expected full response not to reuse the limited cache entry'
+    );
   });
 });

@@ -6,6 +6,7 @@ import Media from '@server/entity/Media';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import type { User } from '@server/entity/User';
 import cacheManager from '@server/lib/cache';
+import { scoreTmdbResult } from '@server/lib/tmdbRank';
 import logger from '@server/logger';
 import type {
   ArtistResult,
@@ -27,10 +28,19 @@ const cache = cacheManager.getCache('associations');
 
 const clamp01 = (n: number): number => Math.min(1, Math.max(0, n));
 
-/** TMDB vote average (0..10) blended with a log-scaled popularity tiebreak. */
-const scoreScreen = (voteAverage = 0, popularity = 0): number =>
-  clamp01(voteAverage / 10) * 0.8 +
-  clamp01(Math.log10(popularity + 1) / 3) * 0.2;
+const scoreScreenResult = (result: {
+  popularity: number;
+  vote_average: number;
+  vote_count: number;
+  release_date?: string;
+  first_air_date?: string;
+}): number =>
+  clamp01(
+    scoreTmdbResult({
+      ...result,
+      date: result.first_air_date ?? result.release_date,
+    }) / 120
+  );
 
 const dedupeKey = (edge: AssociationEdge): string =>
   `${edge.node.mediaType}:${edge.node.id}`;
@@ -109,19 +119,16 @@ const buildForScreen = async (
 
     if (opts.includeWeak && type === 'recommended' && sharedGenre) {
       edges.push({
-        weight: scoreScreen(r.vote_average, r.popularity) * 0.4,
+        weight: scoreScreenResult(r) * 0.4,
         type: 'shared-genre',
         reason: `Also ${rootGenres.get(sharedGenre)}`,
         node,
       });
     } else {
       edges.push({
-        weight:
-          scoreScreen(r.vote_average, r.popularity) *
-          (type === 'similar' ? 1 : 0.85),
+        weight: scoreScreenResult(r) * (type === 'similar' ? 1 : 0.85),
         type,
-        reason:
-          type === 'similar' ? 'Similar title' : 'Recommended for fans',
+        reason: type === 'similar' ? 'Similar title' : 'Recommended for fans',
         node,
       });
     }
@@ -132,9 +139,7 @@ const buildForScreen = async (
       ? detail.aggregate_credits.cast
       : detail.credits.cast;
   const crew =
-    'aggregate_credits' in detail
-      ? detail.credits.crew
-      : detail.credits.crew;
+    'aggregate_credits' in detail ? detail.credits.crew : detail.credits.crew;
   try {
     edges.push(...(await screenToMusic(cast, crew)));
   } catch (e) {
@@ -181,9 +186,7 @@ const buildArtistEdges = async (
     .slice(0, ASSOCIATION_LIMITS.MAX_SAME_MEDIUM);
 
   const maxScore = similar.reduce((m, a) => Math.max(m, a.score), 0) || 1;
-  const thumbs = await hydrateArtistThumbs(
-    similar.map((a) => a.artist_mbid)
-  );
+  const thumbs = await hydrateArtistThumbs(similar.map((a) => a.artist_mbid));
 
   const edges: AssociationEdge[] = similar.map((a, idx) => {
     const meta = thumbs.get(a.artist_mbid);
@@ -230,9 +233,7 @@ const buildForArtist = async (
   const edges = await buildArtistEdges(mbArtistId, name, user);
   return finalize(
     { mediaType: 'artist', id: mbArtistId, title: name },
-    opts.includeWeak
-      ? edges
-      : edges.filter((e) => e.type !== 'shared-genre'),
+    opts.includeWeak ? edges : edges.filter((e) => e.type !== 'shared-genre'),
     opts
   );
 };
@@ -263,9 +264,7 @@ const buildForAlbum = async (
   );
   return finalize(
     { mediaType: 'album', id: mbAlbumId, title: rootTitle },
-    opts.includeWeak
-      ? edges
-      : edges.filter((e) => e.type !== 'shared-genre'),
+    opts.includeWeak ? edges : edges.filter((e) => e.type !== 'shared-genre'),
     opts
   );
 };
@@ -276,7 +275,9 @@ export const getAssociations = async (
   user: User | undefined,
   opts: AssociationOptions = {}
 ): Promise<AssociationGraph> => {
-  const cacheKey = `assoc:${mediaType}:${id}:${opts.includeWeak ? 1 : 0}`;
+  const cacheKey = `assoc:${mediaType}:${id}:${opts.includeWeak ? 1 : 0}:${
+    opts.limit ?? ASSOCIATION_LIMITS.DEFAULT_TOTAL
+  }`;
   const cached = cache.data.get<AssociationGraph>(cacheKey);
   if (cached) {
     return cached;

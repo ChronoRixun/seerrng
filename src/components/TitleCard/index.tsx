@@ -1,4 +1,5 @@
 import Spinner from '@app/assets/spinner.svg';
+import AssociationBadge from '@app/components/Association/AssociationBadge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import StatusBadgeMini from '@app/components/Common/StatusBadgeMini';
@@ -532,6 +533,13 @@ const TitleCard = ({
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
               <div className="flex flex-col gap-1">
+                <div className="z-40 self-end">
+                  <AssociationBadge
+                    mediaType={mediaType}
+                    id={id}
+                    variant="card"
+                  />
+                </div>
                 {canUseWatchlistActions &&
                   user?.userType !== UserType.PLEX &&
                   (toggleWatchlist ? (

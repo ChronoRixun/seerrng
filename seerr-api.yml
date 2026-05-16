@@ -40,6 +40,8 @@ tags:
     description: Collection of media to watch later
   - name: blocklist
     description: Blocklisted media from discovery page.
+  - name: association
+    description: Cross-medium related media graph endpoints.
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -838,6 +840,31 @@ components:
           type: string
         mediaInfo:
           $ref: '#/components/schemas/MediaInfo'
+    ArtistResult:
+      type: object
+      required:
+        - id
+        - mediaType
+        - name
+      properties:
+        id:
+          type: string
+          example: b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d
+        mediaType:
+          type: string
+          enum: [artist]
+        name:
+          type: string
+          example: Artist Name
+        type:
+          type: string
+          example: Person
+        artistThumb:
+          type: string
+          nullable: true
+        artistBackdrop:
+          type: string
+          nullable: true
     BookResult:
       type: object
       required:
@@ -997,6 +1024,54 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BulkMediaRequestResult'
+    AssociationEdge:
+      type: object
+      properties:
+        weight:
+          type: number
+          example: 0.85
+        type:
+          type: string
+          enum: [similar, recommended, shared-person, shared-genre]
+        reason:
+          type: string
+          example: Recommended for fans
+        node:
+          oneOf:
+            - $ref: '#/components/schemas/MovieResult'
+            - $ref: '#/components/schemas/TvResult'
+            - $ref: '#/components/schemas/MusicResult'
+            - $ref: '#/components/schemas/ArtistResult'
+            - $ref: '#/components/schemas/PersonResult'
+      required:
+        - weight
+        - type
+        - reason
+        - node
+    AssociationGraph:
+      type: object
+      properties:
+        root:
+          type: object
+          properties:
+            mediaType:
+              type: string
+              enum: [movie, tv, album, artist]
+            id:
+              type: string
+            title:
+              type: string
+          required:
+            - mediaType
+            - id
+            - title
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssociationEdge'
+      required:
+        - root
+        - edges
     PersonResult:
       type: object
       properties:
@@ -2443,6 +2518,47 @@ components:
       name: X-Api-Key
 
 paths:
+  /association/{mediaType}/{id}:
+    get:
+      summary: Get cross-medium associations
+      description: Returns a ranked graph of similar, recommended, and shared-person associations for movies, series, albums, and artists.
+      tags:
+        - association
+      parameters:
+        - in: path
+          name: mediaType
+          required: true
+          schema:
+            type: string
+            enum: [movie, tv, album, artist]
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: TMDB ID for movie/TV, MusicBrainz release group ID for album, or MusicBrainz artist ID for artist.
+        - in: query
+          name: includeWeak
+          schema:
+            type: boolean
+            default: false
+          description: Include lower-confidence shared-genre associations.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 60
+          description: Maximum number of association edges to return.
+      responses:
+        '200':
+          description: Ranked association graph
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssociationGraph'
+        '400':
+          description: Invalid association media type.
   /status:
     get:
       summary: Get Seerr status

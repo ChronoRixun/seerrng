@@ -1,5 +1,7 @@
 import type {
   TmdbMovieResult,
+  TmdbPersonCreditCast,
+  TmdbPersonCreditCrew,
   TmdbTvResult,
 } from '@server/api/themoviedb/interfaces';
 
@@ -51,4 +53,20 @@ export const rankTmdbTvResults = (results: TmdbTvResult[]): TmdbTvResult[] =>
     (a, b) =>
       scoreTmdbResult({ ...b, date: b.first_air_date }) -
       scoreTmdbResult({ ...a, date: a.first_air_date })
+  );
+
+const getPersonCreditDate = (
+  credit: TmdbPersonCreditCast | TmdbPersonCreditCrew
+): string | undefined =>
+  credit.media_type === 'tv' ? credit.first_air_date : credit.release_date;
+
+export const rankTmdbPersonCredits = <
+  T extends TmdbPersonCreditCast | TmdbPersonCreditCrew,
+>(
+  results: T[]
+): T[] =>
+  [...results].sort(
+    (a, b) =>
+      scoreTmdbResult({ ...b, date: getPersonCreditDate(b) }) -
+      scoreTmdbResult({ ...a, date: getPersonCreditDate(a) })
   );

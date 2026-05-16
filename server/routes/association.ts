@@ -22,6 +22,16 @@ associationRoutes.get('/:mediaType/:id', async (req, res, next) => {
     });
   }
 
+  if (
+    (mediaType === 'movie' || mediaType === 'tv') &&
+    !Number.isFinite(Number(req.params.id))
+  ) {
+    return next({
+      status: 400,
+      message: 'Invalid association media id.',
+    });
+  }
+
   const limitParam = Number(req.query.limit);
   const limit =
     Number.isFinite(limitParam) && limitParam > 0
