@@ -169,6 +169,36 @@ describe('Books and Music discover parity', () => {
       .should('be.visible');
   });
 
+  it('clears book and music discover filters without leaking cross-medium params', () => {
+    cy.intercept('GET', '/api/v1/discover/books*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
+    }).as('getBooks');
+    cy.visit('/discover/books?subject=fantasy&days=90&sortBy=release_date.asc');
+    cy.wait('@getBooks');
+    cy.contains('button', '1 Active Filter').click();
+    cy.contains('button', 'Clear Active Filters').click();
+    cy.location('search').should('not.include', 'subject=');
+    cy.location('search').should('not.include', 'days=');
+    cy.location('search').should('not.include', 'sortBy=');
+
+    cy.intercept('GET', '/api/v1/discover/music*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
+    }).as('getMusic');
+    cy.visit('/discover/music?days=30&sortBy=release_date.asc&subject=romance');
+    cy.wait('@getMusic');
+    cy.contains('button', '2 Active Filters').click();
+    cy.contains('button', 'Clear Active Filters').click();
+    cy.location('search').should('not.include', 'days=');
+    cy.location('search').should('not.include', 'sortBy=');
+    cy.location('search').should('not.include', 'subject=');
+  });
+
   it('opens book and music request modals with matching workflow controls', () => {
     cy.intercept('GET', '/api/v1/user/*/quota', unrestrictedQuota);
 

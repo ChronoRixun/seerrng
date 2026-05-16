@@ -225,9 +225,9 @@ const LibraryFilterSlideover = ({
             onClick={() => {
               updateQueryParams({
                 query: undefined,
-                subject: type === 'book' ? undefined : subject,
-                days: type === 'music' ? undefined : days,
-                sortBy: type === 'music' ? undefined : sortBy,
+                subject: undefined,
+                days: undefined,
+                sortBy: undefined,
                 page: undefined,
               });
               onClose();
