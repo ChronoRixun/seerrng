@@ -498,12 +498,11 @@ export class MediaRequest {
 
       const requestedServiceType =
         requestedBookFormat === 'audiobook' ? 'audiobook' : 'ebook';
-      const defaultReadarr =
-        settings.readarr.find(
-          (readarr) =>
-            readarr.isDefault &&
-            (readarr.serviceType ?? 'ebook') === requestedServiceType
-        ) ?? settings.readarr.find((readarr) => readarr.isDefault);
+      const defaultReadarr = settings.readarr.find(
+        (readarr) =>
+          readarr.isDefault &&
+          (readarr.serviceType ?? 'ebook') === requestedServiceType
+      );
       const autoApproved = user.hasPermission(
         [
           Permission.AUTO_APPROVE,

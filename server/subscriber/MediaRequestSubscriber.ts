@@ -1247,25 +1247,33 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         serviceType: 'ebook' | 'audiobook',
         allowServerOverride: boolean
       ): ReadarrSettings | undefined => {
-        let readarrSettings =
-          settings.readarr.find(
-            (readarr) =>
-              readarr.isDefault &&
-              (readarr.serviceType ?? 'ebook') === serviceType
-          ) ?? settings.readarr.find((readarr) => readarr.isDefault);
-
         if (
           allowServerOverride &&
           entity.serverId !== null &&
-          entity.serverId >= 0 &&
-          readarrSettings?.id !== entity.serverId
+          entity.serverId !== undefined &&
+          entity.serverId >= 0
         ) {
-          readarrSettings = settings.readarr.find(
+          const selectedReadarrSettings = settings.readarr.find(
             (readarr) => readarr.id === entity.serverId
           );
+
+          if (
+            selectedReadarrSettings &&
+            (selectedReadarrSettings.serviceType ?? 'ebook') !== serviceType
+          ) {
+            throw new Error(
+              `Selected Bookshelf server is not configured for ${serviceType}`
+            );
+          }
+
+          return selectedReadarrSettings;
         }
 
-        return readarrSettings;
+        return settings.readarr.find(
+          (readarr) =>
+            readarr.isDefault &&
+            (readarr.serviceType ?? 'ebook') === serviceType
+        );
       };
       const dispatchFormat = async (
         serviceType: 'ebook' | 'audiobook',
