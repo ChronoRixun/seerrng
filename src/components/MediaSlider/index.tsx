@@ -69,15 +69,12 @@ const MediaSlider = ({
     [extraParams, shouldLoad, url]
   );
 
-  const { data, error, setSize, size } = useSWRInfinite<MixedResult>(
-    getKey,
-    {
-      initialSize: 1,
-      revalidateFirstPage: false,
-      dedupingInterval: 30000,
-      revalidateOnFocus: false,
-    }
-  );
+  const { data, error, setSize, size } = useSWRInfinite<MixedResult>(getKey, {
+    initialSize: 1,
+    revalidateFirstPage: false,
+    dedupingInterval: 30000,
+    revalidateOnFocus: false,
+  });
 
   const titles = useMemo(() => {
     const filteredTitles: (
@@ -120,7 +117,9 @@ const MediaSlider = ({
   ]);
 
   const shouldLoadMore =
-    titles.length < 24 && size < 5 && (data?.[0]?.totalResults ?? 0) > size * 20;
+    titles.length < 24 &&
+    size < 5 &&
+    (data?.[0]?.totalResults ?? 0) > size * 20;
 
   useEffect(() => {
     if (shouldLoadMore) {

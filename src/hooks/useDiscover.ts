@@ -231,7 +231,6 @@ const useDiscover = <
         appearance: 'error',
         autoDismiss: true,
       });
-      console.error('Error while fetching discover titles:', error);
     }
   }, [data, error, addToast, intl, titles.length]);
 
