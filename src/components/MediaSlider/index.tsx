@@ -15,7 +15,7 @@ import type {
   TvResult,
 } from '@server/models/Search';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import useSWRInfinite from 'swr/infinite';
 
@@ -74,36 +74,44 @@ const MediaSlider = ({
     }
   );
 
-  let titles: (
-    | MovieResult
-    | TvResult
-    | PersonResult
-    | AlbumResult
-    | BookResult
-  )[] = [];
+  const titles = useMemo(() => {
+    let filteredTitles: (
+      | MovieResult
+      | TvResult
+      | PersonResult
+      | AlbumResult
+      | BookResult
+    )[] = [];
 
-  for (const page of data ?? []) {
-    titles.push(...page.results);
-  }
+    for (const page of data ?? []) {
+      filteredTitles.push(...page.results);
+    }
 
-  if (settings.currentSettings.hideAvailable) {
-    titles = titles.filter(
-      (i) =>
-        !('mediaInfo' in i) ||
-        !i.mediaInfo ||
-        (i.mediaInfo.status !== MediaStatus.AVAILABLE &&
-          i.mediaInfo.status !== MediaStatus.PARTIALLY_AVAILABLE)
-    );
-  }
+    if (settings.currentSettings.hideAvailable) {
+      filteredTitles = filteredTitles.filter(
+        (i) =>
+          !('mediaInfo' in i) ||
+          !i.mediaInfo ||
+          (i.mediaInfo.status !== MediaStatus.AVAILABLE &&
+            i.mediaInfo.status !== MediaStatus.PARTIALLY_AVAILABLE)
+      );
+    }
 
-  if (settings.currentSettings.hideBlocklisted) {
-    titles = titles.filter(
-      (i) =>
-        !('mediaInfo' in i) ||
-        !i.mediaInfo ||
-        i.mediaInfo.status !== MediaStatus.BLOCKLISTED
-    );
-  }
+    if (settings.currentSettings.hideBlocklisted) {
+      filteredTitles = filteredTitles.filter(
+        (i) =>
+          !('mediaInfo' in i) ||
+          !i.mediaInfo ||
+          i.mediaInfo.status !== MediaStatus.BLOCKLISTED
+      );
+    }
+
+    return filteredTitles;
+  }, [
+    data,
+    settings.currentSettings.hideAvailable,
+    settings.currentSettings.hideBlocklisted,
+  ]);
 
   useEffect(() => {
     if (
@@ -130,106 +138,111 @@ const MediaSlider = ({
     { type: 'or' }
   );
 
-  const finalTitles = titles
-    .slice(0, 20)
-    .filter((title) => {
-      if (!blocklistVisibility)
-        return (
-          (title as TvResult | MovieResult | AlbumResult | BookResult).mediaInfo
-            ?.status !== MediaStatus.BLOCKLISTED
-        );
-      return title;
-    })
-    .map((title) => {
-      switch (title.mediaType) {
-        case 'movie':
+  const finalTitles = useMemo(() => {
+    const cardTitles = titles
+      .slice(0, 20)
+      .filter((title) => {
+        if (!blocklistVisibility)
           return (
-            <TitleCard
-              key={title.id}
-              id={title.id}
-              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-              image={title.posterPath}
-              status={title.mediaInfo?.status}
-              summary={title.overview}
-              title={title.title}
-              userScore={title.voteAverage}
-              year={title.releaseDate}
-              mediaType={title.mediaType}
-              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
-            />
+            (title as TvResult | MovieResult | AlbumResult | BookResult)
+              .mediaInfo?.status !== MediaStatus.BLOCKLISTED
           );
-        case 'tv':
-          return (
-            <TitleCard
-              key={title.id}
-              id={title.id}
-              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-              image={title.posterPath}
-              status={title.mediaInfo?.status}
-              summary={title.overview}
-              title={title.name}
-              userScore={title.voteAverage}
-              year={title.firstAirDate}
-              mediaType={title.mediaType}
-              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
-            />
-          );
-        case 'person':
-          return (
-            <PersonCard
-              personId={title.id}
-              name={title.name}
-              profilePath={title.profilePath}
-            />
-          );
-        case 'album':
-          return (
-            <TitleCard
-              key={title.id}
-              id={title.id}
-              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-              image={title.posterPath}
-              status={title.mediaInfo?.status}
-              title={title.title}
-              artist={title['artist-credit']?.[0]?.name}
-              type={title['primary-type']}
-              year={
-                title.releaseDate ?? title['first-release-date']?.split('-')[0]
-              }
-              mediaType={title.mediaType}
-              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
-              needsCoverArt={title.needsCoverArt}
-            />
-          );
-        case 'book':
-          return (
-            <TitleCard
-              key={title.id}
-              id={title.id}
-              image={title.posterPath}
-              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-              status={title.mediaInfo?.status}
-              title={title.title}
-              artist={title.author}
-              year={title.firstPublishYear?.toString()}
-              mediaType={title.mediaType}
-            />
-          );
-      }
-    });
+        return title;
+      })
+      .map((title) => {
+        switch (title.mediaType) {
+          case 'movie':
+            return (
+              <TitleCard
+                key={title.id}
+                id={title.id}
+                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                image={title.posterPath}
+                status={title.mediaInfo?.status}
+                summary={title.overview}
+                title={title.title}
+                userScore={title.voteAverage}
+                year={title.releaseDate}
+                mediaType={title.mediaType}
+                inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              />
+            );
+          case 'tv':
+            return (
+              <TitleCard
+                key={title.id}
+                id={title.id}
+                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                image={title.posterPath}
+                status={title.mediaInfo?.status}
+                summary={title.overview}
+                title={title.name}
+                userScore={title.voteAverage}
+                year={title.firstAirDate}
+                mediaType={title.mediaType}
+                inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              />
+            );
+          case 'person':
+            return (
+              <PersonCard
+                personId={title.id}
+                name={title.name}
+                profilePath={title.profilePath}
+              />
+            );
+          case 'album':
+            return (
+              <TitleCard
+                key={title.id}
+                id={title.id}
+                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                image={title.posterPath}
+                status={title.mediaInfo?.status}
+                title={title.title}
+                artist={title['artist-credit']?.[0]?.name}
+                type={title['primary-type']}
+                year={
+                  title.releaseDate ??
+                  title['first-release-date']?.split('-')[0]
+                }
+                mediaType={title.mediaType}
+                inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+                needsCoverArt={title.needsCoverArt}
+              />
+            );
+          case 'book':
+            return (
+              <TitleCard
+                key={title.id}
+                id={title.id}
+                image={title.posterPath}
+                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+                status={title.mediaInfo?.status}
+                title={title.title}
+                artist={title.author}
+                year={title.firstPublishYear?.toString()}
+                mediaType={title.mediaType}
+              />
+            );
+        }
+      });
 
-  if (linkUrl && titles.length > 20) {
-    finalTitles.push(
-      <ShowMoreCard
-        url={linkUrl}
-        posters={titles
-          .slice(20, 24)
-          .map((title) =>
-            title.mediaType !== 'person' ? title.posterPath : undefined
-          )}
-      />
-    );
-  }
+    if (linkUrl && titles.length > 20) {
+      cardTitles.push(
+        <ShowMoreCard
+          url={linkUrl}
+          posters={titles
+            .slice(20, 24)
+            .map((title) =>
+              title.mediaType !== 'person' ? title.posterPath : undefined
+            )}
+        />
+      );
+    }
+
+    return cardTitles;
+  }, [blocklistVisibility, linkUrl, titles]);
 
   return (
     <div ref={ref}>
