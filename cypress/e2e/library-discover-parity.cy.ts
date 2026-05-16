@@ -1226,6 +1226,68 @@ describe('Books and Music discover parity', () => {
     cy.contains('Open in Lidarr').should('be.visible');
   });
 
+  it('uses matching book service link labels on issue details', () => {
+    const user = {
+      id: 1,
+      displayName: 'Admin',
+      avatar: '/avatar.png',
+    };
+
+    cy.intercept('GET', '/api/v1/issue/501', {
+      id: 501,
+      issueType: 4,
+      status: 1,
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+      problemSeason: 0,
+      problemEpisode: 0,
+      createdBy: user,
+      media: {
+        id: 9501,
+        mediaType: 'book',
+        tmdbId: 0,
+        serviceUrl: 'http://bookshelf.local/book/501',
+        audiobookServiceUrl: 'http://bookshelf.local/audio/501',
+        identifiers: [{ provider: 'openlibrary', value: 'OLISSUEDETAILW' }],
+      },
+      comments: [
+        {
+          id: 1,
+          message: 'The wrong edition was imported.',
+          createdAt: '2026-05-15T00:00:00.000Z',
+          updatedAt: '2026-05-15T00:00:00.000Z',
+          user,
+        },
+      ],
+    }).as('getBookIssue');
+    cy.intercept('GET', '/api/v1/book/OLISSUEDETAILW', {
+      id: 'OLISSUEDETAILW',
+      mediaType: 'book',
+      title: 'Issue Detail Book',
+      author: 'Issue Detail Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/11-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+      mediaInfo: {
+        id: 9501,
+        status: 5,
+        serviceUrl: 'http://bookshelf.local/book/501',
+        audiobookServiceUrl: 'http://bookshelf.local/audio/501',
+        requests: [],
+        issues: [],
+      },
+    }).as('getBookIssueDetails');
+
+    cy.visit('/issues/501');
+    cy.wait('@getBookIssue');
+    cy.wait('@getBookIssueDetails');
+    cy.contains('Issue Detail Book').should('be.visible');
+    cy.contains('Open Ebook in Bookshelf').should('be.visible');
+    cy.contains('Open Audiobook in Bookshelf').should('be.visible');
+    cy.contains('Open in Bookshelf (Ebook)').should('not.exist');
+  });
+
   it('renders rich book and music cards from sparse watchlist rows', () => {
     cy.intercept('GET', '/api/v1/discover/watchlist*', {
       page: 1,

@@ -51,6 +51,7 @@ const messages = defineMessages('components.IssueDetails', {
   playonplex: 'Play on {mediaServerName}',
   play4konplex: 'Play in 4K on {mediaServerName}',
   openinarr: 'Open in {arr}',
+  openinarrFormat: 'Open {format} in {arr}',
   openin4karr: 'Open in 4K {arr}',
   ebook: 'Ebook',
   audiobook: 'Audiobook',
@@ -78,6 +79,11 @@ const messages = defineMessages('components.IssueDetails', {
 });
 
 type IssueMediaDetails = MovieDetails | TvDetails | MusicDetails | BookDetails;
+type IssueServiceLink = {
+  key: string;
+  url: string;
+  formatLabel?: string;
+};
 
 const isMusic = (media: IssueMediaDetails): media is MusicDetails => {
   return (media as MusicDetails).mediaType === 'album';
@@ -244,34 +250,28 @@ const IssueDetails = () => {
         : issueData.media.mediaType === MediaType.MUSIC
           ? 'Lidarr'
           : 'Bookshelf';
-  const serviceLinks = [
-    issueData.media.serviceUrl
-      ? {
-          key: 'primary',
-          url: issueData.media.serviceUrl,
-          label:
-            issueData.media.mediaType === MediaType.BOOK
-              ? `${arrName} (${intl.formatMessage(messages.ebook)})`
-              : arrName,
-        }
-      : undefined,
-    issueData.media.mediaType === MediaType.BOOK &&
-    issueData.media.audiobookServiceUrl
-      ? {
-          key: 'audiobook',
-          url: issueData.media.audiobookServiceUrl,
-          label: `${arrName} (${intl.formatMessage(messages.audiobook)})`,
-        }
-      : undefined,
-  ].filter(
-    (
-      link
-    ): link is {
-      key: string;
-      url: string;
-      label: string;
-    } => !!link
-  );
+  const serviceLinks = (
+    [
+      issueData.media.serviceUrl
+        ? {
+            key: 'primary',
+            url: issueData.media.serviceUrl,
+            formatLabel:
+              issueData.media.mediaType === MediaType.BOOK
+                ? intl.formatMessage(messages.ebook)
+                : undefined,
+          }
+        : undefined,
+      issueData.media.mediaType === MediaType.BOOK &&
+      issueData.media.audiobookServiceUrl
+        ? {
+            key: 'audiobook',
+            url: issueData.media.audiobookServiceUrl,
+            formatLabel: intl.formatMessage(messages.audiobook),
+          }
+        : undefined,
+    ] as (IssueServiceLink | undefined)[]
+  ).filter((link): link is IssueServiceLink => !!link);
 
   return (
     <div
@@ -497,9 +497,14 @@ const IssueDetails = () => {
                   >
                     <ServerIcon />
                     <span>
-                      {intl.formatMessage(messages.openinarr, {
-                        arr: serviceLink.label,
-                      })}
+                      {serviceLink.formatLabel
+                        ? intl.formatMessage(messages.openinarrFormat, {
+                            arr: arrName,
+                            format: serviceLink.formatLabel,
+                          })
+                        : intl.formatMessage(messages.openinarr, {
+                            arr: arrName,
+                          })}
                     </span>
                   </Button>
                 ))}
@@ -758,9 +763,14 @@ const IssueDetails = () => {
                 >
                   <ServerIcon />
                   <span>
-                    {intl.formatMessage(messages.openinarr, {
-                      arr: serviceLink.label,
-                    })}
+                    {serviceLink.formatLabel
+                      ? intl.formatMessage(messages.openinarrFormat, {
+                          arr: arrName,
+                          format: serviceLink.formatLabel,
+                        })
+                      : intl.formatMessage(messages.openinarr, {
+                          arr: arrName,
+                        })}
                   </span>
                 </Button>
               ))}
