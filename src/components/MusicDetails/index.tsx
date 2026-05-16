@@ -23,7 +23,7 @@ import {
   InformationCircleIcon,
   MinusCircleIcon,
   StarIcon,
-} from '@heroicons/react/24/outline';
+} from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
 import {
   MediaRequestStatus,
