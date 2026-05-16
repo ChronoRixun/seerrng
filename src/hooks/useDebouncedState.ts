@@ -20,7 +20,9 @@ const useDebouncedState = <S>(
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setFinalValue(value);
+      setFinalValue((currentFinalValue) =>
+        Object.is(currentFinalValue, value) ? currentFinalValue : value
+      );
     }, debounceTime);
 
     return () => {

@@ -15,6 +15,7 @@ const useVerticalScroll = (
   shouldFetch: boolean
 ): boolean => {
   const [isScrolling, setScrolling] = useState(false);
+  const isScrollingRef = useRef(false);
 
   type SetTimeoutReturnType = ReturnType<typeof setTimeout>;
   const scrollingTimer: MutableRefObject<SetTimeoutReturnType | undefined> =
@@ -56,9 +57,13 @@ const useVerticalScroll = (
         clearTimeout(scrollingTimer.current);
       }
 
-      setScrolling(true);
+      if (!isScrollingRef.current) {
+        isScrollingRef.current = true;
+        setScrolling(true);
+      }
 
       scrollingTimer.current = setTimeout(() => {
+        isScrollingRef.current = false;
         setScrolling(false);
       }, IS_SCROLLING_CHECK_THROTTLE);
       debouncedCallback();

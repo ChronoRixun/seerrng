@@ -1,5 +1,5 @@
 import useInteraction from '@app/hooks/useInteraction';
-import React from 'react';
+import React, { useMemo } from 'react';
 
 interface InteractionContextProps {
   isTouch?: boolean;
@@ -12,9 +12,10 @@ export const InteractionContext = React.createContext<InteractionContextProps>({
 
 export const InteractionProvider = ({ children }: InteractionContextProps) => {
   const isTouch = useInteraction();
+  const value = useMemo(() => ({ isTouch }), [isTouch]);
 
   return (
-    <InteractionContext.Provider value={{ isTouch }}>
+    <InteractionContext.Provider value={value}>
       {children}
     </InteractionContext.Provider>
   );

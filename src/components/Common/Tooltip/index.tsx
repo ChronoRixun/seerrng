@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import type { Config } from 'react-popper-tooltip';
 import { usePopperTooltip } from 'react-popper-tooltip';
@@ -16,21 +16,28 @@ const Tooltip = ({
   tooltipConfig,
   className,
 }: TooltipProps) => {
-  const { getTooltipProps, setTooltipRef, setTriggerRef, visible } =
-    usePopperTooltip({
+  const popperConfig = useMemo(
+    () => ({
       followCursor: true,
-      offset: [-28, 6],
-      placement: 'auto-end',
+      offset: [-28, 6] as [number, number],
+      placement: 'auto-end' as const,
       ...tooltipConfig,
-    });
+    }),
+    [tooltipConfig]
+  );
+  const { getTooltipProps, setTooltipRef, setTriggerRef, visible } =
+    usePopperTooltip(popperConfig);
 
-  const tooltipStyle = [
-    'z-50 text-sm absolute font-normal bg-gray-800 px-2 py-1 rounded border border-gray-600 shadow text-gray-100',
-  ];
-
-  if (className) {
-    tooltipStyle.push(className);
-  }
+  const tooltipClassName = useMemo(
+    () =>
+      [
+        'z-50 text-sm absolute font-normal bg-gray-800 px-2 py-1 rounded border border-gray-600 shadow text-gray-100',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    [className]
+  );
 
   return (
     <>
@@ -41,7 +48,7 @@ const Tooltip = ({
           <div
             ref={setTooltipRef}
             {...getTooltipProps({
-              className: tooltipStyle.join(' '),
+              className: tooltipClassName,
             })}
           >
             {content}
