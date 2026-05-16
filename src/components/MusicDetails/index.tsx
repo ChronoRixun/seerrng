@@ -1,10 +1,10 @@
 import Spinner from '@app/assets/spinner.svg';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
-import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
+import ExternalBlocklistModal from '@app/components/ExternalBlocklistModal';
 import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
 import IssueModal from '@app/components/IssueModal';
@@ -71,6 +71,7 @@ const MusicDetails = () => {
     useState<NonFunctionProperties<MediaRequest>>();
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showManager, setShowManager] = useState(router.query.manage === '1');
+  const [showBlocklistModal, setShowBlocklistModal] = useState(false);
   const [isBlocklisting, setIsBlocklisting] = useState(false);
   const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
   const [toggleWatchlist, setToggleWatchlist] = useState(true);
@@ -171,6 +172,7 @@ const MusicDetails = () => {
       });
     } finally {
       setIsBlocklisting(false);
+      setShowBlocklistModal(false);
     }
   };
 
@@ -250,6 +252,15 @@ const MusicDetails = () => {
         }}
         revalidate={() => revalidate()}
         show={showManager}
+      />
+      <ExternalBlocklistModal
+        show={showBlocklistModal}
+        type="music"
+        title={data.title}
+        backdrop={data.artistBackdrop}
+        onCancel={() => setShowBlocklistModal(false)}
+        onComplete={blocklistAlbum}
+        isUpdating={isBlocklisting}
       />
       <IssueModal
         show={showIssueModal}
@@ -401,16 +412,13 @@ const MusicDetails = () => {
                 </Button>
               )}
               {canBlocklist && (
-                <ConfirmButton
-                  onClick={blocklistAlbum}
-                  confirmText={intl.formatMessage(globalMessages.areyousure)}
-                  className={
-                    isBlocklisting ? 'pointer-events-none opacity-50' : ''
-                  }
+                <Button
+                  buttonType="danger"
+                  onClick={() => setShowBlocklistModal(true)}
                 >
                   <NoSymbolIcon />
                   <span>{intl.formatMessage(globalMessages.blocklist)}</span>
-                </ConfirmButton>
+                </Button>
               )}
             </div>
           )}

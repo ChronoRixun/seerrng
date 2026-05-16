@@ -367,6 +367,74 @@ describe('Books and Music discover parity', () => {
     });
   });
 
+  it('confirms book and music blocklist actions with video-style modals', () => {
+    cy.intercept('GET', '/api/v1/book/OLBLOCKW', {
+      id: 'OLBLOCKW',
+      mediaType: 'book',
+      title: 'Blocklist Book',
+      author: 'Block Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/7-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+    }).as('getBlockBook');
+    cy.intercept('POST', '/api/v1/blocklist', {}).as('postBlocklist');
+
+    cy.visit('/book/OLBLOCKW');
+    cy.wait('@getBlockBook');
+    cy.contains('[data-testid=media-title]', 'Blocklist Book').should(
+      'be.visible'
+    );
+    cy.contains('button', 'Blocklist').click();
+    cy.contains('[data-testid=modal-title]', 'Blocklist Book').should(
+      'be.visible'
+    );
+    cy.contains('[data-testid=modal-title]', 'Blocklist Book').should(
+      'be.visible'
+    );
+    cy.get('[data-testid=modal-ok-button]').should('contain', 'Blocklist');
+    cy.get('[data-testid=modal-cancel-button]').should('contain', 'Cancel');
+    cy.get('[data-testid=modal-ok-button]').click();
+    cy.wait('@postBlocklist')
+      .its('request.body')
+      .should('include', {
+        externalId: 'OLBLOCKW',
+        externalProvider: 'openlibrary',
+        mediaType: 'book',
+        title: 'Blocklist Book',
+      });
+
+    cy.intercept('GET', '/api/v1/music/abababab-abab-abab-abab-abababababab', {
+      id: 'abababab-abab-abab-abab-abababababab',
+      mbId: 'abababab-abab-abab-abab-abababababab',
+      mediaType: 'album',
+      title: 'Blocklist Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      artistBackdrop: 'https://assets.example.test/music-backdrop.jpg',
+      artist: {
+        id: 'cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd',
+        name: 'Block Artist',
+      },
+      tracks: [],
+    }).as('getBlockMusic');
+
+    cy.visit('/music/abababab-abab-abab-abab-abababababab');
+    cy.wait('@getBlockMusic');
+    cy.contains('[data-testid=media-title]', 'Blocklist Album').should(
+      'be.visible'
+    );
+    cy.contains('button', 'Blocklist').click();
+    cy.contains('[data-testid=modal-title]', 'Blocklist Music').should(
+      'be.visible'
+    );
+    cy.contains('[data-testid=modal-title]', 'Blocklist Album').should(
+      'be.visible'
+    );
+    cy.get('[data-testid=modal-ok-button]').should('contain', 'Blocklist');
+    cy.get('[data-testid=modal-cancel-button]').click();
+  });
+
   it('honors hide available for music and dual-format books', () => {
     cy.intercept('GET', '/api/v1/settings/public', {
       ...publicSettings,

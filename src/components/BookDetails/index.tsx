@@ -1,10 +1,10 @@
 import Spinner from '@app/assets/spinner.svg';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
-import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
+import ExternalBlocklistModal from '@app/components/ExternalBlocklistModal';
 import ExternalMediaManageSlideOver from '@app/components/ExternalMediaManageSlideOver';
 import IssueBlock from '@app/components/IssueBlock';
 import IssueModal from '@app/components/IssueModal';
@@ -70,6 +70,7 @@ const BookDetails = () => {
     useState<NonFunctionProperties<MediaRequest>>();
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showManager, setShowManager] = useState(router.query.manage === '1');
+  const [showBlocklistModal, setShowBlocklistModal] = useState(false);
   const [isBlocklisting, setIsBlocklisting] = useState(false);
   const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
   const [toggleWatchlist, setToggleWatchlist] = useState(true);
@@ -198,6 +199,7 @@ const BookDetails = () => {
       });
     } finally {
       setIsBlocklisting(false);
+      setShowBlocklistModal(false);
     }
   };
 
@@ -277,6 +279,15 @@ const BookDetails = () => {
         }}
         revalidate={() => revalidate()}
         show={showManager}
+      />
+      <ExternalBlocklistModal
+        show={showBlocklistModal}
+        type="book"
+        title={data.title}
+        backdrop={data.posterPath}
+        onCancel={() => setShowBlocklistModal(false)}
+        onComplete={blocklistBook}
+        isUpdating={isBlocklisting}
       />
       <IssueModal
         show={showIssueModal}
@@ -488,16 +499,13 @@ const BookDetails = () => {
                 </Button>
               )}
               {canBlocklist && (
-                <ConfirmButton
-                  onClick={blocklistBook}
-                  confirmText={intl.formatMessage(globalMessages.areyousure)}
-                  className={
-                    isBlocklisting ? 'pointer-events-none opacity-50' : ''
-                  }
+                <Button
+                  buttonType="danger"
+                  onClick={() => setShowBlocklistModal(true)}
                 >
                   <NoSymbolIcon />
                   <span>{intl.formatMessage(globalMessages.blocklist)}</span>
-                </ConfirmButton>
+                </Button>
               )}
             </div>
           )}
