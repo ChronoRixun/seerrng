@@ -70,6 +70,15 @@ describe('Books and Music discover parity', () => {
     });
     cy.wait('@getMoviesForTheme');
 
+    cy.get('button[aria-label="Theme picker"]').then(($themeButton) => {
+      cy.get('[data-testid=user-menu]').then(($userButton) => {
+        const themeBounds = $themeButton[0].getBoundingClientRect();
+        const userBounds = $userButton[0].getBoundingClientRect();
+
+        expect(themeBounds.right).to.be.lessThan(userBounds.left);
+      });
+    });
+
     cy.get('button[aria-label="Theme picker"]').click();
     cy.contains('button', 'Lagoon').click();
     cy.get('html').should('have.attr', 'data-theme-palette', 'lagoon');
@@ -77,6 +86,9 @@ describe('Books and Music discover parity', () => {
     cy.get('button[aria-label="Theme picker"]').click();
     cy.contains('button', 'Dark mode').click();
     cy.get('html').should('have.attr', 'data-theme-mode', 'light');
+
+    cy.get('[data-testid=user-menu]').click();
+    cy.contains('a', 'Sign Out').should('be.visible');
   });
 
   it('matches the video discover toolbar shape for books and music', () => {
