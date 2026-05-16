@@ -15,6 +15,7 @@ const messages = defineMessages('components.Discover.LibraryFilterSlideover', {
   searchBooks: 'Search books',
   searchMusic: 'Search music',
   subject: 'Subject',
+  sort: 'Sort',
   releaseWindow: 'Release Window',
   genre: 'Genre',
   releaseType: 'Release Type',
@@ -43,6 +44,16 @@ const messages = defineMessages('components.Discover.LibraryFilterSlideover', {
   last14Days: 'Last 14 Days',
   last30Days: 'Last 30 Days',
   last90Days: 'Last 90 Days',
+  recommended: 'Recommended',
+  highestRated: 'Highest Rated',
+  mostEditions: 'Most Editions',
+  newestFirst: 'Newest First',
+  oldestFirst: 'Oldest First',
+  random: 'Random',
+  popularWeek: 'Popular This Week',
+  popularMonth: 'Popular This Month',
+  popularYear: 'Popular This Year',
+  mostListened: 'Most Listened',
 });
 
 type LibraryFilterSlideoverProps = {
@@ -66,7 +77,7 @@ const LibraryFilterSlideover = ({
   days = '14',
   genre,
   releaseType,
-  sortBy = 'release_date.desc',
+  sortBy = 'ranked',
 }: LibraryFilterSlideoverProps) => {
   const intl = useIntl();
   const updateQueryParams = useBatchUpdateQueryParams({});
@@ -134,48 +145,132 @@ const LibraryFilterSlideover = ({
         </form>
 
         {type === 'book' ? (
-          <div>
-            <label
-              htmlFor="book-discover-subject"
-              className="text-lg font-semibold"
-            >
-              {intl.formatMessage(messages.subject)}
-            </label>
-            <select
-              id="book-discover-subject"
-              name="book-discover-subject"
-              className="mt-2"
-              value={subject}
-              disabled={!!query}
-              onChange={(e) =>
-                updateQueryParams({
-                  subject: e.target.value,
-                  page: undefined,
-                })
-              }
-            >
-              <option value="fiction">
-                {intl.formatMessage(messages.fiction)}
-              </option>
-              <option value="fantasy">
-                {intl.formatMessage(messages.fantasy)}
-              </option>
-              <option value="science_fiction">
-                {intl.formatMessage(messages.scienceFiction)}
-              </option>
-              <option value="mystery">
-                {intl.formatMessage(messages.mystery)}
-              </option>
-              <option value="biography">
-                {intl.formatMessage(messages.biography)}
-              </option>
-              <option value="romance">
-                {intl.formatMessage(messages.romance)}
-              </option>
-            </select>
-          </div>
+          <>
+            <div>
+              <label
+                htmlFor="book-discover-subject"
+                className="text-lg font-semibold"
+              >
+                {intl.formatMessage(messages.subject)}
+              </label>
+              <select
+                id="book-discover-subject"
+                name="book-discover-subject"
+                className="mt-2"
+                value={subject}
+                disabled={!!query}
+                onChange={(e) =>
+                  updateQueryParams({
+                    subject: e.target.value,
+                    page: undefined,
+                  })
+                }
+              >
+                <option value="fiction">
+                  {intl.formatMessage(messages.fiction)}
+                </option>
+                <option value="fantasy">
+                  {intl.formatMessage(messages.fantasy)}
+                </option>
+                <option value="science_fiction">
+                  {intl.formatMessage(messages.scienceFiction)}
+                </option>
+                <option value="mystery">
+                  {intl.formatMessage(messages.mystery)}
+                </option>
+                <option value="biography">
+                  {intl.formatMessage(messages.biography)}
+                </option>
+                <option value="romance">
+                  {intl.formatMessage(messages.romance)}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="book-discover-sort"
+                className="text-lg font-semibold"
+              >
+                {intl.formatMessage(messages.sort)}
+              </label>
+              <select
+                id="book-discover-sort"
+                name="book-discover-sort"
+                className="mt-2"
+                value={sortBy}
+                onChange={(e) =>
+                  updateQueryParams({
+                    sortBy: e.target.value,
+                    page: undefined,
+                  })
+                }
+              >
+                <option value="ranked">
+                  {intl.formatMessage(messages.recommended)}
+                </option>
+                <option value="rating">
+                  {intl.formatMessage(messages.highestRated)}
+                </option>
+                <option value="editions">
+                  {intl.formatMessage(messages.mostEditions)}
+                </option>
+                <option value="newest">
+                  {intl.formatMessage(messages.newestFirst)}
+                </option>
+                <option value="oldest">
+                  {intl.formatMessage(messages.oldestFirst)}
+                </option>
+                <option value="random">
+                  {intl.formatMessage(messages.random)}
+                </option>
+              </select>
+            </div>
+          </>
         ) : (
           <>
+            <div>
+              <label
+                htmlFor="music-discover-sort"
+                className="text-lg font-semibold"
+              >
+                {intl.formatMessage(messages.sort)}
+              </label>
+              <select
+                id="music-discover-sort"
+                name="music-discover-sort"
+                className="mt-2"
+                value={sortBy}
+                disabled={!!query}
+                onChange={(e) =>
+                  updateQueryParams({
+                    sortBy: e.target.value,
+                    page: undefined,
+                  })
+                }
+              >
+                <option value="ranked">
+                  {intl.formatMessage(messages.recommended)}
+                </option>
+                <option value="popular.week">
+                  {intl.formatMessage(messages.popularWeek)}
+                </option>
+                <option value="popular.month">
+                  {intl.formatMessage(messages.popularMonth)}
+                </option>
+                <option value="popular.year">
+                  {intl.formatMessage(messages.popularYear)}
+                </option>
+                <option value="listen_count.desc">
+                  {intl.formatMessage(messages.mostListened)}
+                </option>
+                <option value="release_date.desc">
+                  {intl.formatMessage(messages.newestFirst)}
+                </option>
+                <option value="release_date.asc">
+                  {intl.formatMessage(messages.oldestFirst)}
+                </option>
+              </select>
+            </div>
             <div>
               <label
                 htmlFor="music-discover-genre"

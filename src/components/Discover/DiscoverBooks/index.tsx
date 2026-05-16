@@ -24,6 +24,12 @@ const messages = defineMessages('components.Discover.DiscoverBooks', {
   mystery: 'Mystery',
   biography: 'Biography',
   romance: 'Romance',
+  ranked: 'Recommended',
+  rating: 'Highest Rated',
+  editions: 'Most Editions',
+  newest: 'Newest First',
+  oldest: 'Oldest First',
+  random: 'Random',
 });
 
 const LibraryFilterSlideover = dynamic(
@@ -40,6 +46,8 @@ const DiscoverBooks = () => {
     typeof router.query.query === 'string' ? router.query.query : '';
   const subject =
     typeof router.query.subject === 'string' ? router.query.subject : 'fiction';
+  const sortBy =
+    typeof router.query.sortBy === 'string' ? router.query.sortBy : 'ranked';
   const [showFilters, setShowFilters] = useState(false);
   const {
     isLoadingInitialData,
@@ -51,7 +59,7 @@ const DiscoverBooks = () => {
     error,
   } = useDiscover<BookResult>(
     '/api/v1/discover/books',
-    query ? { query } : { subject }
+    query ? { query, sortBy } : { subject, sortBy }
   );
 
   if (error) {
@@ -101,11 +109,48 @@ const DiscoverBooks = () => {
               </option>
             </select>
           </div>
+          <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 lg:flex-grow-0">
+            <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">
+              <BarsArrowDownIcon className="h-6 w-6" />
+            </span>
+            <select
+              id="sortBy"
+              name="sortBy"
+              className="rounded-r-only"
+              value={sortBy}
+              onChange={(e) =>
+                updateQueryParams({
+                  sortBy: e.target.value,
+                  page: undefined,
+                })
+              }
+            >
+              <option value="ranked">
+                {intl.formatMessage(messages.ranked)}
+              </option>
+              <option value="rating">
+                {intl.formatMessage(messages.rating)}
+              </option>
+              <option value="editions">
+                {intl.formatMessage(messages.editions)}
+              </option>
+              <option value="newest">
+                {intl.formatMessage(messages.newest)}
+              </option>
+              <option value="oldest">
+                {intl.formatMessage(messages.oldest)}
+              </option>
+              <option value="random">
+                {intl.formatMessage(messages.random)}
+              </option>
+            </select>
+          </div>
           {showFilters && (
             <LibraryFilterSlideover
               type="book"
               query={query}
               subject={subject}
+              sortBy={sortBy}
               onClose={() => setShowFilters(false)}
               show={showFilters}
             />
@@ -115,7 +160,12 @@ const DiscoverBooks = () => {
               <FunnelIcon />
               <span>
                 {intl.formatMessage(messages.activefilters, {
-                  count: countLibraryFilters({ type: 'book', query, subject }),
+                  count: countLibraryFilters({
+                    type: 'book',
+                    query,
+                    subject,
+                    sortBy,
+                  }),
                 })}
               </span>
             </Button>

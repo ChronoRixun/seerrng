@@ -10,6 +10,10 @@ export interface OpenLibrarySearchDoc {
   cover_i?: number;
   isbn?: string[];
   edition_key?: string[];
+  edition_count?: number;
+  ratings_average?: number;
+  ratings_count?: number;
+  want_to_read_count?: number;
 }
 
 interface OpenLibrarySearchResponse {
@@ -72,10 +76,12 @@ class OpenLibraryAPI extends ExternalAPI {
     query,
     page = 1,
     limit = 20,
+    sort,
   }: {
     query: string;
     page?: number;
     limit?: number;
+    sort?: string;
   }): Promise<OpenLibrarySearchResponse> {
     return this.get<OpenLibrarySearchResponse>(
       '/search.json',
@@ -84,6 +90,7 @@ class OpenLibraryAPI extends ExternalAPI {
           q: query,
           page: page.toString(),
           limit: limit.toString(),
+          ...(sort ? { sort } : {}),
         },
       },
       43200
@@ -95,7 +102,11 @@ class OpenLibraryAPI extends ExternalAPI {
       ? workId
       : `/works/${workId}`;
 
-    return this.get<OpenLibraryWork>(`${normalizedWorkId}.json`, undefined, 43200);
+    return this.get<OpenLibraryWork>(
+      `${normalizedWorkId}.json`,
+      undefined,
+      43200
+    );
   }
 
   public async getAuthor(authorId: string): Promise<OpenLibraryAuthor> {

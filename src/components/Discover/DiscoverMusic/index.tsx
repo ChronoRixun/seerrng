@@ -20,6 +20,11 @@ const messages = defineMessages('components.Discover.DiscoverMusic', {
     '{count, plural, one {# Active Filter} other {# Active Filters}}',
   dateDesc: 'Newest First',
   dateAsc: 'Oldest First',
+  ranked: 'Recommended',
+  popularWeek: 'Popular This Week',
+  popularMonth: 'Popular This Month',
+  popularYear: 'Popular This Year',
+  listenCount: 'Most Listened',
 });
 
 const LibraryFilterSlideover = dynamic(
@@ -43,9 +48,7 @@ const DiscoverMusic = () => {
       ? router.query.releaseType
       : '';
   const sortBy =
-    typeof router.query.sortBy === 'string'
-      ? router.query.sortBy
-      : 'release_date.desc';
+    typeof router.query.sortBy === 'string' ? router.query.sortBy : 'ranked';
   const {
     isLoadingInitialData,
     isEmpty,
@@ -81,6 +84,21 @@ const DiscoverMusic = () => {
               disabled={!!query}
               onChange={(e) => updateQueryParams('sortBy', e.target.value)}
             >
+              <option value="ranked">
+                {intl.formatMessage(messages.ranked)}
+              </option>
+              <option value="popular.week">
+                {intl.formatMessage(messages.popularWeek)}
+              </option>
+              <option value="popular.month">
+                {intl.formatMessage(messages.popularMonth)}
+              </option>
+              <option value="popular.year">
+                {intl.formatMessage(messages.popularYear)}
+              </option>
+              <option value="listen_count.desc">
+                {intl.formatMessage(messages.listenCount)}
+              </option>
               <option value="release_date.desc">
                 {intl.formatMessage(messages.dateDesc)}
               </option>

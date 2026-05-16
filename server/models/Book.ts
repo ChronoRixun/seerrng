@@ -17,6 +17,11 @@ export interface BookResult {
   isbn13?: string;
   editionId?: string;
   isbnCandidates?: BookIsbnCandidate[];
+  editionCount?: number;
+  ratingsAverage?: number;
+  ratingsCount?: number;
+  wantToReadCount?: number;
+  score?: number;
   mediaInfo?: Media;
 }
 
@@ -90,6 +95,10 @@ export const mapOpenLibrarySearchDoc = (
       : undefined,
     isbn13,
     editionId: doc.edition_key?.[0],
+    editionCount: doc.edition_count,
+    ratingsAverage: doc.ratings_average,
+    ratingsCount: doc.ratings_count,
+    wantToReadCount: doc.want_to_read_count,
     mediaInfo: media,
   };
 };
