@@ -271,6 +271,76 @@ describe('Books and Music discover parity', () => {
     cy.get('[data-testid=modal-cancel-button]').should('contain', 'Cancel');
   });
 
+  it('uses medium-appropriate issue choices for books and music', () => {
+    cy.intercept('GET', '/api/v1/book/OLISSUEW', {
+      id: 'OLISSUEW',
+      mediaType: 'book',
+      title: 'Issue Book',
+      author: 'Issue Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/5-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+      mediaInfo: {
+        id: 9101,
+        status: 5,
+        requests: [],
+        issues: [],
+      },
+    }).as('getIssueBook');
+
+    cy.visit('/book/OLISSUEW');
+    cy.wait('@getIssueBook');
+    cy.contains('[data-testid=media-title]', 'Issue Book').should('be.visible');
+    cy.contains('button', 'Report an Issue').click();
+    cy.get('[role=dialog]').within(() => {
+      cy.contains('[data-testid=modal-title]', 'Report an Issue').should(
+        'be.visible'
+      );
+      cy.contains('Other').should('be.visible');
+      cy.contains('Video').should('not.exist');
+      cy.contains('Audio').should('not.exist');
+      cy.contains('Subtitle').should('not.exist');
+    });
+    cy.get('[data-testid=modal-cancel-button]').click();
+
+    cy.intercept('GET', '/api/v1/music/88888888-8888-8888-8888-888888888888', {
+      id: '88888888-8888-8888-8888-888888888888',
+      mbId: '88888888-8888-8888-8888-888888888888',
+      mediaType: 'album',
+      title: 'Issue Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      artist: {
+        id: '99999999-9999-9999-9999-999999999999',
+        name: 'Issue Artist',
+      },
+      tracks: [],
+      mediaInfo: {
+        id: 9102,
+        status: 5,
+        requests: [],
+        issues: [],
+      },
+    }).as('getIssueMusic');
+
+    cy.visit('/music/88888888-8888-8888-8888-888888888888');
+    cy.wait('@getIssueMusic');
+    cy.contains('[data-testid=media-title]', 'Issue Album').should(
+      'be.visible'
+    );
+    cy.contains('button', 'Report an Issue').click();
+    cy.get('[role=dialog]').within(() => {
+      cy.contains('[data-testid=modal-title]', 'Report an Issue').should(
+        'be.visible'
+      );
+      cy.contains('Audio').should('be.visible');
+      cy.contains('Other').should('be.visible');
+      cy.contains('Video').should('not.exist');
+      cy.contains('Subtitle').should('not.exist');
+    });
+  });
+
   it('keeps request list media filters addressable for book and music queues', () => {
     cy.intercept('GET', '/api/v1/request*', (req) => {
       req.reply({

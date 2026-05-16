@@ -1,6 +1,6 @@
 import Button from '@app/components/Common/Button';
 import Modal from '@app/components/Common/Modal';
-import { issueOptions } from '@app/components/IssueModal/constants';
+import { getIssueOptionsForMediaType } from '@app/components/IssueModal/constants';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -41,11 +41,7 @@ const messages = defineMessages('components.IssueModal.CreateIssueModal', {
   submitissue: 'Submit Issue',
 });
 
-type IssueMediaDetails =
-  | MovieDetails
-  | TvDetails
-  | MusicDetails
-  | BookDetails;
+type IssueMediaDetails = MovieDetails | TvDetails | MusicDetails | BookDetails;
 
 const isMusic = (media: IssueMediaDetails): media is MusicDetails => {
   return (media as MusicDetails).mediaType === 'album';
@@ -108,6 +104,7 @@ const CreateIssueModal = ({
         ? data.title
         : data.name
       : undefined);
+  const issueOptions = getIssueOptionsForMediaType(mediaType);
 
   const availableSeasons = (data?.mediaInfo?.seasons ?? [])
     .filter(
@@ -208,82 +205,82 @@ const CreateIssueModal = ({
               !isMovie(data) &&
               !isMusic(data) &&
               !isBook(data) && (
-              <>
-                <div className="form-row">
-                  <label htmlFor="problemSeason" className="text-label">
-                    {intl.formatMessage(messages.problemseason)}
-                    <span className="label-required">*</span>
-                  </label>
-                  <div className="form-input-area">
-                    <div className="form-input-field">
-                      <Field
-                        as="select"
-                        id="problemSeason"
-                        name="problemSeason"
-                        disabled={availableSeasons.length === 1}
-                      >
-                        {availableSeasons.length > 1 && (
-                          <option value={0}>
-                            {intl.formatMessage(messages.allseasons)}
-                          </option>
-                        )}
-                        {availableSeasons.map((season) => (
-                          <option
-                            value={season}
-                            key={`problem-season-${season}`}
-                          >
-                            {season === 0
-                              ? intl.formatMessage(messages.extras)
-                              : intl.formatMessage(messages.season, {
-                                  seasonNumber: season,
-                                })}
-                          </option>
-                        ))}
-                      </Field>
-                    </div>
-                  </div>
-                </div>
-                {values.problemSeason > 0 && (
-                  <div className="form-row mb-2">
-                    <label htmlFor="problemEpisode" className="text-label">
-                      {intl.formatMessage(messages.problemepisode)}
+                <>
+                  <div className="form-row">
+                    <label htmlFor="problemSeason" className="text-label">
+                      {intl.formatMessage(messages.problemseason)}
                       <span className="label-required">*</span>
                     </label>
                     <div className="form-input-area">
                       <div className="form-input-field">
                         <Field
                           as="select"
-                          id="problemEpisode"
-                          name="problemEpisode"
+                          id="problemSeason"
+                          name="problemSeason"
+                          disabled={availableSeasons.length === 1}
                         >
-                          <option value={0}>
-                            {intl.formatMessage(messages.allepisodes)}
-                          </option>
-                          {[
-                            ...Array(
-                              data.seasons.find(
-                                (season) =>
-                                  Number(values.problemSeason) ===
-                                  season.seasonNumber
-                              )?.episodeCount ?? 0
-                            ),
-                          ].map((i, index) => (
+                          {availableSeasons.length > 1 && (
+                            <option value={0}>
+                              {intl.formatMessage(messages.allseasons)}
+                            </option>
+                          )}
+                          {availableSeasons.map((season) => (
                             <option
-                              value={index + 1}
-                              key={`problem-episode-${index + 1}`}
+                              value={season}
+                              key={`problem-season-${season}`}
                             >
-                              {intl.formatMessage(messages.episode, {
-                                episodeNumber: index + 1,
-                              })}
+                              {season === 0
+                                ? intl.formatMessage(messages.extras)
+                                : intl.formatMessage(messages.season, {
+                                    seasonNumber: season,
+                                  })}
                             </option>
                           ))}
                         </Field>
                       </div>
                     </div>
                   </div>
-                )}
-              </>
-            )}
+                  {values.problemSeason > 0 && (
+                    <div className="form-row mb-2">
+                      <label htmlFor="problemEpisode" className="text-label">
+                        {intl.formatMessage(messages.problemepisode)}
+                        <span className="label-required">*</span>
+                      </label>
+                      <div className="form-input-area">
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            id="problemEpisode"
+                            name="problemEpisode"
+                          >
+                            <option value={0}>
+                              {intl.formatMessage(messages.allepisodes)}
+                            </option>
+                            {[
+                              ...Array(
+                                data.seasons.find(
+                                  (season) =>
+                                    Number(values.problemSeason) ===
+                                    season.seasonNumber
+                                )?.episodeCount ?? 0
+                              ),
+                            ].map((i, index) => (
+                              <option
+                                value={index + 1}
+                                key={`problem-episode-${index + 1}`}
+                              >
+                                {intl.formatMessage(messages.episode, {
+                                  episodeNumber: index + 1,
+                                })}
+                              </option>
+                            ))}
+                          </Field>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             <RadioGroup
               value={values.selectedIssue}
               onChange={(issue) => setFieldValue('selectedIssue', issue)}
