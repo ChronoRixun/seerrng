@@ -7,7 +7,6 @@ import {
   countActiveFilters,
   prepareFilterValues,
 } from '@app/components/Discover/constants';
-import FilterSlideover from '@app/components/Discover/FilterSlideover';
 import useDiscover from '@app/hooks/useDiscover';
 import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import ErrorPage from '@app/pages/_error';
@@ -15,9 +14,15 @@ import defineMessages from '@app/utils/defineMessages';
 import { BarsArrowDownIcon, FunnelIcon } from '@heroicons/react/24/solid';
 import type { SortOptions as TMDBSortOptions } from '@server/api/themoviedb';
 import type { TvResult } from '@server/models/Search';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
+
+const FilterSlideover = dynamic(
+  () => import('@app/components/Discover/FilterSlideover'),
+  { ssr: false }
+);
 
 const messages = defineMessages('components.Discover.DiscoverTv', {
   discovertv: 'Series',
@@ -112,12 +117,14 @@ const DiscoverTv = () => {
               </option>
             </select>
           </div>
-          <FilterSlideover
-            type="tv"
-            currentFilters={preparedFilters}
-            onClose={() => setShowFilters(false)}
-            show={showFilters}
-          />
+          {showFilters && (
+            <FilterSlideover
+              type="tv"
+              currentFilters={preparedFilters}
+              onClose={() => setShowFilters(false)}
+              show={showFilters}
+            />
+          )}
           <div className="mb-2 flex flex-grow sm:mb-0 lg:flex-grow-0">
             <Button onClick={() => setShowFilters(true)} className="w-full">
               <FunnelIcon />
