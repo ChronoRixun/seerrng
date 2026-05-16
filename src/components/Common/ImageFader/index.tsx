@@ -1,6 +1,6 @@
 import CachedImage from '@app/components/Common/CachedImage';
 import type { ForwardRefRenderFunction, HTMLAttributes } from 'react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 interface ImageFaderProps extends HTMLAttributes<HTMLDivElement> {
   backgroundImages: string[];
@@ -23,6 +23,32 @@ const ImageFader: ForwardRefRenderFunction<HTMLDivElement, ImageFaderProps> = (
 ) => {
   const [activeIndex, setIndex] = useState(0);
   const imageCount = backgroundImages.length;
+  const visibleImageIndexes = useMemo(() => {
+    if (imageCount === 0) {
+      return [];
+    }
+
+    if (imageCount === 1) {
+      return [0];
+    }
+
+    return [activeIndex, (activeIndex + 1) % imageCount];
+  }, [activeIndex, imageCount]);
+  const gradient = useMemo(
+    () =>
+      isDarker
+        ? 'linear-gradient(180deg, rgba(17, 24, 39, 0.47) 0%, rgba(17, 24, 39, 1) 100%)'
+        : 'linear-gradient(180deg, rgba(45, 55, 72, 0.47) 0%, #1A202E 100%)',
+    [isDarker]
+  );
+  const imageStyle = useMemo(
+    () => ({ width: '100%', height: '100%', objectFit: 'cover' as const }),
+    []
+  );
+  const imageOverrides = useMemo(
+    () => (forceOptimize ? { unoptimized: false } : {}),
+    [forceOptimize]
+  );
 
   useEffect(() => {
     if (activeIndex >= imageCount) {
@@ -45,32 +71,10 @@ const ImageFader: ForwardRefRenderFunction<HTMLDivElement, ImageFaderProps> = (
     };
   }, [imageCount, rotationSpeed]);
 
-  let gradient =
-    'linear-gradient(180deg, rgba(45, 55, 72, 0.47) 0%, #1A202E 100%)';
-
-  if (isDarker) {
-    gradient =
-      'linear-gradient(180deg, rgba(17, 24, 39, 0.47) 0%, rgba(17, 24, 39, 1) 100%)';
-  }
-
-  let overrides = {};
-
-  if (forceOptimize) {
-    overrides = {
-      unoptimized: false,
-    };
-  }
-
   return (
     <div ref={ref}>
-      {backgroundImages.map((imageUrl, i) => {
-        if (
-          imageCount > 0 &&
-          i !== activeIndex &&
-          i !== (activeIndex + 1) % imageCount
-        ) {
-          return null;
-        }
+      {visibleImageIndexes.map((i) => {
+        const imageUrl = backgroundImages[i];
 
         return (
           <div
@@ -85,11 +89,11 @@ const ImageFader: ForwardRefRenderFunction<HTMLDivElement, ImageFaderProps> = (
               className="absolute inset-0 h-full w-full"
               alt=""
               src={imageUrl}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={imageStyle}
               fill
               priority={i === activeIndex}
               loading={i === activeIndex ? 'eager' : 'lazy'}
-              {...overrides}
+              {...imageOverrides}
             />
             <div
               className="absolute inset-0"

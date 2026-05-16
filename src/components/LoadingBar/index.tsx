@@ -40,16 +40,17 @@ const LoadingBar = (): React.ReactPortal | null => {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
     const handleLoading = () => {
-      setLoading(true);
+      setLoading((currentLoading) => currentLoading || true);
     };
     const handleFinishedLoading = () => {
-      setLoading(false);
+      setLoading((currentLoading) => (currentLoading ? false : currentLoading));
     };
     router.events.on('routeChangeStart', handleLoading);
     router.events.on('routeChangeComplete', handleFinishedLoading);
@@ -60,7 +61,7 @@ const LoadingBar = (): React.ReactPortal | null => {
       router.events.off('routeChangeComplete', handleFinishedLoading);
       router.events.off('routeChangeError', handleFinishedLoading);
     };
-  }, [router]);
+  }, [router.events]);
 
   return mounted
     ? ReactDOM.createPortal(

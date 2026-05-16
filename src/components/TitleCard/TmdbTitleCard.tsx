@@ -2,6 +2,7 @@ import TitleCard from '@app/components/TitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
 import type { MovieDetails } from '@server/models/Movie';
 import type { TvDetails } from '@server/models/Tv';
+import { useMemo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import useSWR from 'swr';
 
@@ -33,13 +34,17 @@ const TmdbTitleCard = ({
   const { ref, inView } = useInView({
     triggerOnce: true,
   });
-  const url =
-    type === 'movie' ? `/api/v1/movie/${tmdbId}` : `/api/v1/tv/${tmdbId}`;
+  const url = useMemo(
+    () =>
+      type === 'movie' ? `/api/v1/movie/${tmdbId}` : `/api/v1/tv/${tmdbId}`,
+    [tmdbId, type]
+  );
   const { data: title, error } = useSWR<MovieDetails | TvDetails>(
-    inView ? `${url}` : null,
+    inView ? url : null,
     {
       dedupingInterval: 30000,
       revalidateOnFocus: false,
+      revalidateOnReconnect: false,
     }
   );
 

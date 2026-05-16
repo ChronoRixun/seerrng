@@ -6,6 +6,7 @@ import {
 } from '@app/utils/libraryMedia';
 import type { BookDetails } from '@server/models/Book';
 import type { MusicDetails } from '@server/models/Music';
+import { useMemo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import useSWR from 'swr';
 
@@ -30,12 +31,16 @@ const LibraryTitleCard = ({
   const { ref, inView } = useInView({
     triggerOnce: true,
   });
-  const url = type === 'album' ? `/api/v1/music/${id}` : `/api/v1/book/${id}`;
+  const url = useMemo(
+    () => (type === 'album' ? `/api/v1/music/${id}` : `/api/v1/book/${id}`),
+    [id, type]
+  );
   const { data: title, error } = useSWR<MusicDetails | BookDetails>(
     inView ? url : null,
     {
       dedupingInterval: 30000,
       revalidateOnFocus: false,
+      revalidateOnReconnect: false,
     }
   );
 
