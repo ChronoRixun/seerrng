@@ -150,7 +150,8 @@ const BookDetails = () => {
       hasMissingBookFormat);
   const canReportIssue =
     !!data.mediaInfo?.id &&
-    data.mediaInfo.status === MediaStatus.AVAILABLE &&
+    (data.mediaInfo.status === MediaStatus.AVAILABLE ||
+      data.mediaInfo.status === MediaStatus.PARTIALLY_AVAILABLE) &&
     hasPermission([Permission.MANAGE_ISSUES, Permission.CREATE_ISSUES], {
       type: 'or',
     });
