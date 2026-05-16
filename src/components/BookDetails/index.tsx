@@ -19,9 +19,9 @@ import {
   ArrowDownTrayIcon,
   CogIcon,
   ExclamationTriangleIcon,
+  EyeSlashIcon,
   InformationCircleIcon,
   MinusCircleIcon,
-  NoSymbolIcon,
   StarIcon,
 } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
@@ -429,7 +429,7 @@ const BookDetails = () => {
             canReportIssue ||
             canBlocklist ||
             canManage) && (
-            <div className="mt-6 flex flex-wrap gap-2">
+            <div className="media-actions mt-6 justify-start gap-2 sm:justify-start xl:mt-6">
               {canWatchlist && (
                 <>
                   {toggleWatchlist ? (
@@ -484,28 +484,44 @@ const BookDetails = () => {
                 </Button>
               )}
               {canManage && (
-                <Button buttonType="ghost" onClick={() => setShowManager(true)}>
-                  <CogIcon />
-                  <span>{intl.formatMessage(messages.manage)}</span>
-                </Button>
+                <Tooltip content={intl.formatMessage(messages.manage)}>
+                  <Button
+                    buttonType="ghost"
+                    onClick={() => setShowManager(true)}
+                    className="relative"
+                    aria-label={intl.formatMessage(messages.manage)}
+                  >
+                    <CogIcon className="!mr-0" />
+                    {openIssues.length > 0 && (
+                      <>
+                        <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-red-600" />
+                        <div className="absolute -right-1 -top-1 h-3 w-3 animate-ping rounded-full bg-red-600" />
+                      </>
+                    )}
+                  </Button>
+                </Tooltip>
               )}
               {canReportIssue && (
-                <Button
-                  buttonType="default"
-                  onClick={() => setShowIssueModal(true)}
-                >
-                  <ExclamationTriangleIcon />
-                  <span>{intl.formatMessage(messages.reportissue)}</span>
-                </Button>
+                <Tooltip content={intl.formatMessage(messages.reportissue)}>
+                  <Button
+                    buttonType="warning"
+                    onClick={() => setShowIssueModal(true)}
+                    aria-label={intl.formatMessage(messages.reportissue)}
+                  >
+                    <ExclamationTriangleIcon className="!mr-0" />
+                  </Button>
+                </Tooltip>
               )}
               {canBlocklist && (
-                <Button
-                  buttonType="danger"
-                  onClick={() => setShowBlocklistModal(true)}
-                >
-                  <NoSymbolIcon />
-                  <span>{intl.formatMessage(globalMessages.blocklist)}</span>
-                </Button>
+                <Tooltip content={intl.formatMessage(globalMessages.addToBlocklist)}>
+                  <Button
+                    buttonType="ghost"
+                    onClick={() => setShowBlocklistModal(true)}
+                    aria-label={intl.formatMessage(globalMessages.addToBlocklist)}
+                  >
+                    <EyeSlashIcon className="!mr-0" />
+                  </Button>
+                </Tooltip>
               )}
             </div>
           )}

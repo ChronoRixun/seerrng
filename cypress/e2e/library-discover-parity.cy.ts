@@ -318,7 +318,7 @@ describe('Books and Music discover parity', () => {
     cy.visit('/book/OLISSUEW');
     cy.wait('@getIssueBook');
     cy.contains('[data-testid=media-title]', 'Issue Book').should('be.visible');
-    cy.contains('button', 'Report an Issue').click();
+    cy.get('button[aria-label="Report an Issue"]').click();
     cy.get('[role=dialog]').within(() => {
       cy.contains('[data-testid=modal-title]', 'Report an Issue').should(
         'be.visible'
@@ -355,7 +355,7 @@ describe('Books and Music discover parity', () => {
     cy.contains('[data-testid=media-title]', 'Issue Album').should(
       'be.visible'
     );
-    cy.contains('button', 'Report an Issue').click();
+    cy.get('button[aria-label="Report an Issue"]').click();
     cy.get('[role=dialog]').within(() => {
       cy.contains('[data-testid=modal-title]', 'Report an Issue').should(
         'be.visible'
@@ -385,7 +385,7 @@ describe('Books and Music discover parity', () => {
     cy.contains('[data-testid=media-title]', 'Blocklist Book').should(
       'be.visible'
     );
-    cy.contains('button', 'Blocklist').click();
+    cy.get('button[aria-label="Add to Blocklist"]').click();
     cy.contains('[data-testid=modal-title]', 'Blocklist Book').should(
       'be.visible'
     );
@@ -424,7 +424,7 @@ describe('Books and Music discover parity', () => {
     cy.contains('[data-testid=media-title]', 'Blocklist Album').should(
       'be.visible'
     );
-    cy.contains('button', 'Blocklist').click();
+    cy.get('button[aria-label="Add to Blocklist"]').click();
     cy.contains('[data-testid=modal-title]', 'Blocklist Music').should(
       'be.visible'
     );
