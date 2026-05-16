@@ -3,6 +3,7 @@ import SensitiveInput from '@app/components/Common/SensitiveInput';
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { isValidURL } from '@app/utils/urlValidationHelper';
 import { Transition } from '@headlessui/react';
 import type { ReadarrSettings } from '@server/lib/settings';
 import axios from 'axios';
@@ -23,8 +24,8 @@ const messages = defineMessages('components.Settings.ReadarrModal', {
   validationMetadataProfileRequired: 'You must select a metadata profile',
   validationApplicationUrl: 'You must provide a valid URL',
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
-  validationBaseUrlLeadingSlash: 'Base URL must have a leading slash',
-  validationBaseUrlTrailingSlash: 'Base URL must not end in a trailing slash',
+  validationBaseUrlLeadingSlash: 'URL base must have a leading slash',
+  validationBaseUrlTrailingSlash: 'URL base must not end in a trailing slash',
   toastReadarrTestSuccess: 'Bookshelf connection established successfully!',
   toastReadarrTestFailure: 'Failed to connect to Bookshelf.',
   add: 'Add Server',
@@ -55,6 +56,16 @@ const messages = defineMessages('components.Settings.ReadarrModal', {
   audiobook: 'Audiobook',
   compatibilityNote:
     'Bookshelf is the recommended book backend. Readarr-compatible servers can also be used.',
+  apiKeyHelp:
+    'Find it in Bookshelf or Readarr: Settings > General > Security > API Key.',
+  baseUrlHelp:
+    'If you set a URL Base in Bookshelf or Readarr (Settings > General > Host), enter it here (e.g. /bookshelf). Leave blank otherwise.',
+  externalUrlHelp:
+    'For clickable links on media pages when the hostname is not reachable from outside your network.',
+  syncEnabledHelp:
+    'Scan Bookshelf for existing books and request status so users cannot request content already available.',
+  enableSearchHelp:
+    'Automatically trigger a search in Bookshelf when a request is approved.',
 });
 
 interface TestResponse {
@@ -119,7 +130,11 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
       intl.formatMessage(messages.validationMetadataProfileRequired)
     ),
     externalUrl: Yup.string()
-      .url(intl.formatMessage(messages.validationApplicationUrl))
+      .test(
+        'valid-url',
+        intl.formatMessage(messages.validationApplicationUrl),
+        isValidURL
+      )
       .test(
         'no-trailing-slash',
         intl.formatMessage(messages.validationApplicationUrlTrailingSlash),
@@ -454,6 +469,9 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
                 <label htmlFor="apiKey" className="text-label">
                   {intl.formatMessage(messages.apiKey)}
                   <span className="label-required">*</span>
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.apiKeyHelp)}
+                  </span>
                 </label>
                 <div className="form-input-area">
                   <div className="form-input-field">
@@ -478,6 +496,9 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
               <div className="form-row">
                 <label htmlFor="baseUrl" className="text-label">
                   {intl.formatMessage(messages.baseUrl)}
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.baseUrlHelp)}
+                  </span>
                 </label>
                 <div className="form-input-area">
                   <div className="form-input-field">
@@ -626,6 +647,9 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
               <div className="form-row">
                 <label htmlFor="externalUrl" className="text-label">
                   {intl.formatMessage(messages.externalUrl)}
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.externalUrlHelp)}
+                  </span>
                 </label>
                 <div className="form-input-area">
                   <div className="form-input-field">
@@ -641,6 +665,9 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
               <div className="form-row">
                 <label htmlFor="syncEnabled" className="checkbox-label">
                   {intl.formatMessage(messages.syncEnabled)}
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.syncEnabledHelp)}
+                  </span>
                 </label>
                 <div className="form-input-area">
                   <Field
@@ -653,6 +680,9 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
               <div className="form-row">
                 <label htmlFor="enableSearch" className="checkbox-label">
                   {intl.formatMessage(messages.enableSearch)}
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.enableSearchHelp)}
+                  </span>
                 </label>
                 <div className="form-input-area">
                   <Field
