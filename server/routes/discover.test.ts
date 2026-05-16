@@ -239,6 +239,63 @@ describe('GET /discover/movies', () => {
       ['Proven Genre Movie', 'Thin Genre Movie']
     );
   });
+
+  it('ranks keyword movie discovery by quality signals within the TMDB page', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/keyword/999/movies');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: [
+          {
+            id: 1,
+            media_type: 'movie',
+            title: 'Thin Keyword Movie',
+            original_title: 'Thin Keyword Movie',
+            release_date: '2026-01-01',
+            adult: false,
+            video: false,
+            popularity: 100,
+            poster_path: '/thin.jpg',
+            backdrop_path: '/thin-backdrop.jpg',
+            vote_count: 1,
+            vote_average: 4,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+          {
+            id: 2,
+            media_type: 'movie',
+            title: 'Proven Keyword Movie',
+            original_title: 'Proven Keyword Movie',
+            release_date: '2025-01-01',
+            adult: false,
+            video: false,
+            popularity: 20,
+            poster_path: '/proven.jpg',
+            backdrop_path: '/proven-backdrop.jpg',
+            vote_count: 1000,
+            vote_average: 8,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+        ],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/keyword/999/movies');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Proven Keyword Movie', 'Thin Keyword Movie']
+    );
+  });
 });
 
 describe('GET /discover/tv', () => {

@@ -1105,10 +1105,11 @@ discoverRoutes.get<{ keywordId: string }>(
         page: Number(req.query.page),
         language: (req.query.language as string) ?? req.locale,
       });
+      const rankedResults = rankTmdbMovieResults(data.results);
 
       const media = await Media.getRelatedMedia(
         req.user,
-        data.results.map((result) => ({
+        rankedResults.map((result) => ({
           tmdbId: result.id,
           mediaType: MediaType.MOVIE,
         }))
@@ -1118,7 +1119,7 @@ discoverRoutes.get<{ keywordId: string }>(
         page: data.page,
         totalPages: data.total_pages,
         totalResults: data.total_results,
-        results: data.results.map((result) =>
+        results: rankedResults.map((result) =>
           mapMovieResult(
             result,
             media.find(
@@ -1159,11 +1160,12 @@ discoverRoutes.get<{ language: string }, GenreSliderItem[]>(
           const genreData = await tmdb.getDiscoverMovies({
             genre: genre.id.toString(),
           });
+          const rankedResults = rankTmdbMovieResults(genreData.results);
 
           mappedGenres.push({
             id: genre.id,
             name: genre.name,
-            backdrops: genreData.results
+            backdrops: rankedResults
               .filter((title) => !!title.backdrop_path)
               .map((title) => title.backdrop_path) as string[],
           });
@@ -1203,11 +1205,12 @@ discoverRoutes.get<{ language: string }, GenreSliderItem[]>(
           const genreData = await tmdb.getDiscoverTv({
             genre: genre.id.toString(),
           });
+          const rankedResults = rankTmdbTvResults(genreData.results);
 
           mappedGenres.push({
             id: genre.id,
             name: genre.name,
-            backdrops: genreData.results
+            backdrops: rankedResults
               .filter((title) => !!title.backdrop_path)
               .map((title) => title.backdrop_path) as string[],
           });
