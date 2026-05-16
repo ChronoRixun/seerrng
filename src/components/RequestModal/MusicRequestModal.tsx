@@ -73,6 +73,10 @@ const MusicRequestModal = ({
   );
 
   useEffect(() => {
+    setRequestOverrides(null);
+  }, [editRequest?.id, mbId]);
+
+  useEffect(() => {
     onUpdating?.(isUpdating);
   }, [isUpdating, onUpdating]);
 

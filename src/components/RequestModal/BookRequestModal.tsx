@@ -98,6 +98,12 @@ const BookRequestModal = ({
   );
 
   useEffect(() => {
+    setBookFormat(editRequest?.bookFormat ?? 'ebook');
+    setHasUserSelectedFormat(false);
+    setRequestOverrides(null);
+  }, [bookId, editRequest?.bookFormat, editRequest?.id]);
+
+  useEffect(() => {
     setSelectedIsbn(data?.isbn13 ?? '');
   }, [data?.isbn13]);
 
