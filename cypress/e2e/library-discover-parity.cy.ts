@@ -819,6 +819,80 @@ describe('Books and Music discover parity', () => {
       });
   });
 
+  it('removes only the linked side of a partial dual-format book request', () => {
+    const requestedBy = {
+      id: 1,
+      displayName: 'Admin',
+      avatar: '/avatar.png',
+    };
+    const partialBothRequest = {
+      id: 293,
+      type: 'book',
+      status: 3,
+      is4k: false,
+      bookFormat: 'both',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z',
+      requestedBy,
+      modifiedBy: null,
+      canRemove: true,
+      profileName: 'Default',
+      seasons: [],
+      media: {
+        id: 9293,
+        mediaType: 'book',
+        status: 4,
+        status4k: 1,
+        tmdbId: 0,
+        serviceId: 1,
+        externalServiceId: 101,
+        audiobookServiceId: null,
+        audiobookExternalServiceId: null,
+        identifiers: [{ provider: 'openlibrary', value: 'OLREMOVEPARTIALW' }],
+        requests: [],
+        issues: [],
+      },
+    };
+
+    cy.intercept('GET', '/api/v1/request?*', {
+      pageInfo: { pages: 1, pageSize: 10, results: 1, page: 1 },
+      results: [partialBothRequest],
+      serviceErrors: {
+        radarr: [],
+        sonarr: [],
+        lidarr: [],
+        readarr: [],
+      },
+    }).as('getBookRequests');
+    cy.intercept('GET', '/api/v1/request/293', partialBothRequest);
+    cy.intercept('GET', '/api/v1/book/OLREMOVEPARTIALW', {
+      id: 'OLREMOVEPARTIALW',
+      mediaType: 'book',
+      title: 'Remove Partial Dual Book',
+      author: 'Partial Author',
+      firstPublishYear: 2026,
+      isbnCandidates: [],
+      subjects: [],
+    });
+    cy.intercept('DELETE', '/api/v1/media/9293/file*', {
+      statusCode: 204,
+    }).as('deleteBookFile');
+
+    cy.visit('/requests?mediaType=book&filter=processing');
+    cy.wait('@getBookRequests');
+    cy.contains('Remove Partial Dual Book').should('be.visible');
+    cy.contains('Partial Bookshelf link').should('be.visible');
+    cy.contains('button', 'Remove from Bookshelf')
+      .as('removeFromBookshelf')
+      .click();
+    cy.get('@removeFromBookshelf').click({ force: true });
+
+    cy.wait('@deleteBookFile')
+      .its('request.url')
+      .should('include', 'format=ebook')
+      .and('not.include', 'format=both');
+  });
+
   it('deep-links failed book and music requests to their manage slideovers', () => {
     const requestedBy = {
       id: 1,

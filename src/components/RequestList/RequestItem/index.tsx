@@ -479,6 +479,16 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
       ? hasBookFormat(requestData, 'ebook') !==
         hasBookFormat(requestData, 'audiobook')
       : false;
+  const removableBookFormat =
+    requestData?.type === 'book' && requestData.bookFormat === 'both'
+      ? hasPartialBookService
+        ? hasBookFormat(requestData, 'ebook')
+          ? 'ebook'
+          : 'audiobook'
+        : 'both'
+      : requestData?.type === 'book'
+        ? (requestData.bookFormat ?? 'ebook')
+        : undefined;
 
   const modifyRequest = async (type: 'approve' | 'decline') => {
     setUpdatingType(type);
@@ -506,14 +516,14 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
   const deleteMediaFile = async () => {
     if (requestData?.media) {
       const formatQuery =
-        requestData.type === 'book' && requestData.bookFormat
-          ? `&format=${requestData.bookFormat}`
+        requestData.type === 'book' && removableBookFormat
+          ? `&format=${removableBookFormat}`
           : '';
 
       await axios.delete(
         `/api/v1/media/${requestData.media.id}/file?is4k=${requestData.is4k}${formatQuery}`
       );
-      if (requestData.type !== 'book' || requestData.bookFormat === 'both') {
+      if (requestData.type !== 'book' || removableBookFormat === 'both') {
         await axios.delete(`/api/v1/media/${requestData.media.id}`);
       }
       revalidateList();
