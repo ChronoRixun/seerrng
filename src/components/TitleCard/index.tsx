@@ -117,6 +117,16 @@ const TitleCard = ({
     () => setShowBlocklistModal(false),
     []
   );
+  const showDetails = useCallback(() => {
+    setShowDetail((currentShowDetail) =>
+      currentShowDetail ? currentShowDetail : true
+    );
+  }, []);
+  const hideDetails = useCallback(() => {
+    setShowDetail((currentShowDetail) =>
+      currentShowDetail ? false : currentShowDetail
+    );
+  }, []);
 
   const onClickWatchlistBtn = async (): Promise<void> => {
     setIsUpdating(true);
@@ -467,14 +477,14 @@ const TitleCard = ({
         }}
         onMouseEnter={() => {
           if (!isTouch) {
-            setShowDetail(true);
+            showDetails();
           }
         }}
-        onMouseLeave={() => setShowDetail(false)}
-        onClick={() => setShowDetail(true)}
+        onMouseLeave={hideDetails}
+        onClick={showDetails}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
-            setShowDetail(true);
+            showDetails();
           }
         }}
         role="link"
