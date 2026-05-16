@@ -693,6 +693,88 @@ describe('Books and Music discover parity', () => {
     cy.contains('Owned Album').should('not.exist');
   });
 
+  it('honors hide blocklisted for books and music', () => {
+    cy.intercept('GET', '/api/v1/settings/public', {
+      ...publicSettings,
+      hideBlocklisted: true,
+    }).as('getPublicSettings');
+
+    cy.intercept('GET', '/api/v1/discover/books*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 2,
+      results: [
+        {
+          id: 'OLBLOCKEDBOOKW',
+          mediaType: 'book',
+          title: 'Blocked Book',
+          author: 'Blocked Author',
+          firstPublishYear: 2026,
+          mediaInfo: {
+            status: 6,
+            requests: [],
+          },
+        },
+        {
+          id: 'OLVISIBLEBOOKW',
+          mediaType: 'book',
+          title: 'Visible Book',
+          author: 'Visible Author',
+          firstPublishYear: 2026,
+          mediaInfo: {
+            status: 1,
+            requests: [],
+          },
+        },
+      ],
+    }).as('getBlocklistedBooks');
+
+    cy.visit('/discover/books');
+    cy.wait('@getPublicSettings');
+    cy.wait('@getBlocklistedBooks');
+    cy.contains('[data-testid=title-card-title]', 'Visible Book').should(
+      'be.visible'
+    );
+    cy.contains('Blocked Book').should('not.exist');
+
+    cy.intercept('GET', '/api/v1/discover/music*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 2,
+      results: [
+        {
+          id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+          mediaType: 'album',
+          title: 'Blocked Album',
+          'primary-type': 'Album',
+          'first-release-date': '2026-05-01',
+          'artist-credit': [{ name: 'Blocked Artist' }],
+          mediaInfo: {
+            status: 6,
+          },
+        },
+        {
+          id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+          mediaType: 'album',
+          title: 'Visible Album',
+          'primary-type': 'Album',
+          'first-release-date': '2026-05-01',
+          'artist-credit': [{ name: 'Visible Artist' }],
+          mediaInfo: {
+            status: 1,
+          },
+        },
+      ],
+    }).as('getBlocklistedMusic');
+
+    cy.visit('/discover/music');
+    cy.wait('@getBlocklistedMusic');
+    cy.contains('[data-testid=title-card-title]', 'Visible Album').should(
+      'be.visible'
+    );
+    cy.contains('Blocked Album').should('not.exist');
+  });
+
   it('keeps request list media filters addressable for book and music queues', () => {
     cy.intercept('GET', '/api/v1/request*', (req) => {
       req.reply({

@@ -47,8 +47,7 @@ const DiscoverBooks = () => {
     error,
   } = useDiscover<BookResult>(
     '/api/v1/discover/books',
-    query ? { query } : { subject },
-    { hideBlocklisted: false }
+    query ? { query } : { subject }
   );
 
   if (error) {
