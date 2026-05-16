@@ -21,7 +21,6 @@ import ManageSlideOver from '@app/components/ManageSlideOver';
 import MediaSlider from '@app/components/MediaSlider';
 import PersonCard from '@app/components/PersonCard';
 import RequestButton from '@app/components/RequestButton';
-import RequestModal from '@app/components/RequestModal';
 import Slider from '@app/components/Slider';
 import StatusBadge from '@app/components/StatusBadge';
 import Season from '@app/components/TvDetails/Season';
@@ -61,11 +60,16 @@ import type { Crew } from '@server/models/common';
 import axios from 'axios';
 import { countries } from 'country-flag-icons';
 import 'country-flag-icons/3x2/flags.css';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
+
+const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
+  ssr: false,
+});
 
 const messages = defineMessages('components.TvDetails', {
   firstAirDate: 'First Air Date',
@@ -504,16 +508,18 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
         mediaType="tv"
         tmdbId={data.id}
       />
-      <RequestModal
-        tmdbId={data.id}
-        show={showRequestModal}
-        type="tv"
-        onComplete={() => {
-          revalidate();
-          setShowRequestModal(false);
-        }}
-        onCancel={() => setShowRequestModal(false)}
-      />
+      {showRequestModal && (
+        <RequestModal
+          tmdbId={data.id}
+          show={showRequestModal}
+          type="tv"
+          onComplete={() => {
+            revalidate();
+            setShowRequestModal(false);
+          }}
+          onCancel={() => setShowRequestModal(false)}
+        />
+      )}
       <ManageSlideOver
         data={data}
         mediaType="tv"

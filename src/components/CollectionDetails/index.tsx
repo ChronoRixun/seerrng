@@ -5,7 +5,6 @@ import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
-import RequestModal from '@app/components/RequestModal';
 import Slider from '@app/components/Slider';
 import StatusBadge from '@app/components/StatusBadge';
 import TitleCard from '@app/components/TitleCard';
@@ -24,11 +23,16 @@ import {
 import { MediaStatus } from '@server/constants/media';
 import type { Collection } from '@server/models/Collection';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
+
+const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
+  ssr: false,
+});
 
 const messages = defineMessages('components.CollectionDetails', {
   overview: 'Overview',
@@ -302,17 +306,19 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
         </div>
       )}
       <PageTitle title={data.name} />
-      <RequestModal
-        tmdbId={data.id}
-        show={requestModal}
-        type="collection"
-        is4k={is4k}
-        onComplete={() => {
-          revalidate();
-          setRequestModal(false);
-        }}
-        onCancel={() => setRequestModal(false)}
-      />
+      {requestModal && (
+        <RequestModal
+          tmdbId={data.id}
+          show={requestModal}
+          type="collection"
+          is4k={is4k}
+          onComplete={() => {
+            revalidate();
+            setRequestModal(false);
+          }}
+          onCancel={() => setRequestModal(false)}
+        />
+      )}
       <BlocklistModal
         tmdbId={data.id}
         type="collection"
