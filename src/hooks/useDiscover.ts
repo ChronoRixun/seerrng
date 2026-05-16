@@ -1,7 +1,7 @@
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useIntl } from 'react-intl';
 import useSWRInfinite from 'swr/infinite';
 import useSettings from './useSettings';
@@ -59,6 +59,64 @@ export const encodeURIExtraParams = (string: string): string => {
   return finalString;
 };
 
+const hasLinkedBookFormat = (
+  mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
+  format: 'ebook' | 'audiobook'
+) => {
+  if (format === 'audiobook') {
+    return (
+      mediaInfo.audiobookServiceId !== null &&
+      mediaInfo.audiobookServiceId !== undefined &&
+      mediaInfo.audiobookExternalServiceId !== null &&
+      mediaInfo.audiobookExternalServiceId !== undefined
+    );
+  }
+
+  return (
+    mediaInfo.serviceId !== null &&
+    mediaInfo.serviceId !== undefined &&
+    mediaInfo.externalServiceId !== null &&
+    mediaInfo.externalServiceId !== undefined
+  );
+};
+
+const hasActiveBookRequest = (
+  mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
+  format: 'ebook' | 'audiobook'
+) => {
+  return (mediaInfo.requests ?? []).some((request) => {
+    if (
+      request.status === MediaRequestStatus.DECLINED ||
+      request.status === MediaRequestStatus.COMPLETED
+    ) {
+      return false;
+    }
+
+    const requestFormat = request.bookFormat ?? 'ebook';
+
+    return requestFormat === 'both' || requestFormat === format;
+  });
+};
+
+const isMissingBookFormat = (item: BaseMedia) => {
+  if (
+    item.mediaType !== 'book' ||
+    !item.mediaInfo ||
+    item.mediaInfo.status === MediaStatus.BLOCKLISTED
+  ) {
+    return false;
+  }
+
+  const hasEbook =
+    hasLinkedBookFormat(item.mediaInfo, 'ebook') ||
+    hasActiveBookRequest(item.mediaInfo, 'ebook');
+  const hasAudiobook =
+    hasLinkedBookFormat(item.mediaInfo, 'audiobook') ||
+    hasActiveBookRequest(item.mediaInfo, 'audiobook');
+
+  return !hasEbook || !hasAudiobook;
+};
+
 const useDiscover = <
   T extends BaseMedia,
   S = Record<string, never>,
@@ -102,8 +160,6 @@ const useDiscover = <
     }
   );
 
-  const resultIds = new Set<number | string>();
-
   const isLoadingInitialData = !data && !error;
   const isLoadingMore =
     isLoadingInitialData ||
@@ -116,96 +172,51 @@ const useDiscover = <
     setSize(size + 1);
   };
 
-  let titles: T[] = [];
+  const canManageBlocklist = hasPermission(Permission.MANAGE_BLOCKLIST);
+  const titles = useMemo(() => {
+    const resultIds = new Set<number | string>();
+    let filteredTitles: T[] = [];
 
-  for (const page of data ?? []) {
-    for (const result of page.results) {
-      if (!resultIds.has(result.id)) {
-        resultIds.add(result.id);
-        titles.push(result);
+    for (const page of data ?? []) {
+      for (const result of page.results) {
+        if (!resultIds.has(result.id)) {
+          resultIds.add(result.id);
+          filteredTitles.push(result);
+        }
       }
     }
-  }
 
-  const hasLinkedBookFormat = (
-    mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
-    format: 'ebook' | 'audiobook'
-  ) => {
-    if (format === 'audiobook') {
-      return (
-        mediaInfo.audiobookServiceId !== null &&
-        mediaInfo.audiobookServiceId !== undefined &&
-        mediaInfo.audiobookExternalServiceId !== null &&
-        mediaInfo.audiobookExternalServiceId !== undefined
+    if (settings.currentSettings.hideAvailable && hideAvailable) {
+      filteredTitles = filteredTitles.filter(
+        (i) =>
+          !i.mediaInfo ||
+          !(
+            i.mediaInfo.status === MediaStatus.AVAILABLE ||
+            i.mediaInfo.status === MediaStatus.PARTIALLY_AVAILABLE
+          ) ||
+          isMissingBookFormat(i)
       );
     }
 
-    return (
-      mediaInfo.serviceId !== null &&
-      mediaInfo.serviceId !== undefined &&
-      mediaInfo.externalServiceId !== null &&
-      mediaInfo.externalServiceId !== undefined
-    );
-  };
-
-  const hasActiveBookRequest = (
-    mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
-    format: 'ebook' | 'audiobook'
-  ) => {
-    return (mediaInfo.requests ?? []).some((request) => {
-      if (
-        request.status === MediaRequestStatus.DECLINED ||
-        request.status === MediaRequestStatus.COMPLETED
-      ) {
-        return false;
-      }
-
-      const requestFormat = request.bookFormat ?? 'ebook';
-
-      return requestFormat === 'both' || requestFormat === format;
-    });
-  };
-
-  const isMissingBookFormat = (item: BaseMedia) => {
     if (
-      item.mediaType !== 'book' ||
-      !item.mediaInfo ||
-      item.mediaInfo.status === MediaStatus.BLOCKLISTED
+      settings.currentSettings.hideBlocklisted &&
+      hideBlocklisted &&
+      canManageBlocklist
     ) {
-      return false;
+      filteredTitles = filteredTitles.filter(
+        (i) => !i.mediaInfo || i.mediaInfo.status !== MediaStatus.BLOCKLISTED
+      );
     }
 
-    const hasEbook =
-      hasLinkedBookFormat(item.mediaInfo, 'ebook') ||
-      hasActiveBookRequest(item.mediaInfo, 'ebook');
-    const hasAudiobook =
-      hasLinkedBookFormat(item.mediaInfo, 'audiobook') ||
-      hasActiveBookRequest(item.mediaInfo, 'audiobook');
-
-    return !hasEbook || !hasAudiobook;
-  };
-
-  if (settings.currentSettings.hideAvailable && hideAvailable) {
-    titles = titles.filter(
-      (i) =>
-        !i.mediaInfo ||
-        !(
-          i.mediaInfo.status === MediaStatus.AVAILABLE ||
-          i.mediaInfo.status === MediaStatus.PARTIALLY_AVAILABLE
-        ) ||
-        isMissingBookFormat(i)
-    );
-  }
-
-  if (
-    settings.currentSettings.hideBlocklisted &&
-    hideBlocklisted &&
-    hasPermission(Permission.MANAGE_BLOCKLIST)
-  ) {
-    titles = titles.filter(
-      (i) => !i.mediaInfo || i.mediaInfo.status !== MediaStatus.BLOCKLISTED
-    );
-  }
+    return filteredTitles;
+  }, [
+    canManageBlocklist,
+    data,
+    hideAvailable,
+    hideBlocklisted,
+    settings.currentSettings.hideAvailable,
+    settings.currentSettings.hideBlocklisted,
+  ]);
 
   const isEmpty = !isLoadingInitialData && titles?.length === 0;
   const isReachingEnd =
