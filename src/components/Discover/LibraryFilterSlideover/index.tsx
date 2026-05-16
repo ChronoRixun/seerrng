@@ -106,7 +106,10 @@ const LibraryFilterSlideover = ({
             onClose();
           }}
         >
-          <label htmlFor={`${type}-discover-query`} className="text-lg font-semibold">
+          <label
+            htmlFor={`${type}-discover-query`}
+            className="text-lg font-semibold"
+          >
             {intl.formatMessage(messages.search)}
           </label>
           <div className="mt-2 flex">
@@ -133,7 +136,10 @@ const LibraryFilterSlideover = ({
 
         {type === 'book' ? (
           <div>
-            <label htmlFor="book-discover-subject" className="text-lg font-semibold">
+            <label
+              htmlFor="book-discover-subject"
+              className="text-lg font-semibold"
+            >
               {intl.formatMessage(messages.subject)}
             </label>
             <select
@@ -171,7 +177,10 @@ const LibraryFilterSlideover = ({
           </div>
         ) : (
           <div>
-            <label htmlFor="music-discover-days" className="text-lg font-semibold">
+            <label
+              htmlFor="music-discover-days"
+              className="text-lg font-semibold"
+            >
               {intl.formatMessage(messages.releaseWindow)}
             </label>
             <select
