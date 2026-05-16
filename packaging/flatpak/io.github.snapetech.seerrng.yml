@@ -14,9 +14,8 @@ modules:
       - cp -R . /app/node/
       - ln -sf /app/node/bin/node /app/bin/node
     sources:
-      - type: archive
-        url: https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz
-        sha256: SKIP
+      - type: dir
+        path: ../../flatpak-src/node
   - name: seerrng
     buildsystem: simple
     build-commands:
@@ -33,6 +32,5 @@ modules:
         EOF
         chmod 0755 /app/bin/seerrng-wrapper
     sources:
-      - type: archive
-        url: https://github.com/snapetech/seerrng/releases/download/v0.1.0/seerrng-v0.1.0-linux-x64.tar.gz
-        sha256: SKIP
+      - type: dir
+        path: ../../flatpak-src/seerrng

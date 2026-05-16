@@ -46,48 +46,10 @@ jobs:
           tar -xzf "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz" --strip-components=1 -C flatpak-src/seerrng
           curl -fsSLo node.tar.xz https://nodejs.org/dist/v22.22.2/node-v22.22.2-linux-x64.tar.xz
           tar -xJf node.tar.xz --strip-components=1 -C flatpak-src/node
-          cat > flatpak-release.yml <<'EOF'
-          app-id: io.github.snapetech.seerrng
-          runtime: org.freedesktop.Platform
-          runtime-version: '24.08'
-          sdk: org.freedesktop.Sdk
-          command: seerrng-wrapper
-          finish-args:
-            - --share=network
-            - --filesystem=xdg-config/seerrng:create
-          modules:
-            - name: node
-              buildsystem: simple
-              build-commands:
-                - mkdir -p /app/node /app/bin
-                - cp -R . /app/node/
-                - ln -sf /app/node/bin/node /app/bin/node
-              sources:
-                - type: dir
-                  path: flatpak-src/node
-            - name: seerrng
-              buildsystem: simple
-              build-commands:
-                - mkdir -p /app/lib/seerrng /app/bin
-                - cp -R . /app/lib/seerrng/
-                - |
-                  cat > /app/bin/seerrng-wrapper <<'WRAPPER'
-                  #!/usr/bin/env sh
-                  set -eu
-                  export NODE_ENV=production
-                  export CONFIG_DIRECTORY="${XDG_CONFIG_HOME:-$HOME/.config}/seerrng"
-                  mkdir -p "$CONFIG_DIRECTORY"
-                  exec /app/bin/node /app/lib/seerrng/dist/index.js "$@"
-                  WRAPPER
-                  chmod 0755 /app/bin/seerrng-wrapper
-              sources:
-                - type: dir
-                  path: flatpak-src/seerrng
-          EOF
       - name: Build Flatpak bundle
         run: |
           set -euo pipefail
-          flatpak-builder --force-clean --repo=flatpak-repo flatpak-build flatpak-release.yml
+          flatpak-builder --force-clean --repo=flatpak-repo flatpak-build packaging/flatpak/io.github.snapetech.seerrng.yml
           flatpak build-bundle flatpak-repo "SeerrNG-${{ steps.version.outputs.version }}-x86_64.flatpak" io.github.snapetech.seerrng
       - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
         with:
