@@ -10,6 +10,7 @@ import defineMessages from '@app/utils/defineMessages';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
+import type { ServiceCommonServer } from '@server/interfaces/api/serviceInterfaces';
 import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
 import type { MusicDetails } from '@server/models/Music';
 import axios from 'axios';
@@ -33,6 +34,8 @@ const messages = defineMessages('components.RequestModal.Music', {
   requestfrom: "{username}'s request is pending approval.",
   requesterror: 'Something went wrong while submitting the request.',
   editerror: 'Something went wrong while editing the request.',
+  noLidarrServer:
+    'No Lidarr service is configured. Music requests are unavailable.',
 });
 
 interface MusicRequestModalProps {
@@ -59,6 +62,9 @@ const MusicRequestModal = ({
   const { data, error } = useSWR<MusicDetails>(`/api/v1/music/${mbId}`, {
     revalidateOnMount: true,
   });
+  const { data: musicServices } = useSWR<ServiceCommonServer[]>(
+    '/api/v1/service/lidarr'
+  );
   const { data: quota } = useSWR<QuotaResponse>(
     user &&
       (!requestOverrides?.user?.id || hasPermission(Permission.MANAGE_USERS))
@@ -141,6 +147,7 @@ const MusicRequestModal = ({
     ],
     { type: 'or' }
   );
+  const serviceUnavailable = !!musicServices && musicServices.length === 0;
 
   const cancelRequest = async () => {
     setIsUpdating(true);
@@ -237,7 +244,7 @@ const MusicRequestModal = ({
               ? updateRequest()
               : cancelRequest()
         }
-        okDisabled={isUpdating}
+        okDisabled={isUpdating || serviceUnavailable}
         okText={
           hasPermission(Permission.MANAGE_REQUESTS)
             ? intl.formatMessage(messages.approve)
@@ -275,6 +282,14 @@ const MusicRequestModal = ({
         cancelText={intl.formatMessage(messages.close)}
         backdrop={data?.artistBackdrop ?? data?.artistThumb ?? data?.posterPath}
       >
+        {serviceUnavailable && (
+          <div className="mb-4">
+            <Alert
+              title={intl.formatMessage(messages.noLidarrServer)}
+              type="warning"
+            />
+          </div>
+        )}
         {isOwner
           ? intl.formatMessage(messages.pendingapproval)
           : intl.formatMessage(messages.requestfrom, {
@@ -306,7 +321,7 @@ const MusicRequestModal = ({
       backgroundClickable
       onCancel={onCancel}
       onOk={sendRequest}
-      okDisabled={isUpdating || quota?.music?.restricted}
+      okDisabled={isUpdating || quota?.music?.restricted || serviceUnavailable}
       title={intl.formatMessage(messages.requestmusic)}
       subTitle={data ? `${data.artist.name} - ${data.title}` : undefined}
       okText={
@@ -317,6 +332,14 @@ const MusicRequestModal = ({
       okButtonType="primary"
       backdrop={data?.artistBackdrop ?? data?.artistThumb ?? data?.posterPath}
     >
+      {serviceUnavailable && (
+        <div className="mt-6">
+          <Alert
+            title={intl.formatMessage(messages.noLidarrServer)}
+            type="warning"
+          />
+        </div>
+      )}
       {hasAutoApprove && !quota?.music?.restricted && (
         <div className="mt-6">
           <Alert
