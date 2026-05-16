@@ -14,7 +14,7 @@ env:
 
 jobs:
   detect-duplicate:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     if: ${{ !github.event.issue.pull_request }}
     permissions:
       issues: write

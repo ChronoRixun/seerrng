@@ -25,7 +25,7 @@ jobs:
   i18n:
     name: i18n Check
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     permissions:
       contents: read
       pull-requests: write
@@ -89,7 +89,7 @@ jobs:
   test:
     name: Lint & Test Build
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     container: node:22.22.2-alpine3.23@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f
     steps:
       - name: Checkout
@@ -130,7 +130,7 @@ jobs:
   unit-test:
     name: Unit Tests
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     container: node:22.22.2-alpine3.23@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f
     permissions:
       checks: write
@@ -178,13 +178,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: ubuntu-24.04
+          - runner: kspld0
             platform: linux/amd64
             arch: amd64
-          - runner: ubuntu-24.04-arm
+          - runner: kspls0
             platform: linux/arm64
             arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -216,7 +216,7 @@ jobs:
   publish:
     name: Publish multi-arch image
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     permissions:
       contents: read
       packages: write

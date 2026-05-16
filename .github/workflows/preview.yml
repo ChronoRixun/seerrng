@@ -24,13 +24,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: ubuntu-24.04
+          - runner: kspld0
             platform: linux/amd64
             arch: amd64
-          - runner: ubuntu-24.04-arm
+          - runner: kspls0
             platform: linux/arm64
             arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: [self-hosted, "${{ matrix.runner }}"]
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -72,7 +72,7 @@ jobs:
   publish:
     name: Publish multi-arch image
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     permissions:
       contents: read
       packages: write

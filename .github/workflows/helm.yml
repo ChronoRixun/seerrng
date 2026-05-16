@@ -20,7 +20,7 @@ concurrency:
 jobs:
   package-helm-chart:
     name: Package helm chart
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     permissions:
       contents: read
       packages: read
@@ -85,7 +85,7 @@ jobs:
 
   publish:
     name: Publish to ghcr.io
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     permissions:
       packages: write
       id-token: write
@@ -146,7 +146,7 @@ jobs:
   verify:
     name: Verify signatures for each chart tag
     needs: [publish]
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, kspld0]
     permissions:
       contents: read
     steps:
