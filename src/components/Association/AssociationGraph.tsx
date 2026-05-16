@@ -29,7 +29,7 @@ const EDGE_LABEL: Record<AssociationEdgeType, string> = {
   similar: 'Similar',
   recommended: 'Recommended',
   'shared-person': 'Shared person',
-  'shared-genre': 'Adjacent',
+  'shared-genre': 'Weak connection',
 };
 
 const MEDIA_TONE: Record<string, string> = {

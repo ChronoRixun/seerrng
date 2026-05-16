@@ -14,7 +14,9 @@ const messages = defineMessages('components.Association', {
   similarartists: 'Similar artists',
   music: 'Connected music',
   screen: 'On screen',
-  adjacent: 'Adjacent picks',
+  sharedgenre: 'Shared genre',
+  listeneroverlap: 'Listener overlap',
+  relatedbooks: 'Related books',
   books: 'Same author',
   empty: 'No associations found yet.',
 });
@@ -31,6 +33,12 @@ const AssociationWall = ({ graph }: { graph: AssociationGraph }) => {
     graph.root.mediaType === 'album' || graph.root.mediaType === 'artist'
       ? intl.formatMessage(messages.similarartists)
       : intl.formatMessage(messages.similar);
+  const weakTitle =
+    graph.root.mediaType === 'album' || graph.root.mediaType === 'artist'
+      ? intl.formatMessage(messages.listeneroverlap)
+      : graph.root.mediaType === 'book'
+        ? intl.formatMessage(messages.relatedbooks)
+        : intl.formatMessage(messages.sharedgenre);
 
   const sections: Section[] = [
     {
@@ -64,7 +72,7 @@ const AssociationWall = ({ graph }: { graph: AssociationGraph }) => {
     },
     {
       key: 'adjacent',
-      title: intl.formatMessage(messages.adjacent),
+      title: weakTitle,
       match: (e) => e.type === 'shared-genre',
     },
   ];

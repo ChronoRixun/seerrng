@@ -21,8 +21,8 @@ const associationGraph = {
     },
     {
       weight: 0.8,
-      type: 'similar',
-      reason: 'Similar tone and audience',
+      type: 'shared-genre',
+      reason: 'Shares Fantasy',
       node: {
         id: 'OLOTHERW',
         mediaType: 'book',
@@ -43,7 +43,7 @@ describe('Associations', () => {
       '/api/v1/association/book/OLROOTW?includeWeak=true',
       associationGraph
     ).as('getAssociations');
-    cy.intercept('GET', '/api/v1/association/book/OLRELATEDW', {
+    cy.intercept('GET', '/api/v1/association/book/OLRELATEDW*', {
       root: {
         mediaType: 'book',
         id: 'OLRELATEDW',
@@ -89,7 +89,7 @@ describe('Associations', () => {
         ],
       }
     ).as('getRelatedAssociations');
-    cy.intercept('GET', '/api/v1/association/book/OLOTHERW', {
+    cy.intercept('GET', '/api/v1/association/book/OLOTHERW*', {
       root: {
         mediaType: 'book',
         id: 'OLOTHERW',
@@ -106,15 +106,10 @@ describe('Associations', () => {
     cy.contains('h1', 'Associations for Root Book').should('be.visible');
     cy.get('[data-testid=association-wall]').within(() => {
       cy.contains('Same author').should('be.visible');
-      cy.get('[data-testid=title-card]').last().trigger('mouseover');
-      cy.contains('[data-testid=title-card-title]', 'Related Book').should(
-        'be.visible'
-      );
+      cy.contains('Related books').should('be.visible');
     });
-    cy.contains('[data-testid=title-card-title]', 'Related Book')
-      .parents('.space-y-2')
+    cy.get('a[href="/associations/book/OLRELATEDW"]')
       .contains('Explore connections')
-      .should('have.attr', 'href', '/associations/book/OLRELATEDW')
       .and('be.visible');
   });
 
@@ -123,8 +118,14 @@ describe('Associations', () => {
     cy.wait('@getAssociations');
 
     cy.get('[data-testid=association-wall]').within(() => {
-      cy.get('[data-testid=title-card]').last().trigger('mouseover');
-      cy.get('[data-testid=association-badge]').last().click();
+      cy.get('a[href="/associations/book/OLRELATEDW"]')
+        .parents('.space-y-2')
+        .find('[data-testid=title-card]')
+        .trigger('mouseover');
+      cy.get('a[href="/associations/book/OLRELATEDW"]')
+        .parents('.space-y-2')
+        .find('[data-testid=association-badge]')
+        .click();
     });
 
     cy.wait('@getRelatedAssociations');
@@ -145,9 +146,15 @@ describe('Associations', () => {
     cy.wait('@getAssociations');
 
     cy.get('[data-testid=association-wall]').within(() => {
-      cy.get('[data-testid=title-card]').first().trigger('mouseover');
+      cy.get('a[href="/associations/book/OLOTHERW"]')
+        .parents('.space-y-2')
+        .find('[data-testid=title-card]')
+        .trigger('mouseover');
       cy.wait(500);
-      cy.get('[data-testid=association-badge]').should('not.exist');
+      cy.get('a[href="/associations/book/OLOTHERW"]')
+        .parents('.space-y-2')
+        .find('[data-testid=association-badge]')
+        .should('not.exist');
     });
   });
 
@@ -160,6 +167,7 @@ describe('Associations', () => {
     cy.get('[data-testid=association-graph-legend]').within(() => {
       cy.contains('Shared person').should('be.visible');
       cy.contains('Similar').should('be.visible');
+      cy.contains('Weak connection').should('be.visible');
     });
     cy.contains('[data-testid=association-graph-node]', 'Related Book')
       .should('be.visible')
