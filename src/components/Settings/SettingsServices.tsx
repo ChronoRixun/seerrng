@@ -7,12 +7,7 @@ import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
-import LidarrModal from '@app/components/Settings/LidarrModal';
-import OverrideRuleModal from '@app/components/Settings/OverrideRule/OverrideRuleModal';
 import OverrideRuleTiles from '@app/components/Settings/OverrideRule/OverrideRuleTiles';
-import RadarrModal from '@app/components/Settings/RadarrModal';
-import ReadarrModal from '@app/components/Settings/ReadarrModal';
-import SonarrModal from '@app/components/Settings/SonarrModal';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
@@ -31,9 +26,20 @@ import type {
   SonarrSettings,
 } from '@server/lib/settings';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import { Fragment, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
+
+const LidarrModal = dynamic(() => import('@app/components/Settings/LidarrModal'));
+const OverrideRuleModal = dynamic(
+  () => import('@app/components/Settings/OverrideRule/OverrideRuleModal')
+);
+const RadarrModal = dynamic(() => import('@app/components/Settings/RadarrModal'));
+const ReadarrModal = dynamic(
+  () => import('@app/components/Settings/ReadarrModal')
+);
+const SonarrModal = dynamic(() => import('@app/components/Settings/SonarrModal'));
 
 const messages = defineMessages('components.Settings', {
   services: 'Services',

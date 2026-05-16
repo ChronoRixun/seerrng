@@ -6,9 +6,6 @@ import Button from '@app/components/Common/Button';
 import ImageFader from '@app/components/Common/ImageFader';
 import PageTitle from '@app/components/Common/PageTitle';
 import LanguagePicker from '@app/components/Layout/LanguagePicker';
-import SettingsJellyfin from '@app/components/Settings/SettingsJellyfin';
-import SettingsPlex from '@app/components/Settings/SettingsPlex';
-import SettingsServices from '@app/components/Settings/SettingsServices';
 import SetupSteps from '@app/components/Setup/SetupSteps';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
@@ -17,12 +14,21 @@ import defineMessages from '@app/utils/defineMessages';
 import { MediaServerType } from '@server/constants/server';
 import type { Library } from '@server/lib/settings';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
-import SetupLogin from './SetupLogin';
+
+const SettingsJellyfin = dynamic(
+  () => import('@app/components/Settings/SettingsJellyfin')
+);
+const SettingsPlex = dynamic(() => import('@app/components/Settings/SettingsPlex'));
+const SettingsServices = dynamic(
+  () => import('@app/components/Settings/SettingsServices')
+);
+const SetupLogin = dynamic(() => import('./SetupLogin'));
 
 const messages = defineMessages('components.Setup', {
   welcome: 'Welcome to Seerr',
