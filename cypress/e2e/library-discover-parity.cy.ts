@@ -1,4 +1,27 @@
 describe('Books and Music discover parity', () => {
+  const themePalettes = [
+    'aurora',
+    'ember',
+    'lagoon',
+    'orchid',
+    'forest',
+    'sapphire',
+    'rosewood',
+    'citrus',
+    'arctic',
+    'grape',
+    'coral',
+    'mint',
+    'steel',
+    'gold',
+    'plum',
+    'skyline',
+    'moss',
+    'flame',
+    'violet',
+    'ocean',
+  ];
+
   const unrestrictedQuota = {
     movie: { used: 0, restricted: false },
     tv: { used: 0, restricted: false },
@@ -89,6 +112,76 @@ describe('Books and Music discover parity', () => {
 
     cy.get('[data-testid=user-menu]').click();
     cy.contains('a', 'Sign Out').should('be.visible');
+  });
+
+  it('gives every palette a unique light and dark theme pair', () => {
+    const seenAccentPairs = new Set<string>();
+
+    cy.intercept('GET', '/api/v1/discover/movies*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
+    });
+
+    cy.wrap(themePalettes).each((palette) => {
+      cy.visit('/discover/movies', {
+        onBeforeLoad(win) {
+          win.localStorage.setItem('seerr-theme-palette', palette as string);
+          win.localStorage.setItem('seerr-theme-mode', 'dark');
+        },
+      });
+      cy.contains('[data-testid=page-header]', 'Movies').should('be.visible');
+      cy.get('html')
+        .should('have.attr', 'data-theme-palette', palette)
+        .and('have.attr', 'data-theme-mode', 'dark');
+
+      cy.get('html').then(($html) => {
+        const styles = getComputedStyle($html[0]);
+        const accentPair = `${styles
+          .getPropertyValue('--color-indigo-600')
+          .trim()}|${styles.getPropertyValue('--color-purple-600').trim()}`;
+        const darkBackground = styles
+          .getPropertyValue('--color-gray-900')
+          .trim();
+
+        expect(
+          seenAccentPairs.has(accentPair),
+          `${palette} accent pair is unique`
+        ).to.eq(false);
+        seenAccentPairs.add(accentPair);
+
+        cy.visit('/discover/movies', {
+          onBeforeLoad(win) {
+            win.localStorage.setItem('seerr-theme-palette', palette as string);
+            win.localStorage.setItem('seerr-theme-mode', 'light');
+          },
+        });
+        cy.contains('[data-testid=page-header]', 'Movies').should('be.visible');
+        cy.get('html')
+          .should('have.attr', 'data-theme-palette', palette)
+          .and('have.attr', 'data-theme-mode', 'light');
+
+        cy.get('html').then(($lightHtml) => {
+          const lightStyles = getComputedStyle($lightHtml[0]);
+          const lightPair = `${lightStyles
+            .getPropertyValue('--color-indigo-600')
+            .trim()}|${lightStyles
+            .getPropertyValue('--color-purple-600')
+            .trim()}`;
+          const lightBackground = lightStyles
+            .getPropertyValue('--color-gray-900')
+            .trim();
+
+          expect(lightPair).to.eq(accentPair);
+          expect(lightBackground).not.to.eq(darkBackground);
+        });
+      });
+    });
+
+    cy.then(() => {
+      expect(seenAccentPairs.size).to.eq(themePalettes.length);
+    });
   });
 
   it('matches the video discover toolbar shape for books and music', () => {
