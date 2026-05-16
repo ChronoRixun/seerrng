@@ -276,7 +276,6 @@ const ListView = ({
                     status={title.mediaInfo?.status}
                     title={title.title}
                     artist={title.author}
-                    type="Book"
                     year={title.firstPublishYear?.toString()}
                     mediaType={title.mediaType}
                     inProgress={isBookInProgress(title)}

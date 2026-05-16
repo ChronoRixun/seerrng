@@ -473,7 +473,11 @@ const TitleCard = ({
         <div className="absolute inset-0 h-full w-full overflow-hidden">
           {isAlbum || isBook ? (
             <div className="absolute inset-0 flex h-full w-full flex-col items-center p-2">
-              <div className="relative aspect-square w-full overflow-hidden rounded ring-1 ring-gray-700">
+              <div
+                className={`relative w-full overflow-hidden rounded ring-1 ring-gray-700 ${
+                  isBook ? 'aspect-[2/3]' : 'aspect-square'
+                }`}
+              >
                 <CachedImage
                   type={
                     displayImage?.startsWith('http')
@@ -499,6 +503,11 @@ const TitleCard = ({
                 {type && (
                   <div className="mt-1 truncate text-xs text-gray-500">
                     {type}
+                  </div>
+                )}
+                {year && (
+                  <div className="mt-1 truncate text-xs text-gray-500">
+                    {year}
                   </div>
                 )}
               </div>
