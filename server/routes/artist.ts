@@ -12,19 +12,41 @@ import { Router } from 'express';
 import { In } from 'typeorm';
 
 const artistRoutes = Router();
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
+
+const parsePositiveInt = (
+  value: unknown,
+  fallback: number,
+  max = Number.MAX_SAFE_INTEGER
+): number => {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return Math.min(Math.floor(parsed), max);
+};
 
 artistRoutes.get('/:id/similar', async (req, res, next) => {
-  const page = Number(req.query.page) || 1;
-  const pageSize = Number(req.query.pageSize) || 20;
+  const page = parsePositiveInt(req.query.page, 1);
+  const pageSize = parsePositiveInt(
+    req.query.pageSize,
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE
+  );
 
   try {
     const graph = await getAssociations('artist', req.params.id, req.user, {
-      includeWeak: false,
+      includeWeak: true,
       limit: 60,
     });
     const results = graph.edges
       .filter(
-        (edge) => edge.type === 'similar' && edge.node.mediaType === 'artist'
+        (edge) =>
+          (edge.type === 'similar' || edge.type === 'shared-genre') &&
+          edge.node.mediaType === 'artist'
       )
       .map((edge) => edge.node);
     const totalResults = results.length;
@@ -32,6 +54,7 @@ artistRoutes.get('/:id/similar', async (req, res, next) => {
 
     return res.status(200).json({
       page,
+      pageSize,
       totalPages,
       totalResults,
       results: results.slice((page - 1) * pageSize, page * pageSize),
@@ -54,8 +77,12 @@ artistRoutes.get('/:id', async (req, res, next) => {
   const musicbrainz = new MusicBrainz();
   const theAudioDb = new TheAudioDb();
 
-  const page = Number(req.query.page) || 1;
-  const pageSize = Number(req.query.pageSize) || 20;
+  const page = parsePositiveInt(req.query.page, 1);
+  const pageSize = parsePositiveInt(
+    req.query.pageSize,
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE
+  );
   const initialItemsPerType = 20;
   const albumType = req.query.albumType as string | undefined;
 

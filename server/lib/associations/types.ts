@@ -49,7 +49,7 @@ export interface AssociationOptions {
 }
 
 export const ASSOCIATION_LIMITS = {
-  MAX_SAME_MEDIUM: 20,
+  MAX_SAME_MEDIUM: 60,
   MAX_CAST: 8,
   MAX_CREW_SOUND: 4,
   MAX_CROSS_EDGES: 12,
