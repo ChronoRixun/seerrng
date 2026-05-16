@@ -287,4 +287,92 @@ describe('Books and Music discover parity', () => {
       .should('include', 'mediaType=music');
     cy.location('search').should('include', 'mediaType=music');
   });
+
+  it('shows book and music download status in manage slideovers', () => {
+    const downloadStatus = {
+      mediaType: 'book',
+      externalId: 101,
+      size: 100,
+      sizeLeft: 40,
+      status: 'downloading',
+      timeLeft: '10:00',
+      estimatedCompletionTime: '2026-05-16T12:00:00.000Z',
+      title: 'Managed Book',
+      downloadId: 'book-download',
+    };
+
+    cy.intercept('GET', '/api/v1/book/OLMANAGEW', {
+      id: 'OLMANAGEW',
+      mediaType: 'book',
+      title: 'Managed Book',
+      author: 'Manage Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/3-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+      mediaInfo: {
+        id: 9001,
+        status: 3,
+        serviceUrl: 'http://bookshelf.local/book/1',
+        audiobookServiceUrl: 'http://bookshelf.local/audio/1',
+        downloadStatus: [downloadStatus],
+        audiobookDownloadStatus: [
+          {
+            ...downloadStatus,
+            externalId: 102,
+            title: 'Managed Book Audio',
+            downloadId: 'audio-download',
+          },
+        ],
+        requests: [],
+        issues: [],
+      },
+    }).as('getManagedBook');
+
+    cy.visit('/book/OLMANAGEW?manage=1');
+    cy.wait('@getManagedBook');
+    cy.contains('Manage book').should('be.visible');
+    cy.contains('Downloads').should('be.visible');
+    cy.contains('Managed Book (Ebook)').should('be.visible');
+    cy.contains('Managed Book (Audiobook)').should('be.visible');
+    cy.contains('Open Ebook in Bookshelf').should('be.visible');
+    cy.get('body').type('{esc}');
+
+    cy.intercept('GET', '/api/v1/music/55555555-5555-5555-5555-555555555555', {
+      id: '55555555-5555-5555-5555-555555555555',
+      mbId: '55555555-5555-5555-5555-555555555555',
+      mediaType: 'album',
+      title: 'Managed Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      artist: {
+        id: '66666666-6666-6666-6666-666666666666',
+        name: 'Manage Artist',
+      },
+      tracks: [],
+      mediaInfo: {
+        id: 9002,
+        status: 3,
+        serviceUrl: 'http://lidarr.local/album/1',
+        downloadStatus: [
+          {
+            ...downloadStatus,
+            mediaType: 'music',
+            externalId: 201,
+            title: 'Managed Album',
+            downloadId: 'music-download',
+          },
+        ],
+        requests: [],
+        issues: [],
+      },
+    }).as('getManagedMusic');
+
+    cy.visit('/music/55555555-5555-5555-5555-555555555555?manage=1');
+    cy.wait('@getManagedMusic');
+    cy.contains('Manage music').should('be.visible');
+    cy.contains('Downloads').should('be.visible');
+    cy.contains('Managed Album').should('be.visible');
+    cy.contains('Open in Lidarr').should('be.visible');
+  });
 });

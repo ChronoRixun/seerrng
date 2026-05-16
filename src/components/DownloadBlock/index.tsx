@@ -78,6 +78,7 @@ const DownloadBlock = ({
             ? intl.formatMessage(messages.estimatedtime, {
                 time: (
                   <FormattedRelativeTime
+                    key="estimated-completion-time"
                     value={Math.floor(
                       (new Date(
                         downloadItem.estimatedCompletionTime

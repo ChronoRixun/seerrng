@@ -2,6 +2,7 @@ import BlocklistBlock from '@app/components/BlocklistBlock';
 import Button from '@app/components/Common/Button';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
 import SlideOver from '@app/components/Common/SlideOver';
+import DownloadBlock from '@app/components/DownloadBlock';
 import IssueBlock from '@app/components/IssueBlock';
 import RequestBlock from '@app/components/RequestBlock';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -30,6 +31,7 @@ const messages = defineMessages('components.ExternalMediaManageSlideOver', {
   manageModalRequests: 'Requests',
   manageModalMedia: 'Media',
   manageModalAdvanced: 'Advanced',
+  downloadstatus: 'Downloads',
   manageModalClearMedia: 'Clear Data',
   manageModalClearMediaWarning:
     '* This will irreversibly remove all local data for this {mediaType}, including any requests.',
@@ -46,6 +48,17 @@ const messages = defineMessages('components.ExternalMediaManageSlideOver', {
   music: 'music',
   book: 'book',
 });
+
+const filterDuplicateDownloads = (
+  items: NonNullable<MusicDetails['mediaInfo']>['downloadStatus'] = []
+) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.downloadId)) return false;
+    seen.add(item.downloadId);
+    return true;
+  });
+};
 
 type ExternalMediaManageSlideOverProps = {
   show?: boolean;
@@ -106,6 +119,11 @@ const ExternalMediaManageSlideOver = ({
     mediaInfo?.requests?.filter(
       (request) => request.status !== MediaRequestStatus.DECLINED
     ) ?? [];
+  const downloads = filterDuplicateDownloads(mediaInfo?.downloadStatus);
+  const audiobookDownloads =
+    mediaType === MediaType.BOOK
+      ? filterDuplicateDownloads(mediaInfo?.audiobookDownloadStatus)
+      : [];
   const openIssues =
     mediaInfo?.issues?.filter((issue) => issue.status === IssueStatus.OPEN) ??
     [];
@@ -161,6 +179,59 @@ const ExternalMediaManageSlideOver = ({
       subText={data.title}
     >
       <div className="space-y-6">
+        {(downloads.length > 0 || audiobookDownloads.length > 0) && (
+          <div>
+            <h3 className="mb-2 text-xl font-bold">
+              {intl.formatMessage(messages.downloadstatus)}
+            </h3>
+            <div className="overflow-hidden rounded-md border border-gray-700 shadow">
+              <ul>
+                {downloads.map((status, index) => (
+                  <li
+                    key={`external-dl-status-${status.externalId}-${index}`}
+                    className="border-b border-gray-700 last:border-b-0"
+                  >
+                    <DownloadBlock
+                      downloadItem={{
+                        ...status,
+                        title:
+                          mediaType === MediaType.BOOK
+                            ? `${data.title} (${intl.formatMessage(
+                                messages.ebook
+                              )})`
+                            : status.title,
+                      }}
+                      title={
+                        mediaType === MediaType.BOOK
+                          ? `${data.title} (${intl.formatMessage(messages.ebook)})`
+                          : data.title
+                      }
+                    />
+                  </li>
+                ))}
+                {audiobookDownloads.map((status, index) => (
+                  <li
+                    key={`external-audio-dl-status-${status.externalId}-${index}`}
+                    className="border-b border-gray-700 last:border-b-0"
+                  >
+                    <DownloadBlock
+                      downloadItem={{
+                        ...status,
+                        title: `${data.title} (${intl.formatMessage(
+                          messages.audiobook
+                        )})`,
+                      }}
+                      title={`${data.title} (${intl.formatMessage(
+                        messages.audiobook
+                      )})`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         {hasPermission([Permission.MANAGE_ISSUES, Permission.VIEW_ISSUES], {
           type: 'or',
         }) &&
