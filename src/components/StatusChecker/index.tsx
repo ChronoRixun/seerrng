@@ -42,6 +42,13 @@ const StatusChecker = () => {
     return null;
   }
 
+  const clientCommitTag = process.env.commitTag;
+  const hasBuildCommitMismatch =
+    !!data.commitTag &&
+    !!clientCommitTag &&
+    data.commitTag !== 'local' &&
+    data.commitTag !== clientCommitTag;
+
   return (
     <Transition
       as={Fragment}
@@ -55,7 +62,7 @@ const StatusChecker = () => {
       show={
         !alertDismissed &&
         ((hasPermission(Permission.ADMIN) && data.restartRequired) ||
-          data.commitTag !== process.env.commitTag)
+          hasBuildCommitMismatch)
       }
     >
       {hasPermission(Permission.ADMIN) && data.restartRequired ? (
@@ -64,7 +71,7 @@ const StatusChecker = () => {
           backgroundClickable={false}
           onOk={() => {
             setAlertDismissed(true);
-            if (data.commitTag !== process.env.commitTag) {
+            if (hasBuildCommitMismatch) {
               location.reload();
             }
           }}
