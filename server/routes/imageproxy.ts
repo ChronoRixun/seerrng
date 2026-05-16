@@ -1,3 +1,4 @@
+import { enqueueImageCacheWarm } from '@server/lib/imageCacheWarmer';
 import ImageProxy from '@server/lib/imageproxy';
 import logger from '@server/logger';
 import { Router } from 'express';
@@ -126,6 +127,16 @@ router.get<{
     });
     res.status(500).send();
   }
+});
+
+router.post('/warm', (req, res) => {
+  const urls = Array.isArray(req.body?.urls) ? req.body.urls : [];
+
+  enqueueImageCacheWarm(
+    urls.filter((url: unknown): url is string => typeof url === 'string')
+  );
+
+  return res.status(202).json({ accepted: true });
 });
 
 export default router;

@@ -17,7 +17,8 @@ export type AvailableCacheIds =
   | 'listenbrainz'
   | 'coverartarchive'
   | 'openlibrary'
-  | 'tadb';
+  | 'tadb'
+  | 'associations';
 
 const DEFAULT_TTL = 300;
 const DEFAULT_CHECK_PERIOD = 120;
@@ -101,6 +102,10 @@ class CacheManager {
       checkPeriod: 60 * 30,
     }),
     tadb: new Cache('tadb', 'TheAudioDB API', {
+      stdTtl: 43200,
+      checkPeriod: 60 * 30,
+    }),
+    associations: new Cache('associations', 'Cross-Medium Associations', {
       stdTtl: 43200,
       checkPeriod: 60 * 30,
     }),

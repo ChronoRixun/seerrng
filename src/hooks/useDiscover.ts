@@ -6,6 +6,7 @@ import { useIntl } from 'react-intl';
 import useSWRInfinite from 'swr/infinite';
 import useSettings from './useSettings';
 import { Permission, useUser } from './useUser';
+import useWarmImageCache from './useWarmImageCache';
 
 export interface BaseSearchResult<T> {
   page: number;
@@ -222,6 +223,7 @@ const useDiscover = <
     settings.currentSettings.hideAvailable,
     settings.currentSettings.hideBlocklisted,
   ]);
+  useWarmImageCache(titles);
 
   const isEmpty = !isLoadingInitialData && titles?.length === 0;
   const isReachingEnd =

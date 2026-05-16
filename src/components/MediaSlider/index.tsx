@@ -4,6 +4,7 @@ import Slider from '@app/components/Slider';
 import TitleCard from '@app/components/TitleCard';
 import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
+import useWarmImageCache from '@app/hooks/useWarmImageCache';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
 import { Permission } from '@server/lib/permissions';
@@ -128,6 +129,7 @@ const MediaSlider = ({
     settings.currentSettings.hideAvailable,
     settings.currentSettings.hideBlocklisted,
   ]);
+  useWarmImageCache(titles);
 
   const shouldLoadMore =
     titles.length < 24 &&
