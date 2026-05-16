@@ -1,7 +1,7 @@
 import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
-import ImageProxy from '@server/lib/imageproxy';
+import ImageProxy, { sendImage } from '@server/lib/imageproxy';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { getAppVersion } from '@server/utils/appVersion';
@@ -95,6 +95,10 @@ export async function checkAvatarChanged(
       gravatarUrl(user.email || 'none', { default: 'mm', size: 200 })
     );
 
+    if (!imageData.imageBuffer) {
+      return { changed: false, etag: user.avatarETag ?? undefined };
+    }
+
     const newHash = computeImageHash(imageData.imageBuffer);
 
     const hasChanged = user.avatarETag !== newHash;
@@ -162,16 +166,13 @@ router.get('/:jellyfinUserId', async (req, res) => {
       return res.status(304).end();
     }
 
-    res.writeHead(200, {
+    await sendImage(res, imageData, {
       'Content-Type': `image/${imageData.meta.extension}`,
-      'Content-Length': imageData.imageBuffer.length,
       'Cache-Control': `public, max-age=${imageData.meta.curRevalidate}`,
       ETag: `"${imageData.meta.etag}"`,
       'OS-Cache-Key': imageData.meta.cacheKey,
       'OS-Cache-Status': imageData.meta.cacheMiss ? 'MISS' : 'HIT',
     });
-
-    res.end(imageData.imageBuffer);
   } catch (e) {
     logger.error('Failed to proxy avatar image', {
       errorMessage: e.message,

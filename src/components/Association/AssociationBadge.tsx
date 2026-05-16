@@ -1,10 +1,11 @@
 import type { AssociationMediaType } from '@app/hooks/useAssociations';
 import { toAssociationMediaType } from '@app/hooks/useAssociations';
 import defineMessages from '@app/utils/defineMessages';
-import { Popover, Transition } from '@headlessui/react';
 import { ShareIcon } from '@heroicons/react/24/solid';
-import { Fragment } from 'react';
+import { useMemo, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { useIntl } from 'react-intl';
+import { usePopperTooltip } from 'react-popper-tooltip';
 import AssociationPopover from './AssociationPopover';
 
 const messages = defineMessages('components.Association', {
@@ -24,8 +25,22 @@ const AssociationBadge = ({
   variant = 'card',
 }: AssociationBadgeProps) => {
   const intl = useIntl();
+  const [isOpen, setIsOpen] = useState(false);
   const associationType: AssociationMediaType | null =
     toAssociationMediaType(mediaType);
+  const popperConfig = useMemo(
+    () => ({
+      interactive: true,
+      offset: [0, 8] as [number, number],
+      placement: 'auto-end' as const,
+      trigger: 'click' as const,
+      visible: isOpen,
+      onVisibleChange: setIsOpen,
+    }),
+    [isOpen]
+  );
+  const { getTooltipProps, setTooltipRef, setTriggerRef } =
+    usePopperTooltip(popperConfig);
 
   if (!associationType || id == null || id === '') {
     return null;
@@ -37,9 +52,9 @@ const AssociationBadge = ({
       : 'flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-gray-300 ring-1 ring-gray-700 transition hover:text-white';
 
   return (
-    <Popover className="relative">
-      <Popover.Button
-        as="button"
+    <>
+      <button
+        ref={setTriggerRef}
         type="button"
         data-testid="association-badge"
         aria-label={intl.formatMessage(messages.associations)}
@@ -48,28 +63,27 @@ const AssociationBadge = ({
         onClick={(e: React.MouseEvent) => {
           e.preventDefault();
           e.stopPropagation();
+          setIsOpen((open) => !open);
         }}
       >
         <ShareIcon className="h-4 w-4" />
-      </Popover.Button>
-      <Transition
-        as={Fragment}
-        enter="transition ease-out duration-150"
-        enterFrom="opacity-0 translate-y-1"
-        enterTo="opacity-100 translate-y-0"
-        leave="transition ease-in duration-100"
-        leaveFrom="opacity-100 translate-y-0"
-        leaveTo="opacity-0 translate-y-1"
-      >
-        <Popover.Panel
-          className="absolute right-0 z-50 mt-2 max-w-[calc(100vw-2rem)] sm:max-w-none"
-          data-testid="association-popover"
-          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        >
-          <AssociationPopover mediaType={associationType} id={id} />
-        </Popover.Panel>
-      </Transition>
-    </Popover>
+      </button>
+      {isOpen &&
+        ReactDOM.createPortal(
+          <div
+            ref={setTooltipRef}
+            {...getTooltipProps({
+              className: 'z-50 max-w-[calc(100vw-2rem)] sm:max-w-none',
+            })}
+            data-testid="association-popover"
+            role="dialog"
+            aria-label={intl.formatMessage(messages.associations)}
+          >
+            <AssociationPopover mediaType={associationType} id={id} />
+          </div>,
+          document.body
+        )}
+    </>
   );
 };
 

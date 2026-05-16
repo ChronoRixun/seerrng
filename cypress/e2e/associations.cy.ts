@@ -43,6 +43,31 @@ describe('Associations', () => {
       '/api/v1/association/book/OLROOTW?includeWeak=true',
       associationGraph
     ).as('getAssociations');
+    cy.intercept(
+      'GET',
+      '/api/v1/association/book/OLRELATEDW?includeWeak=true',
+      {
+        root: {
+          mediaType: 'book',
+          id: 'OLRELATEDW',
+          title: 'Related Book',
+        },
+        edges: [
+          {
+            weight: 0.8,
+            type: 'shared-person',
+            reason: 'Also by Book Author',
+            node: {
+              id: 'OLROOTW',
+              mediaType: 'book',
+              title: 'Root Book',
+              author: 'Book Author',
+              posterPath: 'https://covers.openlibrary.org/b/id/789-L.jpg',
+            },
+          },
+        ],
+      }
+    ).as('getRelatedAssociations');
   });
 
   it('shows same-author book associations in the wall view', () => {
@@ -57,6 +82,33 @@ describe('Associations', () => {
         'be.visible'
       );
     });
+    cy.contains('[data-testid=title-card-title]', 'Related Book')
+      .parents('.space-y-2')
+      .contains('Explore connections')
+      .should('have.attr', 'href', '/associations/book/OLRELATEDW')
+      .and('be.visible');
+  });
+
+  it('opens card association popovers outside clipped title cards', () => {
+    cy.visit('/associations/book/OLROOTW');
+    cy.wait('@getAssociations');
+
+    cy.get('[data-testid=association-wall]').within(() => {
+      cy.get('[data-testid=title-card]').last().trigger('mouseover');
+      cy.get('[data-testid=association-badge]').last().click();
+    });
+
+    cy.wait('@getRelatedAssociations');
+    cy.get('body > [data-testid=association-popover]')
+      .should('be.visible')
+      .and(($popover) => {
+        expect($popover[0].getBoundingClientRect().width).to.be.greaterThan(
+          250
+        );
+      });
+    cy.contains('[data-testid=association-popover]', 'Root Book').should(
+      'be.visible'
+    );
   });
 
   it('renders the graph view with a legend and recenterable nodes', () => {

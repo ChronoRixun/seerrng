@@ -379,9 +379,9 @@ export const getAssociations = async (
   user: User | undefined,
   opts: AssociationOptions = {}
 ): Promise<AssociationGraph> => {
-  const cacheKey = `assoc:${mediaType}:${id}:${opts.includeWeak ? 1 : 0}:${
-    opts.limit ?? ASSOCIATION_LIMITS.DEFAULT_TOTAL
-  }`;
+  const cacheKey = `assoc:${user?.id ?? 'anon'}:${mediaType}:${id}:${
+    opts.includeWeak ? 1 : 0
+  }:${opts.limit ?? ASSOCIATION_LIMITS.DEFAULT_TOTAL}`;
   const cached = cache.data.get<AssociationGraph>(cacheKey);
   if (cached) {
     return cached;

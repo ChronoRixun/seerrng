@@ -5,7 +5,9 @@ import ExternalAPI from '@server/api/externalapi';
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import TmdbPersonMapper from '@server/api/themoviedb/personMapper';
 import { getRepository } from '@server/datasource';
+import Media from '@server/entity/Media';
 import MetadataArtist from '@server/entity/MetadataArtist';
+import type { User } from '@server/entity/User';
 import cacheManager from '@server/lib/cache';
 import { getSettings } from '@server/lib/settings';
 import { checkUser } from '@server/middleware/auth';
@@ -70,7 +72,7 @@ const mockPrivate = (
   implementation: (...args: unknown[]) => unknown
 ) => mockPrivateMethod.call(mock, object, methodName, implementation);
 
-async function login() {
+async function login(email = 'admin@seerr.dev') {
   const settings = getSettings();
   const priorLocalLogin = settings.main.localLogin;
   settings.main.localLogin = true;
@@ -79,7 +81,7 @@ async function login() {
     const agent = request.agent(app);
     const res = await agent
       .post('/auth/local')
-      .send({ email: 'admin@seerr.dev', password: 'test1234' });
+      .send({ email, password: 'test1234' });
     assert.strictEqual(res.status, 200);
     return agent;
   } finally {
@@ -568,6 +570,30 @@ describe('GET /association/:mediaType/:id', () => {
     assert.ok(
       fullRes.body.edges.length > limitedRes.body.edges.length,
       'expected full response not to reuse the limited cache entry'
+    );
+  });
+
+  it('keeps association cache entries separate by user', async () => {
+    mockTmdb();
+    mock.method(Media, 'getRelatedMedia', async (user: User | undefined) => [
+      {
+        id: user?.id ?? 0,
+        tmdbId: 200,
+        mediaType: 'movie',
+        status: user?.id ?? 0,
+      } as Media,
+    ]);
+
+    const adminAgent = await login('admin@seerr.dev');
+    const friendAgent = await login('friend@seerr.dev');
+    const adminRes = await adminAgent.get('/association/movie/123');
+    const friendRes = await friendAgent.get('/association/movie/123');
+
+    assert.strictEqual(adminRes.status, 200);
+    assert.strictEqual(friendRes.status, 200);
+    assert.notStrictEqual(
+      adminRes.body.edges[0].node.mediaInfo.id,
+      friendRes.body.edges[0].node.mediaInfo.id
     );
   });
 });

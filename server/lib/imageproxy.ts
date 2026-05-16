@@ -3,26 +3,148 @@ import { requestInterceptorFunction } from '@server/utils/customProxyAgent';
 import axios, { type AxiosInstance } from 'axios';
 import rateLimit, { type rateLimitOptions } from 'axios-rate-limit';
 import { createHash } from 'crypto';
-import { promises } from 'fs';
+import type { Response } from 'express';
+import { createReadStream, promises } from 'fs';
 import mime from 'mime/lite';
 import path, { join } from 'path';
+import sharp from 'sharp';
+
+type ImageMeta = {
+  revalidateAfter: number;
+  curRevalidate: number;
+  isStale: boolean;
+  etag: string;
+  extension: string | null;
+  cacheKey: string;
+  cacheMiss: boolean;
+};
 
 type ImageResponse = {
-  meta: {
-    revalidateAfter: number;
-    curRevalidate: number;
-    isStale: boolean;
-    etag: string;
-    extension: string | null;
-    cacheKey: string;
-    cacheMiss: boolean;
-  };
-  imageBuffer: Buffer;
+  meta: ImageMeta;
+  // Exactly one of these is set: a buffer for hot/just-fetched images,
+  // or a file path to stream from disk for larger cold images.
+  imageBuffer?: Buffer;
+  filePath?: string;
 };
 
 const baseCacheDirectory = process.env.CONFIG_DIRECTORY
   ? `${process.env.CONFIG_DIRECTORY}/cache/images`
   : path.join(__dirname, '../../config/cache/images');
+
+const WEBP_QUALITY = 80;
+const LRU_MAX_BYTES = 64 * 1024 * 1024;
+const LRU_MAX_ENTRIES = 512;
+// Images larger than this are streamed from disk instead of held in memory.
+const LRU_ITEM_MAX_BYTES = 1.5 * 1024 * 1024;
+const TRANSCODABLE_CONTENT_TYPE = /^image\/(jpe?g|png|webp|avif|bmp|tiff)$/i;
+
+type LruEntry = {
+  buffer: Buffer;
+  maxAge: number;
+  expireAt: number;
+  etag: string;
+  extension: string | null;
+};
+
+/**
+ * Process-wide LRU of decoded image bytes, shared across all ImageProxy
+ * instances. Cache keys are SHA-256 hashes that already incorporate the
+ * proxy key + version + path, so they are globally unique.
+ */
+class ImageMemoryCache {
+  private map = new Map<string, LruEntry>();
+  private bytes = 0;
+
+  public get(key: string): LruEntry | undefined {
+    const entry = this.map.get(key);
+    if (!entry) {
+      return undefined;
+    }
+    // Mark as most-recently-used.
+    this.map.delete(key);
+    this.map.set(key, entry);
+    return entry;
+  }
+
+  public set(key: string, entry: LruEntry): void {
+    const existing = this.map.get(key);
+    if (existing) {
+      this.bytes -= existing.buffer.length;
+      this.map.delete(key);
+    }
+    this.map.set(key, entry);
+    this.bytes += entry.buffer.length;
+    this.evict();
+  }
+
+  public delete(key: string): void {
+    const existing = this.map.get(key);
+    if (existing) {
+      this.bytes -= existing.buffer.length;
+      this.map.delete(key);
+    }
+  }
+
+  public clear(): void {
+    this.map.clear();
+    this.bytes = 0;
+  }
+
+  private evict(): void {
+    while (
+      (this.bytes > LRU_MAX_BYTES || this.map.size > LRU_MAX_ENTRIES) &&
+      this.map.size > 0
+    ) {
+      const oldestKey = this.map.keys().next().value as string;
+      const oldest = this.map.get(oldestKey);
+      if (oldest) {
+        this.bytes -= oldest.buffer.length;
+      }
+      this.map.delete(oldestKey);
+    }
+  }
+}
+
+const memoryCache = new ImageMemoryCache();
+
+/**
+ * Writes the response headers and body for a cached image, streaming from
+ * disk when the payload was not small enough to keep in memory.
+ */
+export async function sendImage(
+  res: Response,
+  imageData: ImageResponse,
+  headers: Record<string, string | number>
+): Promise<void> {
+  if (imageData.imageBuffer) {
+    res.writeHead(200, {
+      ...headers,
+      'Content-Length': imageData.imageBuffer.length,
+    });
+    res.end(imageData.imageBuffer);
+    return;
+  }
+
+  if (!imageData.filePath) {
+    res.status(500).end();
+    return;
+  }
+
+  try {
+    const { size } = await promises.stat(imageData.filePath);
+    res.writeHead(200, { ...headers, 'Content-Length': size });
+    const stream = createReadStream(imageData.filePath);
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.status(500);
+      }
+      res.destroy();
+    });
+    stream.pipe(res);
+  } catch {
+    res.status(500).end();
+  }
+}
 
 class ImageProxy {
   public static async clearCache(key: string) {
@@ -62,6 +184,10 @@ class ImageProxy {
         message: e.message,
       });
     }
+
+    // On-disk entries were pruned; drop the in-memory mirror so stale
+    // bytes are not served from RAM.
+    memoryCache.clear();
 
     logger.info(`Cleared ${deletedImages} stale image(s) from cache '${key}'`, {
       label: 'Image Cache',
@@ -141,7 +267,9 @@ class ImageProxy {
       headers?: Record<string, string>;
     } = {}
   ) {
-    this.cacheVersion = options.cacheVersion ?? 1;
+    // Bumped to 2 when WebP transcoding was introduced so previously
+    // cached originals are re-fetched and re-encoded.
+    this.cacheVersion = options.cacheVersion ?? 2;
     this.key = key;
     this.axios = axios.create({
       baseURL: baseUrl,
@@ -189,6 +317,8 @@ class ImageProxy {
     const cacheKey = this.getCacheKey(path);
     const directory = join(this.getCacheDirectory(), cacheKey);
 
+    memoryCache.delete(cacheKey);
+
     try {
       await promises.access(directory);
     } catch (e) {
@@ -226,29 +356,59 @@ class ImageProxy {
   }
 
   private async get(cacheKey: string): Promise<ImageResponse | null> {
+    const now = Date.now();
+
+    const cached = memoryCache.get(cacheKey);
+    if (cached) {
+      return {
+        meta: {
+          curRevalidate: cached.maxAge,
+          revalidateAfter: cached.expireAt,
+          isStale: now > cached.expireAt,
+          etag: cached.etag,
+          extension: cached.extension,
+          cacheKey,
+          cacheMiss: false,
+        },
+        imageBuffer: cached.buffer,
+      };
+    }
+
     try {
       const directory = join(this.getCacheDirectory(), cacheKey);
       const files = await promises.readdir(directory);
-      const now = Date.now();
 
       for (const file of files) {
         const [maxAgeSt, expireAtSt, etag, extension] = file.split('.');
-        const buffer = await promises.readFile(join(directory, file));
+        const filePath = join(directory, file);
         const expireAt = Number(expireAtSt);
         const maxAge = Number(maxAgeSt);
 
-        return {
-          meta: {
-            curRevalidate: maxAge,
-            revalidateAfter: maxAge * 1000 + now,
-            isStale: now > expireAt,
+        const meta: ImageMeta = {
+          curRevalidate: maxAge,
+          revalidateAfter: maxAge * 1000 + now,
+          isStale: now > expireAt,
+          etag,
+          extension,
+          cacheKey,
+          cacheMiss: false,
+        };
+
+        const { size } = await promises.stat(filePath);
+
+        if (size <= LRU_ITEM_MAX_BYTES) {
+          const buffer = await promises.readFile(filePath);
+          memoryCache.set(cacheKey, {
+            buffer,
+            maxAge,
+            expireAt,
             etag,
             extension,
-            cacheKey,
-            cacheMiss: false,
-          },
-          imageBuffer: buffer,
-        };
+          });
+          return { meta, imageBuffer: buffer };
+        }
+
+        return { meta, filePath };
       }
     } catch {
       // No files. Treat as empty cache.
@@ -267,10 +427,24 @@ class ImageProxy {
         responseType: 'arraybuffer',
       });
 
-      const buffer = Buffer.from(response.data, 'binary');
+      let buffer = Buffer.from(response.data, 'binary');
 
       const contentType = response.headers['content-type'] || '';
-      const extension = mime.getExtension(contentType) || '';
+      let extension = mime.getExtension(contentType) || '';
+
+      if (TRANSCODABLE_CONTENT_TYPE.test(contentType)) {
+        try {
+          buffer = await sharp(buffer, { animated: true })
+            .webp({ quality: WEBP_QUALITY })
+            .toBuffer();
+          extension = 'webp';
+        } catch (e) {
+          logger.debug('Failed to transcode image to WebP; storing original', {
+            label: 'Image Cache',
+            errorMessage: e.message,
+          });
+        }
+      }
 
       let maxAge = Number(
         (response.headers['cache-control'] ?? '0').split('=')[1]
@@ -288,6 +462,18 @@ class ImageProxy {
         buffer,
         etag
       );
+
+      if (buffer.length <= LRU_ITEM_MAX_BYTES) {
+        memoryCache.set(cacheKey, {
+          buffer,
+          maxAge,
+          expireAt,
+          etag,
+          extension,
+        });
+      } else {
+        memoryCache.delete(cacheKey);
+      }
 
       return {
         meta: {

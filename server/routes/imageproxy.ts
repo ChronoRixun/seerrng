@@ -1,5 +1,5 @@
 import { enqueueImageCacheWarm } from '@server/lib/imageCacheWarmer';
-import ImageProxy from '@server/lib/imageproxy';
+import ImageProxy, { sendImage } from '@server/lib/imageproxy';
 import logger from '@server/logger';
 import { Router } from 'express';
 
@@ -111,15 +111,12 @@ router.get<{
       return;
     }
 
-    res.writeHead(200, {
+    await sendImage(res, imageData, {
       'Content-Type': `image/${imageData.meta.extension}`,
-      'Content-Length': imageData.imageBuffer.length,
       'Cache-Control': `public, max-age=${imageData.meta.curRevalidate}`,
       'OS-Cache-Key': imageData.meta.cacheKey,
       'OS-Cache-Status': imageData.meta.cacheMiss ? 'MISS' : 'HIT',
     });
-
-    res.end(imageData.imageBuffer);
   } catch (e) {
     logger.error('Failed to proxy image', {
       imagePath,

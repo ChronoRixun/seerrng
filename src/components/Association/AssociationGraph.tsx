@@ -1,3 +1,4 @@
+import CachedImage from '@app/components/Common/CachedImage';
 import type {
   AssociationEdgeType,
   AssociationGraph as GraphData,
@@ -15,7 +16,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useRouter } from 'next/router';
 import { useMemo, useState } from 'react';
-import { nodeHref, nodeImage, nodeTitle } from './helpers';
+import { nodeHref, nodeImage, nodeImageType, nodeTitle } from './helpers';
 
 const EDGE_COLOR: Record<AssociationEdgeType, string> = {
   similar: '#6366f1',
@@ -48,6 +49,7 @@ interface GraphNodeData {
   mediaType?: string;
   reason?: string;
   weight?: number;
+  imageType?: 'tmdb' | 'music' | 'book';
   [key: string]: unknown;
 }
 
@@ -63,8 +65,15 @@ const GraphNode = ({ data }: { data: GraphNodeData }) => (
   >
     <Handle type="target" position={Position.Top} className="!bg-gray-500" />
     {data.image && (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={data.image} alt="" className="h-20 w-14 rounded object-cover" />
+      <div className="relative h-20 w-14 overflow-hidden rounded bg-gray-800">
+        <CachedImage
+          type={data.imageType ?? 'tmdb'}
+          src={data.image}
+          alt=""
+          fill
+          style={{ objectFit: 'cover' }}
+        />
+      </div>
     )}
     <span className="line-clamp-2 text-xs font-semibold text-white">
       {data.label}
@@ -72,11 +81,6 @@ const GraphNode = ({ data }: { data: GraphNodeData }) => (
     {!data.isRoot && data.mediaType && (
       <span className="rounded-full bg-black/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-current">
         {data.mediaType === 'album' ? 'music' : data.mediaType}
-      </span>
-    )}
-    {data.reason && (
-      <span className="line-clamp-2 text-[10px] leading-tight text-gray-300">
-        {data.reason}
       </span>
     )}
     <Handle type="source" position={Position.Bottom} className="!bg-gray-500" />
@@ -88,6 +92,7 @@ const nodeTypes = { assoc: GraphNode };
 const AssociationGraph = ({ graph }: { graph: GraphData }) => {
   const router = useRouter();
   const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
+  const [selected, setSelected] = useState<GraphNodeData | null>(null);
 
   const { nodes, edges } = useMemo(() => {
     const rfNodes: Node[] = [];
@@ -101,7 +106,13 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
       draggable: false,
     });
 
-    const ring = graph.edges.slice(0, 24);
+    const grouped = [
+      ...graph.edges.filter((edge) => edge.type === 'shared-person'),
+      ...graph.edges.filter((edge) => edge.type === 'similar'),
+      ...graph.edges.filter((edge) => edge.type === 'recommended'),
+      ...graph.edges.filter((edge) => edge.type === 'shared-genre'),
+    ];
+    const ring = grouped.slice(0, 24);
     const radius = ring.length > 12 ? 430 : 340;
     ring.forEach((edge, i) => {
       const angle = (i / ring.length) * 2 * Math.PI;
@@ -116,6 +127,7 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
         data: {
           label: nodeTitle(edge.node),
           image: nodeImage(edge.node),
+          imageType: nodeImageType(edge.node),
           href: nodeHref(edge.node),
           mediaType: edge.node.mediaType,
           reason: edge.reason,
@@ -128,9 +140,6 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
         target: id,
         animated: edge.type === 'shared-person',
         style: { stroke: EDGE_COLOR[edge.type], strokeWidth: 2 },
-        label: edge.reason,
-        labelStyle: { fill: '#cbd5e1', fontSize: 10 },
-        labelBgStyle: { fill: '#1f2937' },
       });
     });
 
@@ -166,6 +175,7 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
         onInit={setFlow}
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_, node) => {
+          setSelected(node.data as GraphNodeData);
           flow?.setCenter(node.position.x + 80, node.position.y + 80, {
             zoom: 1,
             duration: 500,
@@ -181,6 +191,44 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
         <Background color="#374151" gap={24} />
         <Controls showInteractive={false} />
       </ReactFlow>
+      {selected && !selected.isRoot && (
+        <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-gray-700 bg-gray-950/95 p-3 text-sm shadow-xl sm:left-auto sm:w-80">
+          <div className="flex items-start gap-3">
+            {selected.image && (
+              <div className="relative h-16 w-11 flex-shrink-0 overflow-hidden rounded bg-gray-800">
+                <CachedImage
+                  type={selected.imageType ?? 'tmdb'}
+                  src={selected.image}
+                  alt=""
+                  fill
+                  style={{ objectFit: 'cover' }}
+                />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="line-clamp-2 font-semibold text-white">
+                {selected.label}
+              </div>
+              {selected.reason && (
+                <div className="mt-1 text-gray-300">{selected.reason}</div>
+              )}
+              {selected.href && (
+                <button
+                  type="button"
+                  className="mt-2 text-sm font-semibold text-indigo-400 transition hover:text-indigo-300"
+                  onClick={() => {
+                    if (selected.href) {
+                      router.push(selected.href);
+                    }
+                  }}
+                >
+                  Open details
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

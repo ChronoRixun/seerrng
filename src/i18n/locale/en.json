@@ -34,6 +34,7 @@
   "components.Association.recommended": "Recommended",
   "components.Association.screen": "On screen",
   "components.Association.similar": "More like this",
+  "components.Association.similarartists": "Similar artists",
   "components.Association.title": "Associations for {title}",
   "components.Association.wallview": "List",
   "components.AuthorDetails.bibliography": "Bibliography",

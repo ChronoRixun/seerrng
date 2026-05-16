@@ -31,6 +31,7 @@ import { initializeDnsCache } from '@server/utils/dnsCache';
 import restartFlag from '@server/utils/restartFlag';
 import { getClientIp } from '@supercharge/request-ip';
 import axios from 'axios';
+import compression from 'compression';
 import { TypeormStore } from 'connect-typeorm/out';
 import cookieParser from 'cookie-parser';
 import type { NextFunction, Request, Response } from 'express';
@@ -165,6 +166,7 @@ app
     if (settings.network.trustProxy) {
       server.enable('trust proxy');
     }
+    server.use(compression());
     server.use(cookieParser());
     server.use(express.json());
     server.use(express.urlencoded({ extended: true }));
@@ -236,18 +238,6 @@ app
         validateRequests: true,
       })
     );
-    /**
-     * This is a workaround to convert dates to strings before they are validated by
-     * OpenAPI validator. Otherwise, they are treated as objects instead of strings
-     * and response validation will fail
-     */
-    server.use((_req, res, next) => {
-      const original = res.json;
-      res.json = function jsonp(json) {
-        return original.call(this, JSON.parse(JSON.stringify(json)));
-      };
-      next();
-    });
     server.use('/api/v1', routes);
 
     // Do not set cookies so CDNs can cache them
