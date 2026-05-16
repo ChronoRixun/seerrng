@@ -86,3 +86,6 @@ config/cache
 
 # Docker compose
 compose.override.yaml
+
+# temporary Cypress scratch specs
+cypress/e2e/*.temp.cy.ts
