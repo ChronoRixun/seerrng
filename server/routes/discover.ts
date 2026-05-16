@@ -1102,73 +1102,85 @@ discoverRoutes.get<Record<string, unknown>, WatchlistResponse>(
       select: ['id', 'plexToken'],
     });
 
-    if (activeUser && !activeUser?.plexToken) {
-      // Non-Plex users can only see their own watchlist
-      const [result, total] = await getRepository(Watchlist).findAndCount({
-        where: { requestedBy: { id: activeUser?.id } },
-        relations: {
-          /*requestedBy: true,media:true*/
-        },
-        // loadRelationIds: true,
-        take: itemsPerPage,
-        skip: offset,
+    if (activeUser) {
+      const watchlistRepository = getRepository(Watchlist);
+      const localWhere = { requestedBy: { id: activeUser.id } };
+      const localTotal = await watchlistRepository.count({
+        where: localWhere,
       });
-      if (total) {
+      const localTake = Math.max(
+        itemsPerPage - Math.max(offset - localTotal, 0),
+        0
+      );
+      const localSkip = Math.min(offset, localTotal);
+      const localResult =
+        localTake > 0
+          ? await watchlistRepository.find({
+              where: localWhere,
+              take: localTake,
+              skip: localSkip,
+            })
+          : [];
+      const localItems = localResult
+        .filter(
+          (item) =>
+            ((item.mediaType === MediaType.MOVIE ||
+              item.mediaType === MediaType.TV) &&
+              item.tmdbId !== undefined) ||
+            (item.mediaType === MediaType.MUSIC && !!item.mbId) ||
+            (item.mediaType === MediaType.BOOK && !!item.externalId)
+        )
+        .map((item) => ({
+          id: item.id,
+          ratingKey:
+            item.ratingKey ||
+            item.mbId ||
+            item.externalId ||
+            item.id.toString(),
+          tmdbId: item.tmdbId,
+          mbId: item.mbId,
+          externalId: item.externalId,
+          mediaType: item.mediaType as 'movie' | 'tv' | 'music' | 'book',
+          title: item.title,
+        }));
+
+      if (!activeUser.plexToken) {
         return res.json({
           page: page,
-          totalPages: Math.ceil(total / itemsPerPage),
-          totalResults: total,
-          results: result
-            .filter(
-              (item) =>
-                ((item.mediaType === MediaType.MOVIE ||
-                  item.mediaType === MediaType.TV) &&
-                  item.tmdbId !== undefined) ||
-                (item.mediaType === MediaType.MUSIC && !!item.mbId) ||
-                (item.mediaType === MediaType.BOOK && !!item.externalId)
-            )
-            .map((item) => ({
-              id: item.id,
-              ratingKey:
-                item.ratingKey ||
-                item.mbId ||
-                item.externalId ||
-                item.id.toString(),
-              tmdbId: item.tmdbId,
-              mbId: item.mbId,
-              externalId: item.externalId,
-              mediaType: item.mediaType as 'movie' | 'tv' | 'music' | 'book',
-              title: item.title,
-            })),
+          totalPages: Math.max(Math.ceil(localTotal / itemsPerPage), 1),
+          totalResults: localTotal,
+          results: localItems,
         });
       }
-    }
-    if (!activeUser?.plexToken) {
-      // We will just return an empty array if the user has no Plex token
+
+      const plexTV = new PlexTvAPI(activeUser.plexToken);
+      const plexOffset = Math.max(offset - localTotal, 0);
+      const plexWatchlist = await plexTV.getWatchlist({ offset: plexOffset });
+      const remainingItems = itemsPerPage - localItems.length;
+      const plexItems = plexWatchlist.items
+        .slice(0, remainingItems)
+        .map((item) => ({
+          id: item.tmdbId,
+          ratingKey: item.ratingKey,
+          title: item.title,
+          mediaType: item.type === 'show' ? MediaType.TV : MediaType.MOVIE,
+          tmdbId: item.tmdbId,
+        }));
+      const totalResults = localTotal + plexWatchlist.totalSize;
+
       return res.json({
-        page: 1,
-        totalPages: 1,
-        totalResults: 0,
-        results: [],
+        page,
+        totalPages: Math.max(Math.ceil(totalResults / itemsPerPage), 1),
+        totalResults,
+        results: [...localItems, ...plexItems],
       });
     }
 
-    // List watchlist from Plex
-    const plexTV = new PlexTvAPI(activeUser.plexToken);
-
-    const watchlist = await plexTV.getWatchlist({ offset });
-
     return res.json({
-      page,
-      totalPages: Math.ceil(watchlist.totalSize / itemsPerPage),
-      totalResults: watchlist.totalSize,
-      results: watchlist.items.map((item) => ({
-        id: item.tmdbId,
-        ratingKey: item.ratingKey,
-        title: item.title,
-        mediaType: item.type === 'show' ? MediaType.TV : MediaType.MOVIE,
-        tmdbId: item.tmdbId,
-      })),
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
     });
   }
 );

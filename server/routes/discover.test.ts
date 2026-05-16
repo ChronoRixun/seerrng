@@ -3,6 +3,7 @@ import { afterEach, before, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
+import PlexTvAPI from '@server/api/plextv';
 import { MediaType } from '@server/constants/media';
 import { UserType } from '@server/constants/user';
 import { getRepository } from '@server/datasource';
@@ -312,5 +313,98 @@ describe('GET /discover/books', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.results[0].mediaInfo.watchlists.length, 0);
+  });
+});
+
+describe('GET /discover/watchlist', () => {
+  it('includes local book and music watchlist items for Plex users', async () => {
+    mock.method(PlexTvAPI.prototype, 'getWatchlist', async () => ({
+      totalSize: 1,
+      items: [
+        {
+          ratingKey: 'plex-movie-key',
+          title: 'Plex Movie',
+          type: 'movie',
+          tmdbId: 123,
+        },
+      ],
+    }));
+
+    const userRepository = getRepository(User);
+    const admin = await userRepository.findOneOrFail({
+      where: { email: 'admin@seerr.dev' },
+    });
+    admin.plexToken = 'plex-token';
+    await userRepository.save(admin);
+
+    const musicMedia = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mbId: 'profile-release-group',
+        mediaType: MediaType.MUSIC,
+      })
+    );
+    await getRepository(Watchlist).save([
+      new Watchlist({
+        mbId: 'profile-release-group',
+        mediaType: MediaType.MUSIC,
+        title: 'Profile Album',
+        requestedBy: admin,
+        media: musicMedia,
+      }),
+      new Watchlist({
+        externalId: 'OLprofileW',
+        mediaType: MediaType.BOOK,
+        title: 'Profile Book',
+        requestedBy: admin,
+        media: await getRepository(Media).save(
+          new Media({
+            tmdbId: 0,
+            mediaType: MediaType.BOOK,
+          })
+        ),
+      }),
+    ]);
+
+    const agent = await login();
+    const res = await agent.get('/discover/watchlist');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map(
+        (item: {
+          title: string;
+          mediaType: string;
+          mbId?: string;
+          externalId?: string;
+        }) => ({
+          title: item.title,
+          mediaType: item.mediaType,
+          mbId: item.mbId,
+          externalId: item.externalId,
+        })
+      ),
+      [
+        {
+          title: 'Profile Album',
+          mediaType: 'music',
+          mbId: 'profile-release-group',
+          externalId: null,
+        },
+        {
+          title: 'Profile Book',
+          mediaType: 'book',
+          mbId: null,
+          externalId: 'OLprofileW',
+        },
+        {
+          title: 'Plex Movie',
+          mediaType: 'movie',
+          mbId: undefined,
+          externalId: undefined,
+        },
+      ]
+    );
+    assert.strictEqual(res.body.totalResults, 3);
   });
 });
