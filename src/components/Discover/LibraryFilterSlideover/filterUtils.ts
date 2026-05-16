@@ -21,7 +21,7 @@ export const countLibraryFilters = ({
     count += 1;
   }
 
-  if (type === 'book' && subject && subject !== 'fiction') {
+  if (type === 'book' && subject) {
     count += 1;
   }
 

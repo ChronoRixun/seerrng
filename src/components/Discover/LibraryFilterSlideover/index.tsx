@@ -20,6 +20,7 @@ const messages = defineMessages('components.Discover.LibraryFilterSlideover', {
   genre: 'Genre',
   releaseType: 'Release Type',
   clearfilters: 'Clear Active Filters',
+  allRecommended: 'All Recommended',
   fiction: 'Fiction',
   fantasy: 'Fantasy',
   scienceFiction: 'Science Fiction',
@@ -73,7 +74,7 @@ const LibraryFilterSlideover = ({
   onClose,
   type,
   query = '',
-  subject = 'fiction',
+  subject = '',
   days = '14',
   genre,
   releaseType,
@@ -166,6 +167,9 @@ const LibraryFilterSlideover = ({
                   })
                 }
               >
+                <option value="">
+                  {intl.formatMessage(messages.allRecommended)}
+                </option>
                 <option value="fiction">
                   {intl.formatMessage(messages.fiction)}
                 </option>

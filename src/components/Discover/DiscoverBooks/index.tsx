@@ -18,6 +18,7 @@ const messages = defineMessages('components.Discover.DiscoverBooks', {
   books: 'Books',
   activefilters:
     '{count, plural, one {# Active Filter} other {# Active Filters}}',
+  allRecommended: 'All Recommended',
   fiction: 'Fiction',
   fantasy: 'Fantasy',
   scienceFiction: 'Science Fiction',
@@ -45,7 +46,7 @@ const DiscoverBooks = () => {
   const query =
     typeof router.query.query === 'string' ? router.query.query : '';
   const subject =
-    typeof router.query.subject === 'string' ? router.query.subject : 'fiction';
+    typeof router.query.subject === 'string' ? router.query.subject : '';
   const sortBy =
     typeof router.query.sortBy === 'string' ? router.query.sortBy : 'ranked';
   const [showFilters, setShowFilters] = useState(false);
@@ -59,11 +60,7 @@ const DiscoverBooks = () => {
     error,
   } = useDiscover<BookResult>(
     '/api/v1/discover/books',
-    query
-      ? { query, sortBy }
-      : subject === 'fiction' && sortBy === 'ranked'
-        ? { sortBy }
-        : { subject, sortBy }
+    query ? { query, sortBy } : subject ? { subject, sortBy } : { sortBy }
   );
 
   if (error) {
@@ -93,6 +90,9 @@ const DiscoverBooks = () => {
                 })
               }
             >
+              <option value="">
+                {intl.formatMessage(messages.allRecommended)}
+              </option>
               <option value="fiction">
                 {intl.formatMessage(messages.fiction)}
               </option>
