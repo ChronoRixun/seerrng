@@ -327,6 +327,235 @@ describe('Books and Music discover parity', () => {
     cy.get('[data-testid=modal-cancel-button]').should('contain', 'Cancel');
   });
 
+  it('loads an author bibliography modal and submits a bulk book request summary', () => {
+    cy.intercept('GET', '/api/v1/user/*/quota', unrestrictedQuota);
+    cy.intercept('GET', '/api/v1/service/readarr', [
+      {
+        id: 1,
+        name: 'Bookshelf Ebooks',
+        is4k: false,
+        isDefault: true,
+        activeProfileId: 1,
+        activeMetadataProfileId: 1,
+        activeDirectory: '/books',
+        activeTags: [],
+        serviceType: 'ebook',
+      },
+      {
+        id: 2,
+        name: 'Bookshelf Audio',
+        is4k: false,
+        isDefault: true,
+        activeProfileId: 1,
+        activeMetadataProfileId: 1,
+        activeDirectory: '/audiobooks',
+        activeTags: [],
+        serviceType: 'audiobook',
+      },
+    ]);
+    cy.intercept('GET', '/api/v1/service/readarr/1', {
+      ...serviceDetails('Bookshelf Ebooks', '/books'),
+      server: {
+        ...serviceDetails('Bookshelf Ebooks', '/books').server,
+        serviceType: 'ebook',
+      },
+    });
+    cy.intercept('GET', '/api/v1/service/readarr/2', {
+      ...serviceDetails('Bookshelf Audio', '/audiobooks'),
+      server: {
+        ...serviceDetails('Bookshelf Audio', '/audiobooks').server,
+        id: 2,
+        serviceType: 'audiobook',
+      },
+    });
+    cy.intercept('GET', '/api/v1/author/OLBULKA', {
+      id: 'OLBULKA',
+      name: 'Bulk Author',
+      biography: 'Author biography',
+      works: [
+        {
+          id: 'OLBULK1W',
+          mediaType: 'book',
+          title: 'Requestable Work',
+          author: 'Bulk Author',
+          authorId: 'OLBULKA',
+          firstPublishYear: 2020,
+          posterPath: 'https://covers.openlibrary.org/b/id/12-L.jpg',
+          isbn13: '9780000000012',
+        },
+        {
+          id: 'OLBULK2W',
+          mediaType: 'book',
+          title: 'Already Requested Work',
+          author: 'Bulk Author',
+          authorId: 'OLBULKA',
+          firstPublishYear: 2021,
+          mediaInfo: {
+            id: 1202,
+            status: 2,
+            requests: [{ id: 1, status: 1, bookFormat: 'ebook' }],
+            watchlists: [],
+            downloadStatus: [],
+            audiobookDownloadStatus: [],
+          },
+        },
+        {
+          id: 'OLBULK3W',
+          mediaType: 'book',
+          title: 'Second Requestable Work',
+          author: 'Bulk Author',
+          authorId: 'OLBULKA',
+          firstPublishYear: 2022,
+        },
+      ],
+      pagination: {
+        limit: 20,
+        offset: 0,
+        totalItems: 3,
+      },
+    }).as('getBulkAuthor');
+    cy.intercept('POST', '/api/v1/request/bulk', {
+      statusCode: 207,
+      body: {
+        created: [{ id: 201 }, { id: 202 }],
+        skipped: [
+          {
+            mediaId: 'OLBULK2W',
+            title: 'Already Requested Work',
+            reason: 'Request for this book already exists.',
+          },
+        ],
+        failed: [
+          {
+            mediaId: 'OLBULK3W',
+            title: 'Second Requestable Work',
+            reason: 'No default Bookshelf server configured.',
+          },
+        ],
+      },
+    }).as('bulkBookRequest');
+
+    cy.visit('/author/OLBULKA');
+    cy.wait('@getBulkAuthor');
+    cy.contains('h1', 'Bulk Author').should('be.visible');
+    cy.contains('button', 'Request Bibliography').click();
+    cy.contains('[data-testid=modal-title]', 'Request Bibliography').should(
+      'be.visible'
+    );
+    cy.contains('Requestable Work').should('be.visible');
+    cy.contains('Already Requested Work').should('be.visible');
+    cy.contains('Already Requested Work')
+      .parents('tr')
+      .contains('Requested')
+      .should('be.visible');
+    cy.contains('label', 'Format').find('select').select('Audiobook');
+    cy.get('[data-testid=modal-ok-button]').should(
+      'contain',
+      'Request 2 Items'
+    );
+    cy.get('[data-testid=modal-ok-button]').click();
+    cy.wait('@bulkBookRequest')
+      .its('request.body.items')
+      .should('have.length', 2);
+    cy.contains('2 created, 1 skipped, 1 failed.').should('be.visible');
+    cy.contains('Second Requestable Work').should('be.visible');
+    cy.contains('No default Bookshelf server configured.').should('be.visible');
+  });
+
+  it('defaults artist discography bulk requests to albums and switches release types', () => {
+    cy.intercept('GET', '/api/v1/user/*/quota', unrestrictedQuota);
+    cy.intercept('GET', '/api/v1/service/lidarr', [
+      {
+        id: 1,
+        name: 'Lidarr',
+        is4k: false,
+        isDefault: true,
+        activeProfileId: 1,
+        activeMetadataProfileId: 1,
+        activeDirectory: '/music',
+        activeTags: [],
+      },
+    ]);
+    cy.intercept('GET', '/api/v1/service/lidarr/1', {
+      ...serviceDetails('Lidarr', '/music'),
+    });
+    cy.intercept('GET', '/api/v1/artist/bulk-artist*', (req) => {
+      if (req.query.albumType === 'Single') {
+        req.reply({
+          artist: { name: 'Bulk Artist' },
+          releaseGroups: [
+            {
+              id: 'single-one',
+              mediaType: 'album',
+              title: 'Single One',
+              'primary-type': 'Single',
+              'first-release-date': '2021-01-01',
+              'artist-credit': [{ name: 'Bulk Artist' }],
+            },
+          ],
+          typeCounts: { Album: 2, Single: 1 },
+        });
+        return;
+      }
+
+      req.reply({
+        artist: { name: 'Bulk Artist', area: 'US' },
+        releaseGroups: [
+          {
+            id: 'album-one',
+            mediaType: 'album',
+            title: 'Album One',
+            'primary-type': 'Album',
+            'first-release-date': '2020-01-01',
+            'artist-credit': [{ name: 'Bulk Artist' }],
+          },
+          {
+            id: 'album-owned',
+            mediaType: 'album',
+            title: 'Owned Album',
+            'primary-type': 'Album',
+            'first-release-date': '2019-01-01',
+            'artist-credit': [{ name: 'Bulk Artist' }],
+            mediaInfo: {
+              id: 1302,
+              status: 5,
+              requests: [],
+              watchlists: [],
+              downloadStatus: [],
+            },
+          },
+        ],
+        typeCounts: { Album: 2, Single: 1 },
+      });
+    }).as('getBulkArtist');
+    cy.intercept('POST', '/api/v1/request/bulk', {
+      statusCode: 207,
+      body: {
+        created: [{ id: 301 }],
+        skipped: [],
+        failed: [],
+      },
+    }).as('bulkMusicRequest');
+
+    cy.visit('/artist/bulk-artist');
+    cy.wait('@getBulkArtist');
+    cy.contains('h1', 'Bulk Artist').should('be.visible');
+    cy.contains('button', 'Request Discography').click();
+    cy.contains('[data-testid=modal-title]', 'Request Discography').should(
+      'be.visible'
+    );
+    cy.contains('Album One').should('be.visible');
+    cy.contains('Owned Album').parents('tr').contains('Requested');
+    cy.get('[data-testid=modal-ok-button]').should('contain', 'Request 1 Item');
+    cy.contains('label', 'Release Type').find('select').select('Single');
+    cy.contains('Single One').should('be.visible');
+    cy.get('[data-testid=modal-ok-button]').click();
+    cy.wait('@bulkMusicRequest')
+      .its('request.body.items.0.mediaId')
+      .should('eq', 'single-one');
+    cy.contains('1 created, 0 skipped, 0 failed.').should('be.visible');
+  });
+
   it('keeps book and music service setup modals aligned with video services', () => {
     cy.intercept('GET', '/api/v1/settings/radarr', []);
     cy.intercept('GET', '/api/v1/settings/sonarr', []);

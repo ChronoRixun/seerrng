@@ -1,4 +1,4 @@
-const bookSortOptions = new Set([
+export const bookSortOptions = new Set([
   'ranked',
   'newest',
   'oldest',
@@ -7,7 +7,7 @@ const bookSortOptions = new Set([
   'editions',
 ]);
 
-const musicSortOptions = new Set([
+export const musicSortOptions = new Set([
   'ranked',
   'popular.week',
   'popular.month',
