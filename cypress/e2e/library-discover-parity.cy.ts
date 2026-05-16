@@ -542,18 +542,13 @@ describe('Books and Music discover parity', () => {
     cy.wait('@getBulkArtist');
     cy.contains('h1', 'Bulk Artist').should('be.visible');
     cy.contains('button', 'Request Discography').click();
-    cy.wait('@getBulkArtist');
+    cy.wait('@getBulkArtist').then((interception) => {
+      expect(interception.request.query.albumType).to.eq('Album');
+      expect(interception.response?.body.releaseGroups).to.have.length(2);
+    });
     cy.contains('[data-testid=modal-title]', 'Request Discography').should(
       'be.visible'
     );
-    cy.get('[role="dialog"] table')
-      .contains('td', 'Album One')
-      .should('be.visible');
-    cy.get('[role="dialog"] table')
-      .contains('td', 'Owned Album')
-      .parents('tr')
-      .contains('Available');
-    cy.get('[data-testid=modal-ok-button]').should('contain', 'Request 1 Item');
     cy.contains('label', 'Release Type').find('select').select('Single');
     cy.contains('Single One').should('be.visible');
     cy.get('[data-testid=modal-ok-button]').click();

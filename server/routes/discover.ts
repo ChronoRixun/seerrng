@@ -9,7 +9,11 @@ import type { OpenLibrarySearchDoc } from '@server/api/openlibrary';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb, { SortOptionsIterable } from '@server/api/themoviedb';
-import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
+import type {
+  TmdbKeyword,
+  TmdbMovieResult,
+  TmdbTvResult,
+} from '@server/api/themoviedb/interfaces';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import type MediaEntity from '@server/entity/Media';
@@ -170,6 +174,39 @@ const scoreBookDoc = (doc: OpenLibrarySearchDoc): number => {
     metadataScore
   );
 };
+
+const scoreTmdbResult = ({
+  popularity,
+  vote_average: voteAverage,
+  vote_count: voteCount,
+  date,
+}: {
+  popularity: number;
+  vote_average: number;
+  vote_count: number;
+  date?: string;
+}): number => {
+  const popularityScore = Math.log10(clampNumber(popularity) + 1) * 24;
+  const voteCountScore = Math.log10(clampNumber(voteCount) + 1) * 20;
+  const voteAverageScore = clampNumber(voteAverage) * 8;
+  const recencyScore = getRecencyScore(date) * 0.5;
+
+  return popularityScore + voteCountScore + voteAverageScore + recencyScore;
+};
+
+const rankTmdbMovieResults = (results: TmdbMovieResult[]): TmdbMovieResult[] =>
+  [...results].sort(
+    (a, b) =>
+      scoreTmdbResult({ ...b, date: b.release_date }) -
+      scoreTmdbResult({ ...a, date: a.release_date })
+  );
+
+const rankTmdbTvResults = (results: TmdbTvResult[]): TmdbTvResult[] =>
+  [...results].sort(
+    (a, b) =>
+      scoreTmdbResult({ ...b, date: b.first_air_date }) -
+      scoreTmdbResult({ ...a, date: a.first_air_date })
+  );
 
 const getBookAuthorDiversityKey = (doc: OpenLibrarySearchDoc): string =>
   doc.author_key?.[0] ?? doc.author_name?.[0] ?? doc.key;
@@ -438,10 +475,13 @@ discoverRoutes.get('/movies', async (req, res, next) => {
       certificationLte: query.certificationLte,
       certificationCountry: query.certificationCountry,
     });
+    const rankedResults = query.sortBy
+      ? data.results
+      : rankTmdbMovieResults(data.results);
 
     const media = await Media.getRelatedMedia(
       req.user,
-      data.results.map((result) => ({
+      rankedResults.map((result) => ({
         tmdbId: result.id,
         mediaType: MediaType.MOVIE,
       }))
@@ -467,7 +507,7 @@ discoverRoutes.get('/movies', async (req, res, next) => {
       totalPages: data.total_pages,
       totalResults: data.total_results,
       keywords: keywordData,
-      results: data.results.map((result) =>
+      results: rankedResults.map((result) =>
         mapMovieResult(
           result,
           media.find(
@@ -746,10 +786,13 @@ discoverRoutes.get('/tv', async (req, res, next) => {
       certificationLte: query.certificationLte,
       certificationCountry: query.certificationCountry,
     });
+    const rankedResults = query.sortBy
+      ? data.results
+      : rankTmdbTvResults(data.results);
 
     const media = await Media.getRelatedMedia(
       req.user,
-      data.results.map((result) => ({
+      rankedResults.map((result) => ({
         tmdbId: result.id,
         mediaType: MediaType.TV,
       }))
@@ -775,7 +818,7 @@ discoverRoutes.get('/tv', async (req, res, next) => {
       totalPages: data.total_pages,
       totalResults: data.total_results,
       keywords: keywordData,
-      results: data.results.map((result) =>
+      results: rankedResults.map((result) =>
         mapTvResult(
           result,
           media.find(

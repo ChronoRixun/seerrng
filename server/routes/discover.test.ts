@@ -95,6 +95,63 @@ async function login() {
 }
 
 describe('GET /discover/movies', () => {
+  it('ranks default movie discovery by quality signals within the TMDB page', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/movie');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: [
+          {
+            id: 1,
+            media_type: 'movie',
+            title: 'Thin Popular Movie',
+            original_title: 'Thin Popular Movie',
+            release_date: '2026-01-01',
+            adult: false,
+            video: false,
+            popularity: 100,
+            poster_path: '/thin.jpg',
+            backdrop_path: '/thin-backdrop.jpg',
+            vote_count: 1,
+            vote_average: 4,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+          {
+            id: 2,
+            media_type: 'movie',
+            title: 'Proven Movie',
+            original_title: 'Proven Movie',
+            release_date: '2025-01-01',
+            adult: false,
+            video: false,
+            popularity: 20,
+            poster_path: '/proven.jpg',
+            backdrop_path: '/proven-backdrop.jpg',
+            vote_count: 1000,
+            vote_average: 8,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+        ],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/movies');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Proven Movie', 'Thin Popular Movie']
+    );
+  });
+
   it('falls back to TMDB popularity sorting when an unsupported movie sort is requested', async () => {
     let callCount = 0;
     mockPrivate(
@@ -124,6 +181,61 @@ describe('GET /discover/movies', () => {
 });
 
 describe('GET /discover/tv', () => {
+  it('ranks default series discovery by quality signals within the TMDB page', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/tv');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: [
+          {
+            id: 1,
+            media_type: 'tv',
+            name: 'Thin Popular Series',
+            original_name: 'Thin Popular Series',
+            origin_country: ['US'],
+            first_air_date: '2026-01-01',
+            popularity: 100,
+            poster_path: '/thin.jpg',
+            backdrop_path: '/thin-backdrop.jpg',
+            vote_count: 1,
+            vote_average: 4,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+          {
+            id: 2,
+            media_type: 'tv',
+            name: 'Proven Series',
+            original_name: 'Proven Series',
+            origin_country: ['US'],
+            first_air_date: '2025-01-01',
+            popularity: 20,
+            poster_path: '/proven.jpg',
+            backdrop_path: '/proven-backdrop.jpg',
+            vote_count: 1000,
+            vote_average: 8,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+        ],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/tv');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { name: string }) => result.name),
+      ['Proven Series', 'Thin Popular Series']
+    );
+  });
+
   it('falls back to TMDB popularity sorting when an unsupported series sort is requested', async () => {
     let callCount = 0;
     mockPrivate(
