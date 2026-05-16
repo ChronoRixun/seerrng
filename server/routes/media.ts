@@ -318,9 +318,26 @@ mediaRoutes.delete(
         }
         await (service as LidarrAPI).removeAlbum(media.externalServiceId);
       } else if (isBook) {
-        const removals: Promise<void>[] = [];
         const removeEbook = bookFormat !== 'audiobook';
         const removeAudiobook = bookFormat !== 'ebook';
+        let removedBookFormat = false;
+
+        const updateBookStatus = async () => {
+          const hasRemainingBookServiceLink =
+            (media.serviceId !== null &&
+              media.serviceId !== undefined &&
+              media.externalServiceId !== null &&
+              media.externalServiceId !== undefined) ||
+            (media.audiobookServiceId !== null &&
+              media.audiobookServiceId !== undefined &&
+              media.audiobookExternalServiceId !== null &&
+              media.audiobookExternalServiceId !== undefined);
+
+          media.status = hasRemainingBookServiceLink
+            ? MediaStatus.PARTIALLY_AVAILABLE
+            : MediaStatus.DELETED;
+          await mediaRepository.save(media);
+        };
 
         if (
           removeEbook &&
@@ -341,7 +358,12 @@ mediaRoutes.delete(
             apiKey: ebookSettings.apiKey,
             url: ReadarrAPI.buildUrl(ebookSettings, '/api/v1'),
           });
-          removals.push(ebookService.removeBook(media.externalServiceId));
+          await ebookService.removeBook(media.externalServiceId);
+          removedBookFormat = true;
+          media.serviceId = null;
+          media.externalServiceId = null;
+          media.externalServiceSlug = null;
+          await updateBookStatus();
         }
 
         if (
@@ -363,27 +385,16 @@ mediaRoutes.delete(
             apiKey: audiobookSettings.apiKey,
             url: ReadarrAPI.buildUrl(audiobookSettings, '/api/v1'),
           });
-          removals.push(
-            audiobookService.removeBook(media.audiobookExternalServiceId)
-          );
-        }
-
-        if (!removals.length) {
-          throw new Error('Bookshelf book ID not found');
-        }
-
-        await Promise.all(removals);
-
-        if (removeEbook) {
-          media.serviceId = null;
-          media.externalServiceId = null;
-          media.externalServiceSlug = null;
-        }
-
-        if (removeAudiobook) {
+          await audiobookService.removeBook(media.audiobookExternalServiceId);
+          removedBookFormat = true;
           media.audiobookServiceId = null;
           media.audiobookExternalServiceId = null;
           media.audiobookExternalServiceSlug = null;
+          await updateBookStatus();
+        }
+
+        if (!removedBookFormat) {
+          throw new Error('Bookshelf book ID not found');
         }
       } else {
         const tmdb = new TheMovieDb();
@@ -396,20 +407,7 @@ mediaRoutes.delete(
       }
 
       if (isBook) {
-        const hasRemainingBookServiceLink =
-          (media.serviceId !== null &&
-            media.serviceId !== undefined &&
-            media.externalServiceId !== null &&
-            media.externalServiceId !== undefined) ||
-          (media.audiobookServiceId !== null &&
-            media.audiobookServiceId !== undefined &&
-            media.audiobookExternalServiceId !== null &&
-            media.audiobookExternalServiceId !== undefined);
-
-        media.status = hasRemainingBookServiceLink
-          ? MediaStatus.PARTIALLY_AVAILABLE
-          : MediaStatus.DELETED;
-        await mediaRepository.save(media);
+        // Book format links are saved as each backend removal succeeds.
       } else if (isMusic) {
         media.status = MediaStatus.DELETED;
         media.resetServiceData();

@@ -58,6 +58,7 @@ before(async () => {
 
 beforeEach(() => {
   removeBookMock.mock.resetCalls();
+  removeBookMock.mock.mockImplementation(async () => undefined);
   const settings = getSettings();
   settings.readarr = [
     {
@@ -144,6 +145,47 @@ describe('DELETE /media/:id/file', () => {
     assert.strictEqual(res.status, 204);
     assert.strictEqual(removeBookMock.mock.callCount(), 1);
     assert.strictEqual(removeBookMock.mock.calls[0].arguments[0], 100);
+
+    const updated = await getRepository(Media).findOneOrFail({
+      where: { id: media.id },
+    });
+    assert.strictEqual(updated.serviceId, null);
+    assert.strictEqual(updated.externalServiceId, null);
+    assert.strictEqual(updated.externalServiceSlug, null);
+    assert.strictEqual(updated.audiobookServiceId, 20);
+    assert.strictEqual(updated.audiobookExternalServiceId, 200);
+    assert.strictEqual(updated.audiobookExternalServiceSlug, 'audiobook-slug');
+    assert.strictEqual(updated.status, MediaStatus.PARTIALLY_AVAILABLE);
+  });
+
+  it('persists successful book format removals when another format fails', async () => {
+    removeBookMock.mock.mockImplementation(async (bookId: number) => {
+      if (bookId === 200) {
+        throw new Error('Audiobook removal failed');
+      }
+    });
+
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+        serviceId: 10,
+        externalServiceId: 100,
+        externalServiceSlug: 'ebook-slug',
+        audiobookServiceId: 20,
+        audiobookExternalServiceId: 200,
+        audiobookExternalServiceSlug: 'audiobook-slug',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.delete(`/media/${media.id}/file?format=both`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(removeBookMock.mock.callCount(), 2);
+    assert.strictEqual(removeBookMock.mock.calls[0].arguments[0], 100);
+    assert.strictEqual(removeBookMock.mock.calls[1].arguments[0], 200);
 
     const updated = await getRepository(Media).findOneOrFail({
       where: { id: media.id },
