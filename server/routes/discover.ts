@@ -8,7 +8,7 @@ import type { MbAlbumResult } from '@server/api/musicbrainz/interfaces';
 import type { OpenLibrarySearchDoc } from '@server/api/openlibrary';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import type { SortOptions } from '@server/api/themoviedb';
-import TheMovieDb from '@server/api/themoviedb';
+import TheMovieDb, { SortOptionsIterable } from '@server/api/themoviedb';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
@@ -353,6 +353,8 @@ const bookSortOptions = new Set([
   'editions',
 ]);
 
+const tmdbSortOptions = new Set<string>(SortOptionsIterable);
+
 const getValidatedSort = (
   sortBy: unknown,
   allowedSortOptions: Set<string>
@@ -360,6 +362,11 @@ const getValidatedSort = (
   typeof sortBy === 'string' && allowedSortOptions.has(sortBy)
     ? sortBy
     : 'ranked';
+
+const getValidatedTmdbSort = (sortBy: unknown): SortOptions =>
+  (typeof sortBy === 'string' && tmdbSortOptions.has(sortBy)
+    ? sortBy
+    : 'popularity.desc') as SortOptions;
 
 const QueryFilterOptions = z.object({
   page: z.coerce.string().optional(),
@@ -405,7 +412,7 @@ discoverRoutes.get('/movies', async (req, res, next) => {
 
     const data = await tmdb.getDiscoverMovies({
       page: Number(query.page),
-      sortBy: query.sortBy as SortOptions,
+      sortBy: getValidatedTmdbSort(query.sortBy),
       language: req.locale ?? query.language,
       originalLanguage: query.language,
       genre: query.genre,
@@ -712,7 +719,7 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     const excludeKeywords = query.excludeKeywords;
     const data = await tmdb.getDiscoverTv({
       page: Number(query.page),
-      sortBy: query.sortBy as SortOptions,
+      sortBy: getValidatedTmdbSort(query.sortBy),
       language: req.locale ?? query.language,
       genre: query.genre,
       network: query.network ? Number(query.network) : undefined,

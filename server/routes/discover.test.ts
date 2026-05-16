@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, before, describe, it, mock } from 'node:test';
 
+import ExternalAPI from '@server/api/externalapi';
 import ListenBrainzAPI from '@server/api/listenbrainz';
 import MusicBrainz from '@server/api/musicbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
@@ -65,6 +66,17 @@ afterEach(() => {
 
 setupTestDb();
 
+const mockPrivateMethod = mock.method as (
+  object: object,
+  methodName: string,
+  implementation: (...args: unknown[]) => unknown
+) => unknown;
+const mockPrivate = (
+  object: object,
+  methodName: string,
+  implementation: (...args: unknown[]) => unknown
+) => mockPrivateMethod.call(mock, object, methodName, implementation);
+
 async function login() {
   const settings = getSettings();
   const priorLocalLogin = settings.main.localLogin;
@@ -81,6 +93,64 @@ async function login() {
     settings.main.localLogin = priorLocalLogin;
   }
 }
+
+describe('GET /discover/movies', () => {
+  it('falls back to TMDB popularity sorting when an unsupported movie sort is requested', async () => {
+    let callCount = 0;
+    mockPrivate(
+      ExternalAPI.prototype,
+      'get',
+      async (endpoint: unknown, options: unknown) => {
+        const requestOptions = options as { params?: { sort_by?: string } };
+        assert.strictEqual(endpoint, '/discover/movie');
+        assert.strictEqual(requestOptions.params?.sort_by, 'popularity.desc');
+        callCount += 1;
+
+        return {
+          page: 1,
+          total_pages: 1,
+          total_results: 0,
+          results: [],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/movies?sortBy=unsupported');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(callCount, 1);
+  });
+});
+
+describe('GET /discover/tv', () => {
+  it('falls back to TMDB popularity sorting when an unsupported series sort is requested', async () => {
+    let callCount = 0;
+    mockPrivate(
+      ExternalAPI.prototype,
+      'get',
+      async (endpoint: unknown, options: unknown) => {
+        const requestOptions = options as { params?: { sort_by?: string } };
+        assert.strictEqual(endpoint, '/discover/tv');
+        assert.strictEqual(requestOptions.params?.sort_by, 'popularity.desc');
+        callCount += 1;
+
+        return {
+          page: 1,
+          total_pages: 1,
+          total_results: 0,
+          results: [],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/tv?sortBy=unsupported');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(callCount, 1);
+  });
+});
 
 describe('GET /discover/music', () => {
   it('returns MusicBrainz album search results when a query is provided', async () => {

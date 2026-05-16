@@ -542,10 +542,13 @@ describe('Books and Music discover parity', () => {
     cy.wait('@getBulkArtist');
     cy.contains('h1', 'Bulk Artist').should('be.visible');
     cy.contains('button', 'Request Discography').click();
+    cy.wait('@getBulkArtist');
     cy.contains('[data-testid=modal-title]', 'Request Discography').should(
       'be.visible'
     );
-    cy.contains('Album One').should('be.visible');
+    cy.get('[role="dialog"] table')
+      .contains('td', 'Album One')
+      .should('be.visible');
     cy.get('[role="dialog"] table')
       .contains('td', 'Owned Album')
       .parents('tr')
