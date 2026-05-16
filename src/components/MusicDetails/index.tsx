@@ -303,7 +303,10 @@ const MusicDetails = () => {
                 />
               )}
           </div>
-          <h1 className="break-words text-3xl font-bold text-white lg:text-5xl">
+          <h1
+            className="break-words text-3xl font-bold text-white lg:text-5xl"
+            data-testid="media-title"
+          >
             {data.title}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">

@@ -45,6 +45,21 @@ describe('Books and Music discover parity', () => {
     cy.get('input[name=book-discover-query]').type('left hand');
     cy.contains('button', 'Search').should('be.visible');
     cy.get('body').type('{esc}');
+    cy.intercept('GET', '/api/v1/book/OL1W', {
+      id: 'OL1W',
+      mediaType: 'book',
+      title: 'Parity Book',
+      author: 'Parity Author',
+      firstPublishYear: 2026,
+      posterPath: 'https://covers.openlibrary.org/b/id/1-L.jpg',
+      isbnCandidates: [],
+      subjects: [],
+    }).as('getBookDetails');
+    cy.get('[data-testid=title-card]').first().trigger('mouseover').click();
+    cy.wait('@getBookDetails');
+    cy.contains('[data-testid=media-title]', 'Parity Book').should(
+      'be.visible'
+    );
 
     cy.intercept('GET', '/api/v1/discover/music*', {
       page: 1,
@@ -71,5 +86,24 @@ describe('Books and Music discover parity', () => {
     cy.contains('Release Window').should('be.visible');
     cy.get('input[name=music-discover-query]').type('kind of blue');
     cy.contains('button', 'Search').should('be.visible');
+    cy.get('body').type('{esc}');
+    cy.intercept('GET', '/api/v1/music/11111111-1111-1111-1111-111111111111', {
+      id: '11111111-1111-1111-1111-111111111111',
+      mbId: '11111111-1111-1111-1111-111111111111',
+      mediaType: 'album',
+      title: 'Parity Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      artist: {
+        id: '22222222-2222-2222-2222-222222222222',
+        name: 'Parity Artist',
+      },
+      tracks: [],
+    }).as('getMusicDetails');
+    cy.get('[data-testid=title-card]').first().trigger('mouseover').click();
+    cy.wait('@getMusicDetails');
+    cy.contains('[data-testid=media-title]', 'Parity Album').should(
+      'be.visible'
+    );
   });
 });
