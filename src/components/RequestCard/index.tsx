@@ -642,9 +642,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 badgeType="danger"
                 href={
                   requestData.type === 'music'
-                    ? `/music/${requestData.media.mbId}`
+                    ? `/music/${requestData.media.mbId}?manage=1`
                     : requestData.type === 'book'
-                      ? `/book/${getBookId(requestData)}`
+                      ? `/book/${getBookId(requestData)}?manage=1`
                       : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
                 }
               >
@@ -656,9 +656,9 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 badgeType="warning"
                 href={
                   requestData.type === 'music'
-                    ? `/music/${requestData.media.mbId}`
+                    ? `/music/${requestData.media.mbId}?manage=1`
                     : requestData.type === 'book'
-                      ? `/book/${getBookId(requestData)}`
+                      ? `/book/${getBookId(requestData)}?manage=1`
                       : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
                 }
               >
