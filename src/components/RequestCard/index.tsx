@@ -114,6 +114,56 @@ const getRequestServiceUrl = (request: NonFunctionProperties<MediaRequest>) => {
   return request.is4k ? request.media.serviceUrl4k : request.media.serviceUrl;
 };
 
+const hasBookFormat = (
+  request: NonFunctionProperties<MediaRequest>,
+  format: 'ebook' | 'audiobook'
+) => {
+  if (format === 'audiobook') {
+    return (
+      request.media.audiobookExternalServiceId !== null &&
+      request.media.audiobookExternalServiceId !== undefined
+    );
+  }
+
+  return (
+    request.media.externalServiceId !== null &&
+    request.media.externalServiceId !== undefined
+  );
+};
+
+const getRequestMediaStatus = (
+  request: NonFunctionProperties<MediaRequest>
+) => {
+  if (request.type !== 'book') {
+    return request.media[request.is4k ? 'status4k' : 'status'];
+  }
+
+  if (request.bookFormat === 'audiobook') {
+    return hasBookFormat(request, 'audiobook')
+      ? MediaStatus.AVAILABLE
+      : request.media.status;
+  }
+
+  if (request.bookFormat === 'both') {
+    const hasEbook = hasBookFormat(request, 'ebook');
+    const hasAudiobook = hasBookFormat(request, 'audiobook');
+
+    if (hasEbook && hasAudiobook) {
+      return MediaStatus.AVAILABLE;
+    }
+
+    if (hasEbook || hasAudiobook) {
+      return MediaStatus.PARTIALLY_AVAILABLE;
+    }
+
+    return request.media.status;
+  }
+
+  return hasBookFormat(request, 'ebook')
+    ? MediaStatus.AVAILABLE
+    : request.media.status;
+};
+
 const RequestCardPlaceholder = () => {
   return (
     <div className="relative w-72 animate-pulse rounded-xl bg-gray-700 p-4 sm:w-96">
@@ -212,11 +262,7 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
                     </Badge>
                   ) : (
                     <StatusBadge
-                      status={
-                        requestData.media[
-                          requestData.is4k ? 'status4k' : 'status'
-                        ]
-                      }
+                      status={getRequestMediaStatus(requestData)}
                       downloadItem={getRequestDownloadStatus(requestData)}
                       title={intl.formatMessage(messages.unknowntitle)}
                       inProgress={
@@ -599,8 +645,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 {intl.formatMessage(globalMessages.failed)}
               </Badge>
             ) : requestData.status === MediaRequestStatus.PENDING &&
-              requestData.media[requestData.is4k ? 'status4k' : 'status'] ===
-                MediaStatus.DELETED ? (
+              getRequestMediaStatus(requestData) === MediaStatus.DELETED ? (
               <Badge
                 badgeType="warning"
                 href={
@@ -615,9 +660,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               </Badge>
             ) : (
               <StatusBadge
-                status={
-                  requestData.media[requestData.is4k ? 'status4k' : 'status']
-                }
+                status={getRequestMediaStatus(requestData)}
                 downloadItem={getRequestDownloadStatus(requestData)}
                 title={
                   isMovie(title)
