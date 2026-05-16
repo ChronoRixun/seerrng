@@ -979,7 +979,7 @@ discoverRoutes.get('/music', async (req, res, next) => {
       freshReleases = await listenBrainz.getFreshReleases({
         days,
         sort: 'release_date',
-        offset: 0,
+        offset: (page - 1) * itemsPerPage,
         count: itemsPerPage,
       });
     } catch (e) {
@@ -995,7 +995,7 @@ discoverRoutes.get('/music', async (req, res, next) => {
       freshReleases = await listenBrainz.getFreshReleases({
         days: 7,
         sort: 'release_date',
-        offset: 0,
+        offset: (page - 1) * itemsPerPage,
         count: itemsPerPage,
       });
     }
@@ -1056,7 +1056,7 @@ discoverRoutes.get('/music', async (req, res, next) => {
 
     return res.status(200).json({
       page,
-      totalPages: 1,
+      totalPages: releases.length === itemsPerPage ? page + 1 : page,
       totalResults: releases.length,
       results,
     });

@@ -60,11 +60,64 @@ interface SearchProvider {
 }
 
 const searchProviders: SearchProvider[] = [];
+const MUSICBRAINZ_MID_PATTERN =
+  /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/;
 
 export const findSearchProvider = (
   query: string
 ): SearchProvider | undefined => {
   return searchProviders.find((provider) => provider.pattern.test(query));
+};
+
+const searchMusicBrainzById = async (
+  id: string
+): Promise<CombinedSearchResponse> => {
+  const musicbrainz = new MusicBrainz();
+
+  try {
+    let releaseGroupId = id;
+    let albumDetails: MbAlbumResult | null = null;
+
+    try {
+      albumDetails = await musicbrainz.getReleaseGroupDetails({
+        releaseGroupId,
+      });
+    } catch {
+      const resolvedReleaseGroupId = await musicbrainz.getReleaseGroup({
+        releaseId: id,
+      });
+
+      if (!resolvedReleaseGroupId) {
+        throw new Error('MusicBrainz ID did not resolve to a release group');
+      }
+
+      releaseGroupId = resolvedReleaseGroupId;
+      albumDetails = await musicbrainz.getReleaseGroupDetails({
+        releaseGroupId,
+      });
+    }
+
+    const result: MbAlbumResult = {
+      ...albumDetails,
+      id: releaseGroupId,
+      media_type: 'album',
+      score: albumDetails.score || 100,
+    };
+
+    return {
+      page: 1,
+      total_pages: 1,
+      total_results: 1,
+      results: [result],
+    };
+  } catch {
+    return {
+      page: 1,
+      total_pages: 1,
+      total_results: 0,
+      results: [],
+    };
+  }
 };
 
 searchProviders.push({
@@ -239,13 +292,24 @@ searchProviders.push({
 });
 
 searchProviders.push({
-  pattern: new RegExp(/(?<=musicbrainz:)/),
+  pattern: new RegExp(`(?<=musicbrainz:)${MUSICBRAINZ_MID_PATTERN.source}`),
+  search: async ({ id }) => searchMusicBrainzById(id),
+});
+
+searchProviders.push({
+  pattern: new RegExp(`(?<=mbid:)${MUSICBRAINZ_MID_PATTERN.source}`),
+  search: async ({ id }) => searchMusicBrainzById(id),
+});
+
+searchProviders.push({
+  pattern: new RegExp(/(?<=musicbrainz:).+/),
   search: async ({ query }) => {
     const musicbrainz = new MusicBrainz();
 
     try {
+      const searchQuery = query?.replace(/^musicbrainz:/i, '') ?? '';
       const albumResults = await musicbrainz.searchAlbum({
-        query: query || '',
+        query: searchQuery,
         limit: 20,
       });
 

@@ -148,41 +148,50 @@ describe('GET /discover/music', () => {
     assert.strictEqual(res.body.results[0].title, 'Kind of Blue');
   });
 
-  it('sorts locally and exposes music discovery as a single page', async () => {
-    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
-      payload: {
-        releases: [
-          {
-            artist_credit_name: 'Later Artist',
-            artist_mbids: ['artist-later'],
-            caa_id: 1,
-            caa_release_mbid: 'release-later',
-            listen_count: 5,
-            release_date: '2026-05-10',
-            release_group_mbid: 'album-later',
-            release_group_primary_type: 'Album',
-            release_group_secondary_type: '',
-            release_mbid: 'release-later',
-            release_name: 'Later Album',
-            release_tags: [],
+  it('pages and sorts music discovery results', async () => {
+    let freshReleaseOffset: number | undefined;
+    mock.method(
+      ListenBrainzAPI.prototype,
+      'getFreshReleases',
+      async ({ offset }: { offset: number }) => {
+        freshReleaseOffset = offset;
+
+        return {
+          payload: {
+            releases: [
+              {
+                artist_credit_name: 'Later Artist',
+                artist_mbids: ['artist-later'],
+                caa_id: 1,
+                caa_release_mbid: 'release-later',
+                listen_count: 5,
+                release_date: '2026-05-10',
+                release_group_mbid: 'album-later',
+                release_group_primary_type: 'Album',
+                release_group_secondary_type: '',
+                release_mbid: 'release-later',
+                release_name: 'Later Album',
+                release_tags: [],
+              },
+              {
+                artist_credit_name: 'Earlier Artist',
+                artist_mbids: ['artist-earlier'],
+                caa_id: 2,
+                caa_release_mbid: 'release-earlier',
+                listen_count: 3,
+                release_date: '2026-05-01',
+                release_group_mbid: 'album-earlier',
+                release_group_primary_type: 'EP',
+                release_group_secondary_type: '',
+                release_mbid: 'release-earlier',
+                release_name: 'Earlier Album',
+                release_tags: [],
+              },
+            ],
           },
-          {
-            artist_credit_name: 'Earlier Artist',
-            artist_mbids: ['artist-earlier'],
-            caa_id: 2,
-            caa_release_mbid: 'release-earlier',
-            listen_count: 3,
-            release_date: '2026-05-01',
-            release_group_mbid: 'album-earlier',
-            release_group_primary_type: 'EP',
-            release_group_secondary_type: '',
-            release_mbid: 'release-earlier',
-            release_name: 'Earlier Album',
-            release_tags: [],
-          },
-        ],
-      },
-    }));
+        };
+      }
+    );
 
     const agent = await login();
     const res = await agent.get(
@@ -190,8 +199,9 @@ describe('GET /discover/music', () => {
     );
 
     assert.strictEqual(res.status, 200);
+    assert.strictEqual(freshReleaseOffset, 40);
     assert.strictEqual(res.body.page, 3);
-    assert.strictEqual(res.body.totalPages, 1);
+    assert.strictEqual(res.body.totalPages, 3);
     assert.strictEqual(res.body.totalResults, 2);
     assert.deepStrictEqual(
       res.body.results.map((result: { title: string }) => result.title),

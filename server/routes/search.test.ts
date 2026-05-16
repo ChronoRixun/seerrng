@@ -407,6 +407,115 @@ describe('GET /search', () => {
     assert.equal(res.body.results[0].isbn13, '9780441478125');
   });
 
+  it('returns a MusicBrainz release group directly by provider ID', async () => {
+    mock.method(MusicBrainz.prototype, 'getReleaseGroupDetails', async () => ({
+      id: '11111111-1111-1111-1111-111111111111',
+      media_type: 'album',
+      title: 'Direct Album',
+      score: 100,
+      'primary-type': 'Album',
+      'primary-type-id': 'f529b476-6e62-324f-b0aa-1f3e33d313fc',
+      'type-id': 'f529b476-6e62-324f-b0aa-1f3e33d313fc',
+      'first-release-date': '2026-05-01',
+      releasedate: '2026-05-01',
+      count: 1,
+      'artist-credit': [
+        {
+          name: 'Direct Artist',
+          artist: {
+            id: '22222222-2222-2222-2222-222222222222',
+            name: 'Direct Artist',
+            'sort-name': 'Artist, Direct',
+          },
+        },
+      ],
+      releases: [],
+      posterPath: undefined,
+    }));
+
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: '11111111-1111-1111-1111-111111111111',
+        status: MediaStatus.PENDING,
+      })
+    );
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.get('/search').query({
+      query: 'musicbrainz:11111111-1111-1111-1111-111111111111',
+    });
+
+    assert.strictEqual(res.status, 200);
+    assert.equal(res.body.totalResults, 1);
+    assert.equal(res.body.results[0].mediaType, 'album');
+    assert.equal(res.body.results[0].id, media.mbId);
+    assert.equal(res.body.results[0].title, 'Direct Album');
+    assert.equal(res.body.results[0].mediaInfo.status, MediaStatus.PENDING);
+  });
+
+  it('resolves a MusicBrainz release ID to its release group in search', async () => {
+    mock.method(
+      MusicBrainz.prototype,
+      'getReleaseGroupDetails',
+      async (options: unknown) => {
+        const { releaseGroupId } = options as { releaseGroupId: string };
+
+        if (releaseGroupId === '33333333-3333-3333-3333-333333333333') {
+          throw new Error('not a release group');
+        }
+
+        assert.equal(
+          releaseGroupId,
+          '44444444-4444-4444-4444-444444444444'
+        );
+
+        return {
+          id: releaseGroupId,
+          media_type: 'album',
+          title: 'Resolved Album',
+          score: 100,
+          'primary-type': 'Album',
+          'primary-type-id': 'f529b476-6e62-324f-b0aa-1f3e33d313fc',
+          'type-id': 'f529b476-6e62-324f-b0aa-1f3e33d313fc',
+          'first-release-date': '2026-05-02',
+          releasedate: '2026-05-02',
+          count: 1,
+          'artist-credit': [
+            {
+              name: 'Resolved Artist',
+              artist: {
+                id: '55555555-5555-5555-5555-555555555555',
+                name: 'Resolved Artist',
+                'sort-name': 'Artist, Resolved',
+              },
+            },
+          ],
+          releases: [],
+          posterPath: undefined,
+        };
+      }
+    );
+    mock.method(MusicBrainz.prototype, 'getReleaseGroup', async () => {
+      return '44444444-4444-4444-4444-444444444444';
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent
+      .get('/search')
+      .query({ query: 'mbid:33333333-3333-3333-3333-333333333333' });
+
+    assert.strictEqual(res.status, 200);
+    assert.equal(res.body.totalResults, 1);
+    assert.equal(res.body.results[0].mediaType, 'album');
+    assert.equal(
+      res.body.results[0].id,
+      '44444444-4444-4444-4444-444444444444'
+    );
+    assert.equal(res.body.results[0].title, 'Resolved Album');
+  });
+
   it('keeps unmapped artists visible and suppresses TMDB-mapped duplicates', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint) => {
       const endpointString = endpoint as string;

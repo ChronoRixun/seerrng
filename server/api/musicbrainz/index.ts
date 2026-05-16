@@ -104,6 +104,37 @@ class MusicBrainz extends ExternalAPI {
     }
   }
 
+  public async getReleaseGroupDetails({
+    releaseGroupId,
+  }: {
+    releaseGroupId: string;
+  }): Promise<MbAlbumDetails> {
+    try {
+      const data = await this.get<Omit<MbAlbumDetails, 'score' | 'media_type'>>(
+        `/release-group/${releaseGroupId}`,
+        {
+          params: {
+            inc: 'artist-credits+releases',
+            fmt: 'json',
+          },
+        },
+        43200
+      );
+
+      return {
+        ...data,
+        score: 100,
+        media_type: 'album',
+      };
+    } catch (e) {
+      throw new Error(
+        `[MusicBrainz] Failed to fetch release group details: ${
+          e instanceof Error ? e.message : 'Unknown error'
+        }`
+      );
+    }
+  }
+
   public async getArtistWikipediaExtract({
     artistMbid,
     language = 'en',
