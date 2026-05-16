@@ -35,7 +35,7 @@ import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
 const messages = defineMessages('components.Discover', {
-  discover: 'Video',
+  discover: 'Discover',
   emptywatchlist: 'Items added to your watchlist will appear here.',
   resettodefault: 'Reset to Default',
   resetwarning:
@@ -46,7 +46,7 @@ const messages = defineMessages('components.Discover', {
   resetsuccess: 'Sucessfully reset discover customization settings.',
   resetfailed:
     'Something went wrong resetting the discover customization settings.',
-  customizediscover: 'Customize Video',
+  customizediscover: 'Customize Discover',
   stopediting: 'Stop Editing',
   createnewslider: 'Create New Slider',
 });
@@ -262,6 +262,26 @@ const Discover = () => {
                 title={intl.formatMessage(sliderTitles.populartv)}
                 url="/api/v1/discover/tv"
                 linkUrl="/discover/tv"
+              />
+            );
+            break;
+          case DiscoverSliderType.POPULAR_MUSIC:
+            sliderComponent = (
+              <MediaSlider
+                sliderKey="popular-music"
+                title={intl.formatMessage(sliderTitles.popularmusic)}
+                url="/api/v1/discover/music"
+                linkUrl="/discover/music"
+              />
+            );
+            break;
+          case DiscoverSliderType.POPULAR_BOOKS:
+            sliderComponent = (
+              <MediaSlider
+                sliderKey="popular-books"
+                title={intl.formatMessage(sliderTitles.popularbooks)}
+                url="/api/v1/discover/books"
+                linkUrl="/discover/books"
               />
             );
             break;

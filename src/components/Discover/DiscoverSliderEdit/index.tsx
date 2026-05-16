@@ -145,6 +145,10 @@ const DiscoverSliderEdit = ({
         return intl.formatMessage(sliderTitles.studios);
       case DiscoverSliderType.POPULAR_TV:
         return intl.formatMessage(sliderTitles.populartv);
+      case DiscoverSliderType.POPULAR_MUSIC:
+        return intl.formatMessage(sliderTitles.popularmusic);
+      case DiscoverSliderType.POPULAR_BOOKS:
+        return intl.formatMessage(sliderTitles.popularbooks);
       case DiscoverSliderType.TV_GENRES:
         return intl.formatMessage(sliderTitles.tvgenres);
       case DiscoverSliderType.UPCOMING_TV:

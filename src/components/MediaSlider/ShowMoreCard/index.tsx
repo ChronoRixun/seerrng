@@ -31,6 +31,27 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
     );
   }
 
+  const getImageProps = (poster: string) => {
+    if (poster.startsWith('https://coverartarchive.org/')) {
+      return { type: 'music' as const, src: poster };
+    }
+
+    if (poster.startsWith('https://covers.openlibrary.org/')) {
+      return { type: 'book' as const, src: poster };
+    }
+
+    return {
+      type: 'tmdb' as const,
+      src: poster.startsWith('http')
+        ? poster
+        : `https://image.tmdb.org/t/p/w300_and_h450_face${poster}`,
+    };
+  };
+
+  const imageProps = posters.map((poster) =>
+    poster ? getImageProps(poster) : undefined
+  );
+
   return (
     <Link
       href={url}
@@ -57,11 +78,11 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
         <div style={{ paddingBottom: '150%' }}>
           <div className="absolute inset-0 flex h-full w-full flex-col items-center p-2">
             <div className="relative z-10 grid h-full w-full grid-cols-2 items-center justify-center gap-2 opacity-30">
-              {posters[0] && (
+              {imageProps[0] && (
                 <div className="">
                   <CachedImage
-                    type="tmdb"
-                    src={`https://image.tmdb.org/t/p/w300_and_h450_face${posters[0]}`}
+                    type={imageProps[0].type}
+                    src={imageProps[0].src}
                     alt=""
                     className="rounded-md"
                     width={300}
@@ -69,11 +90,11 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
                   />
                 </div>
               )}
-              {posters[1] && (
+              {imageProps[1] && (
                 <div className="">
                   <CachedImage
-                    type="tmdb"
-                    src={`https://image.tmdb.org/t/p/w300_and_h450_face${posters[1]}`}
+                    type={imageProps[1].type}
+                    src={imageProps[1].src}
                     alt=""
                     className="rounded-md"
                     width={300}
@@ -81,11 +102,11 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
                   />
                 </div>
               )}
-              {posters[2] && (
+              {imageProps[2] && (
                 <div className="">
                   <CachedImage
-                    type="tmdb"
-                    src={`https://image.tmdb.org/t/p/w300_and_h450_face${posters[2]}`}
+                    type={imageProps[2].type}
+                    src={imageProps[2].src}
                     alt=""
                     className="rounded-md"
                     width={300}
@@ -93,11 +114,11 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
                   />
                 </div>
               )}
-              {posters[3] && (
+              {imageProps[3] && (
                 <div className="">
                   <CachedImage
-                    type="tmdb"
-                    src={`https://image.tmdb.org/t/p/w300_and_h450_face${posters[3]}`}
+                    type={imageProps[3].type}
+                    src={imageProps[3].src}
                     alt=""
                     className="rounded-md"
                     width={300}

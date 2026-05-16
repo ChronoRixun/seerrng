@@ -8,6 +8,8 @@ import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
 import { Permission } from '@server/lib/permissions';
 import type {
+  AlbumResult,
+  BookResult,
   MovieResult,
   PersonResult,
   TvResult,
@@ -20,7 +22,7 @@ interface MixedResult {
   page: number;
   totalResults: number;
   totalPages: number;
-  results: (TvResult | MovieResult | PersonResult)[];
+  results: (TvResult | MovieResult | PersonResult | AlbumResult | BookResult)[];
 }
 
 interface MediaSliderProps {
@@ -62,7 +64,7 @@ const MediaSlider = ({
 
   let titles = (data ?? []).reduce(
     (a, v) => [...a, ...v.results],
-    [] as (MovieResult | TvResult | PersonResult)[]
+    [] as (MovieResult | TvResult | PersonResult | AlbumResult | BookResult)[]
   );
 
   if (settings.currentSettings.hideAvailable) {
@@ -114,8 +116,8 @@ const MediaSlider = ({
     .filter((title) => {
       if (!blocklistVisibility)
         return (
-          (title as TvResult | MovieResult).mediaInfo?.status !==
-          MediaStatus.BLOCKLISTED
+          (title as TvResult | MovieResult | AlbumResult | BookResult).mediaInfo
+            ?.status !== MediaStatus.BLOCKLISTED
         );
       return title;
     })
@@ -159,6 +161,39 @@ const MediaSlider = ({
               personId={title.id}
               name={title.name}
               profilePath={title.profilePath}
+            />
+          );
+        case 'album':
+          return (
+            <TitleCard
+              key={title.id}
+              id={title.id}
+              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+              image={title.posterPath}
+              status={title.mediaInfo?.status}
+              title={title.title}
+              artist={title['artist-credit']?.[0]?.name}
+              type={title['primary-type']}
+              year={
+                title.releaseDate ?? title['first-release-date']?.split('-')[0]
+              }
+              mediaType={title.mediaType}
+              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              needsCoverArt={title.needsCoverArt}
+            />
+          );
+        case 'book':
+          return (
+            <TitleCard
+              key={title.id}
+              id={title.id}
+              image={title.posterPath}
+              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+              status={title.mediaInfo?.status}
+              title={title.title}
+              artist={title.author}
+              year={title.firstPublishYear?.toString()}
+              mediaType={title.mediaType}
             />
           );
       }

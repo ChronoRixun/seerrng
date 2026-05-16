@@ -5,12 +5,12 @@ import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
 import {
+  BookOpenIcon,
   ClockIcon,
   CogIcon,
   ExclamationTriangleIcon,
   EyeSlashIcon,
   FilmIcon,
-  BookOpenIcon,
   MusicalNoteIcon,
   SparklesIcon,
   TvIcon,
@@ -24,7 +24,7 @@ import { Fragment, useEffect, useRef } from 'react';
 import { useIntl } from 'react-intl';
 
 export const menuMessages = defineMessages('components.Layout.Sidebar', {
-  dashboard: 'Video',
+  dashboard: 'Discover',
   browsemovies: 'Movies',
   browsemusic: 'Music',
   browsebooks: 'Books',

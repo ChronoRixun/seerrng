@@ -85,6 +85,22 @@ const getUnknownTotalResults = (
     ? page * itemsPerPage + itemsPerPage + 1
     : (page - 1) * itemsPerPage + resultCount;
 
+const getProviderWindow = (
+  page: number,
+  itemsPerPage: number,
+  windowSize = 100
+) => {
+  const pageOffset = (page - 1) * itemsPerPage;
+  const windowOffset = Math.floor(pageOffset / windowSize) * windowSize;
+
+  return {
+    offset: windowOffset,
+    limit: windowSize,
+    sliceStart: pageOffset - windowOffset,
+    sliceEnd: pageOffset - windowOffset + itemsPerPage,
+  };
+};
+
 const QueryFilterOptions = z.object({
   page: z.coerce.string().optional(),
   sortBy: z.coerce.string().optional(),
@@ -958,11 +974,16 @@ discoverRoutes.get('/music', async (req, res) => {
 
   try {
     if (query) {
-      const albums = await musicBrainz.searchAlbum({
+      const providerWindow = getProviderWindow(page, itemsPerPage);
+      const albumWindow = await musicBrainz.searchAlbum({
         query,
-        limit: itemsPerPage,
-        offset: (page - 1) * itemsPerPage,
+        limit: providerWindow.limit,
+        offset: providerWindow.offset,
       });
+      const albums = albumWindow.slice(
+        providerWindow.sliceStart,
+        providerWindow.sliceEnd
+      );
       const mbIds = albums.map((album) => album.id);
       const relatedMedia = mbIds.length
         ? await getRepository(Media).find({
@@ -990,13 +1011,14 @@ discoverRoutes.get('/music', async (req, res) => {
       });
     }
 
+    const providerWindow = getProviderWindow(page, itemsPerPage);
     let freshReleases;
     try {
       freshReleases = await listenBrainz.getFreshReleases({
         days,
         sort: 'release_date',
-        offset: (page - 1) * itemsPerPage,
-        count: itemsPerPage,
+        offset: providerWindow.offset,
+        count: providerWindow.limit,
       });
     } catch (e) {
       if (days <= 7) {
@@ -1011,8 +1033,8 @@ discoverRoutes.get('/music', async (req, res) => {
       freshReleases = await listenBrainz.getFreshReleases({
         days: 7,
         sort: 'release_date',
-        offset: (page - 1) * itemsPerPage,
-        count: itemsPerPage,
+        offset: providerWindow.offset,
+        count: providerWindow.limit,
       });
     }
     const releases = freshReleases.payload.releases
@@ -1024,7 +1046,7 @@ discoverRoutes.get('/music', async (req, res) => {
           ? left.localeCompare(right)
           : right.localeCompare(left);
       })
-      .slice(0, itemsPerPage);
+      .slice(providerWindow.sliceStart, providerWindow.sliceEnd);
     const mbIds = releases.map((release) => release.release_group_mbid);
     const relatedMedia = mbIds.length
       ? await getRepository(Media).find({

@@ -104,10 +104,39 @@ describe('GET /discover/music', () => {
         offset?: number;
       }) => {
         assert.strictEqual(query, 'kind of blue');
-        assert.strictEqual(limit, 20);
-        assert.strictEqual(offset, 20);
+        assert.strictEqual(limit, 100);
+        assert.strictEqual(offset, 0);
+
+        const fillerAlbum = {
+          id: 'musicbrainz-release-group-filler',
+          score: 10,
+          media_type: 'album',
+          title: 'Filler',
+          'primary-type': 'Album',
+          'primary-type-id': '',
+          'type-id': '',
+          'first-release-date': '1958',
+          'artist-credit': [
+            {
+              name: 'Miles Davis',
+              artist: {
+                id: 'artist-id',
+                name: 'Miles Davis',
+                'sort-name': 'Davis, Miles',
+              },
+            },
+          ],
+          posterPath: undefined,
+          count: 1,
+          releases: [],
+          releasedate: '1958',
+        };
 
         return [
+          ...Array.from({ length: 20 }, (_, index) => ({
+            ...fillerAlbum,
+            id: `${fillerAlbum.id}-${index}`,
+          })),
           {
             id: 'musicbrainz-release-group-id',
             score: 100,
@@ -150,15 +179,31 @@ describe('GET /discover/music', () => {
 
   it('pages and sorts music discovery results', async () => {
     let freshReleaseOffset: number | undefined;
+    let freshReleaseCount: number | undefined;
     mock.method(
       ListenBrainzAPI.prototype,
       'getFreshReleases',
-      async ({ offset }: { offset: number }) => {
+      async ({ offset, count }: { offset: number; count: number }) => {
         freshReleaseOffset = offset;
+        freshReleaseCount = count;
 
         return {
           payload: {
             releases: [
+              ...Array.from({ length: 40 }, (_, index) => ({
+                artist_credit_name: 'Window Filler Artist',
+                artist_mbids: [`artist-filler-${index}`],
+                caa_id: index,
+                caa_release_mbid: `release-filler-${index}`,
+                listen_count: 1,
+                release_date: '2026-04-01',
+                release_group_mbid: `album-filler-${index}`,
+                release_group_primary_type: 'Album',
+                release_group_secondary_type: '',
+                release_mbid: `release-filler-${index}`,
+                release_name: `Filler Album ${index}`,
+                release_tags: [],
+              })),
               {
                 artist_credit_name: 'Later Artist',
                 artist_mbids: ['artist-later'],
@@ -199,7 +244,8 @@ describe('GET /discover/music', () => {
     );
 
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(freshReleaseOffset, 40);
+    assert.strictEqual(freshReleaseOffset, 0);
+    assert.strictEqual(freshReleaseCount, 100);
     assert.strictEqual(res.body.page, 3);
     assert.strictEqual(res.body.totalPages, 3);
     assert.strictEqual(res.body.totalResults, 42);
