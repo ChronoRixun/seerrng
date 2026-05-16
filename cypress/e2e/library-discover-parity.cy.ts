@@ -342,10 +342,9 @@ describe('Books and Music discover parity', () => {
     cy.get('[data-testid=modal-cancel-button]').click();
 
     cy.contains('button', 'Add Bookshelf Server').click();
-    cy.contains(
-      '[data-testid=modal-title]',
-      'Add New Bookshelf Server'
-    ).should('be.visible');
+    cy.contains('[data-testid=modal-title]', 'Add New Bookshelf Server').should(
+      'be.visible'
+    );
     cy.contains(
       'Bookshelf is the recommended book backend. Readarr-compatible servers can also be used.'
     ).should('be.visible');
@@ -372,6 +371,64 @@ describe('Books and Music discover parity', () => {
       .contains('Automatically trigger a search in Bookshelf')
       .should('be.visible');
     cy.get('select[name=activeMetadataProfileId]')
+      .scrollIntoView()
+      .should('be.visible');
+  });
+
+  it('uses medium-specific default service warnings for music and book formats', () => {
+    cy.intercept('GET', '/api/v1/settings/radarr', []);
+    cy.intercept('GET', '/api/v1/settings/sonarr', []);
+    cy.intercept('GET', '/api/v1/settings/lidarr', [
+      {
+        id: 1,
+        name: 'Lidarr',
+        hostname: 'lidarr',
+        port: 8686,
+        useSsl: false,
+        activeProfileName: 'Default',
+        isDefault: false,
+      },
+    ]);
+    cy.intercept('GET', '/api/v1/settings/readarr', [
+      {
+        id: 1,
+        name: 'Bookshelf Ebooks',
+        hostname: 'bookshelf',
+        port: 8787,
+        useSsl: false,
+        activeProfileName: 'Default',
+        isDefault: false,
+        serviceType: 'ebook',
+      },
+      {
+        id: 2,
+        name: 'Bookshelf Audio',
+        hostname: 'bookshelf',
+        port: 8787,
+        useSsl: false,
+        activeProfileName: 'Default',
+        isDefault: false,
+        serviceType: 'audiobook',
+      },
+    ]);
+    cy.intercept('GET', '/api/v1/overrideRule', []);
+
+    cy.visit('/settings/services');
+
+    cy.contains(
+      'At least one Lidarr server must be marked as default in order for music requests to be processed.'
+    )
+      .scrollIntoView()
+      .should('be.visible');
+    cy.contains('series requests').should('not.exist');
+    cy.contains(
+      'At least one Bookshelf server must be marked as default in order for ebook requests to be processed.'
+    )
+      .scrollIntoView()
+      .should('be.visible');
+    cy.contains(
+      'At least one Bookshelf server must be marked as default in order for audiobook requests to be processed.'
+    )
       .scrollIntoView()
       .should('be.visible');
   });
@@ -474,14 +531,12 @@ describe('Books and Music discover parity', () => {
     cy.get('[data-testid=modal-ok-button]').should('contain', 'Blocklist');
     cy.get('[data-testid=modal-cancel-button]').should('contain', 'Cancel');
     cy.get('[data-testid=modal-ok-button]').click();
-    cy.wait('@postBlocklist')
-      .its('request.body')
-      .should('include', {
-        externalId: 'OLBLOCKW',
-        externalProvider: 'openlibrary',
-        mediaType: 'book',
-        title: 'Blocklist Book',
-      });
+    cy.wait('@postBlocklist').its('request.body').should('include', {
+      externalId: 'OLBLOCKW',
+      externalProvider: 'openlibrary',
+      mediaType: 'book',
+      title: 'Blocklist Book',
+    });
 
     cy.intercept('GET', '/api/v1/music/abababab-abab-abab-abab-abababababab', {
       id: 'abababab-abab-abab-abab-abababababab',
@@ -743,23 +798,19 @@ describe('Books and Music discover parity', () => {
       isbnCandidates: [],
       subjects: [],
     });
-    cy.intercept(
-      'GET',
-      '/api/v1/music/dededede-dede-dede-dede-dededededede',
-      {
-        id: 'dededede-dede-dede-dede-dededededede',
-        mbId: 'dededede-dede-dede-dede-dededededede',
-        mediaType: 'album',
-        title: 'Failed Album',
-        type: 'Album',
-        releaseDate: '2026-05-01',
-        artist: {
-          id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
-          name: 'Failed Artist',
-        },
-        tracks: [],
-      }
-    );
+    cy.intercept('GET', '/api/v1/music/dededede-dede-dede-dede-dededededede', {
+      id: 'dededede-dede-dede-dede-dededededede',
+      mbId: 'dededede-dede-dede-dede-dededededede',
+      mediaType: 'album',
+      title: 'Failed Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      artist: {
+        id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        name: 'Failed Artist',
+      },
+      tracks: [],
+    });
 
     cy.visit('/requests?filter=failed&mediaType=all');
     cy.wait('@getFailedRequests');
@@ -890,31 +941,27 @@ describe('Books and Music discover parity', () => {
       ],
     }).as('getWatchlist');
 
-    cy.intercept(
-      'GET',
-      '/api/v1/music/99999999-9999-9999-9999-999999999999',
-      {
-        id: '99999999-9999-9999-9999-999999999999',
-        mbId: '99999999-9999-9999-9999-999999999999',
-        mediaType: 'album',
-        title: 'Resolved Album',
-        type: 'Album',
-        releaseDate: '2026-05-01',
-        posterPath: 'https://coverartarchive.org/release-group/999/front',
-        artist: {
-          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-          name: 'Resolved Artist',
-        },
-        tracks: [],
-        mediaInfo: {
-          id: 9201,
-          status: 2,
-          watchlists: [{}],
-          downloadStatus: [],
-          requests: [],
-        },
-      }
-    ).as('getWatchlistMusic');
+    cy.intercept('GET', '/api/v1/music/99999999-9999-9999-9999-999999999999', {
+      id: '99999999-9999-9999-9999-999999999999',
+      mbId: '99999999-9999-9999-9999-999999999999',
+      mediaType: 'album',
+      title: 'Resolved Album',
+      type: 'Album',
+      releaseDate: '2026-05-01',
+      posterPath: 'https://coverartarchive.org/release-group/999/front',
+      artist: {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        name: 'Resolved Artist',
+      },
+      tracks: [],
+      mediaInfo: {
+        id: 9201,
+        status: 2,
+        watchlists: [{}],
+        downloadStatus: [],
+        requests: [],
+      },
+    }).as('getWatchlistMusic');
     cy.intercept('GET', '/api/v1/book/OLWATCHW', {
       id: 'OLWATCHW',
       mediaType: 'book',

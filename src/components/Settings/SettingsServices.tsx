@@ -45,6 +45,8 @@ const messages = defineMessages('components.Settings', {
     'Configure your {serverType} server(s) below. You can connect multiple {serverType} servers, but only two of them can be marked as defaults (one non-4K and one 4K). Administrators are able to override the server used to process new requests prior to approval.',
   musicServiceSettingsDescription:
     'Configure your {serverType} server(s) below. You can connect multiple {serverType} servers, but only one of them can be marked as default. Administrators are able to override the server used to process new requests prior to approval.',
+  bookServiceSettingsDescription:
+    'Configure your {serverType} server(s) below. You can connect multiple {serverType} servers, with one default for each configured book format. Administrators are able to override the server used to process new requests prior to approval.',
   deleteserverconfirm: 'Are you sure you want to delete this server?',
   ssl: 'SSL',
   default: 'Default',
@@ -68,6 +70,8 @@ const messages = defineMessages('components.Settings', {
   mediaTypeSeries: 'series',
   mediaTypeMusic: 'music',
   mediaTypeBook: 'book',
+  mediaTypeEbook: 'ebook',
+  mediaTypeAudiobook: 'audiobook',
   deleteServer: 'Delete {serverType} Server',
   overrideRules: 'Override Rules',
   overrideRulesDescription:
@@ -168,7 +172,11 @@ const ServerInstance = ({
               </Badge>
             )}
             {isReadarr && serviceFormat && (
-              <Badge badgeType={serviceFormat === 'audiobook' ? 'warning' : 'default'}>
+              <Badge
+                badgeType={
+                  serviceFormat === 'audiobook' ? 'warning' : 'default'
+                }
+              >
                 {intl.formatMessage(
                   serviceFormat === 'audiobook'
                     ? messages.audiobook
@@ -313,6 +321,19 @@ const SettingsServices = () => {
     open: false,
     rule: null,
   });
+  const hasReadarrEbook = readarrData?.some(
+    (readarr) => (readarr.serviceType ?? 'ebook') === 'ebook'
+  );
+  const hasDefaultReadarrEbook = readarrData?.some(
+    (readarr) =>
+      (readarr.serviceType ?? 'ebook') === 'ebook' && readarr.isDefault
+  );
+  const hasReadarrAudiobook = readarrData?.some(
+    (readarr) => readarr.serviceType === 'audiobook'
+  );
+  const hasDefaultReadarrAudiobook = readarrData?.some(
+    (readarr) => readarr.serviceType === 'audiobook' && readarr.isDefault
+  );
 
   const deleteServer = async () => {
     await axios.delete(
@@ -493,7 +514,7 @@ const SettingsServices = () => {
                 <div className="flex h-full w-full items-center justify-center">
                   <Button
                     buttonType="ghost"
-                    className="mt-3 mb-3"
+                    className="mb-3 mt-3"
                     onClick={() =>
                       setEditRadarrModal({ open: true, radarr: null })
                     }
@@ -507,7 +528,7 @@ const SettingsServices = () => {
           </>
         )}
       </div>
-      <div className="mt-10 mb-6">
+      <div className="mb-6 mt-10">
         <h3 className="heading">
           {intl.formatMessage(messages.sonarrsettings)}
         </h3>
@@ -595,7 +616,7 @@ const SettingsServices = () => {
           </>
         )}
       </div>
-      <div className="mt-10 mb-6">
+      <div className="mb-6 mt-10">
         <h3 className="heading">
           {intl.formatMessage(messages.lidarrsettings)}
         </h3>
@@ -614,7 +635,7 @@ const SettingsServices = () => {
                 <Alert
                   title={intl.formatMessage(messages.noDefaultServer, {
                     serverType: 'Lidarr',
-                    mediaType: intl.formatMessage(messages.mediaTypeSeries),
+                    mediaType: intl.formatMessage(messages.mediaTypeMusic),
                   })}
                 />
               ) : null)}
@@ -657,12 +678,12 @@ const SettingsServices = () => {
           </>
         )}
       </div>
-      <div className="mt-10 mb-6">
+      <div className="mb-6 mt-10">
         <h3 className="heading">
           {intl.formatMessage(messages.readarrsettings)}
         </h3>
         <p className="description">
-          {intl.formatMessage(messages.musicServiceSettingsDescription, {
+          {intl.formatMessage(messages.bookServiceSettingsDescription, {
             serverType: 'Bookshelf',
           })}
         </p>
@@ -671,15 +692,36 @@ const SettingsServices = () => {
         {!readarrData && !readarrError && <LoadingSpinner />}
         {readarrData && !readarrError && (
           <>
-            {readarrData.length > 0 &&
-              (!readarrData.some((readarr) => readarr.isDefault) ? (
-                <Alert
-                  title={intl.formatMessage(messages.noDefaultServer, {
-                    serverType: 'Bookshelf',
-                    mediaType: intl.formatMessage(messages.mediaTypeBook),
-                  })}
-                />
-              ) : null)}
+            {readarrData.length > 0 && (
+              <>
+                {hasReadarrEbook && !hasDefaultReadarrEbook && (
+                  <Alert
+                    title={intl.formatMessage(messages.noDefaultServer, {
+                      serverType: 'Bookshelf',
+                      mediaType: intl.formatMessage(messages.mediaTypeEbook),
+                    })}
+                  />
+                )}
+                {hasReadarrAudiobook && !hasDefaultReadarrAudiobook && (
+                  <Alert
+                    title={intl.formatMessage(messages.noDefaultServer, {
+                      serverType: 'Bookshelf',
+                      mediaType: intl.formatMessage(
+                        messages.mediaTypeAudiobook
+                      ),
+                    })}
+                  />
+                )}
+                {!hasReadarrEbook && !hasReadarrAudiobook && (
+                  <Alert
+                    title={intl.formatMessage(messages.noDefaultServer, {
+                      serverType: 'Bookshelf',
+                      mediaType: intl.formatMessage(messages.mediaTypeBook),
+                    })}
+                  />
+                )}
+              </>
+            )}
             <ul className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
               {readarrData.map((readarr) => (
                 <ServerInstance
@@ -693,9 +735,7 @@ const SettingsServices = () => {
                   serviceFormat={readarr.serviceType ?? 'ebook'}
                   isDefault={readarr.isDefault}
                   externalUrl={readarr.externalUrl}
-                  onEdit={() =>
-                    setEditReadarrModal({ open: true, readarr })
-                  }
+                  onEdit={() => setEditReadarrModal({ open: true, readarr })}
                   onDelete={() =>
                     setDeleteServerModal({
                       open: true,
@@ -722,7 +762,7 @@ const SettingsServices = () => {
           </>
         )}
       </div>
-      <div className="mt-10 mb-6">
+      <div className="mb-6 mt-10">
         <h3 className="heading">
           {intl.formatMessage(messages.overrideRules)}
         </h3>
