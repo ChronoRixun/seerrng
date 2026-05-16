@@ -98,7 +98,8 @@ export const mapOpenLibraryWork = (
   work: OpenLibraryWork,
   media?: Media,
   editions: OpenLibraryEdition[] = [],
-  userWatchlist?: boolean
+  userWatchlist?: boolean,
+  authorName?: string
 ): BookDetails => {
   const description =
     typeof work.description === 'string'
@@ -112,6 +113,7 @@ export const mapOpenLibraryWork = (
     id: work.key.replace('/works/', ''),
     mediaType: 'book',
     title: work.title,
+    author: authorName,
     authorId: work.authors?.[0]?.author.key.replace('/authors/', ''),
     firstPublishYear: work.first_publish_date
       ? Number(work.first_publish_date.match(/\d{4}/)?.[0])

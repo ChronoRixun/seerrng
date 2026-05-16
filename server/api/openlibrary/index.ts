@@ -32,6 +32,11 @@ export interface OpenLibraryWork {
   subjects?: string[];
 }
 
+export interface OpenLibraryAuthor {
+  key: string;
+  name: string;
+}
+
 export interface OpenLibraryEdition {
   key: string;
   title?: string;
@@ -91,6 +96,18 @@ class OpenLibraryAPI extends ExternalAPI {
       : `/works/${workId}`;
 
     return this.get<OpenLibraryWork>(`${normalizedWorkId}.json`, undefined, 43200);
+  }
+
+  public async getAuthor(authorId: string): Promise<OpenLibraryAuthor> {
+    const normalizedAuthorId = authorId.startsWith('/authors/')
+      ? authorId
+      : `/authors/${authorId}`;
+
+    return this.get<OpenLibraryAuthor>(
+      `${normalizedAuthorId}.json`,
+      undefined,
+      43200
+    );
   }
 
   public async getWorkEditions(

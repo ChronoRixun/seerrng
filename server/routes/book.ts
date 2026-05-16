@@ -69,7 +69,7 @@ bookRoutes.get('/search', async (req, res, next) => {
 
     return res.status(200).json({
       page,
-      totalPages: Math.ceil(response.numFound / 20),
+      totalPages: Math.max(Math.ceil(response.numFound / 20), 1),
       totalResults: response.numFound,
       results: response.docs.map((doc) =>
         mapOpenLibrarySearchDoc(
@@ -130,10 +130,20 @@ bookRoutes.get('/:id', async (req, res, next) => {
     const media = identifiers.find(
       (identifier) => identifier.media.mediaType === MediaType.BOOK
     )?.media;
+    const authorId = work.authors?.[0]?.author.key.replace('/authors/', '');
+    const author = authorId
+      ? await openLibrary.getAuthor(authorId).catch(() => undefined)
+      : undefined;
 
-    return res
-      .status(200)
-      .json(mapOpenLibraryWork(work, media, editions.entries, onUserWatchlist));
+    return res.status(200).json(
+      mapOpenLibraryWork(
+        work,
+        media,
+        editions.entries,
+        onUserWatchlist,
+        author?.name
+      )
+    );
   } catch (e) {
     logger.error('Failed to retrieve book details', {
       label: 'Book',

@@ -100,6 +100,11 @@ function mockBookDetails() {
       },
     ],
   }));
+
+  mock.method(OpenLibraryAPI.prototype, 'getAuthor', async () => ({
+    key: '/authors/OL1A',
+    name: 'Test Author',
+  }));
 }
 
 describe('GET /book/:id', () => {
@@ -138,6 +143,48 @@ describe('GET /book/:id', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.id, 'OL45804W');
+    assert.strictEqual(res.body.author, 'Test Author');
     assert.strictEqual(res.body.onUserWatchlist, true);
+  });
+
+  it('still returns book details when author lookup fails', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
+      key: '/works/OL45804W',
+      title: 'The Test Book',
+      authors: [{ author: { key: '/authors/OL1A' } }],
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getWorkEditions', async () => ({
+      size: 0,
+      entries: [],
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getAuthor', async () => {
+      throw new Error('Open Library author unavailable');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/book/OL45804W');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.id, 'OL45804W');
+    assert.strictEqual(res.body.authorId, 'OL1A');
+    assert.strictEqual(res.body.author, undefined);
+  });
+});
+
+describe('GET /book/search', () => {
+  it('normalizes empty search pagination', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
+      numFound: 0,
+      start: 0,
+      docs: [],
+    }));
+
+    const agent = await login();
+    const res = await agent.get('/book/search?query=notfound');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.totalPages, 1);
+    assert.strictEqual(res.body.totalResults, 0);
+    assert.deepStrictEqual(res.body.results, []);
   });
 });
