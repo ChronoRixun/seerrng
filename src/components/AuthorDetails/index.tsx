@@ -66,6 +66,7 @@ const AuthorDetails = () => {
           authorId={data.id}
           title={data.name}
           initialItems={bulkItems}
+          initialTotalItems={data.pagination.totalItems}
           onCancel={() => setShowBulkRequestModal(false)}
           onComplete={() => mutate()}
         />

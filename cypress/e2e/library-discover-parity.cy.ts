@@ -470,6 +470,7 @@ describe('Books and Music discover parity', () => {
     );
     cy.contains('Requestable Work').should('be.visible');
     cy.contains('Already Requested Work').should('be.visible');
+    cy.contains('button', 'Load More').should('not.exist');
     cy.get('[role="dialog"] table')
       .contains('td', 'Already Requested Work')
       .parents('tr')

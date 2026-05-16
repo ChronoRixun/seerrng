@@ -93,6 +93,7 @@ interface BulkRequestModalProps {
   artistId?: string;
   authorId?: string;
   initialItems?: BulkItem[];
+  initialTotalItems?: number;
   onCancel: () => void;
   onComplete?: () => void;
 }
@@ -203,6 +204,7 @@ const BulkRequestModal = ({
   artistId,
   authorId,
   initialItems = [],
+  initialTotalItems,
   onCancel,
   onComplete,
 }: BulkRequestModalProps) => {
@@ -219,6 +221,9 @@ const BulkRequestModal = ({
   const [confirmLargeBatch, setConfirmLargeBatch] = useState(false);
   const [summary, setSummary] = useState<BulkMediaRequestResponse>();
   const [authorOffset, setAuthorOffset] = useState(initialItems.length);
+  const [authorTotal, setAuthorTotal] = useState<number | undefined>(
+    initialTotalItems
+  );
 
   const { data: quota } = useSWR<QuotaResponse>(
     user &&
@@ -229,7 +234,9 @@ const BulkRequestModal = ({
 
   useEffect(() => {
     setItems(initialItems);
-  }, [initialItems]);
+    setAuthorOffset(initialItems.length);
+    setAuthorTotal(initialTotalItems);
+  }, [initialItems, initialTotalItems]);
 
   useEffect(() => {
     const loadArtistType = async () => {
@@ -325,7 +332,9 @@ const BulkRequestModal = ({
       { params: { limit: 20, offset: authorOffset } }
     );
 
-    setAuthorOffset(authorOffset + response.data.works.length);
+    const nextOffset = authorOffset + response.data.works.length;
+    setAuthorOffset(nextOffset);
+    setAuthorTotal(response.data.pagination.totalItems);
     setItems((current) => [
       ...current,
       ...response.data.works.map((work) => ({
@@ -341,6 +350,11 @@ const BulkRequestModal = ({
       })),
     ]);
   };
+
+  const hasMoreAuthorWorks =
+    mediaType === 'book' &&
+    !!authorId &&
+    (authorTotal === undefined || authorOffset < authorTotal);
 
   const submit = async () => {
     if (selectedIds.length > 50 && !confirmLargeBatch) {
@@ -610,15 +624,13 @@ const BulkRequestModal = ({
                 </tbody>
               </table>
             </div>
-            {mediaType === 'book' &&
-              authorId &&
-              items.length >= authorOffset && (
-                <div className="mt-4">
-                  <Button buttonType="ghost" onClick={loadMoreAuthorWorks}>
-                    {intl.formatMessage(messages.loadmore)}
-                  </Button>
-                </div>
-              )}
+            {hasMoreAuthorWorks && (
+              <div className="mt-4">
+                <Button buttonType="ghost" onClick={loadMoreAuthorWorks}>
+                  {intl.formatMessage(messages.loadmore)}
+                </Button>
+              </div>
+            )}
             {(hasPermission(Permission.REQUEST_ADVANCED) ||
               hasPermission(Permission.MANAGE_REQUESTS)) && (
               <AdvancedRequester
