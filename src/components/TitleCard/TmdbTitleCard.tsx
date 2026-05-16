@@ -11,6 +11,7 @@ export interface TmdbTitleCardProps {
   tmdbId: number;
   tvdbId?: number;
   type: 'movie' | 'tv';
+  title?: string;
   canExpand?: boolean;
   isAddedToWatchlist?: boolean;
   mutateParent?: () => void;
@@ -25,6 +26,7 @@ const TmdbTitleCard = ({
   tmdbId,
   tvdbId,
   type,
+  title: fallbackTitle,
   canExpand,
   isAddedToWatchlist = false,
   mutateParent,
@@ -47,6 +49,21 @@ const TmdbTitleCard = ({
       revalidateOnReconnect: false,
     }
   );
+
+  if (!title && !error && fallbackTitle) {
+    return (
+      <div ref={ref}>
+        <TitleCard
+          id={id}
+          title={fallbackTitle}
+          mediaType={type}
+          isAddedToWatchlist={isAddedToWatchlist}
+          canExpand={canExpand}
+          mutateParent={mutateParent}
+        />
+      </div>
+    );
+  }
 
   if (!title && !error) {
     return (

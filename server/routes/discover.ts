@@ -9,11 +9,7 @@ import type { OpenLibrarySearchDoc } from '@server/api/openlibrary';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb, { SortOptionsIterable } from '@server/api/themoviedb';
-import type {
-  TmdbKeyword,
-  TmdbMovieResult,
-  TmdbTvResult,
-} from '@server/api/themoviedb/interfaces';
+import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import type MediaEntity from '@server/entity/Media';
@@ -27,6 +23,12 @@ import type {
   WatchlistResponse,
 } from '@server/interfaces/api/discoverInterfaces';
 import { getSettings } from '@server/lib/settings';
+import {
+  clampNumber,
+  getRecencyScore,
+  rankTmdbMovieResults,
+  rankTmdbTvResults,
+} from '@server/lib/tmdbRank';
 import { getCombinedWatchlist } from '@server/lib/watchlist';
 import logger from '@server/logger';
 import { mapOpenLibrarySearchDoc } from '@server/models/Book';
@@ -111,21 +113,6 @@ const getProviderWindow = (
   };
 };
 
-const clampNumber = (value: number | undefined, fallback = 0): number =>
-  Number.isFinite(value) ? (value as number) : fallback;
-
-const getRecencyScore = (date?: string): number => {
-  const year = Number(date?.slice(0, 4));
-
-  if (!Number.isFinite(year)) {
-    return 0;
-  }
-
-  const currentYear = new Date().getUTCFullYear();
-
-  return Math.max(0, 30 - Math.max(0, currentYear - year));
-};
-
 const scoreMusicRelease = (release: LbRelease): number => {
   const listenScore = Math.log10((release.listen_count ?? 0) + 1) * 40;
   const recencyScore = getRecencyScore(release.release_date);
@@ -174,39 +161,6 @@ const scoreBookDoc = (doc: OpenLibrarySearchDoc): number => {
     metadataScore
   );
 };
-
-const scoreTmdbResult = ({
-  popularity,
-  vote_average: voteAverage,
-  vote_count: voteCount,
-  date,
-}: {
-  popularity: number;
-  vote_average: number;
-  vote_count: number;
-  date?: string;
-}): number => {
-  const popularityScore = Math.log10(clampNumber(popularity) + 1) * 24;
-  const voteCountScore = Math.log10(clampNumber(voteCount) + 1) * 20;
-  const voteAverageScore = clampNumber(voteAverage) * 8;
-  const recencyScore = getRecencyScore(date) * 0.5;
-
-  return popularityScore + voteCountScore + voteAverageScore + recencyScore;
-};
-
-const rankTmdbMovieResults = (results: TmdbMovieResult[]): TmdbMovieResult[] =>
-  [...results].sort(
-    (a, b) =>
-      scoreTmdbResult({ ...b, date: b.release_date }) -
-      scoreTmdbResult({ ...a, date: a.release_date })
-  );
-
-const rankTmdbTvResults = (results: TmdbTvResult[]): TmdbTvResult[] =>
-  [...results].sort(
-    (a, b) =>
-      scoreTmdbResult({ ...b, date: b.first_air_date }) -
-      scoreTmdbResult({ ...a, date: a.first_air_date })
-  );
 
 const getBookAuthorDiversityKey = (doc: OpenLibrarySearchDoc): string =>
   doc.author_key?.[0] ?? doc.author_name?.[0] ?? doc.key;
@@ -550,10 +504,11 @@ discoverRoutes.get<{ language: string }>(
         language: (req.query.language as string) ?? req.locale,
         originalLanguage: req.params.language,
       });
+      const rankedResults = rankTmdbMovieResults(data.results);
 
       const media = await Media.getRelatedMedia(
         req.user,
-        data.results.map((result) => ({
+        rankedResults.map((result) => ({
           tmdbId: result.id,
           mediaType: MediaType.MOVIE,
         }))
@@ -564,7 +519,7 @@ discoverRoutes.get<{ language: string }>(
         totalPages: data.total_pages,
         totalResults: data.total_results,
         language,
-        results: data.results.map((result) =>
+        results: rankedResults.map((result) =>
           mapMovieResult(
             result,
             media.find(
@@ -663,10 +618,11 @@ discoverRoutes.get<{ studioId: string }>(
         language: (req.query.language as string) ?? req.locale,
         studio: req.params.studioId as string,
       });
+      const rankedResults = rankTmdbMovieResults(data.results);
 
       const media = await Media.getRelatedMedia(
         req.user,
-        data.results.map((result) => ({
+        rankedResults.map((result) => ({
           tmdbId: result.id,
           mediaType: MediaType.MOVIE,
         }))
@@ -677,7 +633,7 @@ discoverRoutes.get<{ studioId: string }>(
         totalPages: data.total_pages,
         totalResults: data.total_results,
         studio: mapProductionCompany(studio),
-        results: data.results.map((result) =>
+        results: rankedResults.map((result) =>
           mapMovieResult(
             result,
             media.find(
@@ -861,10 +817,11 @@ discoverRoutes.get<{ language: string }>(
         language: (req.query.language as string) ?? req.locale,
         originalLanguage: req.params.language,
       });
+      const rankedResults = rankTmdbTvResults(data.results);
 
       const media = await Media.getRelatedMedia(
         req.user,
-        data.results.map((result) => ({
+        rankedResults.map((result) => ({
           tmdbId: result.id,
           mediaType: MediaType.TV,
         }))
@@ -875,7 +832,7 @@ discoverRoutes.get<{ language: string }>(
         totalPages: data.total_pages,
         totalResults: data.total_results,
         language,
-        results: data.results.map((result) =>
+        results: rankedResults.map((result) =>
           mapTvResult(
             result,
             media.find(
@@ -974,10 +931,11 @@ discoverRoutes.get<{ networkId: string }>(
         language: (req.query.language as string) ?? req.locale,
         network: Number(req.params.networkId),
       });
+      const rankedResults = rankTmdbTvResults(data.results);
 
       const media = await Media.getRelatedMedia(
         req.user,
-        data.results.map((result) => ({
+        rankedResults.map((result) => ({
           tmdbId: result.id,
           mediaType: MediaType.TV,
         }))
@@ -988,7 +946,7 @@ discoverRoutes.get<{ networkId: string }>(
         totalPages: data.total_pages,
         totalResults: data.total_results,
         network: mapNetwork(network),
-        results: data.results.map((result) =>
+        results: rankedResults.map((result) =>
           mapTvResult(
             result,
             media.find(

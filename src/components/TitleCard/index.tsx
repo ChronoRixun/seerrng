@@ -71,6 +71,7 @@ const TitleCard = ({
   summary,
   year,
   title,
+  artist,
   status,
   mediaType,
   isAddedToWatchlist = false,
@@ -657,6 +658,11 @@ const TitleCard = ({
                     >
                       {title}
                     </h1>
+                    {artist && (
+                      <div className="mt-1 truncate text-sm font-medium text-gray-200">
+                        {artist}
+                      </div>
+                    )}
                     <div
                       className="whitespace-normal text-xs"
                       style={{

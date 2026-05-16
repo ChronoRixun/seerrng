@@ -362,13 +362,28 @@ const FilterSlideover = ({
             className="w-full"
             disabled={Object.keys(currentFilters).length === 0}
             onClick={() => {
-              const copyCurrent = Object.assign({}, currentFilters);
-              (
-                Object.keys(copyCurrent) as (keyof typeof currentFilters)[]
-              ).forEach((k) => {
-                copyCurrent[k] = undefined;
+              batchUpdateQueryParams({
+                certification: undefined,
+                excludeKeywords: undefined,
+                firstAirDateGte: undefined,
+                firstAirDateLte: undefined,
+                genre: undefined,
+                keywords: undefined,
+                language: undefined,
+                primaryReleaseDateGte: undefined,
+                primaryReleaseDateLte: undefined,
+                runtimeGte: undefined,
+                runtimeLte: undefined,
+                sortBy: undefined,
+                status: undefined,
+                studio: undefined,
+                voteAverageGte: undefined,
+                voteAverageLte: undefined,
+                voteCountGte: undefined,
+                voteCountLte: undefined,
+                watchProviders: undefined,
+                watchRegion: undefined,
               });
-              batchUpdateQueryParams(copyCurrent);
               onClose();
             }}
           >

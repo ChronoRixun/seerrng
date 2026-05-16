@@ -86,6 +86,7 @@ const ListView = ({
               id={title.tmdbId}
               tmdbId={title.tmdbId}
               type={title.mediaType === 'tv' ? 'tv' : 'movie'}
+              title={title.title}
               isAddedToWatchlist={true}
               canExpand
               mutateParent={mutateParent}

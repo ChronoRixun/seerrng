@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import type { Nullable } from '@app/utils/typeHelpers';
 import { useRouter } from 'next/router';
 import type { Dispatch, SetStateAction } from 'react';
@@ -51,7 +50,7 @@ const useSearchInput = (): SearchObject => {
           .then(() => window.scrollTo(0, 0));
       }
     }
-  }, [debouncedValue]);
+  }, [debouncedValue, router, searchOpen]);
 
   /**
    * This effect is handling behavior when the search input is closed.
@@ -71,7 +70,7 @@ const useSearchInput = (): SearchObject => {
         router.replace('/').then(() => window.scrollTo(0, 0));
       }
     }
-  }, [searchOpen]);
+  }, [lastRoute, router, searchOpen, searchValue]);
 
   /**
    * This effect handles behavior for when the route is changed.
@@ -104,7 +103,7 @@ const useSearchInput = (): SearchObject => {
     if (router.pathname.startsWith('/search')) {
       setIsOpen(true);
     }
-  }, [router, setSearchValue]);
+  }, [debouncedValue, router, setSearchValue]);
 
   const clear = useCallback(() => {
     setIsOpen(false);

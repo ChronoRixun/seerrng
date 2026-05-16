@@ -1646,8 +1646,10 @@ describe('Books and Music discover parity', () => {
     cy.wait('@getWatchlist');
     cy.wait('@getWatchlistMusic');
     cy.wait('@getWatchlistBook');
+    cy.get('[data-testid=title-card]').eq(0).trigger('mouseover');
     cy.contains('Resolved Album').should('be.visible');
     cy.contains('Resolved Artist').should('be.visible');
+    cy.get('[data-testid=title-card]').eq(1).trigger('mouseover');
     cy.contains('Resolved Book').should('be.visible');
     cy.contains('Resolved Author').should('be.visible');
   });
@@ -1703,6 +1705,9 @@ describe('Books and Music discover parity', () => {
     cy.contains('[data-testid=title-card-title]', 'Global Album').should(
       'be.visible'
     );
-    cy.contains('Global Book').should('be.visible');
+    cy.get('[data-testid=title-card]').eq(2).trigger('mouseover');
+    cy.contains('[data-testid=title-card-title]', 'Global Book').should(
+      'be.visible'
+    );
   });
 });

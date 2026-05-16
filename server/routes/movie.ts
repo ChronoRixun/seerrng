@@ -6,6 +6,7 @@ import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { Watchlist } from '@server/entity/Watchlist';
+import { rankTmdbMovieResults } from '@server/lib/tmdbRank';
 import logger from '@server/logger';
 import { mapMovieDetails } from '@server/models/Movie';
 import { mapMovieResult } from '@server/models/Search';
@@ -65,10 +66,11 @@ movieRoutes.get('/:id/recommendations', async (req, res, next) => {
       page: Number(req.query.page),
       language: (req.query.language as string) ?? req.locale,
     });
+    const rankedResults = rankTmdbMovieResults(results.results);
 
     const media = await Media.getRelatedMedia(
       req.user,
-      results.results.map((result) => ({
+      rankedResults.map((result) => ({
         tmdbId: result.id,
         mediaType: MediaType.MOVIE,
       }))
@@ -78,7 +80,7 @@ movieRoutes.get('/:id/recommendations', async (req, res, next) => {
       page: results.page,
       totalPages: results.total_pages,
       totalResults: results.total_results,
-      results: results.results.map((result) =>
+      results: rankedResults.map((result) =>
         mapMovieResult(
           result,
           media.find(
@@ -110,10 +112,11 @@ movieRoutes.get('/:id/similar', async (req, res, next) => {
       page: Number(req.query.page),
       language: (req.query.language as string) ?? req.locale,
     });
+    const rankedResults = rankTmdbMovieResults(results.results);
 
     const media = await Media.getRelatedMedia(
       req.user,
-      results.results.map((result) => ({
+      rankedResults.map((result) => ({
         tmdbId: result.id,
         mediaType: MediaType.MOVIE,
       }))
@@ -123,7 +126,7 @@ movieRoutes.get('/:id/similar', async (req, res, next) => {
       page: results.page,
       totalPages: results.total_pages,
       totalResults: results.total_results,
-      results: results.results.map((result) =>
+      results: rankedResults.map((result) =>
         mapMovieResult(
           result,
           media.find(
