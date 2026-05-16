@@ -965,8 +965,22 @@ discoverRoutes.get('/music', async (req, res) => {
   const musicBrainz = new MusicBrainz();
   const itemsPerPage = 20;
   const page = req.query.page ? Number(req.query.page) : 1;
-  const days = req.query.days ? Number(req.query.days) : 7;
+  const days = req.query.days ? Number(req.query.days) : 14;
   const sortAscending = req.query.sortBy === 'release_date.asc';
+  const genreFilter =
+    typeof req.query.genre === 'string' && req.query.genre.trim()
+      ? req.query.genre
+          .split(',')
+          .map((genre) => genre.trim())
+          .filter(Boolean)
+      : [];
+  const releaseTypeFilter =
+    typeof req.query.releaseType === 'string' && req.query.releaseType.trim()
+      ? req.query.releaseType
+          .split(',')
+          .map((type) => type.trim())
+          .filter(Boolean)
+      : [];
   const query =
     typeof req.query.query === 'string' && req.query.query.trim()
       ? req.query.query.trim()
@@ -1011,6 +1025,63 @@ discoverRoutes.get('/music', async (req, res) => {
       });
     }
 
+    if (genreFilter.length) {
+      const providerWindow = getProviderWindow(page, itemsPerPage);
+      const releaseDateGte = req.query.primaryReleaseDateGte
+        ? String(req.query.primaryReleaseDateGte)
+        : undefined;
+      const releaseDateLte = req.query.primaryReleaseDateLte
+        ? String(req.query.primaryReleaseDateLte)
+        : undefined;
+      const { releaseGroups, totalCount } =
+        await musicBrainz.searchReleaseGroupsByTag({
+          tags: genreFilter,
+          primaryTypes: releaseTypeFilter.length
+            ? releaseTypeFilter
+            : undefined,
+          releaseDateGte,
+          releaseDateLte,
+          limit: providerWindow.limit,
+          offset: providerWindow.offset,
+        });
+      const sortedAlbums = releaseGroups.sort((a, b) => {
+        const left = a['first-release-date'] ?? '';
+        const right = b['first-release-date'] ?? '';
+        return sortAscending
+          ? left.localeCompare(right)
+          : right.localeCompare(left);
+      });
+      const albums = sortedAlbums.slice(
+        providerWindow.sliceStart,
+        providerWindow.sliceEnd
+      );
+      const mbIds = albums.map((album) => album.id);
+      const relatedMedia = mbIds.length
+        ? await getRepository(Media).find({
+            where: { mbId: In(mbIds), mediaType: MediaType.MUSIC },
+            relations: { requests: true, watchlists: true },
+          })
+        : [];
+      relatedMedia.forEach((media) => {
+        media.watchlists =
+          media.watchlists?.filter(
+            (watchlist) => watchlist.requestedBy.id === req.user?.id
+          ) ?? [];
+      });
+
+      return res.status(200).json({
+        page,
+        totalPages: Math.max(1, Math.ceil(totalCount / itemsPerPage)),
+        totalResults: totalCount,
+        results: albums.map((album) =>
+          mapAlbumResult(
+            album,
+            relatedMedia.find((media) => media.mbId === album.id)
+          )
+        ),
+      });
+    }
+
     const providerWindow = getProviderWindow(page, itemsPerPage);
     let freshReleases;
     try {
@@ -1039,6 +1110,13 @@ discoverRoutes.get('/music', async (req, res) => {
     }
     const releases = freshReleases.payload.releases
       .filter((release) => release.release_group_mbid && release.release_name)
+      .filter(
+        (release) =>
+          !releaseTypeFilter.length ||
+          releaseTypeFilter.includes(
+            release.release_group_primary_type ?? 'Album'
+          )
+      )
       .sort((a, b) => {
         const left = a.release_date ?? '';
         const right = b.release_date ?? '';

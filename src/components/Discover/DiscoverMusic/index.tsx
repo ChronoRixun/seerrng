@@ -35,7 +35,13 @@ const DiscoverMusic = () => {
   const query =
     typeof router.query.query === 'string' ? router.query.query : '';
   const [showFilters, setShowFilters] = useState(false);
-  const days = typeof router.query.days === 'string' ? router.query.days : '7';
+  const days = typeof router.query.days === 'string' ? router.query.days : '14';
+  const genre =
+    typeof router.query.genre === 'string' ? router.query.genre : '';
+  const releaseType =
+    typeof router.query.releaseType === 'string'
+      ? router.query.releaseType
+      : '';
   const sortBy =
     typeof router.query.sortBy === 'string'
       ? router.query.sortBy
@@ -50,7 +56,7 @@ const DiscoverMusic = () => {
     error,
   } = useDiscover<AlbumResult>(
     '/api/v1/discover/music',
-    query ? { query } : { days, sortBy }
+    query ? { query } : { days, sortBy, genre, releaseType }
   );
 
   if (error) {
@@ -88,6 +94,8 @@ const DiscoverMusic = () => {
               type="music"
               query={query}
               days={days}
+              genre={genre}
+              releaseType={releaseType}
               sortBy={sortBy}
               onClose={() => setShowFilters(false)}
               show={showFilters}
@@ -102,6 +110,8 @@ const DiscoverMusic = () => {
                     type: 'music',
                     query,
                     days,
+                    genre,
+                    releaseType,
                     sortBy,
                   }),
                 })}

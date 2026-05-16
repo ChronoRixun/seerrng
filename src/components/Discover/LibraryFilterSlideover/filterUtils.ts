@@ -3,12 +3,15 @@ export const countLibraryFilters = ({
   query,
   subject,
   days,
-  sortBy,
+  genre,
+  releaseType,
 }: {
   type: 'book' | 'music';
   query?: string;
   subject?: string;
   days?: string;
+  genre?: string;
+  releaseType?: string;
   sortBy?: string;
 }): number => {
   let count = 0;
@@ -21,11 +24,15 @@ export const countLibraryFilters = ({
     count += 1;
   }
 
-  if (type === 'music' && days && days !== '7') {
+  if (type === 'music' && days && days !== '14') {
     count += 1;
   }
 
-  if (type === 'music' && sortBy && sortBy !== 'release_date.desc') {
+  if (type === 'music' && genre) {
+    count += 1;
+  }
+
+  if (type === 'music' && releaseType) {
     count += 1;
   }
 

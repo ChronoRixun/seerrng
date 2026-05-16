@@ -16,6 +16,8 @@ const messages = defineMessages('components.Discover.LibraryFilterSlideover', {
   searchMusic: 'Search music',
   subject: 'Subject',
   releaseWindow: 'Release Window',
+  genre: 'Genre',
+  releaseType: 'Release Type',
   clearfilters: 'Clear Active Filters',
   fiction: 'Fiction',
   fantasy: 'Fantasy',
@@ -23,7 +25,22 @@ const messages = defineMessages('components.Discover.LibraryFilterSlideover', {
   mystery: 'Mystery',
   biography: 'Biography',
   romance: 'Romance',
+  allGenres: 'All Genres',
+  alternative: 'Alternative',
+  classical: 'Classical',
+  country: 'Country',
+  electronic: 'Electronic',
+  hipHop: 'Hip-Hop',
+  jazz: 'Jazz',
+  metal: 'Metal',
+  pop: 'Pop',
+  rock: 'Rock',
+  allTypes: 'All Types',
+  album: 'Album',
+  ep: 'EP',
+  single: 'Single',
   last7Days: 'Last 7 Days',
+  last14Days: 'Last 14 Days',
   last30Days: 'Last 30 Days',
   last90Days: 'Last 90 Days',
 });
@@ -35,6 +52,8 @@ type LibraryFilterSlideoverProps = {
   query?: string;
   subject?: string;
   days?: string;
+  genre?: string;
+  releaseType?: string;
   sortBy?: string;
 };
 
@@ -44,7 +63,9 @@ const LibraryFilterSlideover = ({
   type,
   query = '',
   subject = 'fiction',
-  days = '7',
+  days = '14',
+  genre,
+  releaseType,
   sortBy = 'release_date.desc',
 }: LibraryFilterSlideoverProps) => {
   const intl = useIntl();
@@ -55,6 +76,8 @@ const LibraryFilterSlideover = ({
     query,
     subject,
     days,
+    genre,
+    releaseType,
     sortBy,
   });
 
@@ -152,37 +175,124 @@ const LibraryFilterSlideover = ({
             </select>
           </div>
         ) : (
-          <div>
-            <label
-              htmlFor="music-discover-days"
-              className="text-lg font-semibold"
-            >
-              {intl.formatMessage(messages.releaseWindow)}
-            </label>
-            <select
-              id="music-discover-days"
-              name="music-discover-days"
-              className="mt-2"
-              value={days}
-              disabled={!!query}
-              onChange={(e) =>
-                updateQueryParams({
-                  days: e.target.value,
-                  page: undefined,
-                })
-              }
-            >
-              <option value="7">
-                {intl.formatMessage(messages.last7Days)}
-              </option>
-              <option value="30">
-                {intl.formatMessage(messages.last30Days)}
-              </option>
-              <option value="90">
-                {intl.formatMessage(messages.last90Days)}
-              </option>
-            </select>
-          </div>
+          <>
+            <div>
+              <label
+                htmlFor="music-discover-genre"
+                className="text-lg font-semibold"
+              >
+                {intl.formatMessage(messages.genre)}
+              </label>
+              <select
+                id="music-discover-genre"
+                name="music-discover-genre"
+                className="mt-2"
+                value={genre ?? ''}
+                disabled={!!query}
+                onChange={(e) =>
+                  updateQueryParams({
+                    genre: e.target.value || undefined,
+                    page: undefined,
+                  })
+                }
+              >
+                <option value="">
+                  {intl.formatMessage(messages.allGenres)}
+                </option>
+                <option value="alternative">
+                  {intl.formatMessage(messages.alternative)}
+                </option>
+                <option value="classical">
+                  {intl.formatMessage(messages.classical)}
+                </option>
+                <option value="country">
+                  {intl.formatMessage(messages.country)}
+                </option>
+                <option value="electronic">
+                  {intl.formatMessage(messages.electronic)}
+                </option>
+                <option value="hip hop">
+                  {intl.formatMessage(messages.hipHop)}
+                </option>
+                <option value="jazz">
+                  {intl.formatMessage(messages.jazz)}
+                </option>
+                <option value="metal">
+                  {intl.formatMessage(messages.metal)}
+                </option>
+                <option value="pop">{intl.formatMessage(messages.pop)}</option>
+                <option value="rock">
+                  {intl.formatMessage(messages.rock)}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="music-discover-release-type"
+                className="text-lg font-semibold"
+              >
+                {intl.formatMessage(messages.releaseType)}
+              </label>
+              <select
+                id="music-discover-release-type"
+                name="music-discover-release-type"
+                className="mt-2"
+                value={releaseType ?? ''}
+                disabled={!!query}
+                onChange={(e) =>
+                  updateQueryParams({
+                    releaseType: e.target.value || undefined,
+                    page: undefined,
+                  })
+                }
+              >
+                <option value="">
+                  {intl.formatMessage(messages.allTypes)}
+                </option>
+                <option value="Album">
+                  {intl.formatMessage(messages.album)}
+                </option>
+                <option value="EP">{intl.formatMessage(messages.ep)}</option>
+                <option value="Single">
+                  {intl.formatMessage(messages.single)}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="music-discover-days"
+                className="text-lg font-semibold"
+              >
+                {intl.formatMessage(messages.releaseWindow)}
+              </label>
+              <select
+                id="music-discover-days"
+                name="music-discover-days"
+                className="mt-2"
+                value={days}
+                disabled={!!query || !!genre}
+                onChange={(e) =>
+                  updateQueryParams({
+                    days: e.target.value,
+                    page: undefined,
+                  })
+                }
+              >
+                <option value="7">
+                  {intl.formatMessage(messages.last7Days)}
+                </option>
+                <option value="14">
+                  {intl.formatMessage(messages.last14Days)}
+                </option>
+                <option value="30">
+                  {intl.formatMessage(messages.last30Days)}
+                </option>
+                <option value="90">
+                  {intl.formatMessage(messages.last90Days)}
+                </option>
+              </select>
+            </div>
+          </>
         )}
 
         <div className="pt-4">
@@ -194,6 +304,8 @@ const LibraryFilterSlideover = ({
                 query: undefined,
                 subject: undefined,
                 days: undefined,
+                genre: undefined,
+                releaseType: undefined,
                 sortBy: undefined,
                 page: undefined,
               });

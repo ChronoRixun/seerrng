@@ -8,6 +8,9 @@ import type { MbAlbumDetails, MbArtistDetails } from './interfaces';
 const window = new JSDOM('').window;
 const purify = DOMPurify(window);
 
+const escapeLucene = (value: string): string =>
+  value.replace(/([+\-&|!(){}[\]^"~*?:\\/])/g, '\\$1');
+
 class MusicBrainz extends ExternalAPI {
   constructor() {
     super(
@@ -15,8 +18,7 @@ class MusicBrainz extends ExternalAPI {
       {},
       {
         headers: {
-          'User-Agent':
-            'Jellyseerr/1.0.0 (https://github.com/Fallenbagel/jellyseerr)',
+          'User-Agent': 'Seerr/1.0.0 (https://github.com/seerr-team/seerr)',
           Accept: 'application/json',
         },
         nodeCache: cacheManager.getCache('musicbrainz').data,
@@ -60,6 +62,80 @@ class MusicBrainz extends ExternalAPI {
     } catch (e) {
       throw new Error(
         `[MusicBrainz] Failed to search albums: ${
+          e instanceof Error ? e.message : 'Unknown error'
+        }`
+      );
+    }
+  }
+
+  public async searchReleaseGroupsByTag({
+    tags,
+    primaryTypes,
+    releaseDateGte,
+    releaseDateLte,
+    limit = 25,
+    offset = 0,
+  }: {
+    tags: string[];
+    primaryTypes?: string[];
+    releaseDateGte?: string;
+    releaseDateLte?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ releaseGroups: MbAlbumDetails[]; totalCount: number }> {
+    try {
+      const tagQuery = tags
+        .map((tag) => `tag:"${escapeLucene(tag)}"`)
+        .join(' OR ');
+      let query = `(${tagQuery})`;
+
+      if (primaryTypes?.length) {
+        const typeQuery = primaryTypes
+          .map((type) => `primarytype:"${escapeLucene(type)}"`)
+          .join(' OR ');
+        query += ` AND (${typeQuery})`;
+      }
+
+      if (releaseDateGte || releaseDateLte) {
+        const datePattern = /^\d{4}(-\d{2}(-\d{2})?)?$/;
+        const from =
+          releaseDateGte && datePattern.test(releaseDateGte)
+            ? releaseDateGte
+            : '*';
+        const to =
+          releaseDateLte && datePattern.test(releaseDateLte)
+            ? releaseDateLte
+            : '*';
+        query += ` AND firstreleasedate:[${from} TO ${to}]`;
+      }
+
+      query += ' AND status:"official"';
+
+      const data = await this.get<{
+        created: string;
+        count: number;
+        offset: number;
+        'release-groups': MbAlbumDetails[];
+      }>(
+        '/release-group',
+        {
+          params: {
+            query,
+            fmt: 'json',
+            limit: limit.toString(),
+            offset: offset.toString(),
+          },
+        },
+        43200
+      );
+
+      return {
+        releaseGroups: data['release-groups'],
+        totalCount: data.count,
+      };
+    } catch (e) {
+      throw new Error(
+        `[MusicBrainz] Failed to search release groups by tag: ${
           e instanceof Error ? e.message : 'Unknown error'
         }`
       );
@@ -159,8 +235,7 @@ class MusicBrainz extends ExternalAPI {
         headers: {
           Accept: 'application/json',
           'Accept-Language': language,
-          'User-Agent':
-            'Jellyseerr/1.0.0 (https://github.com/Fallenbagel/jellyseerr)',
+          'User-Agent': 'Seerr/1.0.0 (https://github.com/seerr-team/seerr)',
         },
       });
 
