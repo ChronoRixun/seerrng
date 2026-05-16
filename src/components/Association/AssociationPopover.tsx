@@ -12,7 +12,8 @@ import { useIntl } from 'react-intl';
 import { nodeHref, nodeImage, nodeImageType, nodeTitle } from './helpers';
 
 const messages = defineMessages('components.Association', {
-  morelikethis: 'More like this',
+  similar: 'More like this',
+  similarartists: 'Similar artists',
   alsoconnected: 'Also connected',
   explore: 'Explore the full map',
   empty: 'No associations found yet.',
@@ -56,6 +57,10 @@ const AssociationPopover = ({ mediaType, id }: AssociationPopoverProps) => {
   const { edges, isLoading } = useAssociations(mediaType, id, {
     includeWeak: true,
   });
+  const similarLabel =
+    mediaType === 'album' || mediaType === 'artist'
+      ? intl.formatMessage(messages.similarartists)
+      : intl.formatMessage(messages.similar);
 
   const sameMedium = edges
     .filter((e) => e.type === 'similar' || e.type === 'recommended')
@@ -68,8 +73,19 @@ const AssociationPopover = ({ mediaType, id }: AssociationPopoverProps) => {
     <div className="w-80 overflow-hidden rounded-xl border border-gray-700 bg-gray-800 shadow-2xl">
       <div className="max-h-96 overflow-y-auto p-2">
         {isLoading && (
-          <div className="flex justify-center py-8">
-            <LoadingSpinner />
+          <div className="space-y-2 px-2 py-3">
+            <div className="mb-3 flex justify-center">
+              <LoadingSpinner />
+            </div>
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="flex items-center gap-3">
+                <div className="h-12 w-9 flex-shrink-0 animate-pulse rounded bg-gray-700" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-gray-700" />
+                  <div className="h-2.5 w-1/2 animate-pulse rounded bg-gray-700" />
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -82,7 +98,7 @@ const AssociationPopover = ({ mediaType, id }: AssociationPopoverProps) => {
         {sameMedium.length > 0 && (
           <div className="mb-2">
             <div className="px-2 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-gray-500">
-              {intl.formatMessage(messages.morelikethis)}
+              {similarLabel}
             </div>
             {sameMedium.map((edge) => (
               <EdgeRow

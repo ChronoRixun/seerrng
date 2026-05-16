@@ -1,5 +1,14 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+/* eslint-disable @typescript-eslint/no-require-imports */
 const defaultTheme = require('tailwindcss/defaultTheme');
+const colors = require('tailwindcss/colors');
+
+const themedScale = (name) =>
+  Object.fromEntries(
+    [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((shade) => [
+      shade,
+      `rgb(var(--color-${name}-${shade}) / <alpha-value>)`,
+    ])
+  );
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -10,6 +19,12 @@ module.exports = {
     './src/components/**/*.{ts,tsx}',
   ],
   theme: {
+    colors: {
+      ...colors,
+      gray: themedScale('gray'),
+      indigo: themedScale('indigo'),
+      purple: themedScale('purple'),
+    },
     extend: {
       transitionProperty: {
         'max-height': 'max-height',

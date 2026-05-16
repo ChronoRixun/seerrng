@@ -41,6 +41,22 @@ const MEDIA_TONE: Record<string, string> = {
   person: 'border-slate-500/70 bg-slate-900/80 text-slate-100',
 };
 
+const EDGE_ORDER: AssociationEdgeType[] = [
+  'shared-person',
+  'similar',
+  'recommended',
+  'shared-genre',
+];
+
+const EDGE_ARC: Record<AssociationEdgeType, { start: number; end: number }> = {
+  'shared-person': { start: -165, end: -75 },
+  similar: { start: -45, end: 45 },
+  recommended: { start: 75, end: 165 },
+  'shared-genre': { start: 195, end: 285 },
+};
+
+const degreeToRadian = (degree: number): number => (degree * Math.PI) / 180;
+
 interface GraphNodeData {
   label: string;
   image?: string;
@@ -106,16 +122,37 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
       draggable: false,
     });
 
-    const grouped = [
-      ...graph.edges.filter((edge) => edge.type === 'shared-person'),
-      ...graph.edges.filter((edge) => edge.type === 'similar'),
-      ...graph.edges.filter((edge) => edge.type === 'recommended'),
-      ...graph.edges.filter((edge) => edge.type === 'shared-genre'),
-    ];
+    const grouped = EDGE_ORDER.flatMap((type) =>
+      graph.edges.filter((edge) => edge.type === type)
+    );
     const ring = grouped.slice(0, 24);
-    const radius = ring.length > 12 ? 430 : 340;
-    ring.forEach((edge, i) => {
-      const angle = (i / ring.length) * 2 * Math.PI;
+    const typeCounts = ring.reduce<Record<AssociationEdgeType, number>>(
+      (counts, edge) => ({
+        ...counts,
+        [edge.type]: counts[edge.type] + 1,
+      }),
+      {
+        similar: 0,
+        recommended: 0,
+        'shared-person': 0,
+        'shared-genre': 0,
+      }
+    );
+    const typeIndexes: Record<AssociationEdgeType, number> = {
+      similar: 0,
+      recommended: 0,
+      'shared-person': 0,
+      'shared-genre': 0,
+    };
+
+    ring.forEach((edge) => {
+      const typeIndex = typeIndexes[edge.type];
+      const count = typeCounts[edge.type];
+      const arc = EDGE_ARC[edge.type];
+      const spread = count <= 1 ? 0.5 : typeIndex / (count - 1);
+      const angle = degreeToRadian(arc.start + (arc.end - arc.start) * spread);
+      const radius = 310 + (typeIndex % 3) * 58 + (ring.length > 14 ? 70 : 0);
+      typeIndexes[edge.type] += 1;
       const id = `${edge.node.mediaType}:${edge.node.id}`;
       rfNodes.push({
         id,

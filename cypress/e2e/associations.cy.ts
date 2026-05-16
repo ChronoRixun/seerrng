@@ -35,6 +35,27 @@ const associationGraph = {
   ],
 };
 
+const albumAssociationGraph = {
+  root: {
+    mediaType: 'album',
+    id: 'ALBUMROOT',
+    title: 'Root Album',
+  },
+  edges: [
+    {
+      weight: 0.9,
+      type: 'similar',
+      reason: 'Listeners also play this artist',
+      node: {
+        id: 'ARTISTRELATED',
+        mediaType: 'artist',
+        name: 'Related Artist',
+        artistThumb: '/profile.png',
+      },
+    },
+  ],
+};
+
 describe('Associations', () => {
   beforeEach(() => {
     cy.loginAsAdmin();
@@ -97,6 +118,30 @@ describe('Associations', () => {
       },
       edges: [],
     }).as('precheckEmptyAssociations');
+    cy.intercept(
+      'GET',
+      '/api/v1/association/album/ALBUMROOT?includeWeak=true',
+      albumAssociationGraph
+    ).as('getAlbumAssociations');
+    cy.intercept('GET', '/api/v1/association/artist/ARTISTRELATED*', {
+      root: {
+        mediaType: 'artist',
+        id: 'ARTISTRELATED',
+        title: 'Related Artist',
+      },
+      edges: [
+        {
+          weight: 0.9,
+          type: 'similar',
+          reason: 'Shared listeners',
+          node: {
+            id: 'ARTISTOTHER',
+            mediaType: 'artist',
+            name: 'Other Artist',
+          },
+        },
+      ],
+    }).as('getArtistAssociations');
   });
 
   it('shows same-author book associations in the wall view', () => {
@@ -171,7 +216,7 @@ describe('Associations', () => {
     });
     cy.contains('[data-testid=association-graph-node]', 'Related Book')
       .should('be.visible')
-      .click();
+      .click({ force: true });
   });
 
   it('keeps the list view on mobile where the graph would be cramped', () => {
@@ -181,5 +226,29 @@ describe('Associations', () => {
 
     cy.contains('button', 'Map').should('not.exist');
     cy.get('[data-testid=association-wall]').should('be.visible');
+  });
+
+  it('uses music-specific association labels for album and artist flows', () => {
+    cy.visit('/associations/album/ALBUMROOT');
+    cy.wait('@getAlbumAssociations');
+
+    cy.get('[data-testid=association-wall]').within(() => {
+      cy.contains('Similar artists').should('be.visible');
+      cy.contains('More like this').should('not.exist');
+      cy.get('a[href="/associations/artist/ARTISTRELATED"]')
+        .parents('.space-y-2')
+        .find('[data-testid=title-card]')
+        .trigger('mouseover');
+      cy.contains('Related Artist').should('be.visible');
+      cy.get('a[href="/associations/artist/ARTISTRELATED"]')
+        .parents('.space-y-2')
+        .find('[data-testid=association-badge]')
+        .click();
+    });
+
+    cy.wait('@getArtistAssociations');
+    cy.contains('[data-testid=association-popover]', 'Similar artists').should(
+      'be.visible'
+    );
   });
 });

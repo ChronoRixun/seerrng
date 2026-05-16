@@ -30,7 +30,6 @@
   "components.Association.graphview": "Map",
   "components.Association.listeneroverlap": "Listener overlap",
   "components.Association.loaderror": "Could not load associations.",
-  "components.Association.morelikethis": "More like this",
   "components.Association.music": "Connected music",
   "components.Association.recommended": "Recommended",
   "components.Association.relatedbooks": "Related books",
