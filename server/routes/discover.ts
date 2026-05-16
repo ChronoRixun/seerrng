@@ -76,6 +76,15 @@ const emptyDiscoverResponse = (page: number) => ({
   results: [],
 });
 
+const getUnknownTotalResults = (
+  page: number,
+  resultCount: number,
+  itemsPerPage: number
+) =>
+  resultCount === itemsPerPage
+    ? page * itemsPerPage + itemsPerPage + 1
+    : (page - 1) * itemsPerPage + resultCount;
+
 const QueryFilterOptions = z.object({
   page: z.coerce.string().optional(),
   sortBy: z.coerce.string().optional(),
@@ -971,7 +980,7 @@ discoverRoutes.get('/music', async (req, res) => {
       return res.status(200).json({
         page,
         totalPages: albums.length === itemsPerPage ? page + 1 : page,
-        totalResults: albums.length,
+        totalResults: getUnknownTotalResults(page, albums.length, itemsPerPage),
         results: albums.map((album) =>
           mapAlbumResult(
             album,
@@ -1064,7 +1073,7 @@ discoverRoutes.get('/music', async (req, res) => {
     return res.status(200).json({
       page,
       totalPages: releases.length === itemsPerPage ? page + 1 : page,
-      totalResults: releases.length,
+      totalResults: getUnknownTotalResults(page, releases.length, itemsPerPage),
       results,
     });
   } catch (e) {

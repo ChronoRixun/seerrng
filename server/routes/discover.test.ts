@@ -202,7 +202,7 @@ describe('GET /discover/music', () => {
     assert.strictEqual(freshReleaseOffset, 40);
     assert.strictEqual(res.body.page, 3);
     assert.strictEqual(res.body.totalPages, 3);
-    assert.strictEqual(res.body.totalResults, 2);
+    assert.strictEqual(res.body.totalResults, 42);
     assert.deepStrictEqual(
       res.body.results.map((result: { title: string }) => result.title),
       ['Earlier Album', 'Later Album']
