@@ -75,6 +75,13 @@ type ArtistResponse = {
     mediaInfo?: Media;
   }[];
   typeCounts?: Record<string, number>;
+  pagination?: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+    albumType?: string;
+  };
 };
 
 type AuthorWorksResponse = {
@@ -110,6 +117,7 @@ const releaseTypeOptions = [
   'Demo',
   'Other',
 ];
+const EMPTY_BULK_ITEMS: BulkItem[] = [];
 
 const isActiveRequest = (requestStatus?: MediaRequestStatus) =>
   requestStatus !== undefined &&
@@ -203,7 +211,7 @@ const BulkRequestModal = ({
   title,
   artistId,
   authorId,
-  initialItems = [],
+  initialItems = EMPTY_BULK_ITEMS,
   initialTotalItems,
   onCancel,
   onComplete,
@@ -244,15 +252,25 @@ const BulkRequestModal = ({
         return;
       }
 
-      const response = await axios.get<ArtistResponse>(
-        `/api/v1/artist/${artistId}`,
-        {
-          params: { albumType: releaseType, pageSize: 1000 },
-        }
-      );
+      const releaseGroups: ArtistResponse['releaseGroups'] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const response = await axios.get<ArtistResponse>(
+          `/api/v1/artist/${artistId}`,
+          {
+            params: { albumType: releaseType, page, pageSize: 50 },
+          }
+        );
+
+        releaseGroups.push(...response.data.releaseGroups);
+        totalPages = response.data.pagination?.totalPages ?? 1;
+        page += 1;
+      } while (page <= totalPages);
 
       setItems(
-        response.data.releaseGroups.map((album) => ({
+        releaseGroups.map((album) => ({
           id: album.id,
           title: album.title ?? 'Unknown Album',
           year: album['first-release-date']?.slice(0, 4),

@@ -522,6 +522,38 @@ describe('Books and Music discover parity', () => {
             },
           ],
           typeCounts: { Album: 2, Single: 1 },
+          pagination: {
+            page: 1,
+            pageSize: 50,
+            totalItems: 1,
+            totalPages: 1,
+            albumType: 'Single',
+          },
+        });
+        return;
+      }
+
+      if (req.query.albumType === 'Album' && req.query.page === '2') {
+        req.reply({
+          artist: { name: 'Bulk Artist', area: 'US' },
+          releaseGroups: [
+            {
+              id: 'album-two',
+              mediaType: 'album',
+              title: 'Album Two',
+              'primary-type': 'Album',
+              'first-release-date': '2018-01-01',
+              'artist-credit': [{ name: 'Bulk Artist' }],
+            },
+          ],
+          typeCounts: { Album: 3, Single: 1 },
+          pagination: {
+            page: 2,
+            pageSize: 50,
+            totalItems: 3,
+            totalPages: 2,
+            albumType: 'Album',
+          },
         });
         return;
       }
@@ -553,7 +585,14 @@ describe('Books and Music discover parity', () => {
             },
           },
         ],
-        typeCounts: { Album: 2, Single: 1 },
+        typeCounts: { Album: 3, Single: 1 },
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          totalItems: 3,
+          totalPages: req.query.albumType === 'Album' ? 2 : 1,
+          albumType: req.query.albumType as string,
+        },
       });
     }).as('getBulkArtist');
     cy.intercept('POST', '/api/v1/request/bulk', {
@@ -573,9 +612,17 @@ describe('Books and Music discover parity', () => {
       expect(interception.request.query.albumType).to.eq('Album');
       expect(interception.response?.body.releaseGroups).to.have.length(2);
     });
+    cy.wait('@getBulkArtist').then((interception) => {
+      expect(interception.request.query.albumType).to.eq('Album');
+      expect(interception.request.query.page).to.eq('2');
+      expect(interception.response?.body.releaseGroups[0].id).to.eq(
+        'album-two'
+      );
+    });
     cy.contains('[data-testid=modal-title]', 'Request Discography').should(
       'be.visible'
     );
+    cy.contains('Album Two').should('be.visible');
     cy.contains('label', 'Release Type').find('select').select('Single');
     cy.wait('@getBulkArtist').then((interception) => {
       expect(interception.request.query.albumType).to.eq('Single');
