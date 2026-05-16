@@ -28,12 +28,16 @@ const Layout = ({ children }: LayoutProps) => {
     '/api/v1/request/count',
     {
       revalidateOnMount: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
     }
   );
   const { data: issueResponse, mutate: revalidateIssueCount } = useSWR(
     '/api/v1/issue/count',
     {
       revalidateOnMount: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
     }
   );
 

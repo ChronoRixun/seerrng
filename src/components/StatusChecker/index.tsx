@@ -25,6 +25,7 @@ const StatusChecker = () => {
   const { hasPermission } = useUser();
   const { data, error } = useSWR<StatusResponse>('/api/v1/status', {
     refreshInterval: 60 * 1000,
+    revalidateOnFocus: false,
   });
   const [alertDismissed, setAlertDismissed] = useState(false);
 

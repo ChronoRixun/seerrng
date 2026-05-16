@@ -44,7 +44,11 @@ export const SettingsProvider = ({
 }: SettingsContextProps) => {
   const { data, error } = useSWR<PublicSettingsResponse>(
     '/api/v1/settings/public',
-    { fallbackData: currentSettings }
+    {
+      fallbackData: currentSettings,
+      dedupingInterval: 60000,
+      revalidateOnFocus: false,
+    }
   );
 
   let newSettings = defaultSettings;
