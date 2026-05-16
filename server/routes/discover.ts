@@ -22,6 +22,8 @@ import type {
   GenreSliderItem,
   WatchlistResponse,
 } from '@server/interfaces/api/discoverInterfaces';
+import { extractImageCacheUrls } from '@server/lib/imageCacheUrls';
+import { enqueueImageCacheWarm } from '@server/lib/imageCacheWarmer';
 import { getSettings } from '@server/lib/settings';
 import {
   clampNumber,
@@ -42,6 +44,7 @@ import {
 } from '@server/models/Search';
 import { mapNetwork } from '@server/models/Tv';
 import { isCollection, isMovie, isPerson } from '@server/utils/typeHelpers';
+import type { Response } from 'express';
 import { Router } from 'express';
 import { sortBy } from 'lodash';
 import { In } from 'typeorm';
@@ -80,6 +83,18 @@ export const createTmdbWithBlocklistSettings = (): TheMovieDb => {
 };
 
 const discoverRoutes = Router();
+
+discoverRoutes.use((_req, res, next) => {
+  const json = res.json.bind(res);
+
+  res.json = ((body: unknown) => {
+    enqueueImageCacheWarm(extractImageCacheUrls(body));
+
+    return json(body);
+  }) as Response['json'];
+
+  next();
+});
 
 const emptyDiscoverResponse = (page: number) => ({
   page,

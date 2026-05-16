@@ -1,9 +1,24 @@
 import { getAssociations } from '@server/lib/associations';
 import type { AssociationMediaType } from '@server/lib/associations/types';
+import { extractImageCacheUrls } from '@server/lib/imageCacheUrls';
+import { enqueueImageCacheWarm } from '@server/lib/imageCacheWarmer';
 import logger from '@server/logger';
+import type { Response } from 'express';
 import { Router } from 'express';
 
 const associationRoutes = Router();
+
+associationRoutes.use((_req, res, next) => {
+  const json = res.json.bind(res);
+
+  res.json = ((body: unknown) => {
+    enqueueImageCacheWarm(extractImageCacheUrls(body));
+
+    return json(body);
+  }) as Response['json'];
+
+  next();
+});
 
 const VALID_MEDIA_TYPES = new Set<AssociationMediaType>([
   'movie',
