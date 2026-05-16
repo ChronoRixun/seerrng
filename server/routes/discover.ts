@@ -1321,10 +1321,16 @@ discoverRoutes.get('/music', async (req, res) => {
           ? left.localeCompare(right)
           : right.localeCompare(left);
       });
-      const albums = sortedAlbums.slice(
-        providerWindow.sliceStart,
-        providerWindow.sliceEnd
-      );
+      const albums =
+        sortByValue === 'ranked'
+          ? diversifyMusicAlbumsByArtist(
+              sortedAlbums,
+              providerWindow.sliceEnd
+            ).slice(providerWindow.sliceStart, providerWindow.sliceEnd)
+          : sortedAlbums.slice(
+              providerWindow.sliceStart,
+              providerWindow.sliceEnd
+            );
       const mbIds = albums.map((album) => album.id);
       const relatedMedia = mbIds.length
         ? await getRepository(Media).find({

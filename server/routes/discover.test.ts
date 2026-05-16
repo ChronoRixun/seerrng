@@ -438,6 +438,109 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('diversifies ranked MusicBrainz genre discovery results by artist', async () => {
+    mock.method(
+      MusicBrainz.prototype,
+      'searchReleaseGroupsByTag',
+      async ({ tags }: { tags: string[] }) => {
+        assert.deepStrictEqual(tags, ['jazz']);
+
+        return {
+          totalCount: 4,
+          releaseGroups: [
+            {
+              id: 'album-artist-one-a',
+              score: 100,
+              media_type: 'album',
+              title: 'Artist One Album A',
+              'primary-type': 'Album',
+              'first-release-date': '2026-05-01',
+              'artist-credit': [
+                {
+                  name: 'Artist One',
+                  artist: {
+                    id: 'artist-one',
+                    name: 'Artist One',
+                    'sort-name': 'Artist One',
+                  },
+                },
+              ],
+              posterPath: 'https://cover.example/one-a.jpg',
+            },
+            {
+              id: 'album-artist-one-b',
+              score: 90,
+              media_type: 'album',
+              title: 'Artist One Album B',
+              'primary-type': 'Album',
+              'first-release-date': '2026-04-01',
+              'artist-credit': [
+                {
+                  name: 'Artist One',
+                  artist: {
+                    id: 'artist-one',
+                    name: 'Artist One',
+                    'sort-name': 'Artist One',
+                  },
+                },
+              ],
+              posterPath: 'https://cover.example/one-b.jpg',
+            },
+            {
+              id: 'album-artist-one-c',
+              score: 80,
+              media_type: 'album',
+              title: 'Artist One Album C',
+              'primary-type': 'Album',
+              'first-release-date': '2026-03-01',
+              'artist-credit': [
+                {
+                  name: 'Artist One',
+                  artist: {
+                    id: 'artist-one',
+                    name: 'Artist One',
+                    'sort-name': 'Artist One',
+                  },
+                },
+              ],
+              posterPath: 'https://cover.example/one-c.jpg',
+            },
+            {
+              id: 'album-artist-two',
+              score: 1,
+              media_type: 'album',
+              title: 'Artist Two Album',
+              'primary-type': 'Album',
+              'first-release-date': '2025-01-01',
+              'artist-credit': [
+                {
+                  name: 'Artist Two',
+                  artist: {
+                    id: 'artist-two',
+                    name: 'Artist Two',
+                    'sort-name': 'Artist Two',
+                  },
+                },
+              ],
+              posterPath: undefined,
+            },
+          ],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?genre=jazz&sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results
+        .slice(0, 3)
+        .map((result: { title: string }) => result.title),
+      ['Artist One Album A', 'Artist One Album B', 'Artist Two Album']
+    );
+  });
+
   it('ranks fresh music discovery results by listens, recency, and metadata', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
       payload: {
