@@ -56,6 +56,10 @@ config/anime-list.xml
 
 # dist files
 dist
+dist-release*
+
+# runtime cache
+cache/
 
 # sqlite journal
 config/db/db.sqlite3-journal

@@ -27,12 +27,13 @@ if command -v corepack >/dev/null 2>&1; then
 fi
 CI=true CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile
 pnpm build
-rm -rf node_modules
-CI=true CYPRESS_INSTALL_BINARY=0 pnpm install --prod --frozen-lockfile
 
-cp -R .next dist server public config "$stage"/
+cp -R .next dist server public bin "$stage"/
 cp package.json pnpm-lock.yaml next.config.ts seerr-api.yml LICENSE "$stage"/
-cp -R node_modules "$stage"/node_modules
+(cd "$stage" && CI=true CYPRESS_INSTALL_BINARY=0 pnpm install --prod --frozen-lockfile)
+rm -rf "$stage/.next/cache" "$stage/.next/dev" "$stage/cache"
+mkdir -p "$stage/config"
+touch "$stage/config/.gitkeep"
 
 cat > "$stage/start.sh" <<'EOF'
 #!/usr/bin/env sh
