@@ -1,5 +1,4 @@
 import ButtonWithDropdown from '@app/components/Common/ButtonWithDropdown';
-import RequestModal from '@app/components/RequestModal';
 import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -14,9 +13,14 @@ import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import type Media from '@server/entity/Media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import { mutate } from 'swr';
+
+const RequestModal = dynamic(() => import('@app/components/RequestModal'), {
+  ssr: false,
+});
 
 const messages = defineMessages('components.RequestButton', {
   viewrequest: 'View Request',
