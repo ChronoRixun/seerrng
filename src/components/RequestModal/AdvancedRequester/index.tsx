@@ -14,7 +14,6 @@ import type {
 } from '@server/interfaces/api/serviceInterfaces';
 import type { UserResultsResponse } from '@server/interfaces/api/userInterfaces';
 import { hasPermission } from '@server/lib/permissions';
-import { isEqual } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import Select from 'react-select';
@@ -24,6 +23,9 @@ type OptionType = {
   value: number;
   label: string;
 };
+
+const areNumberArraysEqual = (a: number[], b: number[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
 
 const messages = defineMessages('components.RequestModal.AdvancedRequester', {
   advancedoptions: 'Advanced',
@@ -279,7 +281,7 @@ const AdvancedRequester = ({
 
       if (
         defaultTags &&
-        !isEqual(defaultTags, selectedTags) &&
+        !areNumberArraysEqual(defaultTags, selectedTags) &&
         (!applyOverrides || defaultOverrides.tags === null)
       ) {
         setSelectedTags(defaultTags);

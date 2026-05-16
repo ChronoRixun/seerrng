@@ -19,7 +19,6 @@ import type {
   WatchProviderDetails,
 } from '@server/models/common';
 import axios from 'axios';
-import orderBy from 'lodash/orderBy';
 import { useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import type { MultiValue, SingleValue } from 'react-select';
@@ -411,7 +410,11 @@ export const WatchProviderSelector = ({
       return [];
     }
 
-    return orderBy(data, ['display_priority'], ['asc']);
+    return [...data].sort(
+      (a, b) =>
+        (a.displayPriority ?? Number.MAX_SAFE_INTEGER) -
+        (b.displayPriority ?? Number.MAX_SAFE_INTEGER)
+    );
   }, [data]);
 
   const toggleProvider = (id: number) => {
