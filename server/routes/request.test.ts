@@ -122,6 +122,57 @@ async function seedRequest(status = MediaRequestStatus.PENDING) {
   });
 }
 
+function createReadarrSettings(
+  id: number,
+  serviceType: 'ebook' | 'audiobook',
+  isDefault = true
+) {
+  return {
+    id,
+    name: `${serviceType} Bookshelf`,
+    hostname: `${serviceType}.local`,
+    port: 8787,
+    apiKey: `${serviceType}-key`,
+    useSsl: false,
+    activeProfileId: 22,
+    activeProfileName: serviceType,
+    activeMetadataProfileId: 33,
+    activeMetadataProfileName: serviceType,
+    activeDirectory: '/books',
+    tags: [],
+    is4k: false,
+    isDefault,
+    syncEnabled: true,
+    preventSearch: false,
+    tagRequests: false,
+    overrideRule: [],
+    serviceType,
+  };
+}
+
+function createLidarrSettings(id: number, isDefault = true) {
+  return {
+    id,
+    name: 'Lidarr',
+    hostname: 'lidarr.local',
+    port: 8686,
+    apiKey: 'lidarr-key',
+    useSsl: false,
+    activeProfileId: 20,
+    activeProfileName: 'Music',
+    activeMetadataProfileId: 30,
+    activeMetadataProfileName: 'Standard',
+    activeDirectory: '/music',
+    tags: [],
+    is4k: false,
+    isDefault,
+    syncEnabled: true,
+    preventSearch: false,
+    tagRequests: false,
+    overrideRule: [],
+  };
+}
+
 describe('DELETE /request/:requestId', () => {
   it('allows the owner to delete their own pending request', async () => {
     const mediaRequest = await seedRequest();
@@ -1255,6 +1306,144 @@ describe('PUT /request/:requestId', () => {
     assert.strictEqual(persisted.type, MediaType.BOOK);
     assert.strictEqual(persisted.serverId, null);
   });
+
+  it('rejects book edits that point an audiobook request at an ebook Bookshelf server', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(11, 'ebook')];
+    t.after(() => {
+      settings.readarr = [];
+    });
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const mediaRequest = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'ebook',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.BOOK,
+      format: 'audiobook',
+      serverId: 11,
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /not audiobook requests/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: mediaRequest.id },
+    });
+    assert.strictEqual(persisted.bookFormat, 'ebook');
+    assert.strictEqual(persisted.serverId, null);
+  });
+
+  it('rejects music edits that point at a missing Lidarr server', async () => {
+    const settings = getSettings();
+    settings.lidarr = [];
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'release-group-edit',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const mediaRequest = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MUSIC,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.MUSIC,
+      serverId: 999,
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /selected lidarr/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: mediaRequest.id },
+    });
+    assert.strictEqual(persisted.serverId, null);
+  });
+
+  it('preserves music service routing when a partial edit omits server fields', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(10)];
+    t.after(() => {
+      settings.lidarr = [];
+    });
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'release-group-partial-edit',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const mediaRequest = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MUSIC,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        serverId: 10,
+        profileId: 20,
+        metadataProfileId: 30,
+        rootFolder: '/music',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.MUSIC,
+      tags: [7, 8],
+    });
+
+    assert.strictEqual(res.status, 200);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: mediaRequest.id },
+    });
+    assert.strictEqual(persisted.serverId, 10);
+    assert.strictEqual(persisted.profileId, 20);
+    assert.strictEqual(persisted.metadataProfileId, 30);
+    assert.strictEqual(persisted.rootFolder, '/music');
+    assert.deepStrictEqual(persisted.tags, [7, 8]);
+  });
 });
 
 describe('POST /request/:requestId/:status', () => {
@@ -1285,6 +1474,48 @@ describe('POST /request/:requestId/:status', () => {
       assert.ok(persisted.updatedAt > pending.updatedAt);
     });
   }
+
+  it('rejects approving a book request with a stale Bookshelf server format', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(11, 'ebook')];
+    t.after(() => {
+      settings.readarr = [];
+    });
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const pending = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'audiobook',
+        serverId: 11,
+      })
+    );
+    const admin = await loginAs('admin@seerr.dev', 'test1234');
+
+    const res = await admin.post(`/request/${pending.id}/approve`);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /not audiobook requests/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: pending.id },
+    });
+    assert.strictEqual(persisted.status, MediaRequestStatus.PENDING);
+  });
 });
 
 describe('POST /request/:requestId/retry', () => {
@@ -1307,5 +1538,44 @@ describe('POST /request/:requestId/retry', () => {
     assert.strictEqual(persisted.status, MediaRequestStatus.APPROVED);
     assert.strictEqual(persisted.modifiedBy?.email, 'admin@seerr.dev');
     assert.ok(persisted.updatedAt > failed.updatedAt);
+  });
+
+  it('rejects retrying a failed music request with a stale Lidarr server', async () => {
+    const settings = getSettings();
+    settings.lidarr = [];
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'release-group-retry',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const failed = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MUSIC,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.FAILED,
+        is4k: false,
+        serverId: 999,
+      })
+    );
+    const admin = await loginAs('admin@seerr.dev', 'test1234');
+
+    const res = await admin.post(`/request/${failed.id}/retry`);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /selected lidarr/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: failed.id },
+    });
+    assert.strictEqual(persisted.status, MediaRequestStatus.FAILED);
   });
 });

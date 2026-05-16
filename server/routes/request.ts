@@ -32,6 +32,56 @@ import { Router } from 'express';
 
 const requestRoutes = Router();
 
+const validateExternalServiceConfiguration = (
+  requestType: MediaType,
+  serverId?: number | null,
+  bookFormat?: 'ebook' | 'audiobook' | 'both' | null
+) => {
+  const settings = getSettings();
+
+  if (requestType === MediaType.MUSIC) {
+    if (
+      serverId !== undefined &&
+      serverId !== null &&
+      !settings.lidarr.some((lidarr) => lidarr.id === serverId)
+    ) {
+      throw new ServiceConfigurationError(
+        'The selected Lidarr server no longer exists.'
+      );
+    }
+  }
+
+  if (requestType === MediaType.BOOK) {
+    if (serverId === undefined || serverId === null) {
+      return;
+    }
+
+    const selectedReadarr = settings.readarr.find(
+      (readarr) => readarr.id === serverId
+    );
+
+    if (!selectedReadarr) {
+      throw new ServiceConfigurationError(
+        'The selected Bookshelf server no longer exists.'
+      );
+    }
+
+    const requestedFormat = bookFormat ?? 'ebook';
+
+    if (requestedFormat === 'both') {
+      throw new ServiceConfigurationError(
+        'Both-format book requests must use separate default ebook and audiobook Bookshelf services.'
+      );
+    }
+
+    if (selectedReadarr.serviceType !== requestedFormat) {
+      throw new ServiceConfigurationError(
+        `The selected Bookshelf server is configured for ${selectedReadarr.serviceType} requests, not ${requestedFormat} requests.`
+      );
+    }
+  }
+};
+
 requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
   '/',
   async (req, res, next) => {
@@ -407,6 +457,10 @@ requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
         },
       });
     } catch (e) {
+      if (e instanceof ServiceConfigurationError) {
+        return next({ status: 400, message: e.message });
+      }
+
       next({ status: 500, message: e.message });
     }
   }
@@ -656,11 +710,36 @@ requestRoutes.put<{ requestId: string }>(
         request.type === MediaType.MUSIC ||
         request.type === MediaType.BOOK
       ) {
-        request.serverId = req.body.serverId;
-        request.profileId = req.body.profileId;
-        request.metadataProfileId = req.body.metadataProfileId;
-        request.rootFolder = req.body.rootFolder;
-        request.tags = req.body.tags;
+        const nextServerId =
+          req.body.serverId === undefined
+            ? request.serverId
+            : req.body.serverId;
+        const nextBookFormat =
+          request.type === MediaType.BOOK
+            ? (req.body.format ?? request.bookFormat ?? 'ebook')
+            : null;
+
+        validateExternalServiceConfiguration(
+          request.type,
+          nextServerId,
+          nextBookFormat
+        );
+
+        if (req.body.serverId !== undefined) {
+          request.serverId = req.body.serverId;
+        }
+        if (req.body.profileId !== undefined) {
+          request.profileId = req.body.profileId;
+        }
+        if (req.body.metadataProfileId !== undefined) {
+          request.metadataProfileId = req.body.metadataProfileId;
+        }
+        if (req.body.rootFolder !== undefined) {
+          request.rootFolder = req.body.rootFolder;
+        }
+        if (req.body.tags !== undefined) {
+          request.tags = req.body.tags;
+        }
         request.requestedBy = requestUser as User;
         if (request.type === MediaType.BOOK) {
           request.bookFormat = req.body.format ?? request.bookFormat ?? 'ebook';
@@ -747,6 +826,10 @@ requestRoutes.put<{ requestId: string }>(
 
       return res.status(200).json(request);
     } catch (e) {
+      if (e instanceof ServiceConfigurationError) {
+        return next({ status: 400, message: e.message });
+      }
+
       next({ status: 500, message: e.message });
     }
   }
@@ -799,12 +882,22 @@ requestRoutes.post<{
       });
 
       // this also triggers updating the parent media's status & sending to *arr
+      validateExternalServiceConfiguration(
+        request.type,
+        request.serverId,
+        request.bookFormat
+      );
+
       request.status = MediaRequestStatus.APPROVED;
       request.modifiedBy = req.user;
       await requestRepository.save(request);
 
       return res.status(200).json(request);
     } catch (e) {
+      if (e instanceof ServiceConfigurationError) {
+        return next({ status: 400, message: e.message });
+      }
+
       logger.error('Error processing request retry', {
         label: 'Media Request',
         message: e.message,
@@ -843,12 +936,24 @@ requestRoutes.post<{
           break;
       }
 
+      if (newStatus === MediaRequestStatus.APPROVED) {
+        validateExternalServiceConfiguration(
+          request.type,
+          request.serverId,
+          request.bookFormat
+        );
+      }
+
       request.status = newStatus;
       request.modifiedBy = req.user;
       await requestRepository.save(request);
 
       return res.status(200).json(request);
     } catch (e) {
+      if (e instanceof ServiceConfigurationError) {
+        return next({ status: 400, message: e.message });
+      }
+
       logger.error('Error processing request update', {
         label: 'Media Request',
         message: e.message,
