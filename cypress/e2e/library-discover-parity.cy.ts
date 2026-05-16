@@ -452,12 +452,12 @@ describe('Books and Music discover parity', () => {
     cy.contains('label', 'Format').find('select').select('Audiobook');
     cy.get('[data-testid=modal-ok-button]').should(
       'contain',
-      'Request 2 Items'
+      'Request 3 Items'
     );
     cy.get('[data-testid=modal-ok-button]').click();
     cy.wait('@bulkBookRequest')
       .its('request.body.items')
-      .should('have.length', 2);
+      .should('have.length', 3);
     cy.contains('2 created, 1 skipped, 1 failed.').should('be.visible');
     cy.contains('Second Requestable Work').should('be.visible');
     cy.contains('No default Bookshelf server configured.').should('be.visible');
@@ -549,7 +549,7 @@ describe('Books and Music discover parity', () => {
     cy.get('[role="dialog"] table')
       .contains('td', 'Owned Album')
       .parents('tr')
-      .contains('Requested');
+      .contains('Available');
     cy.get('[data-testid=modal-ok-button]').should('contain', 'Request 1 Item');
     cy.contains('label', 'Release Type').find('select').select('Single');
     cy.contains('Single One').should('be.visible');

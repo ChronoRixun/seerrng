@@ -179,8 +179,11 @@ const getMusicIneligibleReason = (item: BulkItem): string | undefined => {
     return messages.blocklisted.defaultMessage;
   }
 
+  if (item.mediaInfo?.status === MediaStatus.AVAILABLE) {
+    return messages.available.defaultMessage;
+  }
+
   if (
-    item.mediaInfo?.status === MediaStatus.AVAILABLE ||
     item.mediaInfo?.status === MediaStatus.PROCESSING ||
     (item.mediaInfo?.downloadStatus ?? []).length > 0 ||
     (item.mediaInfo?.requests ?? []).some((request) =>
