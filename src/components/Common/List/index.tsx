@@ -1,4 +1,5 @@
 import { withProperties } from '@app/utils/typeHelpers';
+import { memo } from 'react';
 
 interface ListItemProps {
   title: string;
@@ -6,7 +7,7 @@ interface ListItemProps {
   children: React.ReactNode;
 }
 
-const ListItem = ({ title, className, children }: ListItemProps) => {
+const ListItem = memo(({ title, className, children }: ListItemProps) => {
   return (
     <div>
       <div className="max-w-6xl py-4 sm:grid sm:grid-cols-3 sm:gap-4">
@@ -17,7 +18,9 @@ const ListItem = ({ title, className, children }: ListItemProps) => {
       </div>
     </div>
   );
-};
+});
+
+ListItem.displayName = 'ListItem';
 
 interface ListProps {
   title: string;
@@ -25,7 +28,7 @@ interface ListProps {
   children: React.ReactNode;
 }
 
-const List = ({ title, subTitle, children }: ListProps) => {
+const List = memo(({ title, subTitle, children }: ListProps) => {
   return (
     <>
       <div>
@@ -37,6 +40,8 @@ const List = ({ title, subTitle, children }: ListProps) => {
       </div>
     </>
   );
-};
+});
+
+List.displayName = 'List';
 
 export default withProperties(List, { Item: ListItem });

@@ -3,6 +3,7 @@ import {
   InformationCircleIcon,
   XCircleIcon,
 } from '@heroicons/react/24/solid';
+import { memo } from 'react';
 
 interface AlertProps {
   title?: React.ReactNode;
@@ -10,32 +11,29 @@ interface AlertProps {
   children?: React.ReactNode;
 }
 
-const Alert = ({ title, children, type }: AlertProps) => {
-  let design = {
+const alertDesign = {
+  warning: {
     bgColor: 'border border-yellow-500 backdrop-blur bg-yellow-400/20',
     titleColor: 'text-yellow-100',
     textColor: 'text-yellow-300',
     svg: <ExclamationTriangleIcon className="h-5 w-5" />,
-  };
+  },
+  info: {
+    bgColor: 'border border-indigo-500 backdrop-blur bg-indigo-400/20',
+    titleColor: 'text-gray-100',
+    textColor: 'text-gray-300',
+    svg: <InformationCircleIcon className="h-5 w-5" />,
+  },
+  error: {
+    bgColor: 'bg-red-600',
+    titleColor: 'text-red-100',
+    textColor: 'text-red-300',
+    svg: <XCircleIcon className="h-5 w-5" />,
+  },
+};
 
-  switch (type) {
-    case 'info':
-      design = {
-        bgColor: 'border border-indigo-500 backdrop-blur bg-indigo-400/20',
-        titleColor: 'text-gray-100',
-        textColor: 'text-gray-300',
-        svg: <InformationCircleIcon className="h-5 w-5" />,
-      };
-      break;
-    case 'error':
-      design = {
-        bgColor: 'bg-red-600',
-        titleColor: 'text-red-100',
-        textColor: 'text-red-300',
-        svg: <XCircleIcon className="h-5 w-5" />,
-      };
-      break;
-  }
+const Alert = memo(({ title, children, type = 'warning' }: AlertProps) => {
+  const design = alertDesign[type];
 
   return (
     <div className={`mb-4 rounded-md p-4 ${design.bgColor}`}>
@@ -56,6 +54,8 @@ const Alert = ({ title, children, type }: AlertProps) => {
       </div>
     </div>
   );
-};
+});
+
+Alert.displayName = 'Alert';
 
 export default Alert;

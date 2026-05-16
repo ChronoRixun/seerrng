@@ -32,6 +32,16 @@ const LibraryFilterSlideover = dynamic(
   { ssr: false }
 );
 
+const musicSortOptions = new Set([
+  'ranked',
+  'popular.week',
+  'popular.month',
+  'popular.year',
+  'listen_count.desc',
+  'release_date.desc',
+  'release_date.asc',
+]);
+
 const DiscoverMusic = () => {
   const intl = useIntl();
   const router = useRouter();
@@ -48,7 +58,10 @@ const DiscoverMusic = () => {
       ? router.query.releaseType
       : '';
   const sortBy =
-    typeof router.query.sortBy === 'string' ? router.query.sortBy : 'ranked';
+    typeof router.query.sortBy === 'string' &&
+    musicSortOptions.has(router.query.sortBy)
+      ? router.query.sortBy
+      : 'ranked';
   const {
     isLoadingInitialData,
     isEmpty,

@@ -38,6 +38,15 @@ const LibraryFilterSlideover = dynamic(
   { ssr: false }
 );
 
+const bookSortOptions = new Set([
+  'ranked',
+  'newest',
+  'oldest',
+  'random',
+  'rating',
+  'editions',
+]);
+
 const DiscoverBooks = () => {
   const intl = useIntl();
   const router = useRouter();
@@ -48,7 +57,10 @@ const DiscoverBooks = () => {
   const subject =
     typeof router.query.subject === 'string' ? router.query.subject : '';
   const sortBy =
-    typeof router.query.sortBy === 'string' ? router.query.sortBy : 'ranked';
+    typeof router.query.sortBy === 'string' &&
+    bookSortOptions.has(router.query.sortBy)
+      ? router.query.sortBy
+      : 'ranked';
   const [showFilters, setShowFilters] = useState(false);
   const {
     isLoadingInitialData,
