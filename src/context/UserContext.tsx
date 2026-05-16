@@ -17,8 +17,14 @@ export const UserContext = ({ initialUser, children }: UserContextProps) => {
   const { user, error, revalidate } = useUser({ initialData: initialUser });
   const router = useRouter();
   const routing = useRef(false);
+  const previousPathname = useRef(router.pathname);
 
   useEffect(() => {
+    if (previousPathname.current === router.pathname) {
+      return;
+    }
+
+    previousPathname.current = router.pathname;
     revalidate();
   }, [router.pathname, revalidate]);
 

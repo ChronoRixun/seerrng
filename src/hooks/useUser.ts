@@ -73,7 +73,7 @@ export const useUser = ({
     refreshInterval: !isAuthPage ? 120000 : 0,
     dedupingInterval: 60000,
     revalidateOnFocus: false,
-    revalidateOnMount: !isAuthPage,
+    revalidateOnMount: !initialData && !isAuthPage,
     revalidateOnReconnect: !isAuthPage,
     errorRetryInterval: 60000,
     shouldRetryOnError: false,

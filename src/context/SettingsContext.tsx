@@ -47,6 +47,7 @@ export const SettingsProvider = ({
     {
       fallbackData: currentSettings,
       dedupingInterval: 60000,
+      revalidateOnMount: false,
       revalidateOnFocus: false,
     }
   );
