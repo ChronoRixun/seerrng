@@ -4,7 +4,7 @@ import ListView from '@app/components/Common/ListView';
 import PageTitle from '@app/components/Common/PageTitle';
 import { countLibraryFilters } from '@app/components/Discover/LibraryFilterSlideover/filterUtils';
 import useDiscover from '@app/hooks/useDiscover';
-import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
+import { useBatchUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { BarsArrowDownIcon, FunnelIcon } from '@heroicons/react/24/solid';
@@ -35,7 +35,7 @@ const LibraryFilterSlideover = dynamic(
 const DiscoverMusic = () => {
   const intl = useIntl();
   const router = useRouter();
-  const updateQueryParams = useUpdateQueryParams({});
+  const updateQueryParams = useBatchUpdateQueryParams({});
   const title = intl.formatMessage(messages.music);
   const query =
     typeof router.query.query === 'string' ? router.query.query : '';
@@ -82,7 +82,12 @@ const DiscoverMusic = () => {
               className="rounded-r-only"
               value={sortBy}
               disabled={!!query}
-              onChange={(e) => updateQueryParams('sortBy', e.target.value)}
+              onChange={(e) =>
+                updateQueryParams({
+                  sortBy: e.target.value,
+                  page: undefined,
+                })
+              }
             >
               <option value="ranked">
                 {intl.formatMessage(messages.ranked)}

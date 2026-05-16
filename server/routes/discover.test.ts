@@ -255,6 +255,113 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('returns ListenBrainz top albums for popular music discovery', async () => {
+    const topAlbumsMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getTopAlbums',
+      async ({
+        range,
+        offset,
+        count,
+      }: {
+        range: string;
+        offset: number;
+        count: number;
+      }) => {
+        assert.strictEqual(range, 'week');
+        assert.strictEqual(offset, 0);
+        assert.strictEqual(count, 100);
+
+        return {
+          payload: {
+            count: 2,
+            from_ts: 0,
+            last_updated: 0,
+            offset: 0,
+            range,
+            to_ts: 0,
+            release_groups: [
+              {
+                artist_mbids: ['artist-popular'],
+                artist_name: 'Popular Artist',
+                caa_id: 1,
+                caa_release_mbid: 'release-popular',
+                listen_count: 500,
+                release_group_mbid: 'album-popular',
+                release_group_name: 'Popular Album',
+              },
+              {
+                artist_mbids: ['artist-second'],
+                artist_name: 'Second Artist',
+                caa_id: 2,
+                caa_release_mbid: 'release-second',
+                listen_count: 300,
+                release_group_mbid: 'album-second',
+                release_group_name: 'Second Album',
+              },
+            ],
+          },
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=popular.week');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(topAlbumsMock.mock.callCount(), 1);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Popular Album', 'Second Album']
+    );
+  });
+
+  it('ranks fresh music discovery results by listens, recency, and metadata', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: {
+        releases: [
+          {
+            artist_credit_name: 'Unknown Artist',
+            artist_mbids: ['artist-obscure'],
+            caa_id: 0,
+            caa_release_mbid: '',
+            listen_count: 1,
+            release_date: '2026-05-01',
+            release_group_mbid: 'album-obscure',
+            release_group_primary_type: 'Single',
+            release_group_secondary_type: '',
+            release_mbid: 'release-obscure',
+            release_name: 'Obscure Single',
+            release_tags: [],
+          },
+          {
+            artist_credit_name: 'Known Artist',
+            artist_mbids: ['artist-known'],
+            caa_id: 1,
+            caa_release_mbid: 'release-known',
+            listen_count: 100,
+            release_date: '2026-04-25',
+            release_group_mbid: 'album-known',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-known',
+            release_name: 'Known Album',
+            release_tags: [],
+          },
+        ],
+      },
+    }));
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Known Album', 'Obscure Single']
+    );
+  });
+
   it('falls back to a seven day window when a wider ListenBrainz query fails', async () => {
     const freshReleaseMock = mock.method(
       ListenBrainzAPI.prototype,
@@ -443,6 +550,66 @@ describe('GET /discover/books', () => {
     assert.strictEqual(res.body.totalResults, 1);
     assert.strictEqual(res.body.results[0].mediaType, 'book');
     assert.strictEqual(res.body.results[0].title, 'Alpha Book');
+  });
+
+  it('passes Open Library sort options through for book discovery', async () => {
+    const searchBooksMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'searchBooks',
+      async ({ sort }: { sort?: string }) => {
+        assert.strictEqual(sort, 'rating');
+
+        return {
+          numFound: 0,
+          start: 0,
+          docs: [],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/books?sortBy=rating');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(searchBooksMock.mock.callCount(), 1);
+  });
+
+  it('ranks book discovery results by quality signals by default', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
+      numFound: 2,
+      start: 0,
+      docs: [
+        {
+          key: '/works/OL-obscure',
+          title: 'Obscure Book',
+          first_publish_year: 2026,
+          edition_count: 1,
+          ratings_average: 3,
+          ratings_count: 1,
+          want_to_read_count: 1,
+        },
+        {
+          key: '/works/OL-known',
+          title: 'Known Book',
+          author_name: ['Known Writer'],
+          first_publish_year: 2024,
+          cover_i: 123,
+          edition_count: 50,
+          ratings_average: 4.5,
+          ratings_count: 100,
+          want_to_read_count: 500,
+        },
+      ],
+    }));
+
+    const agent = await login();
+    const res = await agent.get('/discover/books');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Known Book', 'Obscure Book']
+    );
   });
 
   it('returns an empty result set when Open Library is unavailable', async () => {
