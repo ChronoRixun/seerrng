@@ -249,6 +249,35 @@ describe('GET /discover/music', () => {
     assert.strictEqual(res.body.results[0].title, 'Fallback Album');
   });
 
+  it('returns an empty result set when ListenBrainz is unavailable', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => {
+      throw new Error('provider unavailable');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?page=2');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.page, 2);
+    assert.strictEqual(res.body.totalPages, 1);
+    assert.strictEqual(res.body.totalResults, 0);
+    assert.deepStrictEqual(res.body.results, []);
+  });
+
+  it('returns an empty result set when MusicBrainz search is unavailable', async () => {
+    mock.method(MusicBrainz.prototype, 'searchAlbum', async () => {
+      throw new Error('provider unavailable');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?query=kind%20of%20blue');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.page, 1);
+    assert.strictEqual(res.body.totalResults, 0);
+    assert.deepStrictEqual(res.body.results, []);
+  });
+
   it('only exposes the current user watchlist state on music results', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
       payload: {
@@ -368,6 +397,21 @@ describe('GET /discover/books', () => {
     assert.strictEqual(res.body.totalResults, 1);
     assert.strictEqual(res.body.results[0].mediaType, 'book');
     assert.strictEqual(res.body.results[0].title, 'Alpha Book');
+  });
+
+  it('returns an empty result set when Open Library is unavailable', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => {
+      throw new Error('provider unavailable');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/books?page=3');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.page, 3);
+    assert.strictEqual(res.body.totalPages, 1);
+    assert.strictEqual(res.body.totalResults, 0);
+    assert.deepStrictEqual(res.body.results, []);
   });
 
   it('only exposes the current user watchlist state on book results', async () => {

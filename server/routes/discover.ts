@@ -69,6 +69,13 @@ export const createTmdbWithBlocklistSettings = (): TheMovieDb => {
 
 const discoverRoutes = Router();
 
+const emptyDiscoverResponse = (page: number) => ({
+  page,
+  totalPages: 1,
+  totalResults: 0,
+  results: [],
+});
+
 const QueryFilterOptions = z.object({
   page: z.coerce.string().optional(),
   sortBy: z.coerce.string().optional(),
@@ -928,7 +935,7 @@ discoverRoutes.get<{ language: string }, GenreSliderItem[]>(
   }
 );
 
-discoverRoutes.get('/music', async (req, res, next) => {
+discoverRoutes.get('/music', async (req, res) => {
   const listenBrainz = new ListenBrainzAPI();
   const musicBrainz = new MusicBrainz();
   const itemsPerPage = 20;
@@ -1065,11 +1072,11 @@ discoverRoutes.get('/music', async (req, res, next) => {
       label: 'Discover Music',
       errorMessage: e instanceof Error ? e.message : 'Unknown error',
     });
-    return next({ status: 500, message: 'Unable to fetch music discovery.' });
+    return res.status(200).json(emptyDiscoverResponse(page));
   }
 });
 
-discoverRoutes.get('/books', async (req, res, next) => {
+discoverRoutes.get('/books', async (req, res) => {
   const openLibrary = new OpenLibraryAPI();
   const itemsPerPage = 20;
   const page = req.query.page ? Number(req.query.page) : 1;
@@ -1127,7 +1134,7 @@ discoverRoutes.get('/books', async (req, res, next) => {
       label: 'Discover Books',
       errorMessage: e instanceof Error ? e.message : 'Unknown error',
     });
-    return next({ status: 500, message: 'Unable to fetch book discovery.' });
+    return res.status(200).json(emptyDiscoverResponse(page));
   }
 });
 
