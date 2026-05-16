@@ -3,6 +3,8 @@ set -euo pipefail
 
 tag="${1:?usage: build-release-assets.sh <tag> <dist-dir>}"
 dist_dir="${2:-dist-release}"
+mkdir -p "$dist_dir"
+dist_abs="$(cd "$dist_dir" && pwd)"
 
 case "$(uname -s)" in
   Linux) os=linux ;;
@@ -18,8 +20,9 @@ case "$(uname -m)" in
 esac
 
 asset="seerrng-${tag}-${os}-${arch}"
-stage="${dist_dir}/${asset}"
-rm -rf "$stage"
+work_dir="$(mktemp -d)"
+trap 'rm -rf "$work_dir"' EXIT
+stage="${work_dir}/${asset}"
 mkdir -p "$stage"
 
 if command -v corepack >/dev/null 2>&1; then
@@ -51,11 +54,10 @@ if "%CONFIG_DIRECTORY%"=="" set CONFIG_DIRECTORY=%CD%\config
 node dist\index.js %*
 EOF
 
-mkdir -p "$dist_dir"
 if [[ "$os" == "windows" ]]; then
-  (cd "$dist_dir" && zip -qr "${asset}.zip" "$asset")
+  (cd "$work_dir" && zip -qr "${dist_abs}/${asset}.zip" "$asset")
 else
-  tar -C "$dist_dir" -czf "${dist_dir}/${asset}.tar.gz" "$asset"
+  tar -C "$work_dir" -czf "${dist_abs}/${asset}.tar.gz" "$asset"
 fi
 
-(cd "$dist_dir" && sha256sum "${asset}".* > "${asset}.sha256")
+(cd "$dist_abs" && sha256sum "${asset}".* > "${asset}.sha256")
