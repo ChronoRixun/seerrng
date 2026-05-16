@@ -2,7 +2,10 @@ import Button from '@app/components/Common/Button';
 import Header from '@app/components/Common/Header';
 import ListView from '@app/components/Common/ListView';
 import PageTitle from '@app/components/Common/PageTitle';
-import { countLibraryFilters } from '@app/components/Discover/LibraryFilterSlideover/filterUtils';
+import {
+  bookSortOptions,
+  countLibraryFilters,
+} from '@app/components/Discover/LibraryFilterSlideover/filterUtils';
 import useDiscover from '@app/hooks/useDiscover';
 import { useBatchUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
 import ErrorPage from '@app/pages/_error';
@@ -37,15 +40,6 @@ const LibraryFilterSlideover = dynamic(
   () => import('@app/components/Discover/LibraryFilterSlideover'),
   { ssr: false }
 );
-
-const bookSortOptions = new Set([
-  'ranked',
-  'newest',
-  'oldest',
-  'random',
-  'rating',
-  'editions',
-]);
 
 const DiscoverBooks = () => {
   const intl = useIntl();
