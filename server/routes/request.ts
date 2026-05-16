@@ -9,6 +9,9 @@ import {
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import {
   BlocklistedMediaError,
   DuplicateMediaRequestError,
@@ -21,6 +24,8 @@ import {
 import SeasonRequest from '@server/entity/SeasonRequest';
 import { User } from '@server/entity/User';
 import type {
+  BulkMediaRequestBody,
+  BulkMediaRequestResponse,
   MediaRequestBody,
   RequestResultsResponse,
 } from '@server/interfaces/api/requestInterfaces';
@@ -156,6 +161,67 @@ const isRequestAvailable = (mediaRequest: MediaRequest): boolean => {
   }
 
   return mediaRequest.media.status === MediaStatus.AVAILABLE;
+};
+
+const getBulkCoveredReason = async (
+  mediaType: MediaType.MUSIC | MediaType.BOOK,
+  mediaId: string,
+  format?: 'ebook' | 'audiobook' | 'both'
+): Promise<string | undefined> => {
+  if (mediaType === MediaType.MUSIC) {
+    const media = await getRepository(Media).findOne({
+      where: { mbId: mediaId, mediaType: MediaType.MUSIC },
+    });
+
+    if (media?.status === MediaStatus.BLOCKLISTED) {
+      return 'This album is blocklisted.';
+    }
+
+    if (
+      media?.status === MediaStatus.AVAILABLE ||
+      media?.status === MediaStatus.PROCESSING
+    ) {
+      return 'This album is already available or processing.';
+    }
+
+    return undefined;
+  }
+
+  const normalizedOpenLibraryId = mediaId.replace(/^\/?works\//, '');
+  const identifier = await getRepository(MediaIdentifier).findOne({
+    where: {
+      provider: MediaIdentifierProvider.OPENLIBRARY,
+      value: normalizedOpenLibraryId,
+    },
+    relations: { media: true },
+  });
+  const media = identifier?.media;
+
+  if (!media || media.mediaType !== MediaType.BOOK) {
+    return undefined;
+  }
+
+  if (media.status === MediaStatus.BLOCKLISTED) {
+    return 'This book is blocklisted.';
+  }
+
+  const requestedFormat = format ?? 'ebook';
+  const ebookAvailable = hasBookFormat(media, 'ebook');
+  const audiobookAvailable = hasBookFormat(media, 'audiobook');
+
+  if (requestedFormat === 'ebook' && ebookAvailable) {
+    return 'This ebook is already available.';
+  }
+
+  if (requestedFormat === 'audiobook' && audiobookAvailable) {
+    return 'This audiobook is already available.';
+  }
+
+  if (requestedFormat === 'both' && (ebookAvailable || audiobookAvailable)) {
+    return 'One or more requested book formats are already available.';
+  }
+
+  return undefined;
 };
 
 requestRoutes.get<Record<string, unknown>, RequestResultsResponse>(
@@ -591,6 +657,167 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
         default:
           return next({ status: 500, message: error.message });
       }
+    }
+  }
+);
+
+requestRoutes.post<never, BulkMediaRequestResponse, BulkMediaRequestBody>(
+  '/bulk',
+  async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return next({
+          status: 401,
+          message: 'You must be logged in to request media.',
+        });
+      }
+
+      if (
+        req.body.mediaType !== MediaType.MUSIC &&
+        req.body.mediaType !== MediaType.BOOK
+      ) {
+        return next({
+          status: 400,
+          message: 'Bulk requests only support music and books.',
+        });
+      }
+
+      if (!Array.isArray(req.body.items) || req.body.items.length === 0) {
+        return next({
+          status: 400,
+          message: 'At least one item is required.',
+        });
+      }
+
+      let requestUser = req.user;
+
+      if (req.body.userId) {
+        if (
+          !req.user.hasPermission([
+            Permission.MANAGE_USERS,
+            Permission.MANAGE_REQUESTS,
+          ])
+        ) {
+          return next({
+            status: 403,
+            message: 'You do not have permission to modify the request user.',
+          });
+        }
+
+        requestUser = await getRepository(User).findOneOrFail({
+          where: { id: req.body.userId },
+        });
+      }
+
+      const quotas = await requestUser.getQuota();
+      const quota =
+        req.body.mediaType === MediaType.MUSIC ? quotas.music : quotas.book;
+
+      if (quota.limit && (quota.remaining ?? 0) < req.body.items.length) {
+        return next({
+          status: 403,
+          message: `${req.body.mediaType === MediaType.MUSIC ? 'Music' : 'Book'} quota exceeded.`,
+        });
+      }
+
+      const created: MediaRequest[] = [];
+      const skipped: BulkMediaRequestResponse['skipped'] = [];
+      const failed: BulkMediaRequestResponse['failed'] = [];
+
+      for (const item of req.body.items) {
+        if (!item.mediaId) {
+          failed.push({
+            mediaId: item.mediaId,
+            title: item.title,
+            reason: 'Missing media ID.',
+          });
+          continue;
+        }
+
+        try {
+          const coveredReason = await getBulkCoveredReason(
+            req.body.mediaType,
+            item.mediaId,
+            req.body.format
+          );
+
+          if (coveredReason) {
+            skipped.push({
+              mediaId: item.mediaId,
+              title: item.title,
+              reason: coveredReason,
+            });
+            continue;
+          }
+
+          const request = await MediaRequest.request(
+            {
+              mediaType: req.body.mediaType,
+              mediaId: item.mediaId,
+              format: req.body.format,
+              isbn13: item.isbn13,
+              editionId: item.editionId,
+              authorId: item.authorId,
+              serverId: req.body.serverId,
+              profileId: req.body.profileId,
+              profileName: req.body.profileName,
+              rootFolder: req.body.rootFolder,
+              metadataProfileId: req.body.metadataProfileId,
+              userId: req.body.userId,
+              tags: req.body.tags,
+            },
+            req.user
+          );
+
+          created.push(request);
+        } catch (error) {
+          if (!(error instanceof Error)) {
+            failed.push({
+              mediaId: item.mediaId,
+              title: item.title,
+              reason: 'Unknown error.',
+            });
+            continue;
+          }
+
+          if (
+            error instanceof DuplicateMediaRequestError ||
+            error instanceof BlocklistedMediaError
+          ) {
+            skipped.push({
+              mediaId: item.mediaId,
+              title: item.title,
+              reason: error.message,
+            });
+            continue;
+          }
+
+          if (
+            error instanceof RequestPermissionError ||
+            error instanceof QuotaRestrictedError
+          ) {
+            return next({ status: 403, message: error.message });
+          }
+
+          if (error instanceof ServiceConfigurationError) {
+            return next({ status: 400, message: error.message });
+          }
+
+          failed.push({
+            mediaId: item.mediaId,
+            title: item.title,
+            reason: error.message,
+          });
+        }
+      }
+
+      return res.status(207).json({ created, skipped, failed });
+    } catch (error) {
+      if (error instanceof Error) {
+        return next({ status: 500, message: error.message });
+      }
+
+      return next({ status: 500, message: 'Unable to submit bulk request.' });
     }
   }
 );

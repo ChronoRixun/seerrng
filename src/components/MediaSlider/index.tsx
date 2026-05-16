@@ -129,10 +129,6 @@ const MediaSlider = ({
     }
   }, [titles, setSize, size, data, onNewTitles]);
 
-  if (hideWhenEmpty && data && (data[0]?.results ?? []).length === 0) {
-    return null;
-  }
-
   const blocklistVisibility = hasPermission(
     [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
     { type: 'or' }
@@ -243,6 +239,10 @@ const MediaSlider = ({
 
     return cardTitles;
   }, [blocklistVisibility, linkUrl, titles]);
+
+  if (hideWhenEmpty && data && (data[0]?.results ?? []).length === 0) {
+    return null;
+  }
 
   return (
     <div ref={ref}>

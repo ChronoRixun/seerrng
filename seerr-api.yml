@@ -873,6 +873,130 @@ components:
           example: OL8934157M
         mediaInfo:
           $ref: '#/components/schemas/MediaInfo'
+    AuthorResult:
+      type: object
+      properties:
+        id:
+          type: string
+          example: OL23919A
+        name:
+          type: string
+          example: Ursula K. Le Guin
+        biography:
+          type: string
+        birthDate:
+          type: string
+        deathDate:
+          type: string
+        posterPath:
+          type: string
+        works:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookResult'
+        pagination:
+          type: object
+          properties:
+            limit:
+              type: number
+            offset:
+              type: number
+            totalItems:
+              type: number
+    AuthorWorksResponse:
+      type: object
+      properties:
+        works:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookResult'
+        pagination:
+          type: object
+          properties:
+            limit:
+              type: number
+            offset:
+              type: number
+            totalItems:
+              type: number
+    BulkMediaRequestItem:
+      type: object
+      properties:
+        mediaId:
+          type: string
+          example: OL27448W
+        title:
+          type: string
+        isbn13:
+          type: string
+          example: '9780441478125'
+        editionId:
+          type: string
+          example: OL8934157M
+        authorId:
+          type: string
+          example: OL23919A
+      required:
+        - mediaId
+    BulkMediaRequestBody:
+      type: object
+      properties:
+        mediaType:
+          type: string
+          enum: [music, book]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkMediaRequestItem'
+        format:
+          type: string
+          enum: [ebook, audiobook, both]
+          description: Book request format.
+        serverId:
+          type: number
+        profileId:
+          type: number
+        metadataProfileId:
+          type: number
+        rootFolder:
+          type: string
+        userId:
+          type: number
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: number
+      required:
+        - mediaType
+        - items
+    BulkMediaRequestResult:
+      type: object
+      properties:
+        mediaId:
+          type: string
+        title:
+          type: string
+        reason:
+          type: string
+      required:
+        - mediaId
+        - reason
+    BulkMediaRequestResponse:
+      type: object
+      properties:
+        created:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaRequest'
+        skipped:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkMediaRequestResult'
+        failed:
+          type: array
+          items:
+            $ref: '#/components/schemas/BulkMediaRequestResult'
     PersonResult:
       type: object
       properties:
@@ -6730,6 +6854,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BookResult'
+  /author/{authorId}:
+    get:
+      summary: Get author details
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: authorId
+          required: true
+          schema:
+            type: string
+            example: OL23919A
+        - in: query
+          name: limit
+          schema:
+            type: number
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: number
+            default: 0
+      responses:
+        '200':
+          description: Author details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorResult'
+  /author/{authorId}/works:
+    get:
+      summary: Get author works
+      tags:
+        - search
+      parameters:
+        - in: path
+          name: authorId
+          required: true
+          schema:
+            type: string
+            example: OL23919A
+        - in: query
+          name: limit
+          schema:
+            type: number
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: number
+            default: 0
+      responses:
+        '200':
+          description: Author works returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorWorksResponse'
   /service/lidarr:
     get:
       summary: Get Lidarr service summaries
@@ -7120,6 +7302,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MediaRequest'
+  /request/bulk:
+    post:
+      summary: Create bulk media requests
+      description: |
+        Creates individual music or book requests for the selected items. Duplicate, covered, or blocklisted items are returned in the summary instead of failing the whole batch. Quota overage rejects before any requests are created.
+      tags:
+        - request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkMediaRequestBody'
+      responses:
+        '207':
+          description: Bulk request summary returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkMediaRequestResponse'
   /request/count:
     get:
       summary: Gets request counts

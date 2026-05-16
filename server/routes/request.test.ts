@@ -1861,3 +1861,122 @@ describe('POST /request/:requestId/retry', () => {
     assert.strictEqual(persisted.status, MediaRequestStatus.FAILED);
   });
 });
+
+describe('POST /request/bulk', () => {
+  it('creates music requests and returns skipped/failed item summaries', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(10)];
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const duplicateMedia = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'duplicate-album',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MUSIC,
+        media: duplicateMedia,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+      })
+    );
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async (releaseGroupId: string) => {
+        if (releaseGroupId === 'failed-album') {
+          throw new Error('ListenBrainz unavailable');
+        }
+
+        return {
+          release_group_mbid: releaseGroupId,
+          release_group_metadata: {
+            release_group: {
+              name: releaseGroupId,
+            },
+            artist: {
+              name: 'Bulk Artist',
+            },
+          },
+        } as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>;
+      }
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      items: [
+        { mediaId: 'new-album', title: 'New Album' },
+        { mediaId: 'duplicate-album', title: 'Duplicate Album' },
+        { mediaId: 'failed-album', title: 'Failed Album' },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].media.mbId, 'new-album');
+    assert.deepStrictEqual(res.body.skipped, [
+      {
+        mediaId: 'duplicate-album',
+        title: 'Duplicate Album',
+        reason: 'Request for this album already exists.',
+      },
+    ]);
+    assert.deepStrictEqual(res.body.failed, [
+      {
+        mediaId: 'failed-album',
+        title: 'Failed Album',
+        reason: 'ListenBrainz unavailable',
+      },
+    ]);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 2);
+  });
+
+  it('rejects quota overage before creating any bulk requests', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(10)];
+    const userRepo = getRepository(User);
+    const friend = await userRepo.findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    friend.musicQuotaLimit = 1;
+    friend.musicQuotaDays = 7;
+    await userRepo.save(friend);
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () => {
+        throw new Error('Bulk request should not fetch item metadata');
+      }
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      items: [
+        { mediaId: 'quota-one', title: 'Quota One' },
+        { mediaId: 'quota-two', title: 'Quota Two' },
+      ],
+    });
+
+    assert.strictEqual(res.status, 403);
+    assert.match(res.body.message, /music quota exceeded/i);
+    assert.strictEqual(getAlbumMock.mock.callCount(), 0);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+});

@@ -71,8 +71,6 @@ const TitleCard = ({
   summary,
   year,
   title,
-  artist,
-  type,
   status,
   mediaType,
   isAddedToWatchlist = false,
@@ -374,6 +372,12 @@ const TitleCard = ({
     : image
       ? `https://image.tmdb.org/t/p/w300_and_h450_face${image}`
       : undefined;
+  const imageCacheType =
+    displayImage?.startsWith('http') && isBook
+      ? 'book'
+      : displayImage?.startsWith('http') && isAlbum
+        ? 'music'
+        : 'tmdb';
 
   const showRequestButton =
     canUseRequestActions &&
@@ -491,59 +495,14 @@ const TitleCard = ({
         tabIndex={0}
       >
         <div className="absolute inset-0 h-full w-full overflow-hidden">
-          {isAlbum || isBook ? (
-            <div className="absolute inset-0 flex h-full w-full flex-col items-center p-2">
-              <div
-                className={`relative w-full overflow-hidden rounded ring-1 ring-gray-700 ${
-                  isBook ? 'aspect-[2/3]' : 'aspect-square'
-                }`}
-              >
-                <CachedImage
-                  type={
-                    displayImage?.startsWith('http')
-                      ? isBook
-                        ? 'book'
-                        : 'music'
-                      : 'tmdb'
-                  }
-                  className="h-full w-full object-contain"
-                  alt=""
-                  src={
-                    displayImage ??
-                    '/images/seerr_poster_not_found_logo_top.png'
-                  }
-                  fill
-                />
-              </div>
-              <div className="mt-2 w-full min-w-0 text-center">
-                <div className="truncate font-bold text-white">{title}</div>
-                {artist && (
-                  <div className="truncate text-xs text-gray-300">{artist}</div>
-                )}
-                {type && (
-                  <div className="mt-1 truncate text-xs text-gray-500">
-                    {type}
-                  </div>
-                )}
-                {year && (
-                  <div className="mt-1 truncate text-xs text-gray-500">
-                    {year}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <CachedImage
-              type={displayImage?.startsWith('http') ? 'music' : 'tmdb'}
-              className="absolute inset-0 h-full w-full"
-              alt=""
-              src={
-                displayImage ?? '/images/seerr_poster_not_found_logo_top.png'
-              }
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              fill
-            />
-          )}
+          <CachedImage
+            type={imageCacheType}
+            className="absolute inset-0 h-full w-full"
+            alt=""
+            src={displayImage ?? '/images/seerr_poster_not_found_logo_top.png'}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            fill
+          />
           <div className="absolute left-0 right-0 flex items-center justify-between p-2">
             <div
               className={`pointer-events-none z-40 self-start rounded-full border shadow-md ${

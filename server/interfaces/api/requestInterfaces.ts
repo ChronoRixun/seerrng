@@ -34,3 +34,36 @@ export type MediaRequestBody = {
   userId?: number;
   tags?: number[];
 };
+
+export type BulkMediaRequestItem = {
+  mediaId: string;
+  title?: string;
+  isbn13?: string;
+  editionId?: string;
+  authorId?: string;
+};
+
+export type BulkMediaRequestBody = {
+  mediaType: MediaType.MUSIC | MediaType.BOOK;
+  items: BulkMediaRequestItem[];
+  format?: 'ebook' | 'audiobook' | 'both';
+  serverId?: number;
+  profileId?: number;
+  profileName?: string;
+  rootFolder?: string;
+  metadataProfileId?: number;
+  userId?: number;
+  tags?: number[];
+};
+
+export type BulkMediaRequestResult = {
+  mediaId: string;
+  title?: string;
+  reason: string;
+};
+
+export type BulkMediaRequestResponse = {
+  created: MediaRequest[];
+  skipped: BulkMediaRequestResult[];
+  failed: BulkMediaRequestResult[];
+};

@@ -136,6 +136,20 @@ const scoreMusicRelease = (release: LbRelease): number => {
   return listenScore + recencyScore + coverScore + typeScore;
 };
 
+const scoreMusicAlbum = (album: MbAlbumResult): number => {
+  const searchScore = clampNumber(album.score) * 2;
+  const recencyScore = getRecencyScore(album['first-release-date']);
+  const coverScore = album.posterPath ? 8 : 0;
+  const typeScore =
+    album['primary-type'] === 'Album'
+      ? 8
+      : album['primary-type'] === 'EP'
+        ? 4
+        : 0;
+
+  return searchScore + recencyScore + coverScore + typeScore;
+};
+
 const scoreBookDoc = (doc: OpenLibrarySearchDoc): number => {
   const ratingScore = clampNumber(doc.ratings_average) * 12;
   const ratingCountScore = Math.log10(clampNumber(doc.ratings_count) + 1) * 18;
@@ -178,6 +192,91 @@ const mapTopAlbumRelease = (releaseGroup: LbReleaseGroup): MbAlbumResult => ({
     ? `https://coverartarchive.org/release/${releaseGroup.caa_release_mbid}/front-250`
     : undefined,
 });
+
+const mapFreshReleaseAlbum = (release: LbRelease): MbAlbumResult => ({
+  id: release.release_group_mbid,
+  score: scoreMusicRelease(release),
+  media_type: 'album',
+  title: release.release_name,
+  'primary-type':
+    release.release_group_primary_type === 'Single' ||
+    release.release_group_primary_type === 'EP'
+      ? release.release_group_primary_type
+      : 'Album',
+  'first-release-date': release.release_date,
+  'artist-credit': [
+    {
+      name: release.artist_credit_name,
+      artist: {
+        id: release.artist_mbids[0],
+        name: release.artist_credit_name,
+        'sort-name': release.artist_credit_name,
+      },
+    },
+  ],
+  posterPath: release.caa_release_mbid
+    ? `https://coverartarchive.org/release/${release.caa_release_mbid}/front-250`
+    : undefined,
+});
+
+const defaultBookDiscoverySubjects = [
+  'fiction',
+  'fantasy',
+  'science_fiction',
+  'mystery',
+  'biography',
+  'romance',
+  'history',
+  'thriller',
+  'literary_fiction',
+  'historical_fiction',
+  'horror',
+  'young_adult',
+  'memoir',
+  'science',
+  'philosophy',
+  'poetry',
+];
+
+const getDailyRotationOffset = (itemCount: number): number => {
+  if (itemCount <= 0) {
+    return 0;
+  }
+
+  return Math.floor(Date.now() / 86_400_000) % itemCount;
+};
+
+const rotateItems = <T>(items: T[], offset: number): T[] => [
+  ...items.slice(offset),
+  ...items.slice(0, offset),
+];
+
+const musicSortOptions = new Set([
+  'ranked',
+  'popular.week',
+  'popular.month',
+  'popular.year',
+  'listen_count.desc',
+  'release_date.desc',
+  'release_date.asc',
+]);
+
+const bookSortOptions = new Set([
+  'ranked',
+  'newest',
+  'oldest',
+  'random',
+  'rating',
+  'editions',
+]);
+
+const getValidatedSort = (
+  sortBy: unknown,
+  allowedSortOptions: Set<string>
+): string =>
+  typeof sortBy === 'string' && allowedSortOptions.has(sortBy)
+    ? sortBy
+    : 'ranked';
 
 const QueryFilterOptions = z.object({
   page: z.coerce.string().optional(),
@@ -1044,9 +1143,9 @@ discoverRoutes.get('/music', async (req, res) => {
   const itemsPerPage = 20;
   const page = req.query.page ? Number(req.query.page) : 1;
   const days = req.query.days ? Number(req.query.days) : 14;
-  const sortByValue =
-    typeof req.query.sortBy === 'string' ? req.query.sortBy : 'ranked';
-  const sortAscending = req.query.sortBy === 'release_date.asc';
+  const hasCustomDays = typeof req.query.days === 'string';
+  const sortByValue = getValidatedSort(req.query.sortBy, musicSortOptions);
+  const sortAscending = sortByValue === 'release_date.asc';
   const genreFilter =
     typeof req.query.genre === 'string' && req.query.genre.trim()
       ? req.query.genre
@@ -1125,6 +1224,14 @@ discoverRoutes.get('/music', async (req, res) => {
           offset: providerWindow.offset,
         });
       const sortedAlbums = releaseGroups.sort((a, b) => {
+        if (sortByValue === 'ranked') {
+          return scoreMusicAlbum(b) - scoreMusicAlbum(a);
+        }
+
+        if (sortByValue === 'listen_count.desc') {
+          return (b.score ?? 0) - (a.score ?? 0);
+        }
+
         const left = a['first-release-date'] ?? '';
         const right = b['first-release-date'] ?? '';
         return sortAscending
@@ -1163,6 +1270,9 @@ discoverRoutes.get('/music', async (req, res) => {
     }
 
     const providerWindow = getProviderWindow(page, itemsPerPage);
+    const hasReleaseDateFilter =
+      typeof req.query.primaryReleaseDateGte === 'string' ||
+      typeof req.query.primaryReleaseDateLte === 'string';
 
     if (!genreFilter.length && sortByValue.startsWith('popular')) {
       const range =
@@ -1207,6 +1317,108 @@ discoverRoutes.get('/music', async (req, res) => {
             relatedMedia.find(
               (media) => media.mbId === releaseGroup.release_group_mbid
             )
+          )
+        ),
+      });
+    }
+
+    if (
+      sortByValue === 'ranked' &&
+      !releaseTypeFilter.length &&
+      !hasReleaseDateFilter &&
+      !hasCustomDays
+    ) {
+      const [topAlbumsResult, freshReleasesResult] = await Promise.allSettled([
+        listenBrainz.getTopAlbums({
+          range: 'week',
+          offset: providerWindow.offset,
+          count: providerWindow.limit,
+        }),
+        listenBrainz.getFreshReleases({
+          days,
+          sort: 'release_date',
+          offset: providerWindow.offset,
+          count: providerWindow.limit,
+        }),
+      ]);
+      const topAlbums =
+        topAlbumsResult.status === 'fulfilled'
+          ? topAlbumsResult.value.payload.release_groups
+          : [];
+      const freshReleases =
+        freshReleasesResult.status === 'fulfilled'
+          ? freshReleasesResult.value.payload.releases
+          : [];
+
+      if (!topAlbums.length && !freshReleases.length) {
+        throw new Error('No ranked music discovery sources were available');
+      }
+
+      if (topAlbumsResult.status === 'rejected') {
+        logger.warn('Music chart discovery failed during ranked blend', {
+          label: 'Discover Music',
+          errorMessage:
+            topAlbumsResult.reason instanceof Error
+              ? topAlbumsResult.reason.message
+              : 'Unknown error',
+        });
+      }
+
+      if (freshReleasesResult.status === 'rejected') {
+        logger.warn('Fresh music discovery failed during ranked blend', {
+          label: 'Discover Music',
+          errorMessage:
+            freshReleasesResult.reason instanceof Error
+              ? freshReleasesResult.reason.message
+              : 'Unknown error',
+        });
+      }
+
+      const albumsById = new Map<string, MbAlbumResult>();
+
+      [
+        ...topAlbums.map(mapTopAlbumRelease),
+        ...freshReleases
+          .filter(
+            (release) => release.release_group_mbid && release.release_name
+          )
+          .map(mapFreshReleaseAlbum),
+      ].forEach((album) => {
+        const existingAlbum = albumsById.get(album.id);
+
+        if (
+          !existingAlbum ||
+          scoreMusicAlbum(album) > scoreMusicAlbum(existingAlbum)
+        ) {
+          albumsById.set(album.id, album);
+        }
+      });
+
+      const albums = [...albumsById.values()]
+        .sort((a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a))
+        .slice(providerWindow.sliceStart, providerWindow.sliceEnd);
+      const mbIds = albums.map((album) => album.id);
+      const relatedMedia = mbIds.length
+        ? await getRepository(Media).find({
+            where: { mbId: In(mbIds), mediaType: MediaType.MUSIC },
+            relations: { requests: true, watchlists: true },
+          })
+        : [];
+      relatedMedia.forEach((media) => {
+        media.watchlists =
+          media.watchlists?.filter(
+            (watchlist) => watchlist.requestedBy.id === req.user?.id
+          ) ?? [];
+      });
+
+      return res.status(200).json({
+        page,
+        totalPages: albums.length === itemsPerPage ? page + 1 : 1,
+        totalResults: getUnknownTotalResults(page, albums.length, itemsPerPage),
+        results: albums.map((album) =>
+          mapAlbumResult(
+            album,
+            relatedMedia.find((media) => media.mbId === album.id)
           )
         ),
       });
@@ -1279,32 +1491,11 @@ discoverRoutes.get('/music', async (req, res) => {
     const results = releases.map((release) =>
       mapAlbumResult(
         {
-          id: release.release_group_mbid,
+          ...mapFreshReleaseAlbum(release),
           score:
             sortByValue === 'ranked'
               ? scoreMusicRelease(release)
               : (release.listen_count ?? 0),
-          media_type: 'album',
-          title: release.release_name,
-          'primary-type':
-            release.release_group_primary_type === 'Single' ||
-            release.release_group_primary_type === 'EP'
-              ? release.release_group_primary_type
-              : 'Album',
-          'first-release-date': release.release_date,
-          'artist-credit': [
-            {
-              name: release.artist_credit_name,
-              artist: {
-                id: release.artist_mbids[0],
-                name: release.artist_credit_name,
-                'sort-name': release.artist_credit_name,
-              },
-            },
-          ],
-          posterPath: release.caa_release_mbid
-            ? `https://coverartarchive.org/release/${release.caa_release_mbid}/front-250`
-            : undefined,
         },
         relatedMedia.find((media) => media.mbId === release.release_group_mbid)
       )
@@ -1329,16 +1520,15 @@ discoverRoutes.get('/books', async (req, res) => {
   const openLibrary = new OpenLibraryAPI();
   const itemsPerPage = 20;
   const page = req.query.page ? Number(req.query.page) : 1;
-  const sortByValue =
-    typeof req.query.sortBy === 'string' ? req.query.sortBy : 'ranked';
-  const subject =
-    typeof req.query.subject === 'string' && req.query.subject.trim()
-      ? req.query.subject.trim()
-      : 'fiction';
-  const query =
-    typeof req.query.query === 'string' && req.query.query.trim()
-      ? req.query.query.trim()
-      : `subject:${subject}`;
+  const sortByValue = getValidatedSort(req.query.sortBy, bookSortOptions);
+  const subjectQuery =
+    typeof req.query.subject === 'string' ? req.query.subject.trim() : '';
+  const hasSubjectFilter = !!subjectQuery;
+  const subject = hasSubjectFilter ? subjectQuery : 'fiction';
+  const searchQuery =
+    typeof req.query.query === 'string' ? req.query.query.trim() : '';
+  const hasSearchQuery = !!searchQuery;
+  const query = hasSearchQuery ? searchQuery : `subject:${subject}`;
 
   try {
     const openLibrarySort =
@@ -1353,12 +1543,55 @@ discoverRoutes.get('/books', async (req, res) => {
               : sortByValue === 'editions'
                 ? 'editions'
                 : undefined;
-    const books = await openLibrary.searchBooks({
-      query,
-      page,
-      limit: itemsPerPage,
-      sort: openLibrarySort,
-    });
+    const shouldBlendDefaultSubjects =
+      !hasSearchQuery && !hasSubjectFilter && sortByValue === 'ranked';
+    const books = shouldBlendDefaultSubjects
+      ? await Promise.all(
+          rotateItems(
+            defaultBookDiscoverySubjects,
+            getDailyRotationOffset(defaultBookDiscoverySubjects.length)
+          )
+            .slice(0, 8)
+            .map((defaultSubject) =>
+              openLibrary.searchBooks({
+                query: `subject:${defaultSubject}`,
+                page,
+                limit: Math.ceil(itemsPerPage / 2),
+              })
+            )
+        ).then((responses) => {
+          const docsByKey = new Map<string, OpenLibrarySearchDoc>();
+
+          responses
+            .flatMap((response) => response.docs)
+            .forEach((doc) => {
+              const existingDoc = docsByKey.get(doc.key);
+
+              if (
+                !existingDoc ||
+                scoreBookDoc(doc) > scoreBookDoc(existingDoc)
+              ) {
+                docsByKey.set(doc.key, doc);
+              }
+            });
+
+          return {
+            numFound: responses.reduce(
+              (total, response) => total + response.numFound,
+              0
+            ),
+            start: 0,
+            docs: [...docsByKey.values()]
+              .sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a))
+              .slice(0, itemsPerPage),
+          };
+        })
+      : await openLibrary.searchBooks({
+          query,
+          page,
+          limit: itemsPerPage,
+          sort: openLibrarySort,
+        });
     const sortedDocs =
       sortByValue === 'ranked'
         ? [...books.docs].sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a))

@@ -1,4 +1,5 @@
 import type {
+  OpenLibraryAuthorWork,
   OpenLibraryEdition,
   OpenLibrarySearchDoc,
   OpenLibraryWork,
@@ -29,6 +30,21 @@ export interface BookDetails extends BookResult {
   description?: string;
   subjects?: string[];
   onUserWatchlist?: boolean;
+}
+
+export interface AuthorDetails {
+  id: string;
+  name: string;
+  biography?: string;
+  birthDate?: string;
+  deathDate?: string;
+  posterPath?: string;
+  works: BookResult[];
+  pagination: {
+    limit: number;
+    offset: number;
+    totalItems: number;
+  };
 }
 
 export interface BookIsbnCandidate {
@@ -137,5 +153,29 @@ export const mapOpenLibraryWork = (
     subjects: work.subjects?.slice(0, 20),
     mediaInfo: media,
     onUserWatchlist: userWatchlist,
+  };
+};
+
+export const mapOpenLibraryAuthorWork = (
+  work: OpenLibraryAuthorWork,
+  media?: Media,
+  authorName?: string,
+  authorId?: string
+): BookResult => {
+  const coverId = work.covers?.[0];
+
+  return {
+    id: work.key.replace('/works/', ''),
+    mediaType: 'book',
+    title: work.title,
+    author: authorName,
+    authorId,
+    firstPublishYear: work.first_publish_date
+      ? Number(work.first_publish_date.match(/\d{4}/)?.[0])
+      : undefined,
+    posterPath: coverId
+      ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
+      : undefined,
+    mediaInfo: media,
   };
 };

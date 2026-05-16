@@ -39,6 +39,18 @@ export interface OpenLibraryWork {
 export interface OpenLibraryAuthor {
   key: string;
   name: string;
+  bio?: string | { value: string };
+  birth_date?: string;
+  death_date?: string;
+  photos?: number[];
+}
+
+export interface OpenLibraryAuthorWork {
+  key: string;
+  title: string;
+  covers?: number[];
+  first_publish_date?: string;
+  authors?: OpenLibraryWork['authors'];
 }
 
 export interface OpenLibraryEdition {
@@ -55,6 +67,14 @@ interface OpenLibraryEditionsResponse {
   };
   size: number;
   entries: OpenLibraryEdition[];
+}
+
+interface OpenLibraryAuthorWorksResponse {
+  links?: {
+    next?: string;
+  };
+  size: number;
+  entries: OpenLibraryAuthorWork[];
 }
 
 class OpenLibraryAPI extends ExternalAPI {
@@ -117,6 +137,32 @@ class OpenLibraryAPI extends ExternalAPI {
     return this.get<OpenLibraryAuthor>(
       `${normalizedAuthorId}.json`,
       undefined,
+      43200
+    );
+  }
+
+  public async getAuthorWorks(
+    authorId: string,
+    {
+      limit = 20,
+      offset = 0,
+    }: {
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<OpenLibraryAuthorWorksResponse> {
+    const normalizedAuthorId = authorId.startsWith('/authors/')
+      ? authorId
+      : `/authors/${authorId}`;
+
+    return this.get<OpenLibraryAuthorWorksResponse>(
+      `${normalizedAuthorId}/works.json`,
+      {
+        params: {
+          limit: Math.min(Math.max(limit, 1), 100).toString(),
+          offset: Math.max(offset, 0).toString(),
+        },
+      },
       43200
     );
   }

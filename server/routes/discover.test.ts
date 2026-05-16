@@ -316,6 +316,70 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('ranks MusicBrainz genre discovery results by score and metadata', async () => {
+    const searchByTagMock = mock.method(
+      MusicBrainz.prototype,
+      'searchReleaseGroupsByTag',
+      async ({ tags }: { tags: string[] }) => {
+        assert.deepStrictEqual(tags, ['jazz']);
+
+        return {
+          totalCount: 2,
+          releaseGroups: [
+            {
+              id: 'album-low-score',
+              score: 1,
+              media_type: 'album',
+              title: 'Low Score Album',
+              'primary-type': 'Single',
+              'first-release-date': '2026-05-01',
+              'artist-credit': [
+                {
+                  name: 'Low Score Artist',
+                  artist: {
+                    id: 'artist-low-score',
+                    name: 'Low Score Artist',
+                    'sort-name': 'Low Score Artist',
+                  },
+                },
+              ],
+              posterPath: undefined,
+            },
+            {
+              id: 'album-high-score',
+              score: 100,
+              media_type: 'album',
+              title: 'High Score Album',
+              'primary-type': 'Album',
+              'first-release-date': '2025-05-01',
+              'artist-credit': [
+                {
+                  name: 'High Score Artist',
+                  artist: {
+                    id: 'artist-high-score',
+                    name: 'High Score Artist',
+                    'sort-name': 'High Score Artist',
+                  },
+                },
+              ],
+              posterPath: 'https://cover.example/high-score.jpg',
+            },
+          ],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?genre=jazz&sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(searchByTagMock.mock.callCount(), 1);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['High Score Album', 'Low Score Album']
+    );
+  });
+
   it('ranks fresh music discovery results by listens, recency, and metadata', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
       payload: {
@@ -328,7 +392,7 @@ describe('GET /discover/music', () => {
             listen_count: 1,
             release_date: '2026-05-01',
             release_group_mbid: 'album-obscure',
-            release_group_primary_type: 'Single',
+            release_group_primary_type: 'Album',
             release_group_secondary_type: '',
             release_mbid: 'release-obscure',
             release_name: 'Obscure Single',
@@ -353,12 +417,202 @@ describe('GET /discover/music', () => {
     }));
 
     const agent = await login();
-    const res = await agent.get('/discover/music?sortBy=ranked');
+    const res = await agent.get(
+      '/discover/music?sortBy=ranked&releaseType=Album'
+    );
 
     assert.strictEqual(res.status, 200);
     assert.deepStrictEqual(
       res.body.results.map((result: { title: string }) => result.title),
       ['Known Album', 'Obscure Single']
+    );
+  });
+
+  it('blends ListenBrainz charts and fresh releases for default ranked music discovery', async () => {
+    const topAlbumsMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getTopAlbums',
+      async () => ({
+        payload: {
+          count: 2,
+          release_groups: [
+            {
+              artist_mbids: ['artist-charted'],
+              artist_name: 'Charted Artist',
+              caa_release_mbid: 'release-charted',
+              listen_count: 5000,
+              release_group_mbid: 'album-charted',
+              release_group_name: 'Charted Album',
+            },
+          ],
+        },
+      })
+    );
+    const freshReleasesMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getFreshReleases',
+      async () => ({
+        payload: {
+          releases: [
+            {
+              artist_credit_name: 'Fresh Artist',
+              artist_mbids: ['artist-fresh'],
+              caa_id: 1,
+              caa_release_mbid: 'release-fresh',
+              listen_count: 5,
+              release_date: '2026-05-01',
+              release_group_mbid: 'album-fresh',
+              release_group_primary_type: 'Album',
+              release_group_secondary_type: '',
+              release_mbid: 'release-fresh',
+              release_name: 'Fresh Album',
+              release_tags: [],
+            },
+          ],
+        },
+      })
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(topAlbumsMock.mock.callCount(), 1);
+    assert.strictEqual(freshReleasesMock.mock.callCount(), 1);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Charted Album', 'Fresh Album']
+    );
+  });
+
+  it('uses fresh releases for ranked music discovery when charts are unavailable', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => {
+      throw new Error('charts unavailable');
+    });
+    const freshReleasesMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getFreshReleases',
+      async () => ({
+        payload: {
+          releases: [
+            {
+              artist_credit_name: 'Fresh Only Artist',
+              artist_mbids: ['artist-fresh-only'],
+              caa_id: 1,
+              caa_release_mbid: 'release-fresh-only',
+              listen_count: 25,
+              release_date: '2026-05-01',
+              release_group_mbid: 'album-fresh-only',
+              release_group_primary_type: 'Album',
+              release_group_secondary_type: '',
+              release_mbid: 'release-fresh-only',
+              release_name: 'Fresh Only Album',
+              release_tags: [],
+            },
+          ],
+        },
+      })
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(freshReleasesMock.mock.callCount(), 1);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Fresh Only Album']
+    );
+  });
+
+  it('uses chart albums for ranked music discovery when fresh releases are unavailable', async () => {
+    const topAlbumsMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getTopAlbums',
+      async () => ({
+        payload: {
+          count: 1,
+          release_groups: [
+            {
+              artist_mbids: ['artist-chart-only'],
+              artist_name: 'Chart Only Artist',
+              caa_release_mbid: 'release-chart-only',
+              listen_count: 5000,
+              release_group_mbid: 'album-chart-only',
+              release_group_name: 'Chart Only Album',
+            },
+          ],
+        },
+      })
+    );
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => {
+      throw new Error('fresh releases unavailable');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(topAlbumsMock.mock.callCount(), 1);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['Chart Only Album']
+    );
+  });
+
+  it('falls back to ranked music discovery when an unsupported sort is requested', async () => {
+    const topAlbumsMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getTopAlbums',
+      async () => {
+        throw new Error('top albums should not be called for invalid sorts');
+      }
+    );
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: {
+        releases: [
+          {
+            artist_credit_name: 'Low Signal Artist',
+            artist_mbids: ['artist-low-signal'],
+            caa_id: 0,
+            caa_release_mbid: '',
+            listen_count: 1,
+            release_date: '2026-05-01',
+            release_group_mbid: 'album-low-signal',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-low-signal',
+            release_name: 'Low Signal Single',
+            release_tags: [],
+          },
+          {
+            artist_credit_name: 'High Signal Artist',
+            artist_mbids: ['artist-high-signal'],
+            caa_id: 1,
+            caa_release_mbid: 'release-high-signal',
+            listen_count: 500,
+            release_date: '2026-04-01',
+            release_group_mbid: 'album-high-signal',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-high-signal',
+            release_name: 'High Signal Album',
+            release_tags: [],
+          },
+        ],
+      },
+    }));
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/music?sortBy=unsupported&releaseType=Album'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(topAlbumsMock.mock.callCount(), 0);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['High Signal Album', 'Low Signal Single']
     );
   });
 
@@ -403,6 +657,9 @@ describe('GET /discover/music', () => {
   });
 
   it('returns an empty result set when ListenBrainz is unavailable', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => {
+      throw new Error('provider unavailable');
+    });
     mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => {
       throw new Error('provider unavailable');
     });
@@ -480,7 +737,7 @@ describe('GET /discover/music', () => {
     );
 
     const agent = await login();
-    const res = await agent.get('/discover/music');
+    const res = await agent.get('/discover/music?releaseType=Album');
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.results[0].mediaInfo.watchlists.length, 0);
@@ -574,6 +831,56 @@ describe('GET /discover/books', () => {
     assert.strictEqual(searchBooksMock.mock.callCount(), 1);
   });
 
+  it('falls back to ranked book discovery when an unsupported sort is requested', async () => {
+    const searchBooksMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'searchBooks',
+      async ({ query, sort }: { query: string; sort?: string }) => {
+        assert.strictEqual(query, 'subject:fiction');
+        assert.strictEqual(sort, undefined);
+
+        return {
+          numFound: 2,
+          start: 0,
+          docs: [
+            {
+              key: '/works/OL-low-signal',
+              title: 'Low Signal Book',
+              first_publish_year: 2026,
+              edition_count: 1,
+              ratings_average: 3,
+              ratings_count: 1,
+              want_to_read_count: 1,
+            },
+            {
+              key: '/works/OL-high-signal',
+              title: 'High Signal Book',
+              author_name: ['Known Writer'],
+              first_publish_year: 2024,
+              cover_i: 123,
+              edition_count: 50,
+              ratings_average: 4.5,
+              ratings_count: 100,
+              want_to_read_count: 500,
+            },
+          ],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/books?subject=fiction&sortBy=unsupported'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(searchBooksMock.mock.callCount(), 1);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { title: string }) => result.title),
+      ['High Signal Book', 'Low Signal Book']
+    );
+  });
+
   it('ranks book discovery results by quality signals by default', async () => {
     mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
       numFound: 2,
@@ -610,6 +917,45 @@ describe('GET /discover/books', () => {
       res.body.results.map((result: { title: string }) => result.title),
       ['Known Book', 'Obscure Book']
     );
+  });
+
+  it('blends multiple subjects for the default recommended book feed', async () => {
+    const seenQueries: string[] = [];
+    mock.method(
+      OpenLibraryAPI.prototype,
+      'searchBooks',
+      async ({ query }: { query: string; limit?: number }) => {
+        seenQueries.push(query);
+
+        return {
+          numFound: 1,
+          start: 0,
+          docs: [
+            {
+              key: `/works/${query.replace(/[^a-z_]/g, '')}`,
+              title: query,
+              cover_i: 1,
+              edition_count: 10,
+              ratings_average: 4,
+              ratings_count: 10,
+              want_to_read_count: 10,
+            },
+          ],
+        };
+      }
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/books?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(seenQueries.length, 8);
+    assert.strictEqual(new Set(seenQueries).size, 8);
+    assert.strictEqual(
+      seenQueries.every((query) => query.startsWith('subject:')),
+      true
+    );
+    assert.strictEqual(res.body.results.length > 1, true);
   });
 
   it('returns an empty result set when Open Library is unavailable', async () => {

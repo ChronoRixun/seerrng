@@ -5,6 +5,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
 import IssueBlock from '@app/components/IssueBlock';
+import BulkRequestModal from '@app/components/RequestModal/BulkRequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -32,6 +33,7 @@ import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { BookDetails as BookDetailsType } from '@server/models/Book';
 import axios from 'axios';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
@@ -70,6 +72,7 @@ const messages = defineMessages('components.BookDetails', {
   removefromwatchlist: 'Remove From Watchlist',
   addtowatchlist: 'Add To Watchlist',
   viewrequest: 'View Request',
+  requestbibliography: 'Request Bibliography',
 });
 
 const BookDetails = () => {
@@ -78,6 +81,7 @@ const BookDetails = () => {
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showBulkRequestModal, setShowBulkRequestModal] = useState(false);
   const [editRequest, setEditRequest] =
     useState<NonFunctionProperties<MediaRequest>>();
   const [showIssueModal, setShowIssueModal] = useState(false);
@@ -342,6 +346,29 @@ const BookDetails = () => {
           }}
         />
       )}
+      {showBulkRequestModal && data.authorId && (
+        <BulkRequestModal
+          show={showBulkRequestModal}
+          mediaType="book"
+          authorId={data.authorId}
+          title={data.author ?? data.title}
+          initialItems={[
+            {
+              id: data.id,
+              title: data.title,
+              year: data.firstPublishYear,
+              image: data.posterPath,
+              artist: data.author,
+              isbn13: data.isbn13,
+              editionId: data.editionId,
+              authorId: data.authorId,
+              mediaInfo: data.mediaInfo,
+            },
+          ]}
+          onCancel={() => setShowBulkRequestModal(false)}
+          onComplete={() => revalidate()}
+        />
+      )}
       <div className="relative z-10 mt-4 flex flex-col gap-6 lg:flex-row">
         <div className="w-full max-w-xs flex-shrink-0">
           <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
@@ -385,7 +412,12 @@ const BookDetails = () => {
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             {data.author && (
               <span>
-                {intl.formatMessage(messages.author)}: {data.author}
+                {intl.formatMessage(messages.author)}:{' '}
+                {data.authorId ? (
+                  <Link href={`/author/${data.authorId}`}>{data.author}</Link>
+                ) : (
+                  data.author
+                )}
               </span>
             )}
             {data.firstPublishYear && (
@@ -404,7 +436,13 @@ const BookDetails = () => {
             {data.author && (
               <div className="media-fact">
                 <span>{intl.formatMessage(messages.author)}</span>
-                <span className="media-fact-value">{data.author}</span>
+                <span className="media-fact-value">
+                  {data.authorId ? (
+                    <Link href={`/author/${data.authorId}`}>{data.author}</Link>
+                  ) : (
+                    data.author
+                  )}
+                </span>
               </div>
             )}
             {data.firstPublishYear && (
@@ -499,6 +537,17 @@ const BookDetails = () => {
                 >
                   <ArrowDownTrayIcon />
                   <span>{intl.formatMessage(globalMessages.request)}</span>
+                </Button>
+              )}
+              {canRequest && data.authorId && (
+                <Button
+                  buttonType="default"
+                  onClick={() => setShowBulkRequestModal(true)}
+                >
+                  <ArrowDownTrayIcon />
+                  <span>
+                    {intl.formatMessage(messages.requestbibliography)}
+                  </span>
                 </Button>
               )}
               {activeBookRequest && (

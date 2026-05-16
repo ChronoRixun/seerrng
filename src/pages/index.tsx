@@ -11,9 +11,9 @@ const Index: NextPage<IndexPageProps> = ({ discoverSliders }) => {
   return <Discover initialSliders={discoverSliders} />;
 };
 
-export const getServerSideProps: GetServerSideProps<
-  IndexPageProps
-> = async (ctx) => {
+export const getServerSideProps: GetServerSideProps<IndexPageProps> = async (
+  ctx
+) => {
   try {
     const response = await axios.get<DiscoverSlider[]>(
       `http://${process.env.HOST || 'localhost'}:${

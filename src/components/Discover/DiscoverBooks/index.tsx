@@ -59,7 +59,11 @@ const DiscoverBooks = () => {
     error,
   } = useDiscover<BookResult>(
     '/api/v1/discover/books',
-    query ? { query, sortBy } : { subject, sortBy }
+    query
+      ? { query, sortBy }
+      : subject === 'fiction' && sortBy === 'ranked'
+        ? { sortBy }
+        : { subject, sortBy }
   );
 
   if (error) {
