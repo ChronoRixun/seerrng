@@ -1,13 +1,14 @@
 import type {
   AlbumResult,
   ArtistResult,
+  BookResult,
   MovieResult,
   PersonResult,
   TvResult,
 } from '@server/models/Search';
 import useSWR from 'swr';
 
-export type AssociationMediaType = 'movie' | 'tv' | 'album' | 'artist';
+export type AssociationMediaType = 'movie' | 'tv' | 'album' | 'artist' | 'book';
 
 export type AssociationEdgeType =
   | 'similar'
@@ -20,6 +21,7 @@ export type AssociationNode =
   | TvResult
   | AlbumResult
   | ArtistResult
+  | BookResult
   | PersonResult;
 
 export interface AssociationEdge {
@@ -43,6 +45,7 @@ export const SUPPORTED_ASSOCIATION_TYPES = new Set<AssociationMediaType>([
   'tv',
   'album',
   'artist',
+  'book',
 ]);
 
 export const toAssociationMediaType = (

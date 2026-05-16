@@ -283,6 +283,43 @@ const albumDetails = {
   type: 'Album',
 };
 
+function mockOpenLibraryBook() {
+  mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+    if (endpoint === '/works/OLROOTW.json') {
+      return {
+        key: '/works/OLROOTW',
+        title: 'Root Book',
+        authors: [{ author: { key: '/authors/OLAUTHOR' } }],
+      };
+    }
+    if (endpoint === '/authors/OLAUTHOR.json') {
+      return {
+        key: '/authors/OLAUTHOR',
+        name: 'Book Author',
+      };
+    }
+    if (endpoint === '/authors/OLAUTHOR/works.json') {
+      return {
+        size: 2,
+        entries: [
+          {
+            key: '/works/OLROOTW',
+            title: 'Root Book',
+            first_publish_date: '2020',
+          },
+          {
+            key: '/works/OLRELATEDW',
+            title: 'Related Book',
+            covers: [123],
+            first_publish_date: '2024',
+          },
+        ],
+      };
+    }
+    throw new Error(`Unexpected endpoint: ${String(endpoint)}`);
+  });
+}
+
 describe('GET /association/:mediaType/:id', () => {
   it('rejects an unknown media type', async () => {
     const agent = await login();
@@ -434,6 +471,32 @@ describe('GET /association/:mediaType/:id', () => {
           e.node.mediaType === 'artist' &&
           e.node.name === 'Similar Artist 1'
       )
+    );
+  });
+
+  it('returns same-author book associations', async () => {
+    mockOpenLibraryBook();
+
+    const agent = await login();
+    const res = await agent.get('/association/book/OLROOTW');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.root.title, 'Root Book');
+    assert.deepStrictEqual(
+      res.body.edges.map(
+        (edge: { type: string; reason: string; node: { id: string } }) => ({
+          type: edge.type,
+          reason: edge.reason,
+          id: edge.node.id,
+        })
+      ),
+      [
+        {
+          type: 'shared-person',
+          reason: 'Also by Book Author',
+          id: 'OLRELATEDW',
+        },
+      ]
     );
   });
 

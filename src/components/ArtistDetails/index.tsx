@@ -1,3 +1,4 @@
+import AssociationBadge from '@app/components/Association/AssociationBadge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
@@ -231,9 +232,18 @@ const ArtistDetails = () => {
           </div>
         )}
         <div className="min-w-0 text-center lg:text-left">
-          <h1 className="break-words text-3xl font-bold text-white lg:text-5xl">
-            {artistName}
-          </h1>
+          <div className="flex items-center justify-center gap-3 lg:justify-start">
+            <h1 className="break-words text-3xl font-bold text-white lg:text-5xl">
+              {artistName}
+            </h1>
+            {artistId && (
+              <AssociationBadge
+                mediaType="artist"
+                id={artistId}
+                variant="inline"
+              />
+            )}
+          </div>
           {data.artist?.area && <div className="mt-2">{data.artist.area}</div>}
           {biography && (
             <p className="mt-4 max-w-4xl text-sm leading-6 lg:text-base">

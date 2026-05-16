@@ -5,6 +5,7 @@ import RTRotten from '@app/assets/rt_rotten.svg';
 import ImdbLogo from '@app/assets/services/imdb.svg';
 import Spinner from '@app/assets/spinner.svg';
 import TmdbLogo from '@app/assets/tmdb_logo.svg';
+import AssociationBadge from '@app/components/Association/AssociationBadge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
@@ -557,14 +558,17 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                 />
               )}
           </div>
-          <h1 data-testid="media-title">
-            {data.title}{' '}
-            {data.releaseDate && (
-              <span className="media-year">
-                ({data.releaseDate.slice(0, 4)})
-              </span>
-            )}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 data-testid="media-title">
+              {data.title}{' '}
+              {data.releaseDate && (
+                <span className="media-year">
+                  ({data.releaseDate.slice(0, 4)})
+                </span>
+              )}
+            </h1>
+            <AssociationBadge mediaType="movie" id={data.id} variant="inline" />
+          </div>
           <span className="media-attributes">
             {movieAttributes.length > 0 &&
               movieAttributes

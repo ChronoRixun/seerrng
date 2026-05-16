@@ -61,14 +61,7 @@ const PersonDetails = () => {
       character: objs.map((pos) => pos.character).join(', '),
     }));
 
-    return reduced.sort((a, b) => {
-      const aVotes = a.voteCount ?? 0;
-      const bVotes = b.voteCount ?? 0;
-      if (aVotes > bVotes) {
-        return -1;
-      }
-      return 1;
-    });
+    return reduced;
   }, [combinedCredits, currentMediaType]);
 
   const sortedCrew = useMemo(() => {
@@ -83,14 +76,7 @@ const PersonDetails = () => {
       job: objs.map((pos) => pos.job).join(', '),
     }));
 
-    return reduced.sort((a, b) => {
-      const aVotes = a.voteCount ?? 0;
-      const bVotes = b.voteCount ?? 0;
-      if (aVotes > bVotes) {
-        return -1;
-      }
-      return 1;
-    });
+    return reduced;
   }, [combinedCredits, currentMediaType]);
 
   if (!data && !error) {

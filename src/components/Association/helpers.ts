@@ -10,6 +10,8 @@ export const nodeHref = (node: AssociationNode): string => {
       return `/music/${node.id}`;
     case 'artist':
       return `/artist/${node.id}`;
+    case 'book':
+      return `/book/${node.id}`;
     case 'person':
       return `/person/${node.id}`;
     default:
@@ -28,6 +30,8 @@ export const nodeTitle = (node: AssociationNode): string => {
     case 'artist':
     case 'person':
       return node.name;
+    case 'book':
+      return node.title;
     default:
       return '';
   }
@@ -44,6 +48,8 @@ export const nodeImage = (node: AssociationNode): string | undefined => {
       return node.posterPath ?? undefined;
     case 'artist':
       return node.artistThumb ?? undefined;
+    case 'book':
+      return node.posterPath;
     case 'person':
       return node.profilePath
         ? `https://image.tmdb.org/t/p/w300_and_h450_face${node.profilePath}`
@@ -55,11 +61,13 @@ export const nodeImage = (node: AssociationNode): string | undefined => {
 
 export const nodeImageType = (
   node: AssociationNode
-): 'tmdb' | 'music' => {
+): 'tmdb' | 'music' | 'book' => {
   switch (node.mediaType) {
     case 'album':
     case 'artist':
       return 'music';
+    case 'book':
+      return 'book';
     default:
       return 'tmdb';
   }

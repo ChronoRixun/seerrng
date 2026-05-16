@@ -27,6 +27,7 @@ export enum DiscoverSliderType {
   OPENLIBRARY_BOOK_SUBJECT,
   MUSICBRAINZ_MUSIC_GENRE,
   LISTENBRAINZ_MUSIC_CHART,
+  ASSOCIATIONS,
 }
 
 export const defaultSliders: Partial<DiscoverSlider>[] = [

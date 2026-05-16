@@ -1,15 +1,21 @@
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import TheMovieDb from '@server/api/themoviedb';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import type { User } from '@server/entity/User';
 import cacheManager from '@server/lib/cache';
 import { scoreTmdbResult } from '@server/lib/tmdbRank';
 import logger from '@server/logger';
+import { mapOpenLibraryAuthorWork } from '@server/models/Book';
 import type {
   ArtistResult,
+  BookResult,
   MovieResult,
   TvResult,
 } from '@server/models/Search';
@@ -172,6 +178,48 @@ const hydrateArtistThumbs = async (
   }
 };
 
+const findBookMediaByOpenLibraryIds = async (
+  ids: string[],
+  userId?: number
+): Promise<Map<string, Media>> => {
+  if (!ids.length) {
+    return new Map();
+  }
+
+  const identifiers = await getRepository(MediaIdentifier).find({
+    where: {
+      provider: MediaIdentifierProvider.OPENLIBRARY,
+      value: In(ids),
+    },
+    relations: { media: { requests: true, watchlists: true } },
+  });
+
+  return new Map(
+    identifiers
+      .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
+      .map((identifier) => {
+        identifier.media.watchlists =
+          identifier.media.watchlists?.filter(
+            (watchlist) => watchlist.requestedBy.id === userId
+          ) ?? [];
+
+        return [identifier.value, identifier.media];
+      })
+  );
+};
+
+const scoreBookWork = (book: BookResult): number => {
+  const recencyScore = book.firstPublishYear
+    ? Math.max(
+        0,
+        30 - Math.max(0, new Date().getUTCFullYear() - book.firstPublishYear)
+      ) / 30
+    : 0;
+  const metadataScore = (book.posterPath ? 0.2 : 0) + (book.author ? 0.1 : 0);
+
+  return clamp01(0.65 + recencyScore * 0.25 + metadataScore);
+};
+
 const buildArtistEdges = async (
   mbArtistId: string,
   artistName: string,
@@ -269,6 +317,62 @@ const buildForAlbum = async (
   );
 };
 
+const buildForBook = async (
+  openLibraryId: string,
+  user: User | undefined,
+  opts: AssociationOptions
+): Promise<AssociationGraph> => {
+  const openLibrary = new OpenLibraryAPI();
+  const work = await openLibrary.getWork(openLibraryId);
+  const authorId = work.authors?.[0]?.author.key.replace('/authors/', '');
+
+  if (!authorId) {
+    return finalize(
+      { mediaType: 'book', id: openLibraryId, title: work.title },
+      [],
+      opts
+    );
+  }
+
+  const [author, authorWorks] = await Promise.all([
+    openLibrary.getAuthor(authorId).catch(() => undefined),
+    openLibrary.getAuthorWorks(authorId, {
+      limit: ASSOCIATION_LIMITS.MAX_SAME_MEDIUM + 1,
+    }),
+  ]);
+  const books = authorWorks.entries
+    .filter((authorWork) => authorWork.key !== work.key)
+    .slice(0, ASSOCIATION_LIMITS.MAX_SAME_MEDIUM);
+  const bookIds = books.map((book) => book.key.replace('/works/', ''));
+  const mediaByOpenLibraryId = await findBookMediaByOpenLibraryIds(
+    bookIds,
+    user?.id
+  );
+
+  const edges = books.map((authorWork) => {
+    const bookId = authorWork.key.replace('/works/', '');
+    const node = mapOpenLibraryAuthorWork(
+      authorWork,
+      mediaByOpenLibraryId.get(bookId),
+      author?.name,
+      authorId
+    );
+
+    return {
+      weight: scoreBookWork(node),
+      type: 'shared-person' as const,
+      reason: author?.name ? `Also by ${author.name}` : 'Same author',
+      node,
+    };
+  });
+
+  return finalize(
+    { mediaType: 'book', id: openLibraryId, title: work.title },
+    edges,
+    opts
+  );
+};
+
 export const getAssociations = async (
   mediaType: AssociationMediaType,
   id: string,
@@ -294,6 +398,9 @@ export const getAssociations = async (
       break;
     case 'album':
       graph = await buildForAlbum(id, user, opts);
+      break;
+    case 'book':
+      graph = await buildForBook(id, user, opts);
       break;
     default:
       graph = {

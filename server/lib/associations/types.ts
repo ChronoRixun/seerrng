@@ -1,12 +1,13 @@
 import type {
   AlbumResult,
   ArtistResult,
+  BookResult,
   MovieResult,
   PersonResult,
   TvResult,
 } from '@server/models/Search';
 
-export type AssociationMediaType = 'movie' | 'tv' | 'album' | 'artist';
+export type AssociationMediaType = 'movie' | 'tv' | 'album' | 'artist' | 'book';
 
 export type AssociationEdgeType =
   | 'similar'
@@ -19,6 +20,7 @@ export type AssociationNode =
   | TvResult
   | AlbumResult
   | ArtistResult
+  | BookResult
   | PersonResult;
 
 export interface AssociationEdge {

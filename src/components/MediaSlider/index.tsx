@@ -10,6 +10,7 @@ import { MediaStatus } from '@server/constants/media';
 import { Permission } from '@server/lib/permissions';
 import type {
   AlbumResult,
+  ArtistResult,
   BookResult,
   MovieResult,
   PersonResult,
@@ -24,7 +25,14 @@ interface MixedResult {
   page: number;
   totalResults: number;
   totalPages: number;
-  results: (TvResult | MovieResult | PersonResult | AlbumResult | BookResult)[];
+  results: (
+    | TvResult
+    | MovieResult
+    | PersonResult
+    | AlbumResult
+    | ArtistResult
+    | BookResult
+  )[];
 }
 
 interface MediaSliderProps {
@@ -42,6 +50,7 @@ type SliderTitle =
   | MovieResult
   | PersonResult
   | AlbumResult
+  | ArtistResult
   | BookResult;
 
 const getMediaResultKey = (item: SliderTitle): string =>
@@ -175,7 +184,9 @@ const MediaSlider = ({
       titles
         .slice(20, 24)
         .map((title) =>
-          title.mediaType !== 'person' ? title.posterPath : undefined
+          title.mediaType !== 'person' && title.mediaType !== 'artist'
+            ? title.posterPath
+            : undefined
         ),
     [titles]
   );
@@ -254,6 +265,16 @@ const MediaSlider = ({
               title={title.title}
               artist={title.author}
               year={title.firstPublishYear?.toString()}
+              mediaType={title.mediaType}
+            />
+          );
+        case 'artist':
+          return (
+            <TitleCard
+              key={title.id}
+              id={title.id}
+              image={title.artistThumb ?? undefined}
+              title={title.name}
               mediaType={title.mediaType}
             />
           );

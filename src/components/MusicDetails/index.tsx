@@ -1,10 +1,12 @@
 import Spinner from '@app/assets/spinner.svg';
+import AssociationBadge from '@app/components/Association/AssociationBadge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
 import IssueBlock from '@app/components/IssueBlock';
+import MediaSlider from '@app/components/MediaSlider';
 import StatusBadge from '@app/components/StatusBadge';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -71,6 +73,7 @@ const messages = defineMessages('components.MusicDetails', {
   removefromwatchlist: 'Remove From Watchlist',
   addtowatchlist: 'Add To Watchlist',
   viewrequest: 'View Request',
+  similarartists: 'Similar Artists',
 });
 
 const MusicDetails = () => {
@@ -346,12 +349,15 @@ const MusicDetails = () => {
                 />
               )}
           </div>
-          <h1
-            className="break-words text-3xl font-bold text-white lg:text-5xl"
-            data-testid="media-title"
-          >
-            {data.title}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1
+              className="break-words text-3xl font-bold text-white lg:text-5xl"
+              data-testid="media-title"
+            >
+              {data.title}
+            </h1>
+            <AssociationBadge mediaType="album" id={data.id} variant="inline" />
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <Link
               href={`/artist/${data.artist.id}`}
@@ -557,6 +563,12 @@ const MusicDetails = () => {
           </div>
         )}
       </div>
+      <MediaSlider
+        sliderKey="similar-artists"
+        title={intl.formatMessage(messages.similarartists)}
+        url={`/api/v1/music/${data.id}/artist-similar`}
+        hideWhenEmpty
+      />
     </>
   );
 };

@@ -1042,6 +1042,7 @@ components:
             - $ref: '#/components/schemas/TvResult'
             - $ref: '#/components/schemas/MusicResult'
             - $ref: '#/components/schemas/ArtistResult'
+            - $ref: '#/components/schemas/BookResult'
             - $ref: '#/components/schemas/PersonResult'
       required:
         - weight
@@ -1056,7 +1057,7 @@ components:
           properties:
             mediaType:
               type: string
-              enum: [movie, tv, album, artist]
+              enum: [movie, tv, album, artist, book]
             id:
               type: string
             title:
@@ -2521,7 +2522,7 @@ paths:
   /association/{mediaType}/{id}:
     get:
       summary: Get cross-medium associations
-      description: Returns a ranked graph of similar, recommended, and shared-person associations for movies, series, albums, and artists.
+      description: Returns a ranked graph of similar, recommended, and shared-person associations for movies, series, albums, artists, and books.
       tags:
         - association
       parameters:
@@ -2530,13 +2531,13 @@ paths:
           required: true
           schema:
             type: string
-            enum: [movie, tv, album, artist]
+            enum: [movie, tv, album, artist, book]
         - in: path
           name: id
           required: true
           schema:
             type: string
-          description: TMDB ID for movie/TV, MusicBrainz release group ID for album, or MusicBrainz artist ID for artist.
+          description: TMDB ID for movie/TV, MusicBrainz release group ID for album, MusicBrainz artist ID for artist, or Open Library work ID for book.
         - in: query
           name: includeWeak
           schema:

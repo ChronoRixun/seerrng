@@ -10,6 +10,7 @@ const VALID_MEDIA_TYPES = new Set<AssociationMediaType>([
   'tv',
   'album',
   'artist',
+  'book',
 ]);
 
 associationRoutes.get('/:mediaType/:id', async (req, res, next) => {

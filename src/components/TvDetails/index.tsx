@@ -4,6 +4,7 @@ import RTFresh from '@app/assets/rt_fresh.svg';
 import RTRotten from '@app/assets/rt_rotten.svg';
 import Spinner from '@app/assets/spinner.svg';
 import TmdbLogo from '@app/assets/tmdb_logo.svg';
+import AssociationBadge from '@app/components/Association/AssociationBadge';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import CachedImage from '@app/components/Common/CachedImage';
@@ -601,14 +602,17 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 />
               )}
           </div>
-          <h1 data-testid="media-title">
-            {data.name}{' '}
-            {data.firstAirDate && (
-              <span className="media-year">
-                ({data.firstAirDate.slice(0, 4)})
-              </span>
-            )}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 data-testid="media-title">
+              {data.name}{' '}
+              {data.firstAirDate && (
+                <span className="media-year">
+                  ({data.firstAirDate.slice(0, 4)})
+                </span>
+              )}
+            </h1>
+            <AssociationBadge mediaType="tv" id={data.id} variant="inline" />
+          </div>
           <span className="media-attributes">
             {seriesAttributes.length > 0 &&
               seriesAttributes
