@@ -53,6 +53,10 @@ type SortDirection = 'asc' | 'desc';
 
 type MediaType = 'all' | 'movie' | 'tv' | 'music' | 'book';
 
+const isMediaType = (value: unknown): value is MediaType =>
+  typeof value === 'string' &&
+  ['all', 'movie', 'tv', 'music', 'book'].includes(value);
+
 const RequestList = () => {
   const router = useRouter();
   const intl = useIntl();
@@ -70,21 +74,31 @@ const RequestList = () => {
   const page = router.query.page ? Number(router.query.page) : 1;
   const pageIndex = page - 1;
   const updateQueryParams = useUpdateQueryParams({ page: page.toString() });
+  const effectiveFilter = Object.values(Filter).includes(
+    router.query.filter as Filter
+  )
+    ? (router.query.filter as Filter)
+    : currentFilter;
+  const effectiveMediaType = isMediaType(router.query.mediaType)
+    ? router.query.mediaType
+    : (currentMediaType as MediaType);
 
   const {
     data,
     error,
     mutate: revalidate,
   } = useSWR<RequestResultsResponse>(
-    `/api/v1/request?take=${currentPageSize}&skip=${
-      pageIndex * currentPageSize
-    }&filter=${currentFilter}&mediaType=${currentMediaType}&sort=${currentSort}&sortDirection=${currentSortDirection}${
-      router.pathname.startsWith('/profile')
-        ? `&requestedBy=${currentUser?.id}`
-        : router.query.userId
-          ? `&requestedBy=${router.query.userId}`
-          : ''
-    }`
+    router.isReady
+      ? `/api/v1/request?take=${currentPageSize}&skip=${
+          pageIndex * currentPageSize
+        }&filter=${effectiveFilter}&mediaType=${effectiveMediaType}&sort=${currentSort}&sortDirection=${currentSortDirection}${
+          router.pathname.startsWith('/profile')
+            ? `&requestedBy=${currentUser?.id}`
+            : router.query.userId
+              ? `&requestedBy=${router.query.userId}`
+              : ''
+        }`
+      : null
   );
 
   // Restore last set filter values on component mount
@@ -95,6 +109,9 @@ const RequestList = () => {
       const filterSettings = JSON.parse(filterString);
 
       setCurrentFilter(filterSettings.currentFilter);
+      if (isMediaType(filterSettings.currentMediaType)) {
+        setCurrentMediaType(filterSettings.currentMediaType);
+      }
       setCurrentSort(filterSettings.currentSort);
       setCurrentPageSize(filterSettings.currentPageSize);
       if (['asc', 'desc'].includes(filterSettings.currentSortDirection)) {
@@ -106,7 +123,11 @@ const RequestList = () => {
     if (Object.values(Filter).includes(router.query.filter as Filter)) {
       setCurrentFilter(router.query.filter as Filter);
     }
-  }, [router.query.filter]);
+
+    if (isMediaType(router.query.mediaType)) {
+      setCurrentMediaType(router.query.mediaType);
+    }
+  }, [router.query.filter, router.query.mediaType]);
 
   // Set filter values to local storage any time they are changed
   useEffect(() => {
@@ -114,7 +135,7 @@ const RequestList = () => {
       'rl-filter-settings',
       JSON.stringify({
         currentFilter,
-        currentMediaType,
+        currentMediaType: effectiveMediaType,
         currentSort,
         currentSortDirection,
         currentPageSize,
@@ -122,7 +143,7 @@ const RequestList = () => {
     );
   }, [
     currentFilter,
-    currentMediaType,
+    effectiveMediaType,
     currentSort,
     currentSortDirection,
     currentPageSize,
@@ -142,10 +163,11 @@ const RequestList = () => {
   return (
     <>
       <PageTitle
-        title={[
-          intl.formatMessage(messages.requests),
-          router.query.userId ? user?.displayName : '',
-        ]}
+        title={
+          router.query.userId && user?.displayName
+            ? `${intl.formatMessage(messages.requests)} - ${user.displayName}`
+            : intl.formatMessage(messages.requests)
+        }
       />
       <div className="mb-4 flex flex-col justify-between lg:flex-row lg:items-end">
         <Header
@@ -178,11 +200,14 @@ const RequestList = () => {
                 router.push({
                   pathname: router.pathname,
                   query: router.query.userId
-                    ? { userId: router.query.userId }
-                    : {},
+                    ? {
+                        userId: router.query.userId,
+                        mediaType: e.target.value,
+                      }
+                    : { mediaType: e.target.value },
                 });
               }}
-              value={currentMediaType}
+              value={effectiveMediaType}
               className="rounded-r-only"
             >
               <option value="all">
@@ -210,11 +235,15 @@ const RequestList = () => {
                 router.push({
                   pathname: router.pathname,
                   query: router.query.userId
-                    ? { userId: router.query.userId }
-                    : {},
+                    ? {
+                        userId: router.query.userId,
+                        filter: e.target.value,
+                        mediaType: effectiveMediaType,
+                      }
+                    : { filter: e.target.value, mediaType: effectiveMediaType },
                 });
               }}
-              value={currentFilter}
+              value={effectiveFilter}
               className="rounded-r-only"
             >
               <option value="all">
@@ -258,8 +287,15 @@ const RequestList = () => {
                 router.push({
                   pathname: router.pathname,
                   query: router.query.userId
-                    ? { userId: router.query.userId }
-                    : {},
+                    ? {
+                        userId: router.query.userId,
+                        filter: effectiveFilter,
+                        mediaType: effectiveMediaType,
+                      }
+                    : {
+                        filter: effectiveFilter,
+                        mediaType: effectiveMediaType,
+                      },
                 });
               }}
               value={currentSort}
@@ -332,8 +368,7 @@ const RequestList = () => {
           <span className="text-2xl text-gray-400">
             {intl.formatMessage(globalMessages.noresults)}
           </span>
-          {(currentFilter !== Filter.ALL ||
-            currentMediaType !== Filter.ALL) && (
+          {(effectiveFilter !== Filter.ALL || effectiveMediaType !== 'all') && (
             <div className="mt-4">
               <Button
                 buttonType="primary"
@@ -374,6 +409,7 @@ const RequestList = () => {
               {intl.formatMessage(globalMessages.resultsperpage, {
                 pageSize: (
                   <select
+                    key="request-page-size"
                     id="pageSize"
                     name="pageSize"
                     onChange={(e) => {

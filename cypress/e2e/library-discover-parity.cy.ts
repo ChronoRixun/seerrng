@@ -258,4 +258,33 @@ describe('Books and Music discover parity', () => {
     cy.get('[data-testid=modal-ok-button]').should('contain', 'Request');
     cy.get('[data-testid=modal-cancel-button]').should('contain', 'Cancel');
   });
+
+  it('keeps request list media filters addressable for book and music queues', () => {
+    cy.intercept('GET', '/api/v1/request*', (req) => {
+      req.reply({
+        pageInfo: { pages: 1, pageSize: 10, results: 0, page: 1 },
+        results: [],
+        serviceErrors: {
+          radarr: [],
+          sonarr: [],
+          lidarr: [],
+          readarr: [],
+        },
+      });
+    }).as('getRequests');
+
+    cy.visit('/requests?mediaType=book&filter=pending');
+    cy.wait('@getRequests')
+      .its('request.url')
+      .should('include', 'mediaType=book')
+      .and('include', 'filter=pending');
+    cy.get('select[name=mediaType]').should('have.value', 'book');
+    cy.get('select[name=filter]').should('have.value', 'pending');
+
+    cy.get('select[name=mediaType]').select('music');
+    cy.wait('@getRequests')
+      .its('request.url')
+      .should('include', 'mediaType=music');
+    cy.location('search').should('include', 'mediaType=music');
+  });
 });

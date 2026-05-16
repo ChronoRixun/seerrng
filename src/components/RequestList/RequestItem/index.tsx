@@ -672,6 +672,11 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                       ? title.title
                       : title.name}
               </Link>
+              {(isMusic(title) || isBook(title)) && (
+                <div className="mr-2 min-w-0 truncate text-sm text-gray-300">
+                  {isMusic(title) ? title.artist.name : title.author}
+                </div>
+              )}
               {!isMovie(title) &&
                 !isMusic(title) &&
                 !isBook(title) &&

@@ -526,6 +526,12 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
                 <span className="truncate">{title.artist.name}</span>
               </>
             )}
+            {isBook(title) && title.author && (
+              <>
+                <span className="mx-2">-</span>
+                <span className="truncate">{title.author}</span>
+              </>
+            )}
           </div>
           <Link
             href={
