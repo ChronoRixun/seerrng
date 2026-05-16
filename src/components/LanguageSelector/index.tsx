@@ -1,7 +1,6 @@
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import type { Language } from '@server/lib/settings';
-import { sortBy } from 'lodash';
 import { useMemo } from 'react';
 import { useIntl } from 'react-intl';
 import type { CSSObjectWithLabel } from 'react-select';
@@ -57,7 +56,7 @@ const LanguageSelector = ({
         }) ?? language.english_name;
     });
 
-    return sortBy(languages, 'name');
+    return [...(languages ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   }, [intl, languages]);
 
   const languageName = (languageCode: string) =>

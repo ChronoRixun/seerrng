@@ -5,7 +5,6 @@ import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
 import type { Region } from '@server/lib/settings';
 import { countries } from 'country-flag-icons';
 import 'country-flag-icons/3x2/flags.css';
-import { sortBy } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -58,7 +57,9 @@ const RegionSelector = ({
         }) ?? region.english_name;
     });
 
-    return sortBy(regions, 'name');
+    return [...(regions ?? [])].sort((a, b) =>
+      (a.name ?? a.english_name).localeCompare(b.name ?? b.english_name)
+    );
   }, [intl, regions]);
 
   const regionName = (regionCode: string) =>

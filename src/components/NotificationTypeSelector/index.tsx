@@ -3,7 +3,6 @@ import useSettings from '@app/hooks/useSettings';
 import type { User } from '@app/hooks/useUser';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
-import { sortBy } from 'lodash';
 import { useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 
@@ -389,7 +388,9 @@ const NotificationTypeSelector = ({
     }
 
     return user
-      ? sortBy(filteredTypes, 'hasNotifyUser', 'DESC')
+      ? [...filteredTypes].sort(
+          (a, b) => Number(b.hasNotifyUser) - Number(a.hasNotifyUser)
+        )
       : filteredTypes;
   }, [user, hasPermission, settings, intl, allowedTypes, enabledTypes]);
 
