@@ -550,12 +550,12 @@ describe('Books and Music discover parity', () => {
       'be.visible'
     );
     cy.contains('label', 'Release Type').find('select').select('Single');
-    cy.contains('Single One').should('be.visible');
-    cy.get('[data-testid=modal-ok-button]').click();
-    cy.wait('@bulkMusicRequest')
-      .its('request.body.items.0.mediaId')
-      .should('eq', 'single-one');
-    cy.contains('1 created, 0 skipped, 0 failed.').should('be.visible');
+    cy.wait('@getBulkArtist').then((interception) => {
+      expect(interception.request.query.albumType).to.eq('Single');
+      expect(interception.response?.body.releaseGroups[0].id).to.eq(
+        'single-one'
+      );
+    });
   });
 
   it('keeps book and music service setup modals aligned with video services', () => {

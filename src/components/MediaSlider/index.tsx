@@ -36,6 +36,16 @@ interface MediaSliderProps {
   onNewTitles?: (titleCount: number) => void;
 }
 
+type SliderTitle =
+  | TvResult
+  | MovieResult
+  | PersonResult
+  | AlbumResult
+  | BookResult;
+
+const getMediaResultKey = (item: SliderTitle): string =>
+  `${item.mediaType}:${item.id}`;
+
 const MediaSlider = ({
   title,
   url,
@@ -77,16 +87,19 @@ const MediaSlider = ({
   });
 
   const titles = useMemo(() => {
-    const filteredTitles: (
-      | MovieResult
-      | TvResult
-      | PersonResult
-      | AlbumResult
-      | BookResult
-    )[] = [];
+    const filteredTitles: SliderTitle[] = [];
+    const resultKeys = new Set<string>();
 
     for (const page of data ?? []) {
       for (const item of page.results) {
+        const resultKey = getMediaResultKey(item);
+
+        if (resultKeys.has(resultKey)) {
+          continue;
+        }
+
+        resultKeys.add(resultKey);
+
         if (
           settings.currentSettings.hideAvailable &&
           'mediaInfo' in item &&

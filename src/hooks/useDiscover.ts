@@ -117,6 +117,9 @@ const isMissingBookFormat = (item: BaseMedia) => {
   return !hasEbook || !hasAudiobook;
 };
 
+const getMediaResultKey = (item: BaseMedia): string =>
+  `${item.mediaType}:${item.id}`;
+
 const useDiscover = <
   T extends BaseMedia,
   S = Record<string, never>,
@@ -174,13 +177,15 @@ const useDiscover = <
 
   const canManageBlocklist = hasPermission(Permission.MANAGE_BLOCKLIST);
   const titles = useMemo(() => {
-    const resultIds = new Set<number | string>();
+    const resultKeys = new Set<string>();
     let filteredTitles: T[] = [];
 
     for (const page of data ?? []) {
       for (const result of page.results) {
-        if (!resultIds.has(result.id)) {
-          resultIds.add(result.id);
+        const resultKey = getMediaResultKey(result);
+
+        if (!resultKeys.has(resultKey)) {
+          resultKeys.add(resultKey);
           filteredTitles.push(result);
         }
       }
