@@ -12,7 +12,7 @@ import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Discover.DiscoverWatchlist', {
   discoverwatchlist: 'Your Watchlist',
-  watchlist: 'Plex Watchlist',
+  watchlist: 'Watchlist',
 });
 
 const DiscoverWatchlist = () => {

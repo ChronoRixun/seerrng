@@ -17,10 +17,10 @@ import type {
   UserRequestsResponse,
   UserWatchDataResponse,
 } from '@server/interfaces/api/userInterfaces';
+import type { BookDetails } from '@server/models/Book';
 import type { MovieDetails } from '@server/models/Movie';
 import type { MusicDetails } from '@server/models/Music';
 import type { TvDetails } from '@server/models/Tv';
-import type { BookDetails } from '@server/models/Book';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useState } from 'react';
@@ -39,10 +39,9 @@ const messages = defineMessages('components.UserProfile', {
   musicrequests: 'Music Requests',
   bookrequests: 'Book Requests',
   recentlywatched: 'Recently Watched',
-  plexwatchlist: 'Plex Watchlist',
+  plexwatchlist: 'Watchlist',
   localWatchlist: "{username}'s Watchlist",
-  emptywatchlist:
-    'Media added to your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink> will appear here.',
+  emptywatchlist: 'Items added to this watchlist will appear here.',
 });
 
 type MediaTitle = MovieDetails | TvDetails | MusicDetails | BookDetails;
@@ -475,18 +474,7 @@ const UserProfile = () => {
               sliderKey="watchlist"
               isLoading={!watchlistItems}
               isEmpty={!!watchlistItems && watchlistItems.results.length === 0}
-              emptyMessage={intl.formatMessage(messages.emptywatchlist, {
-                PlexWatchlistSupportLink: (msg: React.ReactNode) => (
-                  <a
-                    href="https://support.plex.tv/articles/universal-watchlist/"
-                    className="text-white transition duration-300 hover:underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {msg}
-                  </a>
-                ),
-              })}
+              emptyMessage={intl.formatMessage(messages.emptywatchlist)}
               items={watchlistItems?.results.map((item) => (
                 <div key={`watchlist-slider-item-${item.ratingKey}`}>
                   {item.mediaType === 'music' && item.mbId ? (

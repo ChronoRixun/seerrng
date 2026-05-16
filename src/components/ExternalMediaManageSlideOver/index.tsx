@@ -38,6 +38,8 @@ const messages = defineMessages('components.ExternalMediaManageSlideOver', {
   openarr: 'Open in {arr}',
   openarrFormat: 'Open {format} in {arr}',
   removearr: 'Remove from {arr}',
+  removearrFormat: 'Remove {format} from {arr}',
+  removearrAll: 'Remove all from {arr}',
   ebook: 'Ebook',
   audiobook: 'Audiobook',
   markavailable: 'Mark as Available',
@@ -56,7 +58,8 @@ type ExternalMediaManageSlideOverProps = {
 type ServiceLink = {
   key: string;
   url: string;
-  format?: string;
+  format?: 'ebook' | 'audiobook';
+  formatLabel?: string;
 };
 
 const ExternalMediaManageSlideOver = ({
@@ -77,23 +80,25 @@ const ExternalMediaManageSlideOver = ({
   );
   const serviceLinks = (
     [
-    mediaInfo?.serviceUrl
-      ? {
-          key: 'primary',
-          url: mediaInfo.serviceUrl,
-          format:
-            mediaType === MediaType.BOOK
-              ? intl.formatMessage(messages.ebook)
-              : undefined,
-        }
-      : undefined,
-    mediaType === MediaType.BOOK && mediaInfo?.audiobookServiceUrl
-      ? {
-          key: 'audiobook',
-          url: mediaInfo.audiobookServiceUrl,
-          format: intl.formatMessage(messages.audiobook),
-        }
-      : undefined,
+      mediaInfo?.serviceUrl
+        ? {
+            key: 'primary',
+            url: mediaInfo.serviceUrl,
+            format: mediaType === MediaType.BOOK ? 'ebook' : undefined,
+            formatLabel:
+              mediaType === MediaType.BOOK
+                ? intl.formatMessage(messages.ebook)
+                : undefined,
+          }
+        : undefined,
+      mediaType === MediaType.BOOK && mediaInfo?.audiobookServiceUrl
+        ? {
+            key: 'audiobook',
+            url: mediaInfo.audiobookServiceUrl,
+            format: 'audiobook',
+            formatLabel: intl.formatMessage(messages.audiobook),
+          }
+        : undefined,
     ] as (ServiceLink | undefined)[]
   ).filter((link): link is ServiceLink => !!link);
 
@@ -124,13 +129,24 @@ const ExternalMediaManageSlideOver = ({
     onClose();
   };
 
-  const deleteMediaFile = async () => {
+  const deleteMediaFile = async (format?: 'ebook' | 'audiobook' | 'both') => {
     if (!mediaInfo) {
       return;
     }
 
-    await axios.delete(`/api/v1/media/${mediaInfo.id}/file`);
-    await axios.delete(`/api/v1/media/${mediaInfo.id}`);
+    const formatQuery =
+      mediaType === MediaType.BOOK && format ? `?format=${format}` : '';
+    await axios.delete(`/api/v1/media/${mediaInfo.id}/file${formatQuery}`);
+
+    const removedEveryLinkedFormat =
+      mediaType !== MediaType.BOOK ||
+      format === 'both' ||
+      serviceLinks.length <= 1;
+
+    if (removedEveryLinkedFormat) {
+      await axios.delete(`/api/v1/media/${mediaInfo.id}`);
+    }
+
     revalidate();
     onClose();
   };
@@ -224,7 +240,7 @@ const ExternalMediaManageSlideOver = ({
                       {link.format
                         ? intl.formatMessage(messages.openarrFormat, {
                             arr: arrName,
-                            format: link.format,
+                            format: link.formatLabel,
                           })
                         : intl.formatMessage(messages.openarr, {
                             arr: arrName,
@@ -233,15 +249,44 @@ const ExternalMediaManageSlideOver = ({
                   </Button>
                 </a>
               ))}
+              {mediaType === MediaType.BOOK &&
+                serviceLinks.map((link) => (
+                  <div key={`external-remove-${link.key}`}>
+                    <ConfirmButton
+                      onClick={() => deleteMediaFile(link.format)}
+                      confirmText={intl.formatMessage(
+                        globalMessages.areyousure
+                      )}
+                      className="w-full"
+                    >
+                      <TrashIcon />
+                      <span>
+                        {intl.formatMessage(messages.removearrFormat, {
+                          arr: arrName,
+                          format: link.formatLabel,
+                        })}
+                      </span>
+                    </ConfirmButton>
+                  </div>
+                ))}
               <div>
                 <ConfirmButton
-                  onClick={deleteMediaFile}
+                  onClick={() =>
+                    deleteMediaFile(
+                      mediaType === MediaType.BOOK ? 'both' : undefined
+                    )
+                  }
                   confirmText={intl.formatMessage(globalMessages.areyousure)}
                   className="w-full"
                 >
                   <TrashIcon />
                   <span>
-                    {intl.formatMessage(messages.removearr, { arr: arrName })}
+                    {intl.formatMessage(
+                      mediaType === MediaType.BOOK && serviceLinks.length > 1
+                        ? messages.removearrAll
+                        : messages.removearr,
+                      { arr: arrName }
+                    )}
                   </span>
                 </ConfirmButton>
                 <div className="mt-1 text-xs text-gray-400">

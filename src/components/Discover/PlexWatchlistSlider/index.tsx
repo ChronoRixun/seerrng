@@ -11,8 +11,7 @@ import useSWR from 'swr';
 
 const messages = defineMessages('components.Discover.PlexWatchlistSlider', {
   plexwatchlist: 'Your Watchlist',
-  emptywatchlist:
-    'Media added to your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink> will appear here.',
+  emptywatchlist: 'Items added to your watchlist will appear here.',
 });
 
 const PlexWatchlistSlider = () => {
@@ -52,18 +51,7 @@ const PlexWatchlistSlider = () => {
         sliderKey="watchlist"
         isLoading={!watchlistItems}
         isEmpty={!!watchlistItems && watchlistItems.results.length === 0}
-        emptyMessage={intl.formatMessage(messages.emptywatchlist, {
-          PlexWatchlistSupportLink: (msg: React.ReactNode) => (
-            <a
-              href="https://support.plex.tv/articles/universal-watchlist/"
-              className="text-white transition duration-300 hover:underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              {msg}
-            </a>
-          ),
-        })}
+        emptyMessage={intl.formatMessage(messages.emptywatchlist)}
         items={watchlistItems?.results.map((item) => (
           <div key={`watchlist-slider-item-${item.ratingKey}`}>
             {item.mediaType === 'music' && item.mbId ? (

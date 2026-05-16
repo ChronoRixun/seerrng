@@ -36,8 +36,7 @@ import useSWR from 'swr';
 
 const messages = defineMessages('components.Discover', {
   discover: 'Video',
-  emptywatchlist:
-    'Media added to your <PlexWatchlistSupportLink>Plex Watchlist</PlexWatchlistSupportLink> will appear here.',
+  emptywatchlist: 'Items added to your watchlist will appear here.',
   resettodefault: 'Reset to Default',
   resetwarning:
     'Reset all sliders to default. This will also delete any custom sliders!',
