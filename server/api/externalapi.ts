@@ -24,6 +24,7 @@ class ExternalAPI {
   protected axios: AxiosInstance;
   private baseUrl: string;
   private cache?: NodeCache;
+  private static pendingRequests = new Map<string, Promise<unknown>>();
 
   constructor(
     baseUrl: string,
@@ -67,13 +68,29 @@ class ExternalAPI {
       return cachedItem;
     }
 
-    const response = await this.axios.get<T>(endpoint, config);
-
-    if (this.cache && ttl !== 0) {
-      this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+    const pendingRequest = ExternalAPI.pendingRequests.get(cacheKey) as
+      | Promise<T>
+      | undefined;
+    if (pendingRequest) {
+      return pendingRequest;
     }
 
-    return response.data;
+    const request = this.axios
+      .get<T>(endpoint, config)
+      .then((response) => {
+        if (this.cache && ttl !== 0) {
+          this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+        }
+
+        return response.data;
+      })
+      .finally(() => {
+        ExternalAPI.pendingRequests.delete(cacheKey);
+      });
+
+    ExternalAPI.pendingRequests.set(cacheKey, request);
+
+    return request;
   }
 
   protected async post<T>(
@@ -92,13 +109,29 @@ class ExternalAPI {
       return cachedItem;
     }
 
-    const response = await this.axios.post<T>(endpoint, data, config);
-
-    if (this.cache && ttl !== 0) {
-      this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+    const pendingRequest = ExternalAPI.pendingRequests.get(cacheKey) as
+      | Promise<T>
+      | undefined;
+    if (pendingRequest) {
+      return pendingRequest;
     }
 
-    return response.data;
+    const request = this.axios
+      .post<T>(endpoint, data, config)
+      .then((response) => {
+        if (this.cache && ttl !== 0) {
+          this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+        }
+
+        return response.data;
+      })
+      .finally(() => {
+        ExternalAPI.pendingRequests.delete(cacheKey);
+      });
+
+    ExternalAPI.pendingRequests.set(cacheKey, request);
+
+    return request;
   }
 
   protected async getRolling<T>(
@@ -127,13 +160,29 @@ class ExternalAPI {
       return cachedItem;
     }
 
-    const response = await this.axios.get<T>(endpoint, config);
-
-    if (this.cache && ttl !== 0) {
-      this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+    const pendingRequest = ExternalAPI.pendingRequests.get(cacheKey) as
+      | Promise<T>
+      | undefined;
+    if (pendingRequest) {
+      return pendingRequest;
     }
 
-    return response.data;
+    const request = this.axios
+      .get<T>(endpoint, config)
+      .then((response) => {
+        if (this.cache && ttl !== 0) {
+          this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+        }
+
+        return response.data;
+      })
+      .finally(() => {
+        ExternalAPI.pendingRequests.delete(cacheKey);
+      });
+
+    ExternalAPI.pendingRequests.set(cacheKey, request);
+
+    return request;
   }
 
   protected removeCache(endpoint: string, options?: Record<string, unknown>) {
