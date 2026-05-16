@@ -375,4 +375,58 @@ describe('Books and Music discover parity', () => {
     cy.contains('Managed Album').should('be.visible');
     cy.contains('Open in Lidarr').should('be.visible');
   });
+
+  it('keeps the top search bar global across video, books, and music', () => {
+    cy.intercept('GET', '/api/v1/discover/movies*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
+    });
+    cy.intercept('GET', '/api/v1/search*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 3,
+      results: [
+        {
+          id: 501,
+          mediaType: 'movie',
+          title: 'Global Movie',
+          releaseDate: '2026-01-01',
+          posterPath: null,
+          overview: 'Movie result',
+        },
+        {
+          id: '77777777-7777-7777-7777-777777777777',
+          mediaType: 'album',
+          title: 'Global Album',
+          'primary-type': 'Album',
+          'first-release-date': '2026-02-01',
+          'artist-credit': [{ name: 'Global Artist' }],
+        },
+        {
+          id: 'OLGLOBALW',
+          mediaType: 'book',
+          title: 'Global Book',
+          author: 'Global Author',
+          firstPublishYear: 2026,
+          posterPath: 'https://covers.openlibrary.org/b/id/4-L.jpg',
+        },
+      ],
+    }).as('globalSearch');
+
+    cy.visit('/discover/movies');
+    cy.get('input#search_field').type('global');
+    cy.wait('@globalSearch')
+      .its('request.url')
+      .should('include', 'query=global');
+    cy.location('pathname').should('eq', '/search');
+    cy.contains('[data-testid=title-card-title]', 'Global Movie').should(
+      'be.visible'
+    );
+    cy.contains('[data-testid=title-card-title]', 'Global Album').should(
+      'be.visible'
+    );
+    cy.contains('Global Book').should('be.visible');
+  });
 });
