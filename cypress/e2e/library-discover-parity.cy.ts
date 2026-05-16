@@ -169,7 +169,33 @@ describe('Books and Music discover parity', () => {
       .should('be.visible');
   });
 
-  it('clears book and music discover filters without leaking cross-medium params', () => {
+  it('clears discover filters without leaking cross-medium params', () => {
+    cy.intercept('GET', '/api/v1/discover/movies*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
+    }).as('getMovies');
+    cy.visit('/discover/movies?genre=28&sortBy=ranked');
+    cy.wait('@getMovies');
+    cy.contains('button', '1 Active Filter').click();
+    cy.contains('button', 'Clear Active Filters').click();
+    cy.location('search').should('not.include', 'genre=');
+    cy.location('search').should('not.include', 'sortBy=');
+
+    cy.intercept('GET', '/api/v1/discover/tv*', {
+      page: 1,
+      totalPages: 1,
+      totalResults: 0,
+      results: [],
+    }).as('getTv');
+    cy.visit('/discover/tv?status=Returning%20Series&sortBy=ranked');
+    cy.wait('@getTv');
+    cy.contains('button', '1 Active Filter').click();
+    cy.contains('button', 'Clear Active Filters').click();
+    cy.location('search').should('not.include', 'status=');
+    cy.location('search').should('not.include', 'sortBy=');
+
     cy.intercept('GET', '/api/v1/discover/books*', {
       page: 1,
       totalPages: 1,

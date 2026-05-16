@@ -124,6 +124,25 @@ export const QueryFilterOptions = z.object({
 
 export type FilterOptions = z.infer<typeof QueryFilterOptions>;
 
+export const tmdbSortOptions = new Set([
+  'popularity.asc',
+  'popularity.desc',
+  'release_date.asc',
+  'release_date.desc',
+  'revenue.asc',
+  'revenue.desc',
+  'primary_release_date.asc',
+  'primary_release_date.desc',
+  'original_title.asc',
+  'original_title.desc',
+  'vote_average.asc',
+  'vote_average.desc',
+  'vote_count.asc',
+  'vote_count.desc',
+  'first_air_date.asc',
+  'first_air_date.desc',
+]);
+
 export const prepareFilterValues = (
   inputValues: ParsedUrlQuery
 ): FilterOptions => {
@@ -131,7 +150,7 @@ export const prepareFilterValues = (
 
   const values = QueryFilterOptions.parse(inputValues);
 
-  if (values.sortBy) {
+  if (values.sortBy && tmdbSortOptions.has(values.sortBy)) {
     filterValues.sortBy = values.sortBy;
   }
 
