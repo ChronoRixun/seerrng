@@ -120,10 +120,22 @@ readarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
-  const removed = settings.readarr.splice(readarrIndex, 1);
+  const [removed] = settings.readarr.splice(readarrIndex, 1);
+
+  if (removed.isDefault) {
+    const removedServiceType = removed.serviceType ?? 'ebook';
+    const nextDefault = settings.readarr.find(
+      (readarr) => (readarr.serviceType ?? 'ebook') === removedServiceType
+    );
+
+    if (nextDefault) {
+      nextDefault.isDefault = true;
+    }
+  }
+
   settings.save();
 
-  return res.status(200).json(removed[0]);
+  return res.status(200).json(removed);
 });
 
 export default readarrRoutes;

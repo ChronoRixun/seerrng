@@ -138,10 +138,15 @@ lidarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
-  const removed = settings.lidarr.splice(lidarrIndex, 1);
+  const [removed] = settings.lidarr.splice(lidarrIndex, 1);
+
+  if (removed.isDefault && settings.lidarr.length > 0) {
+    settings.lidarr[0].isDefault = true;
+  }
+
   settings.save();
 
-  return res.status(200).json(removed[0]);
+  return res.status(200).json(removed);
 });
 
 export default lidarrRoutes;

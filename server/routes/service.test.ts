@@ -116,6 +116,25 @@ describe('Lidarr settings routes', () => {
     );
   });
 
+  it('promotes another Lidarr server when deleting the default', async () => {
+    getSettings().lidarr = [
+      makeLidarr({ id: 4, name: 'Primary Lidarr', isDefault: true }),
+      makeLidarr({ id: 5, name: 'Backup Lidarr', isDefault: false }),
+    ];
+
+    const res = await request(app).delete('/settings/lidarr/4');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      getSettings().lidarr.map(({ id, name, isDefault }) => ({
+        id,
+        name,
+        isDefault,
+      })),
+      [{ id: 5, name: 'Backup Lidarr', isDefault: true }]
+    );
+  });
+
   it('returns Lidarr service summaries with metadata profile and tags', async () => {
     getSettings().lidarr = [
       makeLidarr({
@@ -226,6 +245,45 @@ describe('Bookshelf settings routes', () => {
           name: 'Replacement Ebook Bookshelf',
           isDefault: true,
           serviceType: 'ebook',
+        },
+      ]
+    );
+  });
+
+  it('promotes another Bookshelf server for the same format when deleting the default', async () => {
+    getSettings().readarr = [
+      makeReadarr({ id: 7, name: 'Primary Ebook', isDefault: true }),
+      makeReadarr({ id: 8, name: 'Backup Ebook', isDefault: false }),
+      makeReadarr({
+        id: 9,
+        name: 'Audio Bookshelf',
+        isDefault: true,
+        serviceType: 'audiobook',
+      }),
+    ];
+
+    const res = await request(app).delete('/settings/readarr/7');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      getSettings().readarr.map(({ id, name, isDefault, serviceType }) => ({
+        id,
+        name,
+        isDefault,
+        serviceType,
+      })),
+      [
+        {
+          id: 8,
+          name: 'Backup Ebook',
+          isDefault: true,
+          serviceType: 'ebook',
+        },
+        {
+          id: 9,
+          name: 'Audio Bookshelf',
+          isDefault: true,
+          serviceType: 'audiobook',
         },
       ]
     );

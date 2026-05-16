@@ -520,6 +520,26 @@ export class MediaRequest {
           readarr.isDefault &&
           (readarr.serviceType ?? 'ebook') === requestedServiceType
       );
+      const defaultEbookReadarr = settings.readarr.find(
+        (readarr) =>
+          readarr.isDefault && (readarr.serviceType ?? 'ebook') === 'ebook'
+      );
+      const defaultAudiobookReadarr = settings.readarr.find(
+        (readarr) => readarr.isDefault && readarr.serviceType === 'audiobook'
+      );
+
+      if (requestedBookFormat === 'both') {
+        if (!defaultEbookReadarr || !defaultAudiobookReadarr) {
+          throw new ServiceConfigurationError(
+            'Both book formats require default ebook and audiobook Bookshelf servers.'
+          );
+        }
+      } else if (!defaultReadarr && !requestBody.serverId) {
+        throw new ServiceConfigurationError(
+          `No default Bookshelf server configured for ${requestedServiceType}.`
+        );
+      }
+
       const autoApproved = user.hasPermission(
         [
           Permission.AUTO_APPROVE,
