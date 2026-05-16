@@ -16,6 +16,7 @@ const GenreCard = ({ image, url, name, canExpand = false }: GenreCardProps) => {
   return (
     <Link
       href={url}
+      prefetch={false}
       className={`relative flex h-32 items-center justify-center sm:h-36 ${
         canExpand ? 'w-full' : 'w-56 sm:w-72'
       } transform-gpu cursor-pointer p-8 shadow ring-1 transition duration-300 ease-in-out ${

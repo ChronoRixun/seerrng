@@ -32,7 +32,11 @@ const LibraryTitleCard = ({
   });
   const url = type === 'album' ? `/api/v1/music/${id}` : `/api/v1/book/${id}`;
   const { data: title, error } = useSWR<MusicDetails | BookDetails>(
-    inView ? url : null
+    inView ? url : null,
+    {
+      dedupingInterval: 30000,
+      revalidateOnFocus: false,
+    }
   );
 
   if (!title && !error) {

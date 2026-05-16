@@ -55,6 +55,7 @@ const ShowMoreCard = ({ url, posters }: ShowMoreCardProps) => {
   return (
     <Link
       href={url}
+      prefetch={false}
       className={'w-36 sm:w-36 md:w-44'}
       onMouseEnter={() => {
         setHovered(true);

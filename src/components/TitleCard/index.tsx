@@ -660,6 +660,7 @@ const TitleCard = ({
             <div className="absolute inset-0 overflow-hidden rounded-xl">
               <Link
                 href={detailHref}
+                prefetch={false}
                 className="absolute inset-0 h-full w-full cursor-pointer overflow-hidden text-left"
                 style={{
                   background:

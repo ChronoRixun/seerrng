@@ -23,6 +23,7 @@ const ArtistCard = ({
   return (
     <Link
       href={`/artist/${artistId}`}
+      prefetch={false}
       className={canExpand ? 'w-full' : 'w-36 sm:w-36 md:w-44'}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

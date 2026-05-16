@@ -36,7 +36,11 @@ const TmdbTitleCard = ({
   const url =
     type === 'movie' ? `/api/v1/movie/${tmdbId}` : `/api/v1/tv/${tmdbId}`;
   const { data: title, error } = useSWR<MovieDetails | TvDetails>(
-    inView ? `${url}` : null
+    inView ? `${url}` : null,
+    {
+      dedupingInterval: 30000,
+      revalidateOnFocus: false,
+    }
   );
 
   if (!title && !error) {
