@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const IS_SCROLLING_CHECK_THROTTLE = 200;
 const BUFFER_HEIGHT = 200;
@@ -22,7 +22,7 @@ const useVerticalScroll = (
   const callbackTimer: MutableRefObject<SetTimeoutReturnType | undefined> =
     useRef(undefined);
 
-  const runCallback = () => {
+  const runCallback = useCallback(() => {
     if (shouldFetch) {
       const scrollTop = Math.max(
         window.pageYOffset,
@@ -36,28 +36,27 @@ const useVerticalScroll = (
         callback();
       }
     }
-  };
+  }, [callback, shouldFetch]);
 
-  const debouncedCallback = () => {
+  const debouncedCallback = useCallback(() => {
     if (callbackTimer.current !== undefined) {
       clearTimeout(callbackTimer.current);
     }
 
     callbackTimer.current = setTimeout(runCallback, 50);
-  };
+  }, [runCallback]);
 
   useEffect(() => {
     runCallback();
-  });
+  }, [runCallback]);
 
   useEffect(() => {
     const onScroll = () => {
       if (scrollingTimer.current !== undefined) {
         clearTimeout(scrollingTimer.current);
       }
-      if (!isScrolling) {
-        setScrolling(true);
-      }
+
+      setScrolling(true);
 
       scrollingTimer.current = setTimeout(() => {
         setScrolling(false);
@@ -82,7 +81,7 @@ const useVerticalScroll = (
         clearTimeout(callbackTimer.current);
       }
     };
-  });
+  }, [debouncedCallback]);
 
   return isScrolling;
 };
