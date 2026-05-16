@@ -35,6 +35,10 @@ const messages = defineMessages('components.RequestBlock', {
   requestdate: 'Request Date',
   requestedby: 'Requested By',
   lastmodifiedby: 'Last Modified By',
+  bookFormat: 'Format',
+  ebook: 'Ebook',
+  audiobook: 'Audiobook',
+  both: 'Both',
   approve: 'Approve Request',
   decline: 'Decline Request',
   edit: 'Edit Request',
@@ -56,6 +60,12 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
   const bookId = request.media?.identifiers?.find(
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
+  const bookFormatMessage =
+    request.bookFormat === 'audiobook'
+      ? messages.audiobook
+      : request.bookFormat === 'both'
+        ? messages.both
+        : messages.ebook;
 
   const updateRequest = async (type: 'approve' | 'decline'): Promise<void> => {
     setIsUpdating(true);
@@ -92,7 +102,7 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
           }
           mbId={
             request.type === 'music'
-              ? request.media.mbId ?? undefined
+              ? (request.media.mbId ?? undefined)
               : undefined
           }
           bookId={request.type === 'book' ? bookId : undefined}
@@ -231,6 +241,13 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
               {request.is4k && (
                 <span className="mr-1">
                   <Badge badgeType="warning">4K</Badge>
+                </span>
+              )}
+              {request.type === 'book' && (
+                <span className="mr-1">
+                  <Tooltip content={intl.formatMessage(messages.bookFormat)}>
+                    <Badge>{intl.formatMessage(bookFormatMessage)}</Badge>
+                  </Tooltip>
                 </span>
               )}
               {request.status === MediaRequestStatus.APPROVED && (
