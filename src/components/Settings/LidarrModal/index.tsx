@@ -3,6 +3,7 @@ import SensitiveInput from '@app/components/Common/SensitiveInput';
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { isValidURL } from '@app/utils/urlValidationHelper';
 import { Transition } from '@headlessui/react';
 import type { LidarrSettings } from '@server/lib/settings';
 import axios from 'axios';
@@ -55,8 +56,17 @@ const messages = defineMessages('components.Settings.LidarrModal', {
     "Automatically add an additional tag with the requester's user ID & display name",
   validationApplicationUrl: 'You must provide a valid URL',
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
-  validationBaseUrlLeadingSlash: 'Base URL must have a leading slash',
-  validationBaseUrlTrailingSlash: 'Base URL must not end in a trailing slash',
+  validationBaseUrlLeadingSlash: 'URL base must have a leading slash',
+  validationBaseUrlTrailingSlash: 'URL base must not end in a trailing slash',
+  apiKeyHelp: 'Find it in Lidarr: Settings > General > Security > API Key',
+  baseUrlHelp:
+    'If you set a URL Base in Lidarr (Settings > General > Host), enter it here (e.g. /lidarr). Leave blank otherwise.',
+  externalUrlHelp:
+    'For clickable links on media pages when the hostname is not reachable from outside your network.',
+  syncEnabledHelp:
+    'Scan Lidarr for existing media and request status so users cannot request content already available.',
+  enableSearchHelp:
+    'Automatically trigger a search in Lidarr when a request is approved.',
   tags: 'Tags',
   notagoptions: 'No tags.',
   selecttags: 'Select tags',
@@ -109,12 +119,9 @@ const LidarrModal = ({ onClose, lidarr, onSave }: LidarrModalProps) => {
     name: Yup.string().required(
       intl.formatMessage(messages.validationNameRequired)
     ),
-    hostname: Yup.string()
-      .required(intl.formatMessage(messages.validationHostnameRequired))
-      .matches(
-        /^(((([a-z]|\d|_|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*)?([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])):((([a-z]|\d|_|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*)?([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))@)?(([a-z]|\d|_|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*)?([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])$/i,
-        intl.formatMessage(messages.validationHostnameRequired)
-      ),
+    hostname: Yup.string().required(
+      intl.formatMessage(messages.validationHostnameRequired)
+    ),
     port: Yup.number()
       .nullable()
       .required(intl.formatMessage(messages.validationPortRequired)),
@@ -128,7 +135,11 @@ const LidarrModal = ({ onClose, lidarr, onSave }: LidarrModalProps) => {
       intl.formatMessage(messages.validationProfileRequired)
     ),
     externalUrl: Yup.string()
-      .url(intl.formatMessage(messages.validationApplicationUrl))
+      .test(
+        'valid-url',
+        intl.formatMessage(messages.validationApplicationUrl),
+        isValidURL
+      )
       .test(
         'no-trailing-slash',
         intl.formatMessage(messages.validationApplicationUrlTrailingSlash),
@@ -449,6 +460,9 @@ const LidarrModal = ({ onClose, lidarr, onSave }: LidarrModalProps) => {
                   <label htmlFor="apiKey" className="text-label">
                     {intl.formatMessage(messages.apiKey)}
                     <span className="label-required">*</span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.apiKeyHelp)}
+                    </span>
                   </label>
                   <div className="form-input-area">
                     <div className="form-input-field">
@@ -473,6 +487,9 @@ const LidarrModal = ({ onClose, lidarr, onSave }: LidarrModalProps) => {
                 <div className="form-row">
                   <label htmlFor="baseUrl" className="text-label">
                     {intl.formatMessage(messages.baseUrl)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.baseUrlHelp)}
+                    </span>
                   </label>
                   <div className="form-input-area">
                     <div className="form-input-field">
@@ -684,6 +701,9 @@ const LidarrModal = ({ onClose, lidarr, onSave }: LidarrModalProps) => {
                 <div className="form-row">
                   <label htmlFor="externalUrl" className="text-label">
                     {intl.formatMessage(messages.externalUrl)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.externalUrlHelp)}
+                    </span>
                   </label>
                   <div className="form-input-area">
                     <div className="form-input-field">
@@ -704,6 +724,9 @@ const LidarrModal = ({ onClose, lidarr, onSave }: LidarrModalProps) => {
                 <div className="form-row">
                   <label htmlFor="syncEnabled" className="checkbox-label">
                     {intl.formatMessage(messages.syncEnabled)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.syncEnabledHelp)}
+                    </span>
                   </label>
                   <div className="form-input-area">
                     <Field
@@ -716,6 +739,9 @@ const LidarrModal = ({ onClose, lidarr, onSave }: LidarrModalProps) => {
                 <div className="form-row">
                   <label htmlFor="enableSearch" className="checkbox-label">
                     {intl.formatMessage(messages.enableSearch)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.enableSearchHelp)}
+                    </span>
                   </label>
                   <div className="form-input-area">
                     <Field
