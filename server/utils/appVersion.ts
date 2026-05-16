@@ -4,15 +4,22 @@ import path from 'path';
 
 const COMMIT_TAG_PATH = path.join(__dirname, '../../committag.json');
 let commitTag = 'local';
+let buildVersion = 'develop';
 
 if (existsSync(COMMIT_TAG_PATH)) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  commitTag = require(COMMIT_TAG_PATH).commitTag;
+  const buildInfo = require(COMMIT_TAG_PATH);
+  commitTag = buildInfo.commitTag;
+  buildVersion = buildInfo.buildVersion ?? buildVersion;
   logger.info(`Commit Tag: ${commitTag}`);
 }
 
 export const getCommitTag = (): string => {
   return commitTag;
+};
+
+export const getBuildVersion = (): string => {
+  return buildVersion;
 };
 
 export const getAppVersion = (): string => {
@@ -22,7 +29,7 @@ export const getAppVersion = (): string => {
   let finalVersion = version;
 
   if (version === '0.1.0') {
-    finalVersion = `develop-${getCommitTag()}`;
+    finalVersion = `${getBuildVersion()}-${getCommitTag()}`;
   }
 
   return finalVersion;

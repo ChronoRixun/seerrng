@@ -69,8 +69,11 @@ app
       ? dataSource
       : await dataSource.initialize();
 
-    // Run migrations in production
-    if (process.env.NODE_ENV === 'production') {
+    // Run migrations in production unless a prepared test database is being used.
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.SEERR_SKIP_DB_MIGRATIONS !== 'true'
+    ) {
       if (isPgsql) {
         await dbConnection.runMigrations();
       } else {

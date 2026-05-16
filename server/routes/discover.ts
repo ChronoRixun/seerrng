@@ -273,6 +273,35 @@ const mergeMusicAlbumMetadata = (
   };
 };
 
+const getMusicArtistDiversityKey = (album: MbAlbumResult): string =>
+  album['artist-credit'][0]?.artist?.id ??
+  album['artist-credit'][0]?.name ??
+  album.id;
+
+const diversifyMusicAlbumsByArtist = (
+  albums: MbAlbumResult[],
+  limit: number,
+  maxPerArtist = 2
+): MbAlbumResult[] => {
+  const selectedAlbums: MbAlbumResult[] = [];
+  const skippedAlbums: MbAlbumResult[] = [];
+  const artistCounts = new Map<string, number>();
+
+  albums.forEach((album) => {
+    const artistKey = getMusicArtistDiversityKey(album);
+    const artistCount = artistCounts.get(artistKey) ?? 0;
+
+    if (artistCount < maxPerArtist) {
+      selectedAlbums.push(album);
+      artistCounts.set(artistKey, artistCount + 1);
+    } else {
+      skippedAlbums.push(album);
+    }
+  });
+
+  return [...selectedAlbums, ...skippedAlbums].slice(0, limit);
+};
+
 const defaultBookDiscoverySubjects = [
   'fiction',
   'fantasy',
@@ -1446,9 +1475,12 @@ discoverRoutes.get('/music', async (req, res) => {
         );
       });
 
-      const albums = [...albumsById.values()]
-        .sort((a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a))
-        .slice(providerWindow.sliceStart, providerWindow.sliceEnd);
+      const albums = diversifyMusicAlbumsByArtist(
+        [...albumsById.values()].sort(
+          (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+        ),
+        providerWindow.sliceEnd
+      ).slice(providerWindow.sliceStart, providerWindow.sliceEnd);
       const mbIds = albums.map((album) => album.id);
       const relatedMedia = mbIds.length
         ? await getRepository(Media).find({
