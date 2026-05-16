@@ -1,8 +1,6 @@
 import Layout from '@app/components/Layout';
 import LoadingBar from '@app/components/LoadingBar';
 import PWAHeader from '@app/components/PWAHeader';
-import ServiceWorkerSetup from '@app/components/ServiceWorkerSetup';
-import StatusChecker from '@app/components/StatusChecker';
 import { InteractionProvider } from '@app/context/InteractionContext';
 import { LanguageContext } from '@app/context/LanguageContext';
 import { SettingsProvider } from '@app/context/SettingsContext';
@@ -18,11 +16,20 @@ import type { AvailableLocale } from '@server/types/languages';
 import axios from 'axios';
 import type { AppInitialProps, AppProps } from 'next/app';
 import App from 'next/app';
+import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import { useEffect, useRef, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { IntlProvider } from 'react-intl';
 import { SWRConfig } from 'swr';
+
+const ServiceWorkerSetup = dynamic(
+  () => import('@app/components/ServiceWorkerSetup'),
+  { ssr: false }
+);
+const StatusChecker = dynamic(() => import('@app/components/StatusChecker'), {
+  ssr: false,
+});
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const loadLocaleData = (locale: AvailableLocale): Promise<any> => {
@@ -176,11 +183,26 @@ const CoreApp: Omit<NextAppComponentType, 'origGetInitialProps'> = ({
       }
     };
 
-    handleBadgeUpdate();
+    let idleCallback: number | undefined;
+    let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+
+    if ('requestIdleCallback' in window) {
+      idleCallback = window.requestIdleCallback(handleBadgeUpdate, {
+        timeout: 5000,
+      });
+    } else {
+      timeout = globalThis.setTimeout(handleBadgeUpdate, 2000);
+    }
 
     window.addEventListener('focus', handleBadgeUpdate);
 
     return () => {
+      if (idleCallback !== undefined) {
+        window.cancelIdleCallback(idleCallback);
+      }
+      if (timeout !== undefined) {
+        globalThis.clearTimeout(timeout);
+      }
       window.removeEventListener('focus', handleBadgeUpdate);
     };
   }, [hasPermission, router.pathname]);

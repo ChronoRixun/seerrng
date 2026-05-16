@@ -28,8 +28,33 @@ const StatusChecker = () => {
   const isAuthPage = /^\/(login|setup|resetpassword(?:\/|$))/.test(
     router.pathname
   );
+  const [statusCheckEnabled, setStatusCheckEnabled] = useState(false);
+
+  useEffect(() => {
+    if (isAuthPage) {
+      setStatusCheckEnabled(false);
+      return;
+    }
+
+    if ('requestIdleCallback' in window) {
+      const idleCallback = window.requestIdleCallback(
+        () => setStatusCheckEnabled(true),
+        { timeout: 10000 }
+      );
+
+      return () => window.cancelIdleCallback(idleCallback);
+    }
+
+    const timeout = globalThis.setTimeout(
+      () => setStatusCheckEnabled(true),
+      5000
+    );
+
+    return () => globalThis.clearTimeout(timeout);
+  }, [isAuthPage]);
+
   const { data, error } = useSWR<StatusResponse>(
-    isAuthPage ? null : '/api/v1/status',
+    statusCheckEnabled ? '/api/v1/status' : null,
     {
       refreshInterval: 60 * 1000,
       revalidateOnFocus: false,
