@@ -36,8 +36,16 @@ const useRequestOverride = (request: MediaRequest): OverrideStatus => {
     return {};
   }
 
+  const bookServiceType =
+    request.type === 'book' && request.bookFormat === 'audiobook'
+      ? 'audiobook'
+      : 'ebook';
   const defaultServer = allServers.find(
-    (server) => server.is4k === request.is4k && server.isDefault
+    (server) =>
+      server.is4k === request.is4k &&
+      server.isDefault &&
+      (request.type !== 'book' ||
+        (server.serviceType ?? 'ebook') === bookServiceType)
   );
 
   const activeServer = allServers.find(
