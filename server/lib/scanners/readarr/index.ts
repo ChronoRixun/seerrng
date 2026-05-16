@@ -53,7 +53,9 @@ class ReadarrScanner
         return (
           readarrA.hostname === readarrB.hostname &&
           readarrA.port === readarrB.port &&
-          readarrA.baseUrl === readarrB.baseUrl
+          readarrA.baseUrl === readarrB.baseUrl &&
+          (readarrA.serviceType ?? 'ebook') ===
+            (readarrB.serviceType ?? 'ebook')
         );
       });
 

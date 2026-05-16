@@ -14,10 +14,14 @@ import { getSettings } from '@server/lib/settings';
 import { setupTestDb } from '@server/test/db';
 
 let getBooksImpl: () => Promise<ReadarrBook[]> = async () => [];
+let getBooksCallCount = 0;
 Object.defineProperty(ReadarrAPI.prototype, 'getBooks', {
   set() {},
   get() {
-    return async () => getBooksImpl();
+    return async () => {
+      getBooksCallCount += 1;
+      return getBooksImpl();
+    };
   },
   configurable: true,
 });
@@ -96,6 +100,7 @@ async function seedBook(identifier: string, status = MediaStatus.PROCESSING) {
 describe('Readarr Scanner', () => {
   beforeEach(() => {
     getBooksImpl = async () => [];
+    getBooksCallCount = 0;
   });
 
   it('resets PROCESSING to UNKNOWN when a book is not in any Readarr server', async () => {
@@ -256,6 +261,49 @@ describe('Readarr Scanner', () => {
     });
     assert.strictEqual(updated.serviceId, 10);
     assert.strictEqual(updated.externalServiceId, 100);
+    assert.strictEqual(updated.audiobookServiceId, 21);
+    assert.strictEqual(updated.audiobookExternalServiceId, 210);
+    assert.strictEqual(updated.status, MediaStatus.AVAILABLE);
+  });
+
+  it('scans ebook and audiobook services separately when they share an endpoint', async () => {
+    await seedBook('9780000000008');
+
+    configureReadarr([
+      {
+        id: 10,
+        serviceType: 'ebook',
+        activeDirectory: '/ebooks',
+      },
+      {
+        id: 21,
+        serviceType: 'audiobook',
+        activeDirectory: '/audiobooks',
+      },
+    ]);
+    getBooksImpl = async () => [
+      fakeReadarrBook({
+        id: 210,
+        titleSlug: 'shared-endpoint-book',
+        editions: [
+          {
+            foreignEditionId: 'edition-id',
+            title: 'Test Book',
+            isbn13: '9780000000008',
+            monitored: true,
+          },
+        ],
+      }),
+    ];
+
+    await readarrScanner.run();
+
+    const updated = await getRepository(Media).findOneOrFail({
+      where: { mediaType: MediaType.BOOK },
+    });
+    assert.strictEqual(getBooksCallCount, 2);
+    assert.strictEqual(updated.serviceId, 10);
+    assert.strictEqual(updated.externalServiceId, 210);
     assert.strictEqual(updated.audiobookServiceId, 21);
     assert.strictEqual(updated.audiobookExternalServiceId, 210);
     assert.strictEqual(updated.status, MediaStatus.AVAILABLE);
