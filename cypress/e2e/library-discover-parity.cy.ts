@@ -444,7 +444,8 @@ describe('Books and Music discover parity', () => {
     );
     cy.contains('Requestable Work').should('be.visible');
     cy.contains('Already Requested Work').should('be.visible');
-    cy.contains('Already Requested Work')
+    cy.get('[role="dialog"] table')
+      .contains('td', 'Already Requested Work')
       .parents('tr')
       .contains('Requested')
       .should('be.visible');
@@ -545,7 +546,10 @@ describe('Books and Music discover parity', () => {
       'be.visible'
     );
     cy.contains('Album One').should('be.visible');
-    cy.contains('Owned Album').parents('tr').contains('Requested');
+    cy.get('[role="dialog"] table')
+      .contains('td', 'Owned Album')
+      .parents('tr')
+      .contains('Requested');
     cy.get('[data-testid=modal-ok-button]').should('contain', 'Request 1 Item');
     cy.contains('label', 'Release Type').find('select').select('Single');
     cy.contains('Single One').should('be.visible');

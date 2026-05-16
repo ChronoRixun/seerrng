@@ -485,6 +485,56 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('keeps richer metadata when ranked music sources return the same album', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => ({
+      payload: {
+        count: 1,
+        release_groups: [
+          {
+            artist_mbids: ['artist-duplicate'],
+            artist_name: 'Duplicate Artist',
+            caa_release_mbid: '',
+            listen_count: 5000,
+            release_group_mbid: 'album-duplicate',
+            release_group_name: 'Duplicate Chart Album',
+          },
+        ],
+      },
+    }));
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: {
+        releases: [
+          {
+            artist_credit_name: 'Duplicate Artist',
+            artist_mbids: ['artist-duplicate'],
+            caa_id: 1,
+            caa_release_mbid: 'release-duplicate',
+            listen_count: 25,
+            release_date: '2026-05-01',
+            release_group_mbid: 'album-duplicate',
+            release_group_primary_type: 'Album',
+            release_group_secondary_type: '',
+            release_mbid: 'release-duplicate',
+            release_name: 'Duplicate Fresh Album',
+            release_tags: [],
+          },
+        ],
+      },
+    }));
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results.length, 1);
+    assert.strictEqual(res.body.results[0].title, 'Duplicate Chart Album');
+    assert.strictEqual(res.body.results[0]['first-release-date'], '2026-05-01');
+    assert.strictEqual(
+      res.body.results[0].posterPath,
+      'https://coverartarchive.org/release/release-duplicate/front-250'
+    );
+  });
+
   it('uses fresh releases for ranked music discovery when charts are unavailable', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => {
       throw new Error('charts unavailable');

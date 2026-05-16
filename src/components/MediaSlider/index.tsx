@@ -15,7 +15,7 @@ import type {
   TvResult,
 } from '@server/models/Search';
 import Link from 'next/link';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import useSWRInfinite from 'swr/infinite';
 
@@ -52,7 +52,7 @@ const MediaSlider = ({
     triggerOnce: true,
   });
   const shouldLoad = isEditingSafe() || inView;
-  const { data, error, setSize, size } = useSWRInfinite<MixedResult>(
+  const getKey = useCallback(
     (pageIndex: number, previousPageData: MixedResult | null) => {
       if (!shouldLoad) {
         return null;
@@ -66,6 +66,11 @@ const MediaSlider = ({
         extraParams ? `&${extraParams}` : ''
       }`;
     },
+    [extraParams, shouldLoad, url]
+  );
+
+  const { data, error, setSize, size } = useSWRInfinite<MixedResult>(
+    getKey,
     {
       initialSize: 1,
       revalidateFirstPage: false,
@@ -75,7 +80,7 @@ const MediaSlider = ({
   );
 
   const titles = useMemo(() => {
-    let filteredTitles: (
+    const filteredTitles: (
       | MovieResult
       | TvResult
       | PersonResult
@@ -84,26 +89,27 @@ const MediaSlider = ({
     )[] = [];
 
     for (const page of data ?? []) {
-      filteredTitles.push(...page.results);
-    }
+      for (const item of page.results) {
+        if (
+          settings.currentSettings.hideAvailable &&
+          'mediaInfo' in item &&
+          item.mediaInfo &&
+          (item.mediaInfo.status === MediaStatus.AVAILABLE ||
+            item.mediaInfo.status === MediaStatus.PARTIALLY_AVAILABLE)
+        ) {
+          continue;
+        }
 
-    if (settings.currentSettings.hideAvailable) {
-      filteredTitles = filteredTitles.filter(
-        (i) =>
-          !('mediaInfo' in i) ||
-          !i.mediaInfo ||
-          (i.mediaInfo.status !== MediaStatus.AVAILABLE &&
-            i.mediaInfo.status !== MediaStatus.PARTIALLY_AVAILABLE)
-      );
-    }
+        if (
+          settings.currentSettings.hideBlocklisted &&
+          'mediaInfo' in item &&
+          item.mediaInfo?.status === MediaStatus.BLOCKLISTED
+        ) {
+          continue;
+        }
 
-    if (settings.currentSettings.hideBlocklisted) {
-      filteredTitles = filteredTitles.filter(
-        (i) =>
-          !('mediaInfo' in i) ||
-          !i.mediaInfo ||
-          i.mediaInfo.status !== MediaStatus.BLOCKLISTED
-      );
+        filteredTitles.push(item);
+      }
     }
 
     return filteredTitles;
@@ -113,132 +119,141 @@ const MediaSlider = ({
     settings.currentSettings.hideBlocklisted,
   ]);
 
-  useEffect(() => {
-    if (
-      titles.length < 24 &&
-      size < 5 &&
-      (data?.[0]?.totalResults ?? 0) > size * 20
-    ) {
-      setSize(size + 1);
-    }
+  const shouldLoadMore =
+    titles.length < 24 && size < 5 && (data?.[0]?.totalResults ?? 0) > size * 20;
 
+  useEffect(() => {
+    if (shouldLoadMore) {
+      setSize((currentSize) => currentSize + 1);
+    }
+  }, [setSize, shouldLoadMore]);
+
+  useEffect(() => {
     if (onNewTitles) {
       // We aren't reporting all titles. We just want to know if there are any titles
       // at all for our purposes.
       onNewTitles(titles.length);
     }
-  }, [titles, setSize, size, data, onNewTitles]);
+  }, [onNewTitles, titles.length]);
 
   const blocklistVisibility = hasPermission(
     [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
     { type: 'or' }
   );
 
-  const finalTitles = useMemo(() => {
-    const cardTitles = titles
-      .slice(0, 20)
-      .filter((title) => {
-        if (!blocklistVisibility)
-          return (
-            (title as TvResult | MovieResult | AlbumResult | BookResult)
-              .mediaInfo?.status !== MediaStatus.BLOCKLISTED
-          );
-        return title;
-      })
-      .map((title) => {
-        switch (title.mediaType) {
-          case 'movie':
-            return (
-              <TitleCard
-                key={title.id}
-                id={title.id}
-                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-                image={title.posterPath}
-                status={title.mediaInfo?.status}
-                summary={title.overview}
-                title={title.title}
-                userScore={title.voteAverage}
-                year={title.releaseDate}
-                mediaType={title.mediaType}
-                inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
-              />
-            );
-          case 'tv':
-            return (
-              <TitleCard
-                key={title.id}
-                id={title.id}
-                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-                image={title.posterPath}
-                status={title.mediaInfo?.status}
-                summary={title.overview}
-                title={title.name}
-                userScore={title.voteAverage}
-                year={title.firstAirDate}
-                mediaType={title.mediaType}
-                inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
-              />
-            );
-          case 'person':
-            return (
-              <PersonCard
-                personId={title.id}
-                name={title.name}
-                profilePath={title.profilePath}
-              />
-            );
-          case 'album':
-            return (
-              <TitleCard
-                key={title.id}
-                id={title.id}
-                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-                image={title.posterPath}
-                status={title.mediaInfo?.status}
-                title={title.title}
-                artist={title['artist-credit']?.[0]?.name}
-                type={title['primary-type']}
-                year={
-                  title.releaseDate ??
-                  title['first-release-date']?.split('-')[0]
-                }
-                mediaType={title.mediaType}
-                inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
-                needsCoverArt={title.needsCoverArt}
-              />
-            );
-          case 'book':
-            return (
-              <TitleCard
-                key={title.id}
-                id={title.id}
-                image={title.posterPath}
-                isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
-                status={title.mediaInfo?.status}
-                title={title.title}
-                artist={title.author}
-                year={title.firstPublishYear?.toString()}
-                mediaType={title.mediaType}
-              />
-            );
+  const visibleTitles = useMemo(
+    () =>
+      titles.slice(0, 20).filter((title) => {
+        if (blocklistVisibility) {
+          return true;
         }
-      });
+
+        return (
+          (title as TvResult | MovieResult | AlbumResult | BookResult).mediaInfo
+            ?.status !== MediaStatus.BLOCKLISTED
+        );
+      }),
+    [blocklistVisibility, titles]
+  );
+
+  const showMorePosters = useMemo(
+    () =>
+      titles
+        .slice(20, 24)
+        .map((title) =>
+          title.mediaType !== 'person' ? title.posterPath : undefined
+        ),
+    [titles]
+  );
+
+  const finalTitles = useMemo(() => {
+    const cardTitles = visibleTitles.map((title) => {
+      switch (title.mediaType) {
+        case 'movie':
+          return (
+            <TitleCard
+              key={title.id}
+              id={title.id}
+              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+              image={title.posterPath}
+              status={title.mediaInfo?.status}
+              summary={title.overview}
+              title={title.title}
+              userScore={title.voteAverage}
+              year={title.releaseDate}
+              mediaType={title.mediaType}
+              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+            />
+          );
+        case 'tv':
+          return (
+            <TitleCard
+              key={title.id}
+              id={title.id}
+              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+              image={title.posterPath}
+              status={title.mediaInfo?.status}
+              summary={title.overview}
+              title={title.name}
+              userScore={title.voteAverage}
+              year={title.firstAirDate}
+              mediaType={title.mediaType}
+              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+            />
+          );
+        case 'person':
+          return (
+            <PersonCard
+              key={title.id}
+              personId={title.id}
+              name={title.name}
+              profilePath={title.profilePath}
+            />
+          );
+        case 'album':
+          return (
+            <TitleCard
+              key={title.id}
+              id={title.id}
+              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+              image={title.posterPath}
+              status={title.mediaInfo?.status}
+              title={title.title}
+              artist={title['artist-credit']?.[0]?.name}
+              type={title['primary-type']}
+              year={
+                title.releaseDate ?? title['first-release-date']?.split('-')[0]
+              }
+              mediaType={title.mediaType}
+              inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              needsCoverArt={title.needsCoverArt}
+            />
+          );
+        case 'book':
+          return (
+            <TitleCard
+              key={title.id}
+              id={title.id}
+              image={title.posterPath}
+              isAddedToWatchlist={title.mediaInfo?.watchlists?.length ?? 0}
+              status={title.mediaInfo?.status}
+              title={title.title}
+              artist={title.author}
+              year={title.firstPublishYear?.toString()}
+              mediaType={title.mediaType}
+            />
+          );
+      }
+    });
 
     if (linkUrl && titles.length > 20) {
       cardTitles.push(
-        <ShowMoreCard
-          url={linkUrl}
-          posters={titles
-            .slice(20, 24)
-            .map((title) =>
-              title.mediaType !== 'person' ? title.posterPath : undefined
-            )}
-        />
+        <ShowMoreCard key="show-more" url={linkUrl} posters={showMorePosters} />
       );
     }
 
     return cardTitles;
-  }, [blocklistVisibility, linkUrl, titles]);
+  }, [linkUrl, showMorePosters, titles.length, visibleTitles]);
 
   if (hideWhenEmpty && data && (data[0]?.results ?? []).length === 0) {
     return null;

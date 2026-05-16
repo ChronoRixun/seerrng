@@ -219,6 +219,33 @@ const mapFreshReleaseAlbum = (release: LbRelease): MbAlbumResult => ({
     : undefined,
 });
 
+const mergeMusicAlbumMetadata = (
+  existingAlbum: MbAlbumResult,
+  incomingAlbum: MbAlbumResult
+): MbAlbumResult => {
+  const primaryAlbum =
+    scoreMusicAlbum(incomingAlbum) > scoreMusicAlbum(existingAlbum)
+      ? incomingAlbum
+      : existingAlbum;
+  const fallbackAlbum =
+    primaryAlbum === incomingAlbum ? existingAlbum : incomingAlbum;
+
+  return {
+    ...primaryAlbum,
+    score: Math.max(
+      clampNumber(existingAlbum.score),
+      clampNumber(incomingAlbum.score)
+    ),
+    title: primaryAlbum.title || fallbackAlbum.title,
+    'first-release-date':
+      primaryAlbum['first-release-date'] || fallbackAlbum['first-release-date'],
+    'artist-credit': primaryAlbum['artist-credit'].length
+      ? primaryAlbum['artist-credit']
+      : fallbackAlbum['artist-credit'],
+    posterPath: primaryAlbum.posterPath ?? fallbackAlbum.posterPath,
+  };
+};
+
 const defaultBookDiscoverySubjects = [
   'fiction',
   'fantasy',
@@ -1386,12 +1413,10 @@ discoverRoutes.get('/music', async (req, res) => {
       ].forEach((album) => {
         const existingAlbum = albumsById.get(album.id);
 
-        if (
-          !existingAlbum ||
-          scoreMusicAlbum(album) > scoreMusicAlbum(existingAlbum)
-        ) {
-          albumsById.set(album.id, album);
-        }
+        albumsById.set(
+          album.id,
+          existingAlbum ? mergeMusicAlbumMetadata(existingAlbum, album) : album
+        );
       });
 
       const albums = [...albumsById.values()]

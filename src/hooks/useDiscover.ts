@@ -1,7 +1,7 @@
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useIntl } from 'react-intl';
 import useSWRInfinite from 'swr/infinite';
 import useSettings from './useSettings';
@@ -168,9 +168,9 @@ const useDiscover = <
       typeof data[size - 1] === 'undefined' &&
       isValidating);
 
-  const fetchMore = () => {
-    setSize(size + 1);
-  };
+  const fetchMore = useCallback(() => {
+    setSize((currentSize) => currentSize + 1);
+  }, [setSize]);
 
   const canManageBlocklist = hasPermission(Permission.MANAGE_BLOCKLIST);
   const titles = useMemo(() => {
