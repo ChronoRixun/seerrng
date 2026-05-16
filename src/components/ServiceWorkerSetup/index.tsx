@@ -8,9 +8,14 @@ import { useEffect } from 'react';
 const ServiceWorkerSetup = () => {
   const { user } = useUser();
   const { currentSettings } = useSettings();
+  const userId = user?.id;
 
   useEffect(() => {
-    if ('serviceWorker' in navigator && user?.id) {
+    if (!('serviceWorker' in navigator) || !userId) {
+      return;
+    }
+
+    const registerServiceWorker = () => {
       navigator.serviceWorker
         .register('/sw.js')
         .then(async (registration) => {
@@ -48,7 +53,7 @@ const ServiceWorkerSetup = () => {
           );
 
           const verified = await verifyAndResubscribePushSubscription(
-            user.id,
+            userId,
             currentSettings
           );
 
@@ -63,8 +68,20 @@ const ServiceWorkerSetup = () => {
         .catch(function (error) {
           console.log('[SW] Service worker registration failed, error:', error);
         });
+    };
+
+    if ('requestIdleCallback' in window) {
+      const idleCallback = window.requestIdleCallback(registerServiceWorker, {
+        timeout: 5000,
+      });
+
+      return () => window.cancelIdleCallback(idleCallback);
     }
-  }, [currentSettings, user]);
+
+    const timeout = globalThis.setTimeout(registerServiceWorker, 2000);
+
+    return () => globalThis.clearTimeout(timeout);
+  }, [currentSettings, userId]);
   return null;
 };
 

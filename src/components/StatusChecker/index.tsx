@@ -5,6 +5,7 @@ import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
 import type { StatusResponse } from '@server/interfaces/api/settingsInterfaces';
+import { useRouter } from 'next/router';
 import { Fragment, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -21,12 +22,19 @@ const messages = defineMessages('components.StatusChecker', {
 
 const StatusChecker = () => {
   const intl = useIntl();
+  const router = useRouter();
   const settings = useSettings();
   const { hasPermission } = useUser();
-  const { data, error } = useSWR<StatusResponse>('/api/v1/status', {
-    refreshInterval: 60 * 1000,
-    revalidateOnFocus: false,
-  });
+  const isAuthPage = /^\/(login|setup|resetpassword(?:\/|$))/.test(
+    router.pathname
+  );
+  const { data, error } = useSWR<StatusResponse>(
+    isAuthPage ? null : '/api/v1/status',
+    {
+      refreshInterval: 60 * 1000,
+      revalidateOnFocus: false,
+    }
+  );
   const [alertDismissed, setAlertDismissed] = useState(false);
 
   useEffect(() => {

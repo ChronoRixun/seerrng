@@ -70,11 +70,12 @@ export const useUser = ({
     mutate: revalidate,
   } = useSWR<User>(id ? `/api/v1/user/${id}` : `/api/v1/auth/me`, {
     fallbackData: initialData,
-    refreshInterval: !isAuthPage ? 30000 : 0,
-    revalidateOnFocus: !isAuthPage,
+    refreshInterval: !isAuthPage ? 120000 : 0,
+    dedupingInterval: 60000,
+    revalidateOnFocus: false,
     revalidateOnMount: !isAuthPage,
     revalidateOnReconnect: !isAuthPage,
-    errorRetryInterval: 30000,
+    errorRetryInterval: 60000,
     shouldRetryOnError: false,
   });
 

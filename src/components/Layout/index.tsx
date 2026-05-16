@@ -10,7 +10,7 @@ import { useUser } from '@app/hooks/useUser';
 import { ArrowLeftIcon, Bars3BottomLeftIcon } from '@heroicons/react/24/solid';
 import type { AvailableLocale } from '@server/types/languages';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 
 type LayoutProps = {
@@ -20,6 +20,7 @@ type LayoutProps = {
 const Layout = ({ children }: LayoutProps) => {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const isScrolledRef = useRef(false);
   const { user } = useUser();
   const router = useRouter();
   const { currentSettings } = useSettings();
@@ -53,10 +54,11 @@ const Layout = ({ children }: LayoutProps) => {
 
   useEffect(() => {
     const updateScrolled = () => {
-      if (window.pageYOffset > 20) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
+      const nextIsScrolled = window.pageYOffset > 20;
+
+      if (nextIsScrolled !== isScrolledRef.current) {
+        isScrolledRef.current = nextIsScrolled;
+        setIsScrolled(nextIsScrolled);
       }
     };
 
