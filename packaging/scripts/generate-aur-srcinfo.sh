@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then

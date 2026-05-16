@@ -1,0 +1,90 @@
+name: Publish COPR
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-copr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+
+      - name: Download Linux asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz"
+
+      - name: Install RPM/COPR tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm python3-pip python3-venv
+          python3 -m venv "$RUNNER_TEMP/copr"
+          "$RUNNER_TEMP/copr/bin/python" -m pip install --upgrade pip copr-cli
+          echo "$RUNNER_TEMP/copr/bin" >> "$GITHUB_PATH"
+
+      - name: Configure COPR
+        env:
+          COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
+          COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
+          COPR_USERNAME: ${{ secrets.COPR_USERNAME }}
+        run: |
+          set -euo pipefail
+          test -n "$COPR_LOGIN"
+          test -n "$COPR_TOKEN"
+          mkdir -p ~/.config
+          cat > ~/.config/copr <<EOF
+          [copr-cli]
+          login = ${COPR_LOGIN}
+          username = ${COPR_USERNAME:-keefshape}
+          token = ${COPR_TOKEN}
+          copr_url = https://copr.fedorainfracloud.org
+          EOF
+
+      - name: Build SRPM
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          mkdir -p ~/rpmbuild/{SOURCES,SPECS,SRPMS}
+          cp "seerrng-v${version}-linux-x64.tar.gz" ~/rpmbuild/SOURCES/
+          cp packaging/aur/seerrng.{service,env,sysusers,tmpfiles} ~/rpmbuild/SOURCES/
+          cp packaging/rpm/seerrng.spec ~/rpmbuild/SPECS/
+          sed -i "s/^Version:.*/Version:        ${version}/" ~/rpmbuild/SPECS/seerrng.spec
+          rpmbuild -bs ~/rpmbuild/SPECS/seerrng.spec --define "_topdir $HOME/rpmbuild"
+
+      - name: Ensure COPR project exists
+        env:
+          COPR_PROJECT: ${{ secrets.COPR_PROJECT }}
+        run: |
+          set -euo pipefail
+          project="${COPR_PROJECT:-seerrng}"
+          copr-cli get "$project" >/dev/null 2>&1 || copr-cli create "$project" \
+            --chroot fedora-43-x86_64 \
+            --chroot fedora-rawhide-x86_64 \
+            --description "SeerrNG RPM builds" \
+            --instructions "dnf copr enable keefshape/seerrng && dnf install seerrng"
+
+      - name: Upload to COPR
+        env:
+          COPR_PROJECT: ${{ secrets.COPR_PROJECT }}
+        run: |
+          srpm="$(find ~/rpmbuild/SRPMS -name '*.src.rpm' -print -quit)"
+          copr-cli build "${COPR_PROJECT:-seerrng}" "$srpm" --nowait
+

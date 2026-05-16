@@ -1,0 +1,65 @@
+name: Build Release Assets
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os: linux
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: arm64
+          - runner: macos-15
+            os: macos
+            arch: arm64
+          - runner: windows-latest
+            os: windows
+            arch: x64
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Pnpm Setup
+        uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22.22.2'
+          package-manager-cache: false
+
+      - name: Build archive
+        shell: bash
+        run: ./scripts/build-release-assets.sh "${TAG}" dist-release
+        env:
+          TAG: ${{ github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}
+          files: |
+            dist-release/seerrng-*
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: seerrng-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist-release/seerrng-*

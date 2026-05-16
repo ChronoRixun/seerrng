@@ -1,0 +1,27 @@
+name: seerrng
+base: core24
+version: '0.1.0'
+summary: Media request and discovery service
+description: |
+  SeerrNG integrates with Plex, Jellyfin, Emby, Sonarr, Radarr, Lidarr, and
+  Readarr to provide media discovery and request workflows.
+grade: stable
+confinement: strict
+architectures:
+  - build-on: amd64
+    build-for: amd64
+
+apps:
+  seerrng:
+    command: start.sh
+    plugs: [network, network-bind, home, removable-media]
+    environment:
+      NODE_ENV: production
+      CONFIG_DIRECTORY: $SNAP_DATA/config
+      PORT: 5055
+      HOST: 0.0.0.0
+
+parts:
+  seerrng:
+    plugin: dump
+    source: src

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=SeerrNG
+Exec=seerrng
+Icon=seerrng
+Categories=Network;AudioVideo;
+Terminal=false

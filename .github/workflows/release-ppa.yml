@@ -1,0 +1,88 @@
+name: Publish Launchpad PPA
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-ppa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+
+      - name: Install packaging tools
+        run: sudo apt-get update && sudo apt-get install -y debhelper devscripts dpkg-dev gnupg curl
+
+      - name: Download Linux asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${{ steps.version.outputs.tag }}" --pattern "seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz"
+
+      - name: Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$GPG_PRIVATE_KEY"
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Prepare source package
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          src="seerrng-${version}"
+          rm -rf "$src"
+          mkdir -p "$src/usr/lib/seerrng" "$src/usr/bin" "$src/lib/systemd/system" "$src/etc/seerrng" \
+            "$src/usr/lib/sysusers.d" "$src/usr/lib/tmpfiles.d"
+          tar -xzf "seerrng-v${version}-linux-x64.tar.gz" --strip-components=1 -C "$src/usr/lib/seerrng"
+          ln -s /usr/lib/seerrng/start.sh "$src/usr/bin/seerrng"
+          cp packaging/aur/seerrng.service "$src/lib/systemd/system/"
+          cp packaging/aur/seerrng.env "$src/etc/seerrng/"
+          cp packaging/aur/seerrng.sysusers "$src/usr/lib/sysusers.d/seerrng.conf"
+          cp packaging/aur/seerrng.tmpfiles "$src/usr/lib/tmpfiles.d/seerrng.conf"
+          cp -r packaging/debian "$src/debian"
+          ppa_rev="$(date -u +%Y%m%d%H%M)"
+          cat > "$src/debian/changelog" <<EOF
+          seerrng (${version}+ppa${ppa_rev}~jammy) jammy; urgency=medium
+
+            * Release ${{ steps.version.outputs.tag }}
+
+           -- snapetech <seerrng@proton.me>  $(date -R)
+          EOF
+
+      - name: Build signed source package
+        run: |
+          set -euo pipefail
+          cd "seerrng-${{ steps.version.outputs.version }}"
+          debuild -S -sa
+
+      - name: Upload to Launchpad
+        env:
+          LAUNCHPAD_PPA: ${{ secrets.LAUNCHPAD_PPA }}
+        run: |
+          set -euo pipefail
+          incoming="${LAUNCHPAD_PPA:-ftp://ppa.launchpad.net/~keefshape/ubuntu/seerrng/}"
+          changes="$(find . -maxdepth 1 -name '*.changes' -print -quit)"
+          test -n "$changes"
+          awk '/^Files:/{files=1; next} files && NF >= 5 {print $5}' "$changes" | while read -r file; do
+            curl --fail --show-error --ftp-create-dirs --user anonymous: --upload-file "$file" "${incoming}${file}"
+          done
+          curl --fail --show-error --ftp-create-dirs --user anonymous: --upload-file "$changes" "${incoming}$(basename "$changes")"
+

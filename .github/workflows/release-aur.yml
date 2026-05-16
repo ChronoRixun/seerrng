@@ -1,0 +1,87 @@
+name: Publish AUR
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-aur:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "pkgver=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Wait for Linux x64 release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          asset="seerrng-${TAG}-linux-x64.tar.gz"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
+          for attempt in {1..20}; do
+            if curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/octet-stream" "$url" -o /tmp/seerrng.tar.gz; then
+              tar -tzf /tmp/seerrng.tar.gz | grep -q "seerrng-${TAG}-linux-x64/dist/index.js"
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
+
+      - name: Update PKGBUILD
+        run: |
+          set -euo pipefail
+          cd packaging/aur
+          sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.pkgver }}/" PKGBUILD-bin
+          svc="$(sha256sum seerrng.service | awk '{print $1}')"
+          envsum="$(sha256sum seerrng.env | awk '{print $1}')"
+          sys="$(sha256sum seerrng.sysusers | awk '{print $1}')"
+          tmp="$(sha256sum seerrng.tmpfiles | awk '{print $1}')"
+          sed -i "s/^sha256sums=.*/sha256sums=('SKIP' '$svc' '$envsum' '$sys' '$tmp')/" PKGBUILD-bin
+          bash ../scripts/validate-aur-pkgbuild-hashes.sh PKGBUILD-bin
+
+      - name: Setup AUR SSH
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AUR_SSH_KEY:-}" ]; then
+            echo "AUR_SSH_KEY is not configured; skipping."
+            exit 0
+          fi
+          tmp_key="$(mktemp)"
+          trap 'rm -f "$tmp_key"' EXIT
+          printf '%s\n' "$AUR_SSH_KEY" > "$tmp_key"
+          bash packaging/scripts/setup-aur-ssh.sh "$tmp_key"
+
+      - name: Push seerrng-bin
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          [ -n "${AUR_SSH_KEY:-}" ] || exit 0
+          bash packaging/scripts/checkout-aur-repo.sh seerrng-bin aur-seerrng-bin
+          cp packaging/aur/PKGBUILD-bin aur-seerrng-bin/PKGBUILD
+          cp packaging/aur/seerrng.{service,env,sysusers,tmpfiles,install} aur-seerrng-bin/
+          bash packaging/scripts/generate-aur-srcinfo.sh aur-seerrng-bin/PKGBUILD > aur-seerrng-bin/.SRCINFO
+          (cd aur-seerrng-bin && git add -A)
+          bash packaging/scripts/push-aur-repo.sh aur-seerrng-bin seerrng-bin "Update to ${TAG}"

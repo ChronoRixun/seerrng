@@ -1,0 +1,14 @@
+Source: seerrng
+Section: web
+Priority: optional
+Maintainer: snapetech <seerrng@proton.me>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: seerrng
+Architecture: amd64
+Depends: nodejs (>= 22), adduser, ${misc:Depends}
+Description: Media request and discovery service
+ SeerrNG integrates with Plex, Jellyfin, Emby, Sonarr, Radarr, Lidarr, and
+ Readarr to provide media discovery and request workflows.

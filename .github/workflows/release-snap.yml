@@ -1,0 +1,56 @@
+name: Publish Snap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-snap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.inputs.tag || github.event.release.tag_name }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+
+      - name: Download Linux asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release download "$TAG" --pattern "seerrng-${TAG}-linux-x64.tar.gz" --dir packaging/snap
+
+      - name: Prepare snapcraft
+        run: |
+          set -euo pipefail
+          cd packaging/snap
+          asset="seerrng-${{ steps.version.outputs.tag }}-linux-x64.tar.gz"
+          rm -rf src
+          mkdir src
+          tar -xzf "$asset" --strip-components=1 -C src
+          sed -i "s/^version: .*/version: '${{ steps.version.outputs.version }}'/" snapcraft.yaml
+
+      - uses: snapcore/action-build@b391f430cb2650fd359ed4d2cfe88b2c481800e0 # v1
+        id: build
+        with:
+          path: packaging/snap
+
+      - uses: snapcore/action-publish@9334eecb267cfd97a0ce3c8654215d095927252f # v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.build.outputs.snap }}
+          release: stable

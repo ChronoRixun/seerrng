@@ -330,6 +330,32 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  dispatch-package-channels:
+    name: Dispatch package channels
+    needs: publish-release
+    runs-on: [self-hosted, kspld0]
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch package workflows
+        env:
+          GH_TOKEN: ${{ secrets.GH_WORKFLOW_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for workflow in \
+            release-assets.yml \
+            release-linux-packages.yml \
+            release-aur.yml \
+            release-snap.yml \
+            release-ppa.yml \
+            release-copr.yml
+          do
+            gh workflow run "$workflow" --repo "$REPO" -f "tag=$TAG"
+          done
+
   announce-discord:
     name: Announce release to Discord
     needs: [changelog, publish, publish-release]
