@@ -347,12 +347,45 @@ searchRoutes.get('/', async (req, res, next) => {
       )
       .map((result) => result.id.toString());
 
-    const [movieTvMedia, musicMedia] = await Promise.all([
+    const bookIds = results.results
+      .filter(
+        (result): result is ReturnType<typeof mapOpenLibrarySearchDoc> =>
+          'mediaType' in result && result.mediaType === 'book'
+      )
+      .map((result) => result.id);
+
+    const [movieTvMedia, musicMedia, bookIdentifiers] = await Promise.all([
       movieTvIds.length > 0 ? Media.getRelatedMedia(req.user, movieTvIds) : [],
       musicIds.length > 0 ? Media.getRelatedMedia(req.user, musicIds) : [],
+      bookIds.length > 0
+        ? getRepository(MediaIdentifier).find({
+            where: {
+              provider: MediaIdentifierProvider.OPENLIBRARY,
+              value: In(bookIds),
+            },
+            relations: { media: { requests: true, watchlists: true } },
+          })
+        : [],
     ]);
 
     const media = [...movieTvMedia, ...musicMedia];
+    const bookMediaMap = new Map(
+      bookIdentifiers
+        .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
+        .map((identifier) => {
+          identifier.media.watchlists =
+            identifier.media.watchlists?.filter(
+              (watchlist) => watchlist.requestedBy.id === req.user?.id
+            ) ?? [];
+
+          return [identifier.value, identifier.media];
+        })
+    );
+    results.results = results.results.map((result) =>
+      'mediaType' in result && result.mediaType === 'book'
+        ? { ...result, mediaInfo: bookMediaMap.get(result.id) }
+        : result
+    );
 
     const mappedResults = await mapSearchResults(results.results, media);
 

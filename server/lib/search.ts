@@ -3,6 +3,7 @@ import type {
   MbAlbumResult,
   MbArtistResult,
 } from '@server/api/musicbrainz/interfaces';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import TheMovieDb from '@server/api/themoviedb';
 import type {
   TmdbCollectionResult,
@@ -15,12 +16,16 @@ import type {
   TmdbTvDetails,
   TmdbTvResult,
 } from '@server/api/themoviedb/interfaces';
+import type { BookResult } from '@server/models/Book';
+import {
+  mapOpenLibrarySearchDoc,
+  mapOpenLibraryWork,
+} from '@server/models/Book';
 import {
   mapMovieDetailsToResult,
   mapPersonDetailsToResult,
   mapTvDetailsToResult,
 } from '@server/models/Search';
-import type { BookResult } from '@server/models/Book';
 import {
   isMovie,
   isMovieDetails,
@@ -79,12 +84,11 @@ searchProviders.push({
 
     const successfulResponses = responses.filter(
       (r) => r.status === 'fulfilled'
-    ) as
-      | (
-          | PromiseFulfilledResult<TmdbMovieDetails>
-          | PromiseFulfilledResult<TmdbTvDetails>
-          | PromiseFulfilledResult<TmdbPersonDetails>
-        )[];
+    ) as (
+      | PromiseFulfilledResult<TmdbMovieDetails>
+      | PromiseFulfilledResult<TmdbTvDetails>
+      | PromiseFulfilledResult<TmdbPersonDetails>
+    )[];
 
     const results: (TmdbMovieResult | TmdbTvResult | TmdbPersonResult)[] = [];
 
@@ -205,11 +209,10 @@ searchProviders.push({
 
     const successfulResponses = responses.filter(
       (r) => r.status === 'fulfilled'
-    ) as
-      | (
-          | PromiseFulfilledResult<TmdbSearchMovieResponse>
-          | PromiseFulfilledResult<TmdbSearchTvResponse>
-        )[];
+    ) as (
+      | PromiseFulfilledResult<TmdbSearchMovieResponse>
+      | PromiseFulfilledResult<TmdbSearchTvResponse>
+    )[];
 
     const results: (TmdbMovieResult | TmdbTvResult)[] = [];
 
@@ -251,13 +254,76 @@ searchProviders.push({
           ({
             ...album,
             media_type: 'album',
-          } as MbAlbumResult)
+          }) as MbAlbumResult
       );
 
       return {
         page: 1,
         total_pages: 1,
         total_results: results.length,
+        results,
+      };
+    } catch {
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 0,
+        results: [],
+      };
+    }
+  },
+});
+
+searchProviders.push({
+  pattern: new RegExp(/(?<=openlibrary:)ol\d+w/),
+  search: async ({ id }) => {
+    const openLibrary = new OpenLibraryAPI();
+
+    try {
+      const workId = id.toUpperCase();
+      const [work, editions] = await Promise.all([
+        openLibrary.getWork(workId),
+        openLibrary.getWorkEditions(workId).catch(() => ({
+          size: 0,
+          entries: [],
+        })),
+      ]);
+      const result = mapOpenLibraryWork(work, undefined, editions.entries);
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 1,
+        results: [result],
+      };
+    } catch {
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 0,
+        results: [],
+      };
+    }
+  },
+});
+
+searchProviders.push({
+  pattern: new RegExp(/(?<=isbn:)[0-9x-]+/),
+  search: async ({ id }) => {
+    const openLibrary = new OpenLibraryAPI();
+
+    try {
+      const books = await openLibrary.searchBooks({
+        query: `isbn:${id}`,
+        page: 1,
+        limit: 20,
+      });
+      const results = books.docs.map((doc) => mapOpenLibrarySearchDoc(doc));
+
+      return {
+        page: 1,
+        total_pages: Math.max(Math.ceil(books.numFound / 20), 1),
+        total_results: books.numFound,
         results,
       };
     } catch {

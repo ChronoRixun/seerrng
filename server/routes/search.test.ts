@@ -3,9 +3,15 @@ import { afterEach, before, describe, it, mock } from 'node:test';
 
 import ExternalAPI from '@server/api/externalapi';
 import MusicBrainz from '@server/api/musicbrainz';
+import OpenLibraryAPI from '@server/api/openlibrary';
 import TheAudioDb from '@server/api/theaudiodb';
 import TmdbPersonMapper from '@server/api/themoviedb/personMapper';
+import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
+import Media from '@server/entity/Media';
+import MediaIdentifier, {
+  MediaIdentifierProvider,
+} from '@server/entity/MediaIdentifier';
 import MetadataAlbum from '@server/entity/MetadataAlbum';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import { getSettings } from '@server/lib/settings';
@@ -310,6 +316,95 @@ describe('GET /search', () => {
       res.body.results.map((result: { mediaType: string }) => result.mediaType),
       ['album', 'artist', 'book']
     );
+  });
+
+  it('returns an Open Library work directly by provider ID', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
+      key: '/works/OL45804W',
+      title: 'The Left Hand of Darkness',
+      description: 'A classic science fiction novel.',
+      covers: [1234],
+      authors: [{ author: { key: '/authors/OL1A' } }],
+      first_publish_date: '1969',
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getWorkEditions', async () => ({
+      size: 1,
+      entries: [
+        {
+          key: '/books/OL1M',
+          title: 'The Left Hand of Darkness',
+          isbn_13: ['9780441478125'],
+        },
+      ],
+    }));
+
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media,
+        provider: MediaIdentifierProvider.OPENLIBRARY,
+        value: 'OL45804W',
+        canonical: true,
+      })
+    );
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent
+      .get('/search')
+      .query({ query: 'openlibrary:OL45804W' });
+
+    assert.strictEqual(res.status, 200);
+    assert.equal(res.body.totalResults, 1);
+    assert.equal(res.body.results[0].mediaType, 'book');
+    assert.equal(res.body.results[0].id, 'OL45804W');
+    assert.equal(res.body.results[0].isbn13, '9780441478125');
+    assert.equal(res.body.results[0].mediaInfo.status, MediaStatus.PENDING);
+  });
+
+  it('returns book results directly by ISBN', async () => {
+    mock.method(
+      OpenLibraryAPI.prototype,
+      'searchBooks',
+      async (options: unknown) => {
+        assert.deepStrictEqual(options, {
+          query: 'isbn:9780441478125',
+          page: 1,
+          limit: 20,
+        });
+
+        return {
+          numFound: 1,
+          start: 0,
+          docs: [
+            {
+              key: '/works/OL45804W',
+              title: 'The Left Hand of Darkness',
+              author_name: ['Ursula K. Le Guin'],
+              first_publish_year: 1969,
+              isbn: ['9780441478125'],
+              edition_key: ['OL1M'],
+            },
+          ],
+        };
+      }
+    );
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent
+      .get('/search')
+      .query({ query: 'isbn:9780441478125' });
+
+    assert.strictEqual(res.status, 200);
+    assert.equal(res.body.totalResults, 1);
+    assert.equal(res.body.results[0].mediaType, 'book');
+    assert.equal(res.body.results[0].id, 'OL45804W');
+    assert.equal(res.body.results[0].isbn13, '9780441478125');
   });
 
   it('keeps unmapped artists visible and suppresses TMDB-mapped duplicates', async () => {
