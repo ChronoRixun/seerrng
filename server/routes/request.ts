@@ -107,9 +107,11 @@ const validateExternalServiceConfiguration = (
       );
     }
 
-    if (selectedReadarr.serviceType !== requestedFormat) {
+    const selectedReadarrServiceType = selectedReadarr.serviceType ?? 'ebook';
+
+    if (selectedReadarrServiceType !== requestedFormat) {
       throw new ServiceConfigurationError(
-        `The selected Bookshelf server is configured for ${selectedReadarr.serviceType} requests, not ${requestedFormat} requests.`
+        `The selected Bookshelf server is configured for ${selectedReadarrServiceType} requests, not ${requestedFormat} requests.`
       );
     }
   }

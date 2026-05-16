@@ -1502,6 +1502,60 @@ describe('PUT /request/:requestId', () => {
     assert.strictEqual(persisted.serverId, null);
   });
 
+  it('treats legacy Bookshelf servers without a service type as ebook servers on edit', async (t) => {
+    const settings = getSettings();
+    const legacyReadarr = createReadarrSettings(11, 'ebook');
+    delete (legacyReadarr as { serviceType?: 'ebook' | 'audiobook' })
+      .serviceType;
+    settings.readarr = [legacyReadarr];
+    t.after(() => {
+      settings.readarr = [];
+    });
+
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const mediaRequest = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'ebook',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.BOOK,
+      format: 'ebook',
+      serverId: 11,
+      profileId: 22,
+      metadataProfileId: 33,
+      rootFolder: '/books',
+    });
+
+    assert.strictEqual(res.status, 200);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: mediaRequest.id },
+    });
+    assert.strictEqual(persisted.bookFormat, 'ebook');
+    assert.strictEqual(persisted.serverId, 11);
+    assert.strictEqual(persisted.profileId, 22);
+    assert.strictEqual(persisted.metadataProfileId, 33);
+    assert.strictEqual(persisted.rootFolder, '/books');
+  });
+
   it('rejects music edits that point at a missing Lidarr server', async () => {
     const settings = getSettings();
     settings.lidarr = [];
