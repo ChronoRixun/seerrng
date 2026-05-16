@@ -404,14 +404,20 @@ const BookDetails = () => {
                 />
               )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             <h1
-              className="break-words text-3xl font-bold text-white lg:text-5xl"
+              className="min-w-0 break-words text-3xl font-bold text-white lg:text-5xl"
               data-testid="media-title"
             >
               {data.title}
             </h1>
-            <AssociationBadge mediaType="book" id={data.id} variant="inline" />
+            <div className="flex-shrink-0">
+              <AssociationBadge
+                mediaType="book"
+                id={data.id}
+                variant="inline"
+              />
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             {data.author && (

@@ -474,6 +474,62 @@ describe('GET /association/:mediaType/:id', () => {
     );
   });
 
+  it('uses crew-specific reasons for music-to-screen associations', async () => {
+    mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () => albumDetails
+    );
+    mock.method(ListenBrainzAPI.prototype, 'getArtist', async (mbid: string) =>
+      artistDetails(mbid, 'Album Artist', 0)
+    );
+    mock.method(TmdbPersonMapper.prototype, 'getMapping', async () => ({
+      personId: 4444,
+      profilePath: null,
+    }));
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      if (endpoint === '/person/4444/combined_credits') {
+        return {
+          cast: [],
+          crew: [
+            {
+              id: 900,
+              media_type: 'movie',
+              adult: false,
+              genre_ids: [],
+              original_language: 'en',
+              original_title: 'Scored Movie',
+              overview: '',
+              popularity: 10,
+              release_date: '2024-01-01',
+              title: 'Scored Movie',
+              video: false,
+              vote_average: 7,
+              vote_count: 20,
+              backdrop_path: null,
+              poster_path: '/scored.jpg',
+              department: 'Sound',
+              job: 'Original Music Composer',
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected endpoint: ${String(endpoint)}`);
+    });
+
+    const agent = await login();
+    const res = await agent.get('/association/album/album-root');
+
+    assert.strictEqual(res.status, 200);
+    assert.ok(
+      res.body.edges.some(
+        (e: { reason: string; node: { title?: string } }) =>
+          e.node.title === 'Scored Movie' &&
+          e.reason === 'Album Artist scored this'
+      )
+    );
+  });
+
   it('returns same-author book associations', async () => {
     mockOpenLibraryBook();
 

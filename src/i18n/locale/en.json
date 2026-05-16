@@ -24,6 +24,7 @@
   "components.Association.adjacent": "Adjacent picks",
   "components.Association.alsoconnected": "Also connected",
   "components.Association.associations": "Associations",
+  "components.Association.books": "Same author",
   "components.Association.empty": "No associations found yet.",
   "components.Association.explore": "Explore the full map",
   "components.Association.graphview": "Map",

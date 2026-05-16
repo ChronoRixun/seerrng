@@ -602,8 +602,8 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 />
               )}
           </div>
-          <div className="flex items-center gap-3">
-            <h1 data-testid="media-title">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="min-w-0 break-words" data-testid="media-title">
               {data.name}{' '}
               {data.firstAirDate && (
                 <span className="media-year">
@@ -611,7 +611,9 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
                 </span>
               )}
             </h1>
-            <AssociationBadge mediaType="tv" id={data.id} variant="inline" />
+            <div className="flex-shrink-0">
+              <AssociationBadge mediaType="tv" id={data.id} variant="inline" />
+            </div>
           </div>
           <span className="media-attributes">
             {seriesAttributes.length > 0 &&

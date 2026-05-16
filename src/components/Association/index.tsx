@@ -69,11 +69,11 @@ const AssociationExplorer = () => {
           title: graph.root.title,
         })}
       />
-      <div className="mb-6 mt-2 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">
+      <div className="mb-6 mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="min-w-0 break-words text-2xl font-bold text-white">
           {intl.formatMessage(messages.title, { title: graph.root.title })}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex flex-shrink-0 flex-wrap gap-2">
           <Button
             buttonType={view === 'wall' ? 'primary' : 'default'}
             buttonSize="sm"

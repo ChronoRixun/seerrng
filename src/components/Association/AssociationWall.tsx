@@ -13,6 +13,7 @@ const messages = defineMessages('components.Association', {
   music: 'Connected music',
   screen: 'On screen',
   adjacent: 'Adjacent picks',
+  books: 'Same author',
   empty: 'No associations found yet.',
 });
 
@@ -51,6 +52,11 @@ const AssociationWall = ({ graph }: { graph: AssociationGraph }) => {
         (e.node.mediaType === 'movie' || e.node.mediaType === 'tv'),
     },
     {
+      key: 'books',
+      title: intl.formatMessage(messages.books),
+      match: (e) => e.type === 'shared-person' && e.node.mediaType === 'book',
+    },
+    {
       key: 'adjacent',
       title: intl.formatMessage(messages.adjacent),
       match: (e) => e.type === 'shared-genre',
@@ -73,7 +79,7 @@ const AssociationWall = ({ graph }: { graph: AssociationGraph }) => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="association-wall">
       {rendered.map(({ section, edges }) => (
         <div key={section.key}>
           <div className="slider-header">

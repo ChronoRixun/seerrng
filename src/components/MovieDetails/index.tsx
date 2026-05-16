@@ -558,8 +558,8 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                 />
               )}
           </div>
-          <div className="flex items-center gap-3">
-            <h1 data-testid="media-title">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 className="min-w-0 break-words" data-testid="media-title">
               {data.title}{' '}
               {data.releaseDate && (
                 <span className="media-year">
@@ -567,7 +567,13 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
                 </span>
               )}
             </h1>
-            <AssociationBadge mediaType="movie" id={data.id} variant="inline" />
+            <div className="flex-shrink-0">
+              <AssociationBadge
+                mediaType="movie"
+                id={data.id}
+                variant="inline"
+              />
+            </div>
           </div>
           <span className="media-attributes">
             {movieAttributes.length > 0 &&

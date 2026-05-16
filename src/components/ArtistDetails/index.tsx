@@ -232,16 +232,18 @@ const ArtistDetails = () => {
           </div>
         )}
         <div className="min-w-0 text-center lg:text-left">
-          <div className="flex items-center justify-center gap-3 lg:justify-start">
-            <h1 className="break-words text-3xl font-bold text-white lg:text-5xl">
+          <div className="flex min-w-0 flex-wrap items-center justify-center gap-3 lg:justify-start">
+            <h1 className="min-w-0 break-words text-3xl font-bold text-white lg:text-5xl">
               {artistName}
             </h1>
             {artistId && (
-              <AssociationBadge
-                mediaType="artist"
-                id={artistId}
-                variant="inline"
-              />
+              <div className="flex-shrink-0">
+                <AssociationBadge
+                  mediaType="artist"
+                  id={artistId}
+                  variant="inline"
+                />
+              </div>
             )}
           </div>
           {data.artist?.area && <div className="mt-2">{data.artist.area}</div>}

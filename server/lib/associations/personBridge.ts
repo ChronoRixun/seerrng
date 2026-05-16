@@ -17,10 +17,41 @@ import type {
 } from '@server/models/Search';
 import { mapMovieResult, mapTvResult } from '@server/models/Search';
 import { In } from 'typeorm';
-import { ASSOCIATION_LIMITS } from './types';
 import type { AssociationEdge } from './types';
+import { ASSOCIATION_LIMITS } from './types';
 
 const SOUND_DEPARTMENT = 'Sound';
+
+type ScreenCredit = {
+  character?: string;
+  department?: string;
+  job?: string;
+};
+
+const getScreenCreditReason = (
+  artistName: string,
+  credit: ScreenCredit
+): string => {
+  if (credit.department === SOUND_DEPARTMENT) {
+    const job = credit.job?.toLowerCase() ?? '';
+
+    if (job.includes('composer') || job.includes('music')) {
+      return `${artistName} scored this`;
+    }
+
+    return `${artistName} worked on the sound`;
+  }
+
+  if (credit.character) {
+    return `${artistName} appears in this`;
+  }
+
+  if (credit.job) {
+    return `${artistName} worked on this`;
+  }
+
+  return `${artistName} is connected to this`;
+};
 
 /**
  * Screen -> music: take a title's cast/crew, find any who are also recording
@@ -217,7 +248,7 @@ export const musicToScreen = async (
     edges.push({
       weight: 0.55,
       type: 'shared-person',
-      reason: `${artistName} appears in this`,
+      reason: getScreenCreditReason(artistName, credit),
       node,
     });
   }

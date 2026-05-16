@@ -10,10 +10,11 @@ import {
   ReactFlow,
   type Edge,
   type Node,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useRouter } from 'next/router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { nodeHref, nodeImage, nodeTitle } from './helpers';
 
 const EDGE_COLOR: Record<AssociationEdgeType, string> = {
@@ -23,20 +24,41 @@ const EDGE_COLOR: Record<AssociationEdgeType, string> = {
   'shared-genre': '#64748b',
 };
 
+const EDGE_LABEL: Record<AssociationEdgeType, string> = {
+  similar: 'Similar',
+  recommended: 'Recommended',
+  'shared-person': 'Shared person',
+  'shared-genre': 'Adjacent',
+};
+
+const MEDIA_TONE: Record<string, string> = {
+  movie: 'border-blue-500/70 bg-blue-950/70 text-blue-100',
+  tv: 'border-purple-500/70 bg-purple-950/70 text-purple-100',
+  album: 'border-emerald-500/70 bg-emerald-950/70 text-emerald-100',
+  artist: 'border-emerald-500/70 bg-emerald-950/70 text-emerald-100',
+  book: 'border-amber-500/70 bg-amber-950/70 text-amber-100',
+  person: 'border-slate-500/70 bg-slate-900/80 text-slate-100',
+};
+
 interface GraphNodeData {
   label: string;
   image?: string;
   href?: string;
   isRoot?: boolean;
+  mediaType?: string;
+  reason?: string;
+  weight?: number;
   [key: string]: unknown;
 }
 
 const GraphNode = ({ data }: { data: GraphNodeData }) => (
   <div
-    className={`flex w-36 flex-col items-center gap-1 rounded-lg border p-2 text-center ${
+    data-testid="association-graph-node"
+    className={`flex w-40 flex-col items-center gap-1 rounded-lg border p-2 text-center shadow-lg transition ${
       data.isRoot
-        ? 'border-indigo-400 bg-indigo-900/60'
-        : 'border-gray-600 bg-gray-800'
+        ? 'border-indigo-300 bg-indigo-900/80 text-white'
+        : (MEDIA_TONE[data.mediaType ?? ''] ??
+          'border-gray-600 bg-gray-800 text-white')
     }`}
   >
     <Handle type="target" position={Position.Top} className="!bg-gray-500" />
@@ -47,6 +69,16 @@ const GraphNode = ({ data }: { data: GraphNodeData }) => (
     <span className="line-clamp-2 text-xs font-semibold text-white">
       {data.label}
     </span>
+    {!data.isRoot && data.mediaType && (
+      <span className="rounded-full bg-black/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-current">
+        {data.mediaType === 'album' ? 'music' : data.mediaType}
+      </span>
+    )}
+    {data.reason && (
+      <span className="line-clamp-2 text-[10px] leading-tight text-gray-300">
+        {data.reason}
+      </span>
+    )}
     <Handle type="source" position={Position.Bottom} className="!bg-gray-500" />
   </div>
 );
@@ -55,6 +87,7 @@ const nodeTypes = { assoc: GraphNode };
 
 const AssociationGraph = ({ graph }: { graph: GraphData }) => {
   const router = useRouter();
+  const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
 
   const { nodes, edges } = useMemo(() => {
     const rfNodes: Node[] = [];
@@ -69,7 +102,7 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
     });
 
     const ring = graph.edges.slice(0, 24);
-    const radius = 360;
+    const radius = ring.length > 12 ? 430 : 340;
     ring.forEach((edge, i) => {
       const angle = (i / ring.length) * 2 * Math.PI;
       const id = `${edge.node.mediaType}:${edge.node.id}`;
@@ -84,6 +117,9 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
           label: nodeTitle(edge.node),
           image: nodeImage(edge.node),
           href: nodeHref(edge.node),
+          mediaType: edge.node.mediaType,
+          reason: edge.reason,
+          weight: edge.weight,
         },
       });
       rfEdges.push({
@@ -102,14 +138,40 @@ const AssociationGraph = ({ graph }: { graph: GraphData }) => {
   }, [graph]);
 
   return (
-    <div className="h-[70vh] w-full overflow-hidden rounded-xl border border-gray-700 bg-gray-900">
+    <div className="relative h-[70vh] min-h-[28rem] w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-900">
+      <div
+        className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2 rounded-lg border border-gray-700 bg-gray-950/90 px-3 py-2 text-xs text-gray-300 shadow-xl"
+        data-testid="association-graph-legend"
+      >
+        {Object.entries(EDGE_LABEL).map(([type, label]) => (
+          <span key={type} className="flex items-center gap-1.5">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{
+                backgroundColor: EDGE_COLOR[type as AssociationEdgeType],
+              }}
+            />
+            {label}
+          </span>
+        ))}
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
+        data-testid="association-graph"
+        minZoom={0.25}
+        maxZoom={1.4}
+        onInit={setFlow}
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_, node) => {
+          flow?.setCenter(node.position.x + 80, node.position.y + 80, {
+            zoom: 1,
+            duration: 500,
+          });
+        }}
+        onNodeDoubleClick={(_, node) => {
           const href = (node.data as GraphNodeData).href;
           if (href) {
             router.push(href);

@@ -41,6 +41,7 @@ const AssociationBadge = ({
       <Popover.Button
         as="button"
         type="button"
+        data-testid="association-badge"
         aria-label={intl.formatMessage(messages.associations)}
         title={intl.formatMessage(messages.associations)}
         className={buttonClass}
@@ -61,7 +62,8 @@ const AssociationBadge = ({
         leaveTo="opacity-0 translate-y-1"
       >
         <Popover.Panel
-          className="absolute right-0 z-50 mt-2"
+          className="absolute right-0 z-50 mt-2 max-w-[calc(100vw-2rem)] sm:max-w-none"
+          data-testid="association-popover"
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <AssociationPopover mediaType={associationType} id={id} />
