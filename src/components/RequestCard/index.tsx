@@ -46,8 +46,6 @@ const messages = defineMessages('components.RequestCard', {
   cancelrequest: 'Cancel Request',
   deleterequest: 'Delete Request',
   unknowntitle: 'Unknown Title',
-  music: 'Music',
-  book: 'Book',
   bookFormat: 'Format',
   ebook: 'Ebook',
   audiobook: 'Audiobook',
@@ -216,8 +214,8 @@ const RequestCardError = ({ requestData }: RequestCardErrorProps) => {
                       : requestData?.type === 'tv'
                         ? globalMessages.tvshow
                         : requestData?.type === 'music'
-                          ? messages.music
-                          : messages.book
+                          ? globalMessages.music
+                          : globalMessages.book
                     : globalMessages.request
                 ),
               })}

@@ -57,8 +57,6 @@ const messages = defineMessages('components.RequestList.RequestItem', {
   audiobook: 'Audiobook',
   both: 'Both',
   partialBookService: 'Partial Bookshelf link',
-  music: 'Music',
-  book: 'Book',
 });
 
 const isMovie = (
@@ -208,8 +206,8 @@ const RequestItemError = ({
                     : requestData?.type === 'tv'
                       ? globalMessages.tvshow
                       : requestData?.type === 'music'
-                        ? messages.music
-                        : messages.book
+                        ? globalMessages.music
+                        : globalMessages.book
                   : globalMessages.request
               ),
             })}

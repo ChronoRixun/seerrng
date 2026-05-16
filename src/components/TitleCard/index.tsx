@@ -541,13 +541,13 @@ const TitleCard = ({
                   ? intl.formatMessage(globalMessages.movie)
                   : mediaType === 'collection'
                     ? intl.formatMessage(globalMessages.collection)
-                    : mediaType === 'tv'
-                      ? intl.formatMessage(globalMessages.tvshow)
-                      : isAlbum
-                        ? 'Album'
-                        : isBook
-                          ? 'Book'
-                          : 'Artist'}
+                      : mediaType === 'tv'
+                        ? intl.formatMessage(globalMessages.tvshow)
+                        : isAlbum
+                          ? intl.formatMessage(globalMessages.album)
+                          : isBook
+                            ? intl.formatMessage(globalMessages.book)
+                            : intl.formatMessage(globalMessages.artist)}
               </div>
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
