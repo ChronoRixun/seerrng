@@ -320,10 +320,11 @@ class DownloadTracker {
                 { label: 'Download Tracker' }
               );
             }
-          } catch {
+          } catch (e) {
             logger.error(
               `Unable to get queue from Lidarr server: ${server.name}`,
               {
+                errorMessage: e.message,
                 label: 'Download Tracker',
               }
             );
@@ -402,10 +403,11 @@ class DownloadTracker {
                 { label: 'Download Tracker' }
               );
             }
-          } catch {
+          } catch (e) {
             logger.error(
               `Unable to get queue from Bookshelf server: ${server.name}`,
               {
+                errorMessage: e.message,
                 label: 'Download Tracker',
               }
             );

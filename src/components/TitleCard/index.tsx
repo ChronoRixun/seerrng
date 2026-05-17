@@ -544,14 +544,6 @@ const TitleCard = ({
             </div>
             {showDetail && currentStatus !== MediaStatus.BLOCKLISTED && (
               <div className="flex flex-col gap-1">
-                <div className="z-40 self-end">
-                  <AssociationBadge
-                    mediaType={mediaType}
-                    id={id}
-                    variant="card"
-                    hideWhenEmpty
-                  />
-                </div>
                 {canUseWatchlistActions &&
                   user?.userType !== UserType.PLEX &&
                   (toggleWatchlist ? (
@@ -622,6 +614,11 @@ const TitleCard = ({
               </div>
             )}
           </div>
+          {currentStatus !== MediaStatus.BLOCKLISTED && (
+            <div className="absolute bottom-12 right-2 z-40">
+              <AssociationBadge mediaType={mediaType} id={id} variant="card" />
+            </div>
+          )}
           <Transition
             as={Fragment}
             show={isUpdating}
