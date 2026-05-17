@@ -124,6 +124,24 @@ const parseOptionalDateFilter = (value: unknown, fieldName: string) => {
     : { error: `${fieldName} must use YYYY-MM-DD format.` };
 };
 
+const getErrorLogFields = (error: unknown) => ({
+  errorMessage: error instanceof Error ? error.message : 'Unknown error',
+  errorStack: error instanceof Error ? error.stack : undefined,
+});
+
+const getDiscoverLogQuery = (query: Record<string, unknown>) => ({
+  page: query.page,
+  sortBy: query.sortBy,
+  query: query.query,
+  genre: query.genre,
+  subject: query.subject,
+  releaseType: query.releaseType,
+  days: query.days,
+  shuffleSeed: query.shuffleSeed,
+  primaryReleaseDateGte: query.primaryReleaseDateGte,
+  primaryReleaseDateLte: query.primaryReleaseDateLte,
+});
+
 const parseDiscoverLanguage = (
   value: unknown,
   fallbackLanguage: string | undefined
@@ -1882,20 +1900,16 @@ discoverRoutes.get('/music', async (req, res) => {
       if (topAlbumsResult.status === 'rejected') {
         logger.warn('Music chart discovery failed during ranked blend', {
           label: 'Discover Music',
-          errorMessage:
-            topAlbumsResult.reason instanceof Error
-              ? topAlbumsResult.reason.message
-              : 'Unknown error',
+          ...getErrorLogFields(topAlbumsResult.reason),
+          requestQuery: getDiscoverLogQuery(req.query),
         });
       }
 
       if (freshReleasesResult.status === 'rejected') {
         logger.warn('Fresh music discovery failed during ranked blend', {
           label: 'Discover Music',
-          errorMessage:
-            freshReleasesResult.reason instanceof Error
-              ? freshReleasesResult.reason.message
-              : 'Unknown error',
+          ...getErrorLogFields(freshReleasesResult.reason),
+          requestQuery: getDiscoverLogQuery(req.query),
         });
       }
 
@@ -1972,7 +1986,8 @@ discoverRoutes.get('/music', async (req, res) => {
       logger.warn('Music discovery failed, retrying with a shorter window', {
         label: 'Discover Music',
         days,
-        errorMessage: e instanceof Error ? e.message : 'Unknown error',
+        ...getErrorLogFields(e),
+        requestQuery: getDiscoverLogQuery(req.query),
       });
       freshReleases = await listenBrainz.getFreshReleases({
         days: 7,
@@ -2023,8 +2038,9 @@ discoverRoutes.get('/music', async (req, res) => {
                 (sortedRelease) => sortedRelease.release_group_mbid === album.id
               );
 
-              return release as LbRelease;
+              return release;
             })
+            .filter((release): release is LbRelease => !!release)
         : sortedReleases.slice(
             providerWindow.sliceStart,
             providerWindow.sliceEnd
@@ -2065,7 +2081,8 @@ discoverRoutes.get('/music', async (req, res) => {
   } catch (e) {
     logger.error('Failed to fetch music discovery results', {
       label: 'Discover Music',
-      errorMessage: e instanceof Error ? e.message : 'Unknown error',
+      ...getErrorLogFields(e),
+      requestQuery: getDiscoverLogQuery(req.query),
     });
     return res.status(200).json(emptyDiscoverResponse(page));
   }
@@ -2157,6 +2174,7 @@ discoverRoutes.get('/books', async (req, res) => {
             logger.warn('Some book discovery subjects failed during blend', {
               label: 'Discover Books',
               failedSubjects: rejectedCount,
+              requestQuery: getDiscoverLogQuery(req.query),
             });
           }
 
@@ -2249,7 +2267,8 @@ discoverRoutes.get('/books', async (req, res) => {
   } catch (e) {
     logger.error('Failed to fetch book discovery results', {
       label: 'Discover Books',
-      errorMessage: e instanceof Error ? e.message : 'Unknown error',
+      ...getErrorLogFields(e),
+      requestQuery: getDiscoverLogQuery(req.query),
     });
     return res.status(200).json(emptyDiscoverResponse(page));
   }

@@ -52,6 +52,26 @@ const API_SPEC_PATH = path.join(__dirname, '../seerr-api.yml');
 const API_BODY_LIMIT = '100kb';
 const API_URLENCODED_PARAMETER_LIMIT = 100;
 
+const getErrorLogFields = (error: unknown) => ({
+  errorMessage: error instanceof Error ? error.message : 'Unknown error',
+  errorStack: error instanceof Error ? error.stack : undefined,
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', {
+    label: 'Process',
+    ...getErrorLogFields(reason),
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', {
+    label: 'Process',
+    ...getErrorLogFields(error),
+  });
+  process.exit(1);
+});
+
 logger.info(`Starting Seerr version ${getAppVersion()}`);
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
@@ -260,15 +280,34 @@ app
     });
     server.use(
       (
-        err: { status: number; message: string; errors: string[] },
-        _req: Request,
+        err: {
+          status?: number;
+          message?: string;
+          errors?: string[];
+          stack?: string;
+        },
+        req: Request,
         res: Response,
         // We must provide a next function for the function signature here even though its not used
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         _next: NextFunction
       ) => {
+        const status = err.status || 500;
+
+        if (status >= 500) {
+          logger.error('Unhandled API request error', {
+            label: 'API',
+            method: req.method,
+            path: req.originalUrl,
+            status,
+            errorMessage: err.message,
+            errorStack: err.stack,
+            errors: err.errors,
+          });
+        }
+
         // format error
-        res.status(err.status || 500).json({
+        res.status(status).json({
           message: err.message,
           errors: err.errors,
         });
