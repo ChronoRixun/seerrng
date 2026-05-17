@@ -51,7 +51,9 @@ const UserPushoverSettings = () => {
   );
   const { data: soundsData } = useSWR<PushoverSound[]>(
     data?.pushoverApplicationToken
-      ? `/api/v1/settings/notifications/pushover/sounds?token=${data.pushoverApplicationToken}`
+      ? `/api/v1/settings/notifications/pushover/sounds?token=${encodeURIComponent(
+          data.pushoverApplicationToken
+        )}`
       : null
   );
 

@@ -48,7 +48,9 @@ const NotificationsPushover = () => {
   } = useSWR('/api/v1/settings/notifications/pushover');
   const { data: soundsData } = useSWR<PushoverSound[]>(
     data?.options.accessToken
-      ? `/api/v1/settings/notifications/pushover/sounds?token=${data.options.accessToken}`
+      ? `/api/v1/settings/notifications/pushover/sounds?token=${encodeURIComponent(
+          data.options.accessToken
+        )}`
       : null,
     {
       revalidateOnFocus: false,
