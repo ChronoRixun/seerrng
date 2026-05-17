@@ -3,9 +3,9 @@
 // previously cached resources to be updated from the network.
 // This variable is intentionally declared and unused.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const OFFLINE_VERSION = 5;
+const OFFLINE_VERSION = 6;
 const CACHE_NAME = 'offline';
-const RUNTIME_CACHE_NAME = 'runtime-v1';
+const RUNTIME_CACHE_NAME = 'runtime-v2';
 const RUNTIME_CACHE_MAX_ENTRIES = 400;
 // Customize this with a different URL if needed.
 const OFFLINE_URL = '/offline.html';
@@ -28,7 +28,6 @@ const CACHEABLE_API_PATHS = [
 const CACHEABLE_STATIC_PATHS = [
   /^\/imageproxy\//,
   /^\/avatarproxy\//,
-  /^\/_next\/static\//,
   /^\/offline\.html$/,
   /^\/site\.webmanifest$/,
   /^\/robots\.txt$/,
