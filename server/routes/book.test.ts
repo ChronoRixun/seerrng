@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it, mock } from 'node:test';
 
 import OpenLibraryAPI from '@server/api/openlibrary';
-import { MediaType } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaType,
+} from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
+import { MediaRequest } from '@server/entity/MediaRequest';
 import { User } from '@server/entity/User';
 import { Watchlist } from '@server/entity/Watchlist';
 import { getSettings } from '@server/lib/settings';
@@ -145,6 +149,53 @@ describe('GET /book/:id', () => {
     assert.strictEqual(res.body.id, 'OL45804W');
     assert.strictEqual(res.body.author, 'Test Author');
     assert.strictEqual(res.body.onUserWatchlist, true);
+  });
+
+  it('filters saved media request users from book detail responses', async () => {
+    mockBookDetails();
+
+    const agent = await login();
+    const user = await getRepository(User).findOneByOrFail({
+      email: 'admin@seerr.dev',
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media,
+        provider: MediaIdentifierProvider.OPENLIBRARY,
+        value: 'OL45804W',
+        canonical: true,
+      })
+    );
+    await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        status: MediaRequestStatus.PENDING,
+        media,
+        requestedBy: user,
+        modifiedBy: user,
+        is4k: false,
+        bookFormat: 'ebook',
+      })
+    );
+
+    const res = await agent.get('/book/OL45804W');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.mediaInfo.requests[0].requestedBy.id, user.id);
+    assert.strictEqual(
+      res.body.mediaInfo.requests[0].requestedBy.email,
+      undefined
+    );
+    assert.strictEqual(
+      res.body.mediaInfo.requests[0].modifiedBy.email,
+      undefined
+    );
   });
 
   it('still returns book details when author lookup fails', async () => {

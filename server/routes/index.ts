@@ -11,6 +11,7 @@ import type { StatusResponse } from '@server/interfaces/api/settingsInterfaces';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { apiResponseCache } from '@server/middleware/apiResponseCache';
 import { checkUser, isAuthenticated } from '@server/middleware/auth';
 import deprecatedRoute from '@server/middleware/deprecation';
 import { mapProductionCompany } from '@server/models/Movie';
@@ -51,6 +52,7 @@ import user from './user';
 const router = Router();
 
 router.use(checkUser);
+router.use(apiResponseCache);
 
 router.get<unknown, StatusResponse>('/status', async (req, res) => {
   const githubApi = new GithubAPI();

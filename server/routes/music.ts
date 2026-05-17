@@ -51,13 +51,13 @@ musicRoutes.get('/:id', async (req, res, next) => {
     ]);
 
     const artistId =
-      albumDetails.release_group_metadata?.artist?.artists[0]?.artist_mbid;
+      albumDetails.release_group_metadata?.artist?.artists?.[0]?.artist_mbid;
     const isPerson =
-      albumDetails.release_group_metadata?.artist?.artists[0]?.type ===
+      albumDetails.release_group_metadata?.artist?.artists?.[0]?.type ===
       'Person';
-    const trackArtistIds = albumDetails.mediums
+    const trackArtistIds = (albumDetails.mediums ?? [])
       .flatMap((medium) => medium.tracks)
-      .flatMap((track) => track.artists)
+      .flatMap((track) => track.artists ?? [])
       .filter((artist) => artist.artist_mbid)
       .map((artist) => artist.artist_mbid);
 
@@ -99,10 +99,10 @@ musicRoutes.get('/:id', async (req, res, next) => {
     const resolvedArtistWikipedia =
       artistWikipedia.status === 'fulfilled' ? artistWikipedia.value : null;
 
-    const trackArtistsToMap = albumDetails.mediums
+    const trackArtistsToMap = (albumDetails.mediums ?? [])
       .flatMap((medium) => medium.tracks)
       .flatMap((track) =>
-        track.artists
+        (track.artists ?? [])
           .filter((artist) => artist.artist_mbid)
           .filter(
             (artist) =>
@@ -126,7 +126,9 @@ musicRoutes.get('/:id', async (req, res, next) => {
         ? personMapper
             .getMapping(
               artistId,
-              albumDetails.release_group_metadata.artist.artists[0].name
+              albumDetails.release_group_metadata?.artist?.artists?.[0]?.name ??
+                albumDetails.release_group_metadata?.artist?.name ??
+                ''
             )
             .catch(() => null)
         : Promise.resolve(null),

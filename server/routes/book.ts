@@ -11,6 +11,7 @@ import {
   mapOpenLibrarySearchDoc,
   mapOpenLibraryWork,
 } from '@server/models/Book';
+import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePositiveInt } from '@server/utils/pagination';
 import { Router } from 'express';
 import { In } from 'typeorm';
@@ -137,13 +138,13 @@ bookRoutes.get('/:id', async (req, res, next) => {
       : undefined;
 
     return res.status(200).json(
-      mapOpenLibraryWork(
+      filterEntityResponse(mapOpenLibraryWork(
         work,
         media,
         editions.entries,
         onUserWatchlist,
         author?.name
-      )
+      ))
     );
   } catch (e) {
     logger.error('Failed to retrieve book details', {
