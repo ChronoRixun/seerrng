@@ -10,6 +10,9 @@ type ImageWarmableRecord = {
 
 const TMDB_POSTER_TYPES = new Set(['movie', 'tv', 'person', 'collection']);
 const TMDB_BACKDROP_TYPES = new Set(['movie', 'tv', 'collection']);
+const MAX_IMAGE_CACHE_URL_TRAVERSAL_DEPTH = 8;
+const MAX_IMAGE_CACHE_URL_TRAVERSAL_NODES = 2000;
+const MAX_EXTRACTED_IMAGE_CACHE_URLS = 200;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -18,7 +21,10 @@ const getTmdbImageUrl = (path: string, size: string): string =>
   `https://image.tmdb.org/t/p/${size}${path}`;
 
 const normalizeExternalImageUrl = (path: unknown): string | null => {
-  if (typeof path !== 'string' || !path.startsWith('http')) {
+  if (
+    typeof path !== 'string' ||
+    (!path.startsWith('http://') && !path.startsWith('https://'))
+  ) {
     return null;
   }
 
@@ -66,15 +72,24 @@ const getWarmableImageUrls = (item: ImageWarmableRecord): string[] => {
 export const extractImageCacheUrls = (body: unknown): string[] => {
   const urls = new Set<string>();
   const seen = new Set<unknown>();
+  let visitedNodes = 0;
 
-  const visit = (value: unknown) => {
-    if (!value || seen.has(value)) {
+  const visit = (value: unknown, depth = 0) => {
+    if (
+      !value ||
+      seen.has(value) ||
+      depth > MAX_IMAGE_CACHE_URL_TRAVERSAL_DEPTH ||
+      visitedNodes >= MAX_IMAGE_CACHE_URL_TRAVERSAL_NODES ||
+      urls.size >= MAX_EXTRACTED_IMAGE_CACHE_URLS
+    ) {
       return;
     }
 
+    visitedNodes += 1;
+
     if (Array.isArray(value)) {
       seen.add(value);
-      value.forEach(visit);
+      value.forEach((item) => visit(item, depth + 1));
       return;
     }
 
@@ -84,7 +99,7 @@ export const extractImageCacheUrls = (body: unknown): string[] => {
 
     seen.add(value);
     getWarmableImageUrls(value).forEach((url) => urls.add(url));
-    Object.values(value).forEach(visit);
+    Object.values(value).forEach((item) => visit(item, depth + 1));
   };
 
   visit(body);

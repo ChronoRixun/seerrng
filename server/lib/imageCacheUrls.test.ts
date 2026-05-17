@@ -80,4 +80,36 @@ describe('extractImageCacheUrls', () => {
       'https://image.tmdb.org/t/p/w300_and_h450_face/same.jpg',
     ]);
   });
+
+  it('ignores non-HTTP-like external image strings', () => {
+    const urls = extractImageCacheUrls({
+      mediaType: 'album',
+      posterPath: 'httpx://coverartarchive.org/release/id/front-250',
+      artistThumb: 'javascript:alert(1)',
+    });
+
+    assert.deepEqual(urls, []);
+  });
+
+  it('bounds traversal of deeply nested response bodies', () => {
+    let nested: Record<string, unknown> = {
+      mediaType: 'book',
+      posterPath: 'https://covers.openlibrary.org/b/id/deep-L.jpg',
+    };
+
+    for (let i = 0; i < 20; i += 1) {
+      nested = { child: nested };
+    }
+
+    assert.deepEqual(extractImageCacheUrls(nested), []);
+  });
+
+  it('bounds traversal of very wide response bodies', () => {
+    const results = Array.from({ length: 250 }, (_, index) => ({
+      mediaType: 'book',
+      posterPath: `https://covers.openlibrary.org/b/id/${index}-L.jpg`,
+    }));
+
+    assert.equal(extractImageCacheUrls({ results }).length, 200);
+  });
 });
