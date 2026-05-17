@@ -122,4 +122,7 @@ class CacheManager {
 
 const cacheManager = new CacheManager();
 
+export const isAvailableCacheId = (id: string): id is AvailableCacheIds =>
+  Object.prototype.hasOwnProperty.call(cacheManager.getAllCaches(), id);
+
 export default cacheManager;

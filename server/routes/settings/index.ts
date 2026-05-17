@@ -16,7 +16,7 @@ import type {
 } from '@server/interfaces/api/settingsInterfaces';
 import { scheduledJobs } from '@server/job/schedule';
 import type { AvailableCacheIds } from '@server/lib/cache';
-import cacheManager from '@server/lib/cache';
+import cacheManager, { isAvailableCacheId } from '@server/lib/cache';
 import ImageProxy from '@server/lib/imageproxy';
 import { MAX_PERMISSION_VALUE, Permission } from '@server/lib/permissions';
 import { jellyfinFullScanner } from '@server/lib/scanners/jellyfin';
@@ -1405,7 +1405,11 @@ settingsRoutes.post<{ cacheId: AvailableCacheIds }>(
       return next({ status: 404, message: 'Cache not found.' });
     }
 
-    const cache = cacheManager.getCache(cacheId.value as AvailableCacheIds);
+    if (!isAvailableCacheId(cacheId.value)) {
+      return next({ status: 404, message: 'Cache not found.' });
+    }
+
+    const cache = cacheManager.getCache(cacheId.value);
 
     if (cache) {
       cache.flush();

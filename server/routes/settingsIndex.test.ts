@@ -787,4 +787,11 @@ describe('Settings route input validation', () => {
 
     assert.strictEqual(res.status, 404);
   });
+
+  it('rejects prototype cache IDs instead of treating them as cache objects', async () => {
+    const res = await request(app).post('/settings/cache/__proto__/flush');
+
+    assert.strictEqual(res.status, 404);
+    assert.match(res.body.message, /Cache not found/);
+  });
 });
