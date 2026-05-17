@@ -9,6 +9,7 @@ import xml2js from 'xml2js';
 const UPDATE_INTERVAL_MSEC = 24 * 3600 * 1000; // how often to download new mapping in milliseconds
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 export const MAX_MAPPING_DOWNLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_MAPPING_FILE_BYTES = MAX_MAPPING_DOWNLOAD_BYTES;
 // originally at https://raw.githubusercontent.com/ScudLee/anime-lists/master/anime-list.xml
 const MAPPING_URL =
   'https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml';
@@ -33,6 +34,12 @@ export const createSizeLimitTransform = (maxBytes: number): Transform => {
       callback(null, chunk);
     },
   });
+};
+
+export const assertMappingFileSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes < 0 || bytes > MAX_MAPPING_FILE_BYTES) {
+    throw new Error('Anime-List mapping file exceeds maximum size');
+  }
 };
 
 // Anime-List xml files are community maintained mappings that Hama agent uses to map AniDB IDs to TVDB/TMDB IDs
@@ -89,6 +96,7 @@ class AnimeListMapping {
     logger.info('Loading mapping file', { label: 'Anime-List Sync' });
     try {
       const mappingStat = await fsp.stat(LOCAL_PATH);
+      assertMappingFileSize(mappingStat.size);
       const file = await fsp.readFile(LOCAL_PATH);
       const xml = (await xml2js.parseStringPromise(file)) as AnimeList;
 

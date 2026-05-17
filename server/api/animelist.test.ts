@@ -3,7 +3,11 @@ import { describe, it } from 'node:test';
 import { Readable, Writable } from 'stream';
 import { pipeline } from 'stream/promises';
 
-import { createSizeLimitTransform } from './animelist';
+import {
+  assertMappingFileSize,
+  createSizeLimitTransform,
+  MAX_MAPPING_FILE_BYTES,
+} from './animelist';
 
 const readLimitedStream = async (chunks: Buffer[], maxBytes: number) => {
   const output: Buffer[] = [];
@@ -35,6 +39,19 @@ describe('createSizeLimitTransform', () => {
     await assert.rejects(
       readLimitedStream([Buffer.from('anime'), Buffer.from('-list')], 9),
       /download exceeds maximum size/
+    );
+  });
+});
+
+describe('assertMappingFileSize', () => {
+  it('allows local mapping files within the byte limit', () => {
+    assert.doesNotThrow(() => assertMappingFileSize(MAX_MAPPING_FILE_BYTES));
+  });
+
+  it('rejects oversized local mapping files before reading them', () => {
+    assert.throws(
+      () => assertMappingFileSize(MAX_MAPPING_FILE_BYTES + 1),
+      /mapping file exceeds maximum size/
     );
   });
 });
