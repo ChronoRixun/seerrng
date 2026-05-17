@@ -36,8 +36,40 @@ const enum TvdbIdStatus {
   INVALID = -1,
 }
 
+const MAX_TVDB_TOKEN_LENGTH = 8 * 1024;
+const MAX_TVDB_TOKEN_PAYLOAD_LENGTH = 4 * 1024;
+const TVDB_TOKEN_REFRESH_WINDOW_SECONDS = 604_800;
+
 type TvdbId = number;
 type ValidTvdbId = Exclude<TvdbId, TvdbIdStatus.INVALID>;
+
+export const tvdbTokenNeedsRefresh = (
+  token: string | undefined,
+  nowSeconds = Math.floor(Date.now() / 1000)
+) => {
+  if (!token || token.length > MAX_TVDB_TOKEN_LENGTH) {
+    return true;
+  }
+
+  const [, base64Url] = token.split('.');
+  if (!base64Url || base64Url.length > MAX_TVDB_TOKEN_PAYLOAD_LENGTH) {
+    return true;
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(base64Url, 'base64url').toString('utf8')
+    ) as { exp?: unknown };
+
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+      return true;
+    }
+
+    return payload.exp - nowSeconds < TVDB_TOKEN_REFRESH_WINDOW_SECONDS;
+  } catch {
+    return true;
+  }
+};
 
 class Tvdb extends ExternalAPI implements TvShowProvider {
   static instance: Tvdb;
@@ -75,24 +107,7 @@ class Tvdb extends ExternalAPI implements TvShowProvider {
 
   private async refreshToken(): Promise<void> {
     try {
-      if (!this.token) {
-        await this.login();
-        return;
-      }
-
-      const base64Url = this.token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(Buffer.from(base64, 'base64').toString());
-
-      if (!payload.exp) {
-        await this.login();
-      }
-
-      const now = Math.floor(Date.now() / 1000);
-      const diff = payload.exp - now;
-
-      // refresh token 1 week before expiration
-      if (diff < 604800) {
+      if (tvdbTokenNeedsRefresh(this.token)) {
         await this.login();
       }
     } catch (error) {
