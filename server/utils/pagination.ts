@@ -1,9 +1,21 @@
+const parseScalarNumber = (value: unknown): number => {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    return Number(value);
+  }
+
+  return Number.NaN;
+};
+
 export const parsePositiveInt = (
   value: unknown,
   fallback: number,
   max = Number.MAX_SAFE_INTEGER
 ): number => {
-  const parsed = Number(value);
+  const parsed = parseScalarNumber(value);
 
   if (!Number.isFinite(parsed) || parsed < 1) {
     return fallback;
@@ -17,7 +29,7 @@ export const parseNonNegativeInt = (
   fallback = 0,
   max = Number.MAX_SAFE_INTEGER
 ): number => {
-  const parsed = Number(value);
+  const parsed = parseScalarNumber(value);
 
   if (!Number.isFinite(parsed) || parsed < 0) {
     return fallback;
@@ -34,7 +46,7 @@ export const parseOptionalPositiveInt = (
     return undefined;
   }
 
-  const parsed = Number(value);
+  const parsed = parseScalarNumber(value);
 
   if (!Number.isFinite(parsed) || parsed < 1) {
     return undefined;
