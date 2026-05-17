@@ -115,7 +115,13 @@ const parsePositiveIntegerArray = (
   const parsedValues = new Set<number>();
 
   for (const item of value) {
-    const parsed = parseOptionalNonNegativeInteger(Number(item));
+    const parsedValue =
+      typeof item === 'number'
+        ? item
+        : typeof item === 'string' && item.trim() !== ''
+          ? Number(item)
+          : undefined;
+    const parsed = parseOptionalNonNegativeInteger(parsedValue);
 
     if (!parsed || parsed < 1) {
       return { error: `${options.fieldName} contains an invalid id.` };

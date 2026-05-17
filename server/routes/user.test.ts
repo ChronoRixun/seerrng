@@ -302,6 +302,20 @@ describe('User route input validation', () => {
     assert.match(res.body.message, /User body must be an object/i);
   });
 
+  it('rejects malformed bulk permission user IDs', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+
+    for (const ids of [[[2]], ['2.5'], [null]]) {
+      const res = await agent.put('/user').send({
+        ids,
+        permissions: Permission.REQUEST,
+      });
+
+      assert.strictEqual(res.status, 400);
+      assert.match(res.body.message, /ids contains an invalid id/i);
+    }
+  });
+
   it('rejects malformed Plex import bodies before provider calls', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/user/import-from-plex').send([]);
