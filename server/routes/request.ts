@@ -74,6 +74,21 @@ const requestStatusFilters = [
 const requestSortFields = ['modified'] as const;
 const requestSortDirections = ['asc'] as const;
 
+const parseRequestStatusAction = (
+  status: unknown
+): MediaRequestStatus | undefined => {
+  switch (status) {
+    case 'pending':
+      return MediaRequestStatus.PENDING;
+    case 'approve':
+      return MediaRequestStatus.APPROVED;
+    case 'decline':
+      return MediaRequestStatus.DECLINED;
+    default:
+      return undefined;
+  }
+};
+
 type RequestOptionValidationResult<T> =
   | { value: T }
   | { error: { status: number; message: string } };
@@ -1784,27 +1799,15 @@ requestRoutes.post<{
       if (!requestId) {
         return next({ status: 404, message: 'Request not found.' });
       }
+      const newStatus = parseRequestStatusAction(req.params.status);
+      if (!newStatus) {
+        return next({ status: 404, message: 'Request not found.' });
+      }
 
       const request = await requestRepository.findOneOrFail({
         where: { id: requestId },
         relations: { requestedBy: true, modifiedBy: true },
       });
-
-      let newStatus: MediaRequestStatus;
-
-      switch (req.params.status) {
-        case 'pending':
-          newStatus = MediaRequestStatus.PENDING;
-          break;
-        case 'approve':
-          newStatus = MediaRequestStatus.APPROVED;
-          break;
-        case 'decline':
-          newStatus = MediaRequestStatus.DECLINED;
-          break;
-        default:
-          return next({ status: 404, message: 'Request not found.' });
-      }
 
       if (newStatus === MediaRequestStatus.APPROVED) {
         validateExternalServiceConfiguration(
