@@ -41,6 +41,7 @@ import {
   parseOptionalAllowedString,
   parseOptionalBodyBoolean,
   parseOptionalBoundedString,
+  parseOptionalNonNegativeInteger,
   parseOptionalQueryBoolean,
 } from '@server/utils/validation';
 import type { DnsEntries, DnsStats } from 'dns-caching';
@@ -65,6 +66,11 @@ const MAX_LOG_SEARCH_LENGTH = 200;
 const MAX_JOB_SCHEDULE_LENGTH = 100;
 const MAX_LIBRARY_ENABLE_QUERY_LENGTH = 4096;
 const MAX_SETTINGS_PATH_ID_LENGTH = 128;
+const MAX_NETWORK_TIMEOUT_MS = 300_000;
+const MAX_PROXY_STRING_LENGTH = 512;
+const MAX_PROXY_BYPASS_LENGTH = 4096;
+const MAX_PROXY_PORT = 65_535;
+const MAX_DNS_CACHE_TTL = 86_400;
 const logFilters = ['debug', 'info', 'warn', 'error'] as const;
 
 const parseEnableList = (value: unknown) => {
@@ -129,6 +135,151 @@ const validateOptionalHttpUrl = (
   return isValidHttpUrl(parsed.value)
     ? parsed
     : { error: `${fieldName} must be a valid HTTP URL.` };
+};
+
+const parseOptionalBooleanSetting = (
+  value: unknown,
+  fieldName: string
+): { value: boolean | undefined } | { error: string } => {
+  if (value === undefined || value === null) {
+    return { value: undefined };
+  }
+
+  return typeof value === 'boolean'
+    ? { value }
+    : { error: `${fieldName} must be a boolean.` };
+};
+
+const parseOptionalNetworkInteger = (
+  value: unknown,
+  fieldName: string,
+  max: number
+): { value: number | undefined } | { error: string } => {
+  if (value === undefined || value === null) {
+    return { value: undefined };
+  }
+
+  const parsed = parseOptionalNonNegativeInteger(value, max);
+  return parsed === undefined
+    ? { error: `${fieldName} must be a valid number.` }
+    : { value: parsed };
+};
+
+const parseNetworkSettingsBody = (
+  body: Record<string, unknown>
+): { value: Record<string, unknown> } | { error: string } => {
+  const value = { ...body };
+
+  for (const [key, fieldName] of [
+    ['csrfProtection', 'csrfProtection'],
+    ['forceIpv4First', 'forceIpv4First'],
+    ['trustProxy', 'trustProxy'],
+  ] as const) {
+    const parsed = parseOptionalBooleanSetting(value[key], fieldName);
+    if ('error' in parsed) {
+      return parsed;
+    }
+    value[key] = parsed.value;
+  }
+
+  if (value.apiRequestTimeout !== undefined) {
+    const parsedTimeout = parseOptionalNetworkInteger(
+      value.apiRequestTimeout,
+      'apiRequestTimeout',
+      MAX_NETWORK_TIMEOUT_MS
+    );
+    if ('error' in parsedTimeout) {
+      return parsedTimeout;
+    }
+    value.apiRequestTimeout = parsedTimeout.value;
+  }
+
+  if (value.dnsCache !== undefined) {
+    if (
+      !value.dnsCache ||
+      typeof value.dnsCache !== 'object' ||
+      Array.isArray(value.dnsCache)
+    ) {
+      return { error: 'dnsCache must be an object.' };
+    }
+
+    const dnsCache = { ...(value.dnsCache as Record<string, unknown>) };
+    const enabled = parseOptionalBooleanSetting(dnsCache.enabled, 'dnsCache.enabled');
+    if ('error' in enabled) {
+      return enabled;
+    }
+    dnsCache.enabled = enabled.value;
+
+    for (const [key, fieldName] of [
+      ['forceMinTtl', 'dnsCache.forceMinTtl'],
+      ['forceMaxTtl', 'dnsCache.forceMaxTtl'],
+    ] as const) {
+      const parsed = parseOptionalNetworkInteger(
+        dnsCache[key],
+        fieldName,
+        MAX_DNS_CACHE_TTL
+      );
+      if ('error' in parsed) {
+        return parsed;
+      }
+      dnsCache[key] = parsed.value;
+    }
+
+    value.dnsCache = dnsCache;
+  }
+
+  if (value.proxy !== undefined) {
+    if (!value.proxy || typeof value.proxy !== 'object' || Array.isArray(value.proxy)) {
+      return { error: 'proxy must be an object.' };
+    }
+
+    const proxy = { ...(value.proxy as Record<string, unknown>) };
+
+    for (const [key, fieldName] of [
+      ['enabled', 'proxy.enabled'],
+      ['useSsl', 'proxy.useSsl'],
+      ['bypassLocalAddresses', 'proxy.bypassLocalAddresses'],
+    ] as const) {
+      const parsed = parseOptionalBooleanSetting(proxy[key], fieldName);
+      if ('error' in parsed) {
+        return parsed;
+      }
+      proxy[key] = parsed.value;
+    }
+
+    for (const [key, fieldName, maxLength] of [
+      ['hostname', 'proxy.hostname', MAX_PROXY_STRING_LENGTH],
+      ['user', 'proxy.user', MAX_PROXY_STRING_LENGTH],
+      ['password', 'proxy.password', MAX_PROXY_STRING_LENGTH],
+      ['bypassFilter', 'proxy.bypassFilter', MAX_PROXY_BYPASS_LENGTH],
+    ] as const) {
+      const parsed = parseOptionalBoundedString(proxy[key], {
+        fieldName,
+        maxLength,
+      });
+      if ('error' in parsed) {
+        return parsed;
+      }
+      proxy[key] = parsed.value;
+    }
+
+    const port = parseOptionalNetworkInteger(
+      proxy.port,
+      'proxy.port',
+      MAX_PROXY_PORT
+    );
+    if ('error' in port) {
+      return port;
+    }
+    if (proxy.enabled === true && (!proxy.hostname || port.value === undefined || port.value < 1)) {
+      return { error: 'proxy hostname and port are required when proxy is enabled.' };
+    }
+    proxy.port = port.value;
+
+    value.proxy = proxy;
+  }
+
+  return { value };
 };
 
 const readLogTail = async (
@@ -213,10 +364,14 @@ settingsRoutes.post('/network', async (req, res) => {
   if ('error' in parsedBody) {
     return res.status(400).json({ message: parsedBody.error });
   }
+  const parsedNetwork = parseNetworkSettingsBody(parsedBody.value);
+  if ('error' in parsedNetwork) {
+    return res.status(400).json({ message: parsedNetwork.error });
+  }
 
   settings.network = merge(
     settings.network,
-    preserveRedactedSecrets(parsedBody.value, settings.network)
+    preserveRedactedSecrets(parsedNetwork.value, settings.network)
   );
   await settings.save();
 
@@ -248,6 +403,16 @@ settingsRoutes.post('/plex', async (req, res, next) => {
   if ('error' in parsedBody) {
     return res.status(400).json({ message: parsedBody.error });
   }
+
+  const webAppUrl = validateOptionalHttpUrl(
+    parsedBody.value.webAppUrl,
+    'webAppUrl'
+  );
+  if ('error' in webAppUrl) {
+    return res.status(400).json({ message: webAppUrl.error });
+  }
+  parsedBody.value.webAppUrl = webAppUrl.value;
+
   try {
     const admin = await userRepository.findOneOrFail({
       select: { id: true, plexToken: true },
@@ -434,6 +599,26 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
   if ('error' in parsedBody) {
     return res.status(400).json({ message: parsedBody.error });
   }
+
+  const externalHostname = validateOptionalHttpUrl(
+    parsedBody.value.externalHostname,
+    'externalHostname'
+  );
+  if ('error' in externalHostname) {
+    return res.status(400).json({ message: externalHostname.error });
+  }
+  parsedBody.value.externalHostname = externalHostname.value;
+
+  const jellyfinForgotPasswordUrl = validateOptionalHttpUrl(
+    parsedBody.value.jellyfinForgotPasswordUrl,
+    'jellyfinForgotPasswordUrl'
+  );
+  if ('error' in jellyfinForgotPasswordUrl) {
+    return res
+      .status(400)
+      .json({ message: jellyfinForgotPasswordUrl.error });
+  }
+  parsedBody.value.jellyfinForgotPasswordUrl = jellyfinForgotPasswordUrl.value;
 
   try {
     const admin = await userRepository.findOneOrFail({

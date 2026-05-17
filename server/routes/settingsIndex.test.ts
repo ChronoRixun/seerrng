@@ -79,6 +79,87 @@ describe('Settings route input validation', () => {
     assert.strictEqual(saveMock.mock.callCount(), 0);
   });
 
+  it('rejects unsafe media server browser URLs before external work', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const plexRes = await request(app).post('/settings/plex').send({
+      webAppUrl: 'javascript:alert(1)',
+    });
+    const jellyfinRes = await request(app).post('/settings/jellyfin').send({
+      externalHostname: 'javascript:alert(1)',
+    });
+    const jellyfinResetRes = await request(app).post('/settings/jellyfin').send({
+      jellyfinForgotPasswordUrl: 'javascript:alert(1)',
+    });
+
+    assert.strictEqual(plexRes.status, 400);
+    assert.match(plexRes.body.message, /webAppUrl must be a valid HTTP URL/);
+    assert.strictEqual(jellyfinRes.status, 400);
+    assert.match(
+      jellyfinRes.body.message,
+      /externalHostname must be a valid HTTP URL/
+    );
+    assert.strictEqual(jellyfinResetRes.status, 400);
+    assert.match(
+      jellyfinResetRes.body.message,
+      /jellyfinForgotPasswordUrl must be a valid HTTP URL/
+    );
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
+  it('rejects malformed network proxy settings before saving', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const proxyShapeRes = await request(app)
+      .post('/settings/network')
+      .send({ proxy: [] });
+    const proxyPortRes = await request(app)
+      .post('/settings/network')
+      .send({ proxy: { enabled: true, hostname: 'proxy.local', port: 70000 } });
+    const proxyEnabledRes = await request(app)
+      .post('/settings/network')
+      .send({ proxy: { enabled: 'true' } });
+
+    assert.strictEqual(proxyShapeRes.status, 400);
+    assert.match(proxyShapeRes.body.message, /proxy must be an object/);
+    assert.strictEqual(proxyPortRes.status, 400);
+    assert.match(proxyPortRes.body.message, /proxy.port must be a valid number/);
+    assert.strictEqual(proxyEnabledRes.status, 400);
+    assert.match(proxyEnabledRes.body.message, /proxy.enabled must be a boolean/);
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
+  it('rejects malformed network DNS and timeout settings before saving', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const dnsShapeRes = await request(app)
+      .post('/settings/network')
+      .send({ dnsCache: [] });
+    const dnsTtlRes = await request(app)
+      .post('/settings/network')
+      .send({ dnsCache: { forceMaxTtl: 999999 } });
+    const timeoutRes = await request(app)
+      .post('/settings/network')
+      .send({ apiRequestTimeout: 999999 });
+
+    assert.strictEqual(dnsShapeRes.status, 400);
+    assert.match(dnsShapeRes.body.message, /dnsCache must be an object/);
+    assert.strictEqual(dnsTtlRes.status, 400);
+    assert.match(
+      dnsTtlRes.body.message,
+      /dnsCache.forceMaxTtl must be a valid number/
+    );
+    assert.strictEqual(timeoutRes.status, 400);
+    assert.match(
+      timeoutRes.body.message,
+      /apiRequestTimeout must be a valid number/
+    );
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
   it('rejects malformed media server settings bodies before external work', async () => {
     const settings = getSettings();
     const saveMock = mock.method(settings, 'save', async () => undefined);
