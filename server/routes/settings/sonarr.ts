@@ -2,7 +2,7 @@ import SonarrAPI from '@server/api/servarr/sonarr';
 import type { SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { parsePositiveRouteId } from '@server/utils/routeId';
+import { parseNonNegativeRouteId } from '@server/utils/routeId';
 import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
 import { parseSonarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
@@ -92,8 +92,8 @@ sonarrRoutes.post('/test', async (req, res, next) => {
 
 sonarrRoutes.put<{ id: string }>('/:id', async (req, res) => {
   const settings = getSettings();
-  const sonarrId = parsePositiveRouteId(req.params.id);
-  if (!sonarrId) {
+  const sonarrId = parseNonNegativeRouteId(req.params.id);
+  if (sonarrId === undefined) {
     return res
       .status(404)
       .json({ status: '404', message: 'Settings instance not found' });
@@ -143,8 +143,8 @@ sonarrRoutes.put<{ id: string }>('/:id', async (req, res) => {
 
 sonarrRoutes.delete<{ id: string }>('/:id', async (req, res) => {
   const settings = getSettings();
-  const sonarrId = parsePositiveRouteId(req.params.id);
-  if (!sonarrId) {
+  const sonarrId = parseNonNegativeRouteId(req.params.id);
+  if (sonarrId === undefined) {
     return res
       .status(404)
       .json({ status: '404', message: 'Settings instance not found' });

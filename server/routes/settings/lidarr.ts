@@ -2,7 +2,7 @@ import LidarrAPI from '@server/api/servarr/lidarr';
 import type { LidarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { parsePositiveRouteId } from '@server/utils/routeId';
+import { parseNonNegativeRouteId } from '@server/utils/routeId';
 import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
 import { parseLidarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
@@ -92,14 +92,12 @@ lidarrRoutes.put<{ id: string }, LidarrSettings, LidarrSettings>(
   '/:id',
   async (req, res, next) => {
     const settings = getSettings();
-    const lidarrId = parsePositiveRouteId(req.params.id);
-    if (!lidarrId) {
+    const lidarrId = parseNonNegativeRouteId(req.params.id);
+    if (lidarrId === undefined) {
       return next({ status: '404', message: 'Settings instance not found' });
     }
 
-    const lidarrIndex = settings.lidarr.findIndex(
-      (r) => r.id === lidarrId
-    );
+    const lidarrIndex = settings.lidarr.findIndex((r) => r.id === lidarrId);
 
     if (lidarrIndex === -1) {
       return next({ status: '404', message: 'Settings instance not found' });
@@ -136,14 +134,12 @@ lidarrRoutes.put<{ id: string }, LidarrSettings, LidarrSettings>(
 
 lidarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
   const settings = getSettings();
-  const lidarrId = parsePositiveRouteId(req.params.id);
-  if (!lidarrId) {
+  const lidarrId = parseNonNegativeRouteId(req.params.id);
+  if (lidarrId === undefined) {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
-  const lidarrSettings = settings.lidarr.find(
-    (r) => r.id === lidarrId
-  );
+  const lidarrSettings = settings.lidarr.find((r) => r.id === lidarrId);
 
   if (!lidarrSettings) {
     return next({ status: '404', message: 'Settings instance not found' });
@@ -166,14 +162,12 @@ lidarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
 
 lidarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   const settings = getSettings();
-  const lidarrId = parsePositiveRouteId(req.params.id);
-  if (!lidarrId) {
+  const lidarrId = parseNonNegativeRouteId(req.params.id);
+  if (lidarrId === undefined) {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
-  const lidarrIndex = settings.lidarr.findIndex(
-    (r) => r.id === lidarrId
-  );
+  const lidarrIndex = settings.lidarr.findIndex((r) => r.id === lidarrId);
 
   if (lidarrIndex === -1) {
     return next({ status: '404', message: 'Settings instance not found' });

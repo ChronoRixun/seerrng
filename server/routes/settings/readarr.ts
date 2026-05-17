@@ -2,7 +2,7 @@ import ReadarrAPI from '@server/api/servarr/readarr';
 import type { ReadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { parsePositiveRouteId } from '@server/utils/routeId';
+import { parseNonNegativeRouteId } from '@server/utils/routeId';
 import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
 import { parseReadarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
@@ -96,14 +96,12 @@ readarrRoutes.put<{ id: string }, ReadarrSettings, ReadarrSettings>(
   '/:id',
   async (req, res, next) => {
     const settings = getSettings();
-    const readarrId = parsePositiveRouteId(req.params.id);
-    if (!readarrId) {
+    const readarrId = parseNonNegativeRouteId(req.params.id);
+    if (readarrId === undefined) {
       return next({ status: '404', message: 'Settings instance not found' });
     }
 
-    const readarrIndex = settings.readarr.findIndex(
-      (r) => r.id === readarrId
-    );
+    const readarrIndex = settings.readarr.findIndex((r) => r.id === readarrId);
 
     if (readarrIndex === -1) {
       return next({ status: '404', message: 'Settings instance not found' });
@@ -144,14 +142,12 @@ readarrRoutes.put<{ id: string }, ReadarrSettings, ReadarrSettings>(
 
 readarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   const settings = getSettings();
-  const readarrId = parsePositiveRouteId(req.params.id);
-  if (!readarrId) {
+  const readarrId = parseNonNegativeRouteId(req.params.id);
+  if (readarrId === undefined) {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
-  const readarrIndex = settings.readarr.findIndex(
-    (r) => r.id === readarrId
-  );
+  const readarrIndex = settings.readarr.findIndex((r) => r.id === readarrId);
 
   if (readarrIndex === -1) {
     return next({ status: '404', message: 'Settings instance not found' });

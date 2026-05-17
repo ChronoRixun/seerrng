@@ -659,7 +659,6 @@ components:
         - activeProfileName
         - activeDirectory
         - is4k
-        - minimumAvailability
         - isDefault
     SonarrSettings:
       type: object

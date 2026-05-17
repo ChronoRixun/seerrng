@@ -264,6 +264,17 @@ describe('Radarr settings routes', () => {
     assert.strictEqual(res.status, 404);
     assert.strictEqual(getSettings().radarr.length, 1);
   });
+
+  it('updates settings instance zero', async () => {
+    getSettings().radarr = [makeRadarr({ id: 0 })];
+
+    const res = await request(app)
+      .put('/settings/radarr/0')
+      .send(makeRadarr({ name: 'Updated Radarr' }));
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(getSettings().radarr[0].name, 'Updated Radarr');
+  });
 });
 
 describe('Sonarr settings routes', () => {
@@ -334,6 +345,17 @@ describe('Sonarr settings routes', () => {
     assert.strictEqual(res.status, 404);
     assert.strictEqual(getSettings().sonarr.length, 1);
   });
+
+  it('updates settings instance zero', async () => {
+    getSettings().sonarr = [makeSonarr({ id: 0 })];
+
+    const res = await request(app)
+      .put('/settings/sonarr/0')
+      .send(makeSonarr({ name: 'Updated Sonarr' }));
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(getSettings().sonarr[0].name, 'Updated Sonarr');
+  });
 });
 
 describe('Lidarr settings routes', () => {
@@ -378,6 +400,17 @@ describe('Lidarr settings routes', () => {
     const res = await request(app).get('/service/lidarr/not-a-number');
 
     assert.strictEqual(res.status, 404);
+  });
+
+  it('updates settings instance zero', async () => {
+    getSettings().lidarr = [makeLidarr({ id: 0 })];
+
+    const res = await request(app)
+      .put('/settings/lidarr/0')
+      .send(makeLidarr({ name: 'Updated Lidarr' }));
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(getSettings().lidarr[0].name, 'Updated Lidarr');
   });
 
   it('keeps only the newest default Lidarr server active', async () => {
@@ -503,6 +536,17 @@ describe('Bookshelf settings routes', () => {
 
     assert.strictEqual(res.status, 404);
     assert.strictEqual(getSettings().readarr.length, 1);
+  });
+
+  it('updates settings instance zero', async () => {
+    getSettings().readarr = [makeReadarr({ id: 0 })];
+
+    const res = await request(app)
+      .put('/settings/readarr/0')
+      .send(makeReadarr({ name: 'Updated Bookshelf' }));
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(getSettings().readarr[0].name, 'Updated Bookshelf');
   });
 
   it('keeps separate default Bookshelf servers per book format', async () => {

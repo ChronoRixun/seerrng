@@ -2,7 +2,7 @@ import RadarrAPI from '@server/api/servarr/radarr';
 import type { RadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { parsePositiveRouteId } from '@server/utils/routeId';
+import { parseNonNegativeRouteId } from '@server/utils/routeId';
 import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
 import { parseRadarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
@@ -95,8 +95,8 @@ radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
   '/:id',
   async (req, res, next) => {
     const settings = getSettings();
-    const radarrId = parsePositiveRouteId(req.params.id);
-    if (!radarrId) {
+    const radarrId = parseNonNegativeRouteId(req.params.id);
+    if (radarrId === undefined) {
       return next({ status: '404', message: 'Settings instance not found' });
     }
 
@@ -143,8 +143,8 @@ radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
 
 radarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
   const settings = getSettings();
-  const radarrId = parsePositiveRouteId(req.params.id);
-  if (!radarrId) {
+  const radarrId = parseNonNegativeRouteId(req.params.id);
+  if (radarrId === undefined) {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
@@ -171,8 +171,8 @@ radarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
 
 radarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   const settings = getSettings();
-  const radarrId = parsePositiveRouteId(req.params.id);
-  if (!radarrId) {
+  const radarrId = parseNonNegativeRouteId(req.params.id);
+  if (radarrId === undefined) {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
