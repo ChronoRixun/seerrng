@@ -2,9 +2,13 @@ import logger from '@server/logger';
 import axios from 'axios';
 import fs, { promises as fsp } from 'fs';
 import path from 'path';
+import { Transform } from 'stream';
+import { pipeline } from 'stream/promises';
 import xml2js from 'xml2js';
 
 const UPDATE_INTERVAL_MSEC = 24 * 3600 * 1000; // how often to download new mapping in milliseconds
+const DOWNLOAD_TIMEOUT_MS = 30_000;
+export const MAX_MAPPING_DOWNLOAD_BYTES = 10 * 1024 * 1024;
 // originally at https://raw.githubusercontent.com/ScudLee/anime-lists/master/anime-list.xml
 const MAPPING_URL =
   'https://raw.githubusercontent.com/Anime-Lists/anime-lists/master/anime-list.xml';
@@ -13,6 +17,23 @@ const LOCAL_PATH = process.env.CONFIG_DIRECTORY
   : path.join(__dirname, '../../config/anime-list.xml');
 
 const mappingRegexp = new RegExp(/;[0-9]+-([0-9]+)/g);
+
+export const createSizeLimitTransform = (maxBytes: number): Transform => {
+  let bytes = 0;
+
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      bytes += chunk.length;
+
+      if (bytes > maxBytes) {
+        callback(new Error('Anime-List mapping download exceeds maximum size'));
+        return;
+      }
+
+      callback(null, chunk);
+    },
+  });
+};
 
 // Anime-List xml files are community maintained mappings that Hama agent uses to map AniDB IDs to TVDB/TMDB IDs
 // https://github.com/Anime-Lists/anime-lists/
@@ -164,17 +185,24 @@ class AnimeListMapping {
     logger.info('Downloading latest mapping file', {
       label: 'Anime-List Sync',
     });
+    const tempPath = `${LOCAL_PATH}.tmp`;
     try {
       const response = await axios.get(MAPPING_URL, {
         responseType: 'stream',
+        timeout: DOWNLOAD_TIMEOUT_MS,
+        maxRedirects: 3,
       });
-      await new Promise<void>((resolve, reject) => {
-        const writer = fs.createWriteStream(LOCAL_PATH);
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-        response.data.pipe(writer);
-      });
+      await fsp.mkdir(path.dirname(LOCAL_PATH), { recursive: true });
+      await pipeline(
+        response.data,
+        createSizeLimitTransform(MAX_MAPPING_DOWNLOAD_BYTES),
+        fs.createWriteStream(tempPath)
+      );
+      await fsp.rename(tempPath, LOCAL_PATH);
     } catch (e) {
+      await fsp.rm(tempPath, { force: true }).catch(() => {
+        // Best-effort cleanup only.
+      });
       throw new Error(`Failed to download Anime-List mapping: ${e.message}`, {
         cause: e,
       });
