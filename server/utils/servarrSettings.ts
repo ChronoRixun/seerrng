@@ -63,49 +63,57 @@ const parseOptionalServiceString = (
   parseOptionalBoundedString(value, { fieldName, maxLength });
 
 const parseDvrSettings = (
-  body: Partial<DVRSettings>,
+  body: unknown,
   current?: DVRSettings
 ): { value: DVRSettings } | { error: string } => {
-  const name = parseRequiredServiceString(body.name, 'name');
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'settings must be an object.' };
+  }
+
+  const settings = body as Partial<DVRSettings>;
+  const name = parseRequiredServiceString(settings.name, 'name');
   if ('error' in name) return name;
 
-  const hostname = parseRequiredServiceString(body.hostname, 'hostname');
+  const hostname = parseRequiredServiceString(settings.hostname, 'hostname');
   if ('error' in hostname) return hostname;
 
-  const apiKey = parseRequiredServiceString(body.apiKey, 'apiKey');
+  const apiKey = parseRequiredServiceString(settings.apiKey, 'apiKey');
   if ('error' in apiKey) return apiKey;
 
   const activeProfileName = parseRequiredServiceString(
-    body.activeProfileName,
+    settings.activeProfileName,
     'activeProfileName'
   );
   if ('error' in activeProfileName) return activeProfileName;
 
   const activeDirectory = parseRequiredServiceString(
-    body.activeDirectory,
+    settings.activeDirectory,
     'activeDirectory',
     MAX_SERVICE_PATH_LENGTH
   );
   if ('error' in activeDirectory) return activeDirectory;
 
-  const baseUrl = parseOptionalServiceString(body.baseUrl, 'baseUrl');
+  const baseUrl = parseOptionalServiceString(settings.baseUrl, 'baseUrl');
   if ('error' in baseUrl) return baseUrl;
 
   const externalUrl = parseOptionalServiceString(
-    body.externalUrl,
+    settings.externalUrl,
     'externalUrl'
   );
   if ('error' in externalUrl) return externalUrl;
 
-  const tags = parseNumberArray(body.tags, 'tags');
+  const tags = parseNumberArray(settings.tags, 'tags');
   if ('error' in tags) return tags;
 
-  const overrideRule = parseNumberArray(body.overrideRule, 'overrideRule');
+  const overrideRule = parseNumberArray(settings.overrideRule, 'overrideRule');
   if ('error' in overrideRule) return overrideRule;
 
-  const port = parseOptionalNonNegativeInteger(body.port, MAX_SERVICE_PORT);
+  const port = parseOptionalNonNegativeInteger(
+    settings.port,
+    MAX_SERVICE_PORT
+  );
   const activeProfileId = parseOptionalNonNegativeInteger(
-    body.activeProfileId,
+    settings.activeProfileId,
     MAX_SERVICE_ID
   );
 
@@ -124,32 +132,33 @@ const parseDvrSettings = (
       hostname: hostname.value,
       port,
       apiKey: apiKey.value,
-      useSsl: parseOptionalBoolean(body.useSsl) ?? false,
+      useSsl: parseOptionalBoolean(settings.useSsl) ?? false,
       baseUrl: baseUrl.value,
       activeProfileId,
       activeProfileName: activeProfileName.value,
       activeDirectory: activeDirectory.value,
       tags: tags.value,
-      is4k: parseOptionalBoolean(body.is4k) ?? false,
-      isDefault: parseOptionalBoolean(body.isDefault) ?? false,
+      is4k: parseOptionalBoolean(settings.is4k) ?? false,
+      isDefault: parseOptionalBoolean(settings.isDefault) ?? false,
       externalUrl: externalUrl.value,
-      syncEnabled: parseOptionalBoolean(body.syncEnabled) ?? false,
-      preventSearch: parseOptionalBoolean(body.preventSearch) ?? false,
-      tagRequests: parseOptionalBoolean(body.tagRequests) ?? false,
+      syncEnabled: parseOptionalBoolean(settings.syncEnabled) ?? false,
+      preventSearch: parseOptionalBoolean(settings.preventSearch) ?? false,
+      tagRequests: parseOptionalBoolean(settings.tagRequests) ?? false,
       overrideRule: overrideRule.value,
     },
   };
 };
 
 export const parseRadarrSettings = (
-  body: Partial<RadarrSettings>,
+  body: unknown,
   current?: RadarrSettings
 ): { value: RadarrSettings } | { error: string } => {
   const parsed = parseDvrSettings(body, current);
   if ('error' in parsed) return parsed;
+  const settings = body as Partial<RadarrSettings>;
 
   const minimumAvailability = parseRequiredServiceString(
-    body.minimumAvailability,
+    settings.minimumAvailability,
     'minimumAvailability'
   );
   if ('error' in minimumAvailability) return minimumAvailability;
@@ -163,21 +172,23 @@ export const parseRadarrSettings = (
 };
 
 export const parseSonarrSettings = (
-  body: Partial<SonarrSettings>,
+  body: unknown,
   current?: SonarrSettings
 ): { value: SonarrSettings } | { error: string } => {
   const parsed = parseDvrSettings(body, current);
   if ('error' in parsed) return parsed;
+  const settings = body as Partial<SonarrSettings>;
 
   const seriesTypes = ['standard', 'daily', 'anime'] as const;
   const seriesType =
-    typeof body.seriesType === 'string' && seriesTypes.includes(body.seriesType)
-      ? body.seriesType
+    typeof settings.seriesType === 'string' &&
+    seriesTypes.includes(settings.seriesType)
+      ? settings.seriesType
       : undefined;
   const animeSeriesType =
-    typeof body.animeSeriesType === 'string' &&
-    seriesTypes.includes(body.animeSeriesType)
-      ? body.animeSeriesType
+    typeof settings.animeSeriesType === 'string' &&
+    seriesTypes.includes(settings.animeSeriesType)
+      ? settings.animeSeriesType
       : undefined;
 
   if (!seriesType || !animeSeriesType) {
@@ -185,24 +196,24 @@ export const parseSonarrSettings = (
   }
 
   const activeAnimeProfileName = parseOptionalServiceString(
-    body.activeAnimeProfileName,
+    settings.activeAnimeProfileName,
     'activeAnimeProfileName'
   );
   if ('error' in activeAnimeProfileName) return activeAnimeProfileName;
 
   const activeAnimeDirectory = parseOptionalServiceString(
-    body.activeAnimeDirectory,
+    settings.activeAnimeDirectory,
     'activeAnimeDirectory',
     MAX_SERVICE_PATH_LENGTH
   );
   if ('error' in activeAnimeDirectory) return activeAnimeDirectory;
 
-  const animeTags = parseNumberArray(body.animeTags, 'animeTags');
+  const animeTags = parseNumberArray(settings.animeTags, 'animeTags');
   if ('error' in animeTags) return animeTags;
 
   const monitorNewItems =
-    body.monitorNewItems === 'all' || body.monitorNewItems === 'none'
-      ? body.monitorNewItems
+    settings.monitorNewItems === 'all' || settings.monitorNewItems === 'none'
+      ? settings.monitorNewItems
       : undefined;
 
   if (!monitorNewItems) {
@@ -215,36 +226,37 @@ export const parseSonarrSettings = (
       seriesType,
       animeSeriesType,
       activeAnimeProfileId: parseOptionalNonNegativeInteger(
-        body.activeAnimeProfileId,
+        settings.activeAnimeProfileId,
         MAX_SERVICE_ID
       ),
       activeAnimeProfileName: activeAnimeProfileName.value,
       activeAnimeDirectory: activeAnimeDirectory.value,
       activeAnimeLanguageProfileId: parseOptionalNonNegativeInteger(
-        body.activeAnimeLanguageProfileId,
+        settings.activeAnimeLanguageProfileId,
         MAX_SERVICE_ID
       ),
       activeLanguageProfileId: parseOptionalNonNegativeInteger(
-        body.activeLanguageProfileId,
+        settings.activeLanguageProfileId,
         MAX_SERVICE_ID
       ),
       animeTags: animeTags.value,
       enableSeasonFolders:
-        parseOptionalBoolean(body.enableSeasonFolders) ?? false,
+        parseOptionalBoolean(settings.enableSeasonFolders) ?? false,
       monitorNewItems,
     },
   };
 };
 
 export const parseLidarrSettings = (
-  body: Partial<LidarrSettings>,
+  body: unknown,
   current?: LidarrSettings
 ): { value: LidarrSettings } | { error: string } => {
   const parsed = parseDvrSettings(body, current);
   if ('error' in parsed) return parsed;
+  const settings = body as Partial<LidarrSettings>;
 
   const activeMetadataProfileName = parseOptionalServiceString(
-    body.activeMetadataProfileName,
+    settings.activeMetadataProfileName,
     'activeMetadataProfileName'
   );
   if ('error' in activeMetadataProfileName) return activeMetadataProfileName;
@@ -253,7 +265,7 @@ export const parseLidarrSettings = (
     value: {
       ...parsed.value,
       activeMetadataProfileId: parseOptionalNonNegativeInteger(
-        body.activeMetadataProfileId,
+        settings.activeMetadataProfileId,
         MAX_SERVICE_ID
       ),
       activeMetadataProfileName: activeMetadataProfileName.value,
@@ -262,15 +274,16 @@ export const parseLidarrSettings = (
 };
 
 export const parseReadarrSettings = (
-  body: Partial<ReadarrSettings>,
+  body: unknown,
   current?: ReadarrSettings
 ): { value: ReadarrSettings } | { error: string } => {
   const parsed = parseLidarrSettings(body, current);
   if ('error' in parsed) return parsed;
+  const settings = body as Partial<ReadarrSettings>;
 
   const serviceType =
-    body.serviceType === 'ebook' || body.serviceType === 'audiobook'
-      ? body.serviceType
+    settings.serviceType === 'ebook' || settings.serviceType === 'audiobook'
+      ? settings.serviceType
       : undefined;
 
   if (!serviceType) {

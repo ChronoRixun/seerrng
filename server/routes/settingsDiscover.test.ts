@@ -49,6 +49,41 @@ const customSliderPayload = {
 };
 
 describe('Discover settings route validation', () => {
+  it('rejects malformed slider arrays before lookup', async () => {
+    const res = await request(app)
+      .post('/settings/discover')
+      .send([customSliderPayload, null]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Slider must be an object/);
+  });
+
+  it('rejects malformed create slider bodies', async () => {
+    const res = await request(app).post('/settings/discover/add').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Slider must be an object/);
+  });
+
+  it('rejects malformed update slider bodies', async () => {
+    const slider = await getRepository(DiscoverSlider).save(
+      new DiscoverSlider({
+        data: 'fiction',
+        enabled: false,
+        isBuiltIn: false,
+        order: -1,
+        title: 'Fiction',
+        type: DiscoverSliderType.OPENLIBRARY_BOOK_SUBJECT,
+      })
+    );
+    const res = await request(app)
+      .put(`/settings/discover/${slider.id}`)
+      .send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Slider must be an object/);
+  });
+
   it('rejects malformed slider update IDs before validation and lookup', async () => {
     const res = await request(app)
       .put('/settings/discover/not-a-number')

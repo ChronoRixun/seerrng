@@ -152,6 +152,13 @@ afterEach(() => {
 });
 
 describe('Radarr settings routes', () => {
+  it('rejects malformed Radarr settings bodies', async () => {
+    const res = await request(app).post('/settings/radarr').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /settings must be an object/i);
+  });
+
   it('does not clear Radarr defaults for string boolean payloads', async () => {
     getSettings().radarr = [makeRadarr({ id: 3, name: 'Primary Radarr' })];
 
@@ -201,6 +208,13 @@ describe('Radarr settings routes', () => {
 });
 
 describe('Sonarr settings routes', () => {
+  it('rejects malformed Sonarr settings bodies', async () => {
+    const res = await request(app).post('/settings/sonarr').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /settings must be an object/i);
+  });
+
   it('does not clear Sonarr defaults for string boolean payloads', async () => {
     getSettings().sonarr = [makeSonarr({ id: 3, name: 'Primary Sonarr' })];
 
@@ -264,6 +278,13 @@ describe('Sonarr settings routes', () => {
 });
 
 describe('Lidarr settings routes', () => {
+  it('rejects malformed Lidarr settings bodies', async () => {
+    const res = await request(app).post('/settings/lidarr').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /settings must be an object/i);
+  });
+
   it('rejects malformed settings IDs before update lookup', async () => {
     getSettings().lidarr = [makeLidarr({ id: 4 })];
 
@@ -398,6 +419,13 @@ describe('Lidarr settings routes', () => {
 });
 
 describe('Bookshelf settings routes', () => {
+  it('rejects malformed Bookshelf settings bodies', async () => {
+    const res = await request(app).post('/settings/readarr').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /settings must be an object/i);
+  });
+
   it('rejects malformed settings IDs before update lookup', async () => {
     getSettings().readarr = [makeReadarr({ id: 7 })];
 

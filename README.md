@@ -1,140 +1,222 @@
 <p align="center">
-<img src="./public/logo_full.svg" alt="SeerrNG" style="margin: 20px 0;">
+  <img src="./public/logo_full.svg" alt="SeerrNG" style="margin: 20px 0" />
 </p>
+
 <p align="center">
-<img src="https://github.com/snapetech/seerrng/actions/workflows/ci.yml/badge.svg" alt="SeerrNG CI">
-</p>
-<p align="center">
-<a href="https://discord.gg/2N42G4RJCU"><img src="https://img.shields.io/badge/support-Discord-5865F2?logo=discord&logoColor=white" alt="Support on Discord"></a>
-<a href="https://hub.docker.com/r/seerr/seerr"><img src="https://img.shields.io/docker/pulls/seerr/seerr" alt="Docker pulls"></a>
-<a href="https://translate.seerr.dev/engage/seerr/"><img src="https://translate.seerr.dev/widget/seerr/svg-badge.svg" alt="Translation status" /></a>
-<a href="https://github.com/snapetech/seerrng/blob/develop/LICENSE"><img alt="GitHub" src="https://img.shields.io/github/license/snapetech/seerrng"></a>
+  <img src="https://github.com/snapetech/seerrng/actions/workflows/ci.yml/badge.svg" alt="SeerrNG CI" />
+  <a href="https://github.com/snapetech/seerrng/blob/main/LICENSE"><img src="https://img.shields.io/github/license/snapetech/seerrng" alt="License" /></a>
+  <a href="https://discord.gg/2N42G4RJCU"><img src="https://img.shields.io/badge/support-Discord-5865F2?logo=discord&logoColor=white" alt="Support on Discord" /></a>
 </p>
 
 # SeerrNG
 
-**SeerrNG** is a fork of [Seerr](https://github.com/seerr-team/seerr) focused on extending media requests beyond movies and TV into music, books, and related library automation.
+SeerrNG is a self-hosted request and discovery app for personal media libraries. It extends the Seerr/Jellyseerr/Overseerr lineage beyond movies and TV into music, ebooks, and audiobooks while keeping the familiar request approval workflow for Plex, Jellyfin, Emby, Radarr, and Sonarr users.
 
-SeerrNG is built on the work of the Seerr, Jellyseerr, and Overseerr projects. Upstream Seerr remains the base project and is credited for the original application, architecture, and ongoing video-first media request manager.
+This fork is maintained by snapetech. Upstream Seerr remains the base project for inherited video, user, server, and deployment behavior; SeerrNG-specific work focuses on multi-format media requests, service routing, caching, and fork-owned packaging/docs. See [NOTICE.md](./NOTICE.md) for attribution rules.
 
-See [NOTICE.md](./NOTICE.md) for fork attribution and ownership guidance. In
-short: inherited material remains credited to upstream contributors, modified
-inherited material is co-attributed, and fresh SeerrNG-specific work is
-attributed to snapetech and SeerrNG contributors unless another source is
-stated.
+## What SeerrNG Does
 
-The current inherited Seerr application is a free and open source software application for managing requests for your media library. It integrates with the media server of your choice: [Jellyfin](https://jellyfin.org), [Plex](https://plex.tv), and [Emby](https://emby.media/). In addition, it integrates with your existing services, such as **[Sonarr](https://sonarr.tv/)**, **[Radarr](https://radarr.video/)**.
+- Requests and approvals for movies, shows, music, ebooks, audiobooks, and combined ebook/audiobook book requests.
+- Media-server integration with Plex, Jellyfin, and Emby.
+- Automation service integration with Radarr, Sonarr, Lidarr, and Bookshelf/Readarr-compatible APIs.
+- Music discovery and metadata through MusicBrainz, ListenBrainz, Cover Art Archive, TheAudioDB, and archive-backed artwork sources.
+- Book discovery and identity matching through Open Library, ISBN-10/ISBN-13 normalization, foreign book IDs, and edition IDs.
+- Separate ebook and audiobook service routing so both formats can be requested, approved, scanned, retried, and removed independently.
+- Watchlists, blocklists, request quotas, override rules, permissions, notifications, issue reporting, and request management.
+- Browser, service-worker, API, DNS, avatar, and image-proxy caching tuned for faster refreshes and tab restores.
 
-## Fork Direction
+## Project Status
 
-SeerrNG is targeting first-class request and availability workflows for:
+SeerrNG is active fork work. Movie and TV behavior is inherited and generally stable. Music and book support is usable but should still be treated as evolving, especially around provider matching and real-world Bookshelf/Readarr edge cases.
 
-- Movies and TV via the inherited Radarr/Sonarr integrations.
-- Music via Lidarr, MusicBrainz, ListenBrainz, and Cover Art Archive.
-- Books via [Bookshelf](https://github.com/pennydreadful/bookshelf) (Readarr-compatible), Open Library/ISBN identifiers, and library backends where practical.
+Current focus:
 
-The implementation priority is to stabilize music first, then add books behind a clean identifier and format model instead of forcing everything through movie/TV-shaped IDs. Bookshelf is the recommended book automation backend; SeerrNG currently talks to it through the Readarr-compatible API surface so standard Readarr-compatible installs can still be tested.
+- Stabilizing Lidarr request, scan, retry, and removal flows.
+- Stabilizing Bookshelf ebook, audiobook, and both-format request flows.
+- Keeping image/API caching fast without blocking the visible page during refreshes.
+- Replacing upstream branding and docs with SeerrNG-owned assets and guidance.
+- Hardening request validation, notification settings, permission bounds, and service inputs.
 
-## Legal Use
-
-SeerrNG is intended for lawful personal media management. The project does not condone piracy or copyright infringement. Users are responsible for complying with the laws, licenses, and service terms that apply in their region.
-
-## Current Features
-
-- Full Jellyfin/Emby/Plex integration including authentication with user import & management.
-- Support for **PostgreSQL** and **SQLite** databases.
-- Supports Movies, Shows and Mixed Libraries.
-- Ability to change email addresses for SMTP purposes.
-- Easy integration with your existing services. Currently, Seerr supports Sonarr and Radarr. More to come!
-- Jellyfin/Emby/Plex library scan, to keep track of the titles which are already available.
-- Customizable request system, which allows users to request individual seasons or movies in a friendly, easy-to-use interface.
-- Incredibly simple request management UI. Don't dig through the app to simply approve recent requests!
-- Granular permission system.
-- Support for various notification agents.
-- Mobile-friendly design, for when you need to approve requests on the go!
-- Support for watchlisting & blocklisting media.
-- Browser and host-side caching for faster repeat loads, refreshes, and tab restores.
-- Image proxy caching and cache warming for posters, backdrops, avatars, music artwork, and book covers.
-- Service-worker runtime caching for cacheable API responses, static assets, and proxied images.
-
-With more features on the way! Check out our [issue tracker](/../../issues) to see the features which have already been requested.
-
-## Getting Started
-
-Check out our documentation for instructions on how to install and run Seerr:
-
-https://docs.seerr.dev/getting-started/
-
-## TMDB Credentials
-
-SeerrNG reads TMDB credentials from the environment:
-
-- `TMDB_API_KEY`: TMDB API key (v3 auth).
-- `TMDB_READ_ACCESS_TOKEN`: TMDB API read access token (v4 bearer token).
-
-Use deployment secrets, `.env` files, or container environment variables for these values. Do not commit private deployment credentials to the repository.
-
-## Performance and Caching
-
-SeerrNG includes several cache layers intended to make refreshes, tab restores, and repeated browsing much faster while still keeping media data fresh:
-
-- **Browser runtime cache**: the service worker registers independently of push notification setup and keeps a bounded `runtime-v1` cache for cacheable API responses, static assets, avatar proxy responses, and image proxy responses.
-- **Stale-while-revalidate responses**: cacheable public/settings/discover/search/media API responses and proxied images can be served immediately from cache while SeerrNG refreshes them in the background.
-- **Image proxy cache**: externally sourced images are proxied through SeerrNG, stored under the config cache directory when image caching is enabled, and returned with browser cache headers plus validators for efficient `304 Not Modified` responses.
-- **Visible-first image warming**: media sliders warm only the currently visible titles first, cap warmup batches, dedupe repeated warm requests, and schedule warmup work during idle time so below-the-fold content does not block the first populated viewport.
-- **Background-tab restraint**: browser image warming is skipped while the tab is hidden so switching away and back does not create unnecessary warmup traffic.
-- **DNS and external API caches**: Jobs & Cache settings expose cache statistics and flush controls for external API, DNS, and image cache data.
-
-When SeerrNG is behind a reverse proxy, avoid blanket `Cache-Control: no-store` on cacheable API, static asset, `/imageproxy/*`, `/avatarproxy/*`, and `/sw.js` paths. Protected app pages can remain non-cacheable, but stripping cache headers from the cacheable paths will prevent the browser and service worker from doing useful work.
-
-## Preview
+## Screenshots
 
 ### Discover
 
-<img src="./public/preview.jpg" alt="SeerrNG Discover panel" />
+<img src="./public/preview.jpg" alt="SeerrNG Discover page" />
 
 ### Books
 
-<img src="./public/preview-books.jpg" alt="SeerrNG Books pane" />
+<img src="./public/preview-books.jpg" alt="SeerrNG Books page" />
 
 ### Music
 
-<img src="./public/preview-music.jpg" alt="SeerrNG Music pane" />
+<img src="./public/preview-music.jpg" alt="SeerrNG Music page" />
 
-## Migrating from Overseerr/Jellyseerr to Seerr
+## Install
 
-Read our [release announcement](https://docs.seerr.dev/blog/seerr-release) to learn what Seerr means for Jellyseerr and Overseerr users.
+### Docker
 
-Please follow our [migration guide](https://docs.seerr.dev/migration-guide) for detailed instructions on migrating from Overseerr or Jellyseerr.
+The main container image is published from this repository:
+
+```bash
+docker run -d \
+  --name seerrng \
+  -e LOG_LEVEL=info \
+  -e PORT=5055 \
+  -p 5055:5055 \
+  -v /path/to/seerrng/config:/app/config \
+  --restart unless-stopped \
+  ghcr.io/snapetech/seerrng:main
+```
+
+Open `http://localhost:5055` and complete setup.
+
+### Docker Compose
+
+```yaml
+services:
+  seerrng:
+    image: ghcr.io/snapetech/seerrng:main
+    container_name: seerrng
+    environment:
+      LOG_LEVEL: info
+      PORT: 5055
+      TMDB_API_KEY: ${TMDB_API_KEY}
+      TMDB_READ_ACCESS_TOKEN: ${TMDB_READ_ACCESS_TOKEN}
+    ports:
+      - 5055:5055
+    volumes:
+      - /path/to/seerrng/config:/app/config
+    restart: unless-stopped
+```
+
+### Linux Packages
+
+This repo includes release workflows and packaging metadata for tarball, Debian, RPM, AppImage, Flatpak, Snap, AUR, PPA, and COPR style distribution. Use the GitHub releases for generated artifacts when available.
+
+## Required Setup
+
+SeerrNG needs the same base setup as Seerr for video libraries, plus optional services for music and books.
+
+Core:
+
+- A Plex, Jellyfin, or Emby server.
+- Radarr for movie automation.
+- Sonarr for TV automation.
+- SQLite or PostgreSQL for the application database.
+
+Music:
+
+- Lidarr server configured in **Settings > Services**.
+- Root folder, quality profile, metadata profile, and tags configured from the Lidarr service settings.
+- A default Lidarr server if users should be able to request music without choosing a service each time.
+
+Books:
+
+- Bookshelf or another Readarr-compatible service configured in **Settings > Services**.
+- One service marked as ebook-capable for ebook requests.
+- Optional second service marked as audiobook-capable for audiobook requests.
+- Separate defaults for ebook and audiobook if both-format requests should work cleanly.
+
+## Environment Variables
+
+Common runtime variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | HTTP port. Defaults to `5055`. |
+| `LOG_LEVEL` | Server log level. |
+| `CONFIG_DIRECTORY` | Alternate config directory for non-container installs. |
+| `TMDB_API_KEY` | TMDB v3 API key. |
+| `TMDB_READ_ACCESS_TOKEN` | TMDB v4 bearer token. |
+| `SEERR_EXTERNAL_READ_ONLY` | Blocks mutating requests to external automation APIs when enabled. Useful for test/lab environments. |
+
+Use deployment secrets, `.env` files, or container environment variables. Do not commit private TMDB, Plex, Jellyfin, Emby, Radarr, Sonarr, Lidarr, Bookshelf, SMTP, or notification credentials.
+
+## Caching and Performance
+
+SeerrNG has several cache layers. They are designed to make repeat browsing, page refreshes, and tab restores fast while keeping media data reasonably fresh.
+
+- **Service worker runtime cache** keeps cacheable API responses, static assets, avatars, and image proxy responses available to the browser.
+- **Stale-while-revalidate API responses** let cacheable pages populate quickly while background requests refresh data.
+- **Image proxy cache** stores supported external images under the config cache directory and returns browser validators for efficient `304 Not Modified` responses.
+- **Visible-first warmup** warms images for visible titles before below-the-fold content.
+- **Hidden-tab restraint** skips image warmup while the tab is hidden so returning to the tab does not flood the app with stale work.
+- **Host caches** cover TMDB, MusicBrainz, ListenBrainz, Open Library, Cover Art Archive, TheAudioDB, Radarr, Sonarr, Lidarr, Readarr/Bookshelf, DNS, and image metadata where supported.
+- **Jobs & Cache settings** expose cache stats and flush controls.
+
+If SeerrNG runs behind a reverse proxy, do not blanket-strip cache headers or force `Cache-Control: no-store` on `/imageproxy/*`, `/avatarproxy/*`, `/sw.js`, static assets, or cacheable API responses. App pages and sensitive routes can remain non-cacheable.
+
+## Development
+
+Requirements:
+
+- Node.js matching the repo/tooling version.
+- `pnpm`.
+- SQLite for local development, or PostgreSQL if testing that backend.
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Run the development server:
+
+```bash
+pnpm dev
+```
+
+Useful commands:
+
+```bash
+pnpm typecheck
+pnpm typecheck:client
+pnpm typecheck:server
+pnpm lint
+pnpm test
+pnpm build
+pnpm --dir gen-docs build
+```
+
+API docs are served by a running local install at:
+
+```text
+http://localhost:5055/api-docs
+```
+
+## Testing Real Integrations
+
+For music and book changes, test against real services when possible:
+
+- Add a Lidarr server, set it as default, request an album, approve it, scan it, retry failure cases, and remove it.
+- Add a Bookshelf/Readarr-compatible ebook server, request a book by search result and specific edition/ISBN, approve it, scan it, retry it, and remove it.
+- Add a separate audiobook Bookshelf service and test audiobook-only plus both-format requests.
+- Confirm request cards, request detail pages, notifications, and backend links point to the correct SeerrNG and service pages.
+
+See [docs/using-seerr/music-and-books-alpha.md](./docs/using-seerr/music-and-books-alpha.md) for the current hands-on test checklist.
+
+## Legal Use
+
+SeerrNG is intended for lawful personal media management. The project does not provide media, does not bypass DRM, and does not condone piracy or copyright infringement. Users are responsible for complying with the laws, licenses, and service terms that apply in their region.
 
 ## Support
 
-- Check out the [Seerr Documentation](https://docs.seerr.dev) before asking for help. Your question might already be in the docs!
-- SeerrNG support is available on Discord in our community channel: https://discord.gg/2N42G4RJCU
-- You can ask questions in the Help category of our [GitHub Discussions](/../../discussions).
-- Bug reports and feature requests can be submitted via [GitHub Issues](/../../issues).
+- Discord: https://discord.gg/2N42G4RJCU
+- Issues: https://github.com/snapetech/seerrng/issues
+- Discussions: https://github.com/snapetech/seerrng/discussions
 
-For SeerrNG-specific help, development discussion, tester feedback, and books/music workflow support, join our Discord channel at https://discord.gg/2N42G4RJCU. Upstream Seerr documentation remains useful for inherited video, server, and deployment behavior, but SeerrNG fork-specific support should start in our Discord.
-
-## API Documentation
-
-You can access the API documentation from your local Seerr install at http://localhost:5055/api-docs
-
-## Community
-
-You can ask questions, share ideas, and more in [GitHub Discussions](/../../discussions).
-
-If you would like to chat with other members of our growing community, [join the SeerrNG Discord channel](https://discord.gg/2N42G4RJCU)!
-
-Our [Code of Conduct](./CODE_OF_CONDUCT.md) applies to all Seerr community channels.
+Use upstream Seerr documentation when you need background on inherited deployment or video-library behavior, but report SeerrNG-specific music, book, cache, packaging, and branding issues in this repository.
 
 ## Contributing
 
-You can help improve Seerr too! Check out our [Contribution Guide](./CONTRIBUTING.md) to get started.
+Contributions should target SeerrNG behavior and this repository's current branch layout. Before opening a pull request:
 
-## Contributors ✨
+- Keep fork attribution intact.
+- Avoid reintroducing upstream-only branding.
+- Add or update tests for request, validation, service-routing, cache, and scanner behavior.
+- Run the relevant typecheck/test commands.
+- Disclose AI assistance as required by [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-[![Contributors](https://opencollective.com/seerr/contributors.svg?width=890)](https://opencollective.com/seerr/#backers)
+## Attribution
 
-[![Become a Backer](https://opencollective.com/seerr/backers.svg)](https://opencollective.com/seerr/#backers)
-[![Become a Sponsor](https://opencollective.com/seerr/sponsors.svg)](https://opencollective.com/seerr/#sponsors)
+SeerrNG builds on Seerr, Jellyseerr, and Overseerr. Inherited code, documentation, and design remain credited to their original contributors. Fork-specific changes are credited to snapetech and SeerrNG contributors unless otherwise noted. See [NOTICE.md](./NOTICE.md) for the full attribution policy.

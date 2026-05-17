@@ -72,6 +72,16 @@ const parseResetGuid = (value: unknown) =>
     maxLength: MAX_RESET_GUID_LENGTH,
   });
 
+const parseRequestBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Request body must be an object.' };
+  }
+
+  return { value: body as Record<string, unknown> };
+};
+
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
@@ -118,7 +128,11 @@ authRoutes.get('/me', isAuthenticated(), async (req, res) => {
 authRoutes.post('/plex', async (req, res, next) => {
   const settings = getSettings();
   const userRepository = getRepository(User);
-  const body = req.body as { authToken?: string };
+  const parsedBody = parseRequestBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return next({ status: 400, message: parsedBody.error });
+  }
+  const body = parsedBody.value;
   const authToken = parseBoundedString(body.authToken, {
     fieldName: 'Authentication token',
     maxLength: MAX_AUTH_TOKEN_LENGTH,
@@ -299,7 +313,11 @@ function getUserAvatarUrl(user: User): string {
 authRoutes.post('/jellyfin', authRateLimit, async (req, res, next) => {
   const settings = getSettings();
   const userRepository = getRepository(User);
-  const body = req.body as {
+  const parsedBody = parseRequestBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ error: parsedBody.error });
+  }
+  const body = parsedBody.value as {
     username?: string;
     password?: string;
     hostname?: string;
@@ -736,7 +754,11 @@ authRoutes.post('/jellyfin', authRateLimit, async (req, res, next) => {
 authRoutes.post('/local', authRateLimit, async (req, res, next) => {
   const settings = getSettings();
   const userRepository = getRepository(User);
-  const body = req.body as { email?: string; password?: string };
+  const parsedBody = parseRequestBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ error: parsedBody.error });
+  }
+  const body = parsedBody.value;
   const email = parseLoginIdentifier(body.email);
   const password = parsePassword(body.password);
 
@@ -869,7 +891,11 @@ authRoutes.post(
   passwordResetRateLimit,
   async (req, res, next) => {
     const userRepository = getRepository(User);
-    const body = req.body as { email?: string };
+    const parsedBody = parseRequestBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+    const body = parsedBody.value;
 
     if (!body.email) {
       return next({

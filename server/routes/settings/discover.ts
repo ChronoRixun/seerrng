@@ -30,13 +30,29 @@ const parseSliderId = (value: unknown): number | undefined => {
   return value;
 };
 
+const parseSliderObject = (
+  value: unknown
+): { value: Partial<DiscoverSlider> } | { error: string } => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { error: 'Slider must be an object.' };
+  }
+
+  return { value: value as Partial<DiscoverSlider> };
+};
+
 const parseCustomSlider = (
-  slider: Partial<DiscoverSlider>
+  value: unknown
 ):
   | { value: Pick<DiscoverSlider, 'data' | 'title' | 'type'> }
   | {
       error: string;
     } => {
+  const parsedSlider = parseSliderObject(value);
+  if ('error' in parsedSlider) {
+    return parsedSlider;
+  }
+  const slider = parsedSlider.value;
+
   const title = parseBoundedString(slider.title, {
     fieldName: 'Slider title',
     maxLength: MAX_DISCOVER_SLIDER_TITLE_LENGTH,
@@ -80,7 +96,11 @@ discoverSettingRoutes.post('/', async (req, res) => {
   const savedSliders: DiscoverSlider[] = [];
 
   for (let x = 0; x < sliders.length; x++) {
-    const slider = sliders[x];
+    const parsedSliderObject = parseSliderObject(sliders[x]);
+    if ('error' in parsedSliderObject) {
+      return res.status(400).json({ message: parsedSliderObject.error });
+    }
+    const slider = parsedSliderObject.value;
     const sliderId = parseSliderId(slider.id);
 
     if (slider.id !== undefined && slider.id !== null && !sliderId) {
@@ -137,8 +157,7 @@ discoverSettingRoutes.post('/', async (req, res) => {
 discoverSettingRoutes.post('/add', async (req, res) => {
   const sliderRepository = getRepository(DiscoverSlider);
 
-  const slider = req.body as DiscoverSlider;
-  const parsedSlider = parseCustomSlider(slider);
+  const parsedSlider = parseCustomSlider(req.body);
 
   if ('error' in parsedSlider) {
     return res.status(400).json({ message: parsedSlider.error });
@@ -176,8 +195,7 @@ discoverSettingRoutes.put('/:sliderId', async (req, res, next) => {
     });
   }
 
-  const slider = req.body as DiscoverSlider;
-  const parsedSlider = parseCustomSlider(slider);
+  const parsedSlider = parseCustomSlider(req.body);
 
   if ('error' in parsedSlider) {
     return res.status(400).json({ message: parsedSlider.error });

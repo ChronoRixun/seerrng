@@ -112,10 +112,35 @@ describe('GET /auth/me', () => {
   });
 });
 
+describe('POST /auth/plex', () => {
+  it('rejects malformed Plex login bodies before external auth', async () => {
+    const res = await request(app).post('/auth/plex').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.message, 'Request body must be an object.');
+  });
+});
+
+describe('POST /auth/jellyfin', () => {
+  it('rejects malformed Jellyfin login bodies before external auth', async () => {
+    const res = await request(app).post('/auth/jellyfin').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error, 'Request body must be an object.');
+  });
+});
+
 describe('POST /auth/local', () => {
   beforeEach(() => {
     const settings = getSettings();
     settings.main.localLogin = true;
+  });
+
+  it('rejects malformed local login bodies before credential lookup', async () => {
+    const res = await request(app).post('/auth/local').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error, 'Request body must be an object.');
   });
 
   it('returns 200 and user data on valid credentials', async () => {
@@ -236,6 +261,14 @@ describe('POST /auth/logout', () => {
 describe('POST /auth/reset-password', () => {
   beforeEach(() => {
     emailMock.resetCalls();
+  });
+
+  it('rejects malformed reset requests before user lookup', async () => {
+    const res = await request(app).post('/auth/reset-password').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.message, 'Request body must be an object.');
+    assert.strictEqual(emailMock.callCount(), 0);
   });
 
   it('returns 200 for a valid email', async () => {
