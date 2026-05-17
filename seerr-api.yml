@@ -7814,6 +7814,12 @@ paths:
           schema:
             type: string
             example: en
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: List of movies
@@ -7859,6 +7865,12 @@ paths:
           schema:
             type: string
             example: en
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: List of movies
@@ -8059,6 +8071,12 @@ paths:
           schema:
             type: string
             example: en
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: List of TV series
@@ -8104,6 +8122,12 @@ paths:
           schema:
             type: string
             example: en
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: List of TV series
