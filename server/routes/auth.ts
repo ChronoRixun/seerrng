@@ -37,6 +37,12 @@ const MAX_HOSTNAME_LENGTH = 255;
 const MAX_URL_BASE_LENGTH = 512;
 const MAX_RESET_GUID_LENGTH = 64;
 const MAX_PORT = 65_535;
+const DEVICE_DELETE_REQUEST_OPTIONS = {
+  timeout: 5_000,
+  maxRedirects: 0,
+  maxContentLength: 1024,
+  maxBodyLength: 1024,
+};
 
 const parseLoginIdentifier = (
   value: unknown,
@@ -893,6 +899,7 @@ authRoutes.post('/logout', async (req, res, next) => {
           const baseUrl = getHostname();
           try {
             await axios.delete(`${baseUrl}/Devices`, {
+              ...DEVICE_DELETE_REQUEST_OPTIONS,
               params: { Id: user.jellyfinDeviceId },
               headers: {
                 'X-Emby-Authorization': `MediaBrowser Client="Seerr", Device="Seerr", DeviceId="seerr", Version="${

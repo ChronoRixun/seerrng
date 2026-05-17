@@ -26,6 +26,12 @@ import { createHash } from 'node:crypto';
 const router = Router();
 const MAX_AVATAR_VERSION_LENGTH = 128;
 const JELLYFIN_USER_ID_PATTERN = /^[a-f0-9]{32}$/;
+export const AVATAR_HEAD_REQUEST_OPTIONS = {
+  timeout: 5_000,
+  maxRedirects: 0,
+  maxContentLength: 1024,
+  maxBodyLength: 1024,
+};
 
 const avatarProxyRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -126,7 +132,10 @@ export async function checkAvatarChanged(
 
     let headResponse;
     try {
-      headResponse = await axios.head(jellyfinAvatarUrl);
+      headResponse = await axios.head(
+        jellyfinAvatarUrl,
+        AVATAR_HEAD_REQUEST_OPTIONS
+      );
       if (headResponse.status !== 200) {
         return { changed: false };
       }

@@ -7,6 +7,12 @@ import type { MbAlbumDetails, MbArtistDetails } from './interfaces';
 
 const window = new JSDOM('').window;
 const purify = DOMPurify(window);
+export const WIKIPEDIA_EXTRACT_HTTP_OPTIONS = {
+  timeout: 10_000,
+  maxRedirects: 3,
+  maxContentLength: 256 * 1024,
+  maxBodyLength: 1024,
+};
 
 const escapeLucene = (value: string): string =>
   value.replace(/([+\-&|!(){}[\]^"~*?:\\/])/g, '\\$1');
@@ -232,6 +238,7 @@ class MusicBrainz extends ExternalAPI {
       const safeUrl = `https://musicbrainz.org/artist/${artistMbid}/wikipedia-extract`;
 
       const response = await axios.get(safeUrl, {
+        ...WIKIPEDIA_EXTRACT_HTTP_OPTIONS,
         headers: {
           Accept: 'application/json',
           'Accept-Language': language,

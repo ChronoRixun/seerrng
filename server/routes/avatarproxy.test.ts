@@ -6,7 +6,7 @@ import type { ImageResponse } from '@server/lib/imageproxy';
 import ImageProxy from '@server/lib/imageproxy';
 import express from 'express';
 import request from 'supertest';
-import avatarproxyRoutes from './avatarproxy';
+import avatarproxyRoutes, { AVATAR_HEAD_REQUEST_OPTIONS } from './avatarproxy';
 
 const avatarResponse: ImageResponse = {
   meta: {
@@ -55,6 +55,15 @@ function mockAvatarDependencies() {
 
 afterEach(() => {
   mock.restoreAll();
+});
+
+describe('AVATAR_HEAD_REQUEST_OPTIONS', () => {
+  it('bounds media-server avatar HEAD requests', () => {
+    assert.equal(AVATAR_HEAD_REQUEST_OPTIONS.timeout, 5_000);
+    assert.equal(AVATAR_HEAD_REQUEST_OPTIONS.maxRedirects, 0);
+    assert.equal(AVATAR_HEAD_REQUEST_OPTIONS.maxContentLength, 1024);
+    assert.equal(AVATAR_HEAD_REQUEST_OPTIONS.maxBodyLength, 1024);
+  });
 });
 
 describe('GET /avatarproxy/remote', () => {
