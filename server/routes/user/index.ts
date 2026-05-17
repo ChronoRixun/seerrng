@@ -17,7 +17,11 @@ import type {
   UserResultsResponse,
   UserWatchDataResponse,
 } from '@server/interfaces/api/userInterfaces';
-import { Permission, hasPermission } from '@server/lib/permissions';
+import {
+  MAX_PERMISSION_VALUE,
+  Permission,
+  hasPermission,
+} from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import { getCombinedWatchlist } from '@server/lib/watchlist';
 import logger from '@server/logger';
@@ -301,7 +305,10 @@ const parseUserUpdateBody = (
     return username;
   }
 
-  const permissions = parseOptionalNonNegativeInteger(body.permissions);
+  const permissions = parseOptionalNonNegativeInteger(
+    body.permissions,
+    MAX_PERMISSION_VALUE
+  );
 
   if (permissions === undefined) {
     return { error: 'permissions is invalid.' };
@@ -879,7 +886,8 @@ router.put<
   }
 
   const parsedPermissions = parseOptionalNonNegativeInteger(
-    req.body.permissions
+    req.body.permissions,
+    MAX_PERMISSION_VALUE
   );
 
   if (parsedPermissions === undefined) {

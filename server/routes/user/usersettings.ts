@@ -13,7 +13,7 @@ import type {
   UserSettingsGeneralResponse,
   UserSettingsNotificationsResponse,
 } from '@server/interfaces/api/userSettingsInterfaces';
-import { Permission } from '@server/lib/permissions';
+import { MAX_PERMISSION_VALUE, Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
@@ -1192,7 +1192,8 @@ userSettingsRoutes.post<
   async (req, res, next) => {
     const userRepository = getRepository(User);
     const parsedPermissions = parseOptionalNonNegativeInteger(
-      req.body.permissions
+      req.body.permissions,
+      MAX_PERMISSION_VALUE
     );
 
     if (parsedPermissions === undefined) {

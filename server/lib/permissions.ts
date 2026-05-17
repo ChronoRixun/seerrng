@@ -37,6 +37,10 @@ export enum Permission {
   AUTO_REQUEST_BOOK = 68719476736,
 }
 
+export const MAX_PERMISSION_VALUE = Object.values(Permission)
+  .filter((value): value is number => typeof value === 'number')
+  .reduce((sum, value) => sum + value, 0);
+
 export interface PermissionCheckOptions {
   type: 'and' | 'or';
 }
