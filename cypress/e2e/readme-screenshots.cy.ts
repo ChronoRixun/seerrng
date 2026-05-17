@@ -59,13 +59,15 @@ const albumTitles = [
   ['Lemonade', 'Beyonce'],
 ];
 
+const baseUrl = 'http://localhost:5055';
+
 const books = bookTitles.map(([title, author], index) => ({
   id: `OLREADME${index + 1}W`,
   mediaType: 'book',
   title,
   author,
   firstPublishYear: 2000 + index,
-  posterPath: `/readme-covers/book-${index + 1}.png`,
+  posterPath: `${baseUrl}/readme-covers/book-${index + 1}.png`,
 }));
 
 const albums = albumTitles.map(([title, artist], index) => ({
@@ -75,7 +77,7 @@ const albums = albumTitles.map(([title, artist], index) => ({
   'primary-type': 'Album',
   'first-release-date': `${2000 + index}-05-01`,
   releaseDate: String(2000 + index),
-  posterPath: `/readme-covers/album-${index + 1}.png`,
+  posterPath: `${baseUrl}/readme-covers/album-${index + 1}.png`,
   'artist-credit': [{ name: artist }],
 }));
 
@@ -134,7 +136,7 @@ describe('README screenshots', () => {
     cy.contains('Recommended Books').should('be.visible');
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     cy.contains('Recommended Music').scrollIntoView();
-    waitForImages();
+    cy.wait(1000);
     cy.screenshot('readme-discover', { capture: 'viewport' });
   });
 

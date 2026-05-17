@@ -343,14 +343,6 @@ issueRoutes.get<{ issueId: string }>(
     if (!issueId) {
       return next({ status: 404, message: 'Issue not found.' });
     }
-    const newStatus = parseIssueStatusAction(req.params.status);
-    if (!newStatus) {
-      return next({
-        status: 400,
-        message: 'You must provide a valid status',
-      });
-    }
-
     // Satisfy typescript here. User is set, we assure you!
     if (!req.user) {
       return next({ status: 500, message: 'User missing from request.' });
@@ -462,6 +454,13 @@ issueRoutes.post<{ issueId: string; status: string }, Issue>(
     const issueId = parsePositiveRouteId(req.params.issueId);
     if (!issueId) {
       return next({ status: 404, message: 'Issue not found.' });
+    }
+    const newStatus = parseIssueStatusAction(req.params.status);
+    if (!newStatus) {
+      return next({
+        status: 400,
+        message: 'You must provide a valid status',
+      });
     }
 
     // Satisfy typescript here. User is set, we assure you!
