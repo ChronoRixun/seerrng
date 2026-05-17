@@ -1929,6 +1929,18 @@ describe('POST /request/:requestId/retry', () => {
 });
 
 describe('POST /request/bulk', () => {
+  it('rejects bulk items without media IDs before creating requests', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      items: [{ mediaId: '   ', title: 'Missing Album ID' }],
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /mediaId is required/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
   it('rejects bulk item text that exceeds request limits', async () => {
     const agent = await loginAs('friend@seerr.dev', 'test1234');
     const res = await agent.post('/request/bulk').send({

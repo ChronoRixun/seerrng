@@ -369,13 +369,25 @@ const sanitizeBulkMediaRequestBody = (
       };
     }
 
-    const mediaId = parseOptionalRequestString(
-      item.mediaId,
-      'mediaId',
-      maxBulkRequestItemTextLength
-    );
-    if ('error' in mediaId) {
-      return mediaId;
+    const mediaId =
+      typeof item.mediaId === 'string' ? item.mediaId.trim() : item.mediaId;
+    if (typeof mediaId !== 'string') {
+      return {
+        error: { status: 400, message: 'mediaId must be a string.' },
+      };
+    }
+    if (!mediaId) {
+      return {
+        error: { status: 400, message: 'mediaId is required.' },
+      };
+    }
+    if (mediaId.length > maxBulkRequestItemTextLength) {
+      return {
+        error: {
+          status: 400,
+          message: `mediaId must be ${maxBulkRequestItemTextLength} characters or fewer.`,
+        },
+      };
     }
 
     const title = parseOptionalRequestString(
@@ -415,7 +427,7 @@ const sanitizeBulkMediaRequestBody = (
     }
 
     sanitizedItems.push({
-      mediaId: mediaId.value ?? '',
+      mediaId,
       title: title.value,
       isbn13: isbn13.value,
       editionId: editionId.value,
