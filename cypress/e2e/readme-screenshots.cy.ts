@@ -177,7 +177,7 @@ describe('README screenshots', () => {
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     cy.contains('Recommended Music').scrollIntoView();
     cy.contains('Meteora').should('be.visible');
-    cy.contains('The Clockwork Sea').should('exist');
+    cy.contains('The Hobbit').should('exist');
     waitForImages();
     cy.contains('Recommended Music').scrollIntoView();
     cy.wait(1000);

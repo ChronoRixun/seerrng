@@ -41,15 +41,15 @@ Current focus:
 
 ### Discover
 
-<img src="./public/preview.jpg" alt="SeerrNG Discover page" />
+<img src="./public/readme-discover-covers.jpg" alt="SeerrNG Discover page" />
 
 ### Books
 
-<img src="./public/preview-books.jpg" alt="SeerrNG Books page" />
+<img src="./public/readme-books-covers.jpg" alt="SeerrNG Books page" />
 
 ### Music
 
-<img src="./public/preview-music.jpg" alt="SeerrNG Music page" />
+<img src="./public/readme-music-covers.jpg" alt="SeerrNG Music page" />
 
 ## Install
 
