@@ -71,12 +71,7 @@ export const preserveRedactedSecrets = <T>(
 };
 
 export const getRateLimitKey = (req: Request): string => {
-  const forwarded = req.headers['x-forwarded-for'];
-  const forwardedIp = Array.isArray(forwarded)
-    ? forwarded[0]
-    : forwarded?.split(',')[0];
-
-  const ip = (forwardedIp || req.ip || req.socket.remoteAddress || 'unknown')
+  const ip = (req.ip || req.socket.remoteAddress || 'unknown')
     .trim()
     .toLowerCase();
 

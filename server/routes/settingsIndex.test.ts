@@ -414,6 +414,52 @@ describe('Settings route input validation', () => {
     assert.match(ntfyRes.body.message, /Notification types must be valid/);
   });
 
+  it('rejects malformed Gotify and ntfy notification options before persistence', async () => {
+    const gotifyTokenRes = await request(app)
+      .post('/settings/notifications/gotify')
+      .send({
+        enabled: false,
+        types: 0,
+        options: {
+          url: 'https://example.com/gotify',
+          token: 123,
+          priority: 5,
+        },
+      });
+    const gotifyPriorityRes = await request(app)
+      .post('/settings/notifications/gotify')
+      .send({
+        enabled: false,
+        types: 0,
+        options: {
+          url: 'https://example.com/gotify',
+          token: 'token',
+          priority: 1001,
+        },
+      });
+    const ntfyAuthRes = await request(app)
+      .post('/settings/notifications/ntfy')
+      .send({
+        enabled: false,
+        types: 0,
+        options: {
+          url: 'https://example.com/ntfy',
+          topic: 'topic',
+          authMethodToken: 'true',
+        },
+      });
+
+    assert.strictEqual(gotifyTokenRes.status, 400);
+    assert.match(gotifyTokenRes.body.message, /Gotify token must be a string/);
+    assert.strictEqual(gotifyPriorityRes.status, 400);
+    assert.match(
+      gotifyPriorityRes.body.message,
+      /Gotify priority must be an integer/
+    );
+    assert.strictEqual(ntfyAuthRes.status, 400);
+    assert.match(ntfyAuthRes.body.message, /ntfy authMethodToken must be a boolean/);
+  });
+
   it('persists normalized Gotify and ntfy notification bodies', async () => {
     const gotifyRes = await request(app)
       .post('/settings/notifications/gotify')
@@ -571,9 +617,47 @@ describe('Settings route input validation', () => {
     assert.strictEqual(pushoverRes.status, 400);
     assert.match(pushoverRes.body.message, /Notification types must be valid/);
     assert.strictEqual(emailRes.status, 400);
-    assert.match(emailRes.body.message, /smtpPort must be a number/);
+    assert.match(
+      emailRes.body.message,
+      /smtpPort must be an integer between 1 and 65535/
+    );
     assert.strictEqual(webpushRes.status, 400);
     assert.match(webpushRes.body.message, /Web push options must be an object/);
+  });
+
+  it('rejects oversized generic notification option values before saving', async () => {
+    const tokenRes = await request(app)
+      .post('/settings/notifications/pushbullet')
+      .send({
+        enabled: false,
+        types: 0,
+        options: { accessToken: 'x'.repeat(4097) },
+      });
+    const portRes = await request(app)
+      .post('/settings/notifications/email')
+      .send({
+        enabled: false,
+        types: 0,
+        options: {
+          userEmailRequired: false,
+          emailFrom: 'test@example.com',
+          smtpHost: 'smtp.example.com',
+          smtpPort: 70000,
+          secure: false,
+          ignoreTls: false,
+          requireTls: false,
+          allowSelfSigned: false,
+          senderName: 'Seerr',
+        },
+      });
+
+    assert.strictEqual(tokenRes.status, 400);
+    assert.match(tokenRes.body.message, /accessToken must be 4096 characters/);
+    assert.strictEqual(portRes.status, 400);
+    assert.match(
+      portRes.body.message,
+      /smtpPort must be an integer between 1 and 65535/
+    );
   });
 
   it('persists normalized remaining notification bodies', async () => {

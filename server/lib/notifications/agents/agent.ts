@@ -24,11 +24,19 @@ export interface NotificationPayload {
   isAdmin?: boolean;
 }
 
+const isSafeRelativeNotificationPath = (value: string): boolean =>
+  value.startsWith('/') &&
+  !value.startsWith('//') &&
+  !/[\r\n]/.test(value) &&
+  !/^[a-z][a-z0-9+.-]*:/i.test(value);
+
 export const getNotificationMediaUrl = (
   payload: Pick<NotificationPayload, 'media' | 'mediaUrl'>
 ): string | undefined => {
   if (payload.mediaUrl) {
-    return payload.mediaUrl;
+    return isSafeRelativeNotificationPath(payload.mediaUrl)
+      ? payload.mediaUrl
+      : undefined;
   }
 
   if (!payload.media) {

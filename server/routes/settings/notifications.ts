@@ -41,7 +41,10 @@ const notificationRoutes = Router();
 const MAX_WEBHOOK_PAYLOAD_BYTES = 64 * 1024;
 const MAX_WEBHOOK_CUSTOM_HEADERS = 20;
 const MAX_WEBHOOK_HEADER_VALUE_LENGTH = 4096;
+const MAX_NOTIFICATION_OPTION_STRING_LENGTH = 4096;
 const MAX_NOTIFICATION_TYPES = 0x7fffffff;
+const MAX_NOTIFICATION_PRIORITY = 1000;
+const MAX_PORT = 65_535;
 const WEBHOOK_HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 const messages = defineMessages('notifications.test', {
@@ -298,6 +301,78 @@ const parseUrlNotificationBody = (
       error: { status: 400, message: `${label} URL must be a string.` },
     };
   }
+  if (options.url.length > MAX_NOTIFICATION_OPTION_STRING_LENGTH) {
+    return {
+      error: {
+        status: 400,
+        message: `${label} URL must be ${MAX_NOTIFICATION_OPTION_STRING_LENGTH} characters or fewer.`,
+      },
+    };
+  }
+
+  const validateOptionalString = (option: string) => {
+    const optionValue = options[option];
+    if (optionValue === undefined || optionValue === null) {
+      return;
+    }
+    if (typeof optionValue !== 'string') {
+      return {
+        status: 400,
+        message: `${label} ${option} must be a string.`,
+      };
+    }
+    if (optionValue.length > MAX_NOTIFICATION_OPTION_STRING_LENGTH) {
+      return {
+        status: 400,
+        message: `${label} ${option} must be ${MAX_NOTIFICATION_OPTION_STRING_LENGTH} characters or fewer.`,
+      };
+    }
+  };
+
+  const validateOptionalBoolean = (option: string) => {
+    const optionValue = options[option];
+    if (optionValue === undefined || optionValue === null) {
+      return;
+    }
+    if (typeof optionValue !== 'boolean') {
+      return {
+        status: 400,
+        message: `${label} ${option} must be a boolean.`,
+      };
+    }
+  };
+
+  const validateOptionalPriority = () => {
+    const optionValue = options.priority;
+    if (optionValue === undefined || optionValue === null) {
+      return;
+    }
+    if (
+      typeof optionValue !== 'number' ||
+      !Number.isInteger(optionValue) ||
+      optionValue < 0 ||
+      optionValue > MAX_NOTIFICATION_PRIORITY
+    ) {
+      return {
+        status: 400,
+        message: `${label} priority must be an integer between 0 and ${MAX_NOTIFICATION_PRIORITY}.`,
+      };
+    }
+  };
+
+  const optionErrors = [
+    validateOptionalString('token'),
+    validateOptionalString('topic'),
+    validateOptionalString('locale'),
+    validateOptionalString('username'),
+    validateOptionalString('password'),
+    validateOptionalBoolean('authMethodUsernamePassword'),
+    validateOptionalBoolean('authMethodToken'),
+    validateOptionalPriority(),
+  ].filter(Boolean);
+  if (optionErrors.length > 0) {
+    return { error: optionErrors[0] as RouteError };
+  }
 
   return {
     value: {
@@ -363,7 +438,8 @@ const parseGenericNotificationBody = (
 
   const options = value.options as Record<string, unknown>;
   for (const option of requiredStringOptions) {
-    if (typeof options[option] !== 'string') {
+    const optionValue = options[option];
+    if (typeof optionValue !== 'string') {
       return {
         error: {
           status: 400,
@@ -371,9 +447,19 @@ const parseGenericNotificationBody = (
         },
       };
     }
+
+    if (optionValue.length > MAX_NOTIFICATION_OPTION_STRING_LENGTH) {
+      return {
+        error: {
+          status: 400,
+          message: `${label} ${option} must be ${MAX_NOTIFICATION_OPTION_STRING_LENGTH} characters or fewer.`,
+        },
+      };
+    }
   }
   for (const option of requiredBooleanOptions) {
-    if (typeof options[option] !== 'boolean') {
+    const optionValue = options[option];
+    if (typeof optionValue !== 'boolean') {
       return {
         error: {
           status: 400,
@@ -383,14 +469,17 @@ const parseGenericNotificationBody = (
     }
   }
   for (const option of requiredNumberOptions) {
+    const optionValue = options[option];
     if (
-      typeof options[option] !== 'number' ||
-      !Number.isFinite(options[option])
+      typeof optionValue !== 'number' ||
+      !Number.isInteger(optionValue) ||
+      optionValue < 1 ||
+      optionValue > MAX_PORT
     ) {
       return {
         error: {
           status: 400,
-          message: `${label} ${option} must be a number.`,
+          message: `${label} ${option} must be an integer between 1 and 65535.`,
         },
       };
     }

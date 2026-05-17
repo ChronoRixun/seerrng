@@ -244,4 +244,23 @@ describe('notification media URLs', () => {
       undefined
     );
   });
+
+  it('rejects unsafe explicit notification media URLs', () => {
+    assert.equal(
+      getNotificationMediaUrl({ mediaUrl: 'https://evil.example/movie/1' }),
+      undefined
+    );
+    assert.equal(getNotificationMediaUrl({ mediaUrl: '//evil.example' }), undefined);
+    assert.equal(
+      getNotificationMediaUrl({ mediaUrl: '/movie/1\r\nX-Test: yes' }),
+      undefined
+    );
+    assert.equal(
+      getNotificationActionUrl(
+        { mediaUrl: 'javascript:alert(1)' },
+        'https://seerr.example'
+      ),
+      undefined
+    );
+  });
 });
