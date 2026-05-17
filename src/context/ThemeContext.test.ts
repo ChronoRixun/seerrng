@@ -22,6 +22,7 @@ describe('themePalettes', () => {
         id: 'sietch-neon',
         name: 'Sietch',
         swatches: ['#8e6036', '#43352e', '#8f5cff', '#d7ff3f'],
+        surface: 'sietchSpice',
         primary: 'sietchSpice',
         secondary: 'sietchNeon',
       }

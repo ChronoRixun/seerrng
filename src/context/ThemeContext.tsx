@@ -14,6 +14,7 @@ export type ThemePalette = {
   id: string;
   name: string;
   swatches: string[];
+  surface: ThemeScaleName;
   primary: ThemeScaleName;
   secondary: ThemeScaleName;
 };
@@ -23,6 +24,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'aurora',
     name: 'Aurora',
     swatches: ['#4f46e5', '#a855f7', '#14b8a6'],
+    surface: 'indigo',
     primary: 'indigo',
     secondary: 'purple',
   },
@@ -30,6 +32,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'ember',
     name: 'Ember',
     swatches: ['#dc2626', '#f97316', '#f59e0b'],
+    surface: 'orange',
     primary: 'red',
     secondary: 'orange',
   },
@@ -37,6 +40,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'lagoon',
     name: 'Lagoon',
     swatches: ['#0f766e', '#0891b2', '#2563eb'],
+    surface: 'teal',
     primary: 'teal',
     secondary: 'cyan',
   },
@@ -44,6 +48,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'orchid',
     name: 'Orchid',
     swatches: ['#7c3aed', '#d946ef', '#ec4899'],
+    surface: 'fuchsia',
     primary: 'violet',
     secondary: 'fuchsia',
   },
@@ -51,6 +56,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'forest',
     name: 'Forest',
     swatches: ['#15803d', '#65a30d', '#0f766e'],
+    surface: 'green',
     primary: 'green',
     secondary: 'lime',
   },
@@ -58,6 +64,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'sapphire',
     name: 'Sapphire',
     swatches: ['#1d4ed8', '#0284c7', '#6366f1'],
+    surface: 'blue',
     primary: 'blue',
     secondary: 'sky',
   },
@@ -65,6 +72,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'rosewood',
     name: 'Rosewood',
     swatches: ['#be123c', '#db2777', '#7c2d12'],
+    surface: 'rose',
     primary: 'rose',
     secondary: 'pink',
   },
@@ -72,6 +80,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'citrus',
     name: 'Citrus',
     swatches: ['#ca8a04', '#84cc16', '#f97316'],
+    surface: 'yellow',
     primary: 'yellow',
     secondary: 'lime',
   },
@@ -79,6 +88,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'arctic',
     name: 'Arctic',
     swatches: ['#0284c7', '#64748b', '#22d3ee'],
+    surface: 'slate',
     primary: 'sky',
     secondary: 'slate',
   },
@@ -86,6 +96,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'grape',
     name: 'Grape',
     swatches: ['#6d28d9', '#9333ea', '#4f46e5'],
+    surface: 'purple',
     primary: 'purple',
     secondary: 'violet',
   },
@@ -93,6 +104,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'coral',
     name: 'Coral',
     swatches: ['#e11d48', '#fb7185', '#f97316'],
+    surface: 'orange',
     primary: 'rose',
     secondary: 'orange',
   },
@@ -100,6 +112,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'mint',
     name: 'Mint',
     swatches: ['#059669', '#10b981', '#06b6d4'],
+    surface: 'emerald',
     primary: 'emerald',
     secondary: 'teal',
   },
@@ -107,6 +120,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'steel',
     name: 'Steel',
     swatches: ['#475569', '#2563eb', '#0f766e'],
+    surface: 'slate',
     primary: 'slate',
     secondary: 'blue',
   },
@@ -114,6 +128,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'gold',
     name: 'Gold',
     swatches: ['#b45309', '#eab308', '#ea580c'],
+    surface: 'amber',
     primary: 'amber',
     secondary: 'yellow',
   },
@@ -121,6 +136,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'plum',
     name: 'Plum',
     swatches: ['#86198f', '#be185d', '#7c3aed'],
+    surface: 'pink',
     primary: 'fuchsia',
     secondary: 'pink',
   },
@@ -128,6 +144,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'skyline',
     name: 'Skyline',
     swatches: ['#0369a1', '#4f46e5', '#06b6d4'],
+    surface: 'sky',
     primary: 'sky',
     secondary: 'indigo',
   },
@@ -135,6 +152,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'moss',
     name: 'Moss',
     swatches: ['#4d7c0f', '#16a34a', '#ca8a04'],
+    surface: 'lime',
     primary: 'lime',
     secondary: 'green',
   },
@@ -142,6 +160,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'flame',
     name: 'Flame',
     swatches: ['#c2410c', '#dc2626', '#f59e0b'],
+    surface: 'red',
     primary: 'orange',
     secondary: 'red',
   },
@@ -149,6 +168,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'violet',
     name: 'Violet',
     swatches: ['#5b21b6', '#7e22ce', '#2563eb'],
+    surface: 'violet',
     primary: 'violet',
     secondary: 'blue',
   },
@@ -156,6 +176,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'ocean',
     name: 'Ocean',
     swatches: ['#075985', '#0d9488', '#1d4ed8'],
+    surface: 'cyan',
     primary: 'cyan',
     secondary: 'blue',
   },
@@ -163,6 +184,7 @@ export const themePalettes: ThemePalette[] = [
     id: 'sietch-neon',
     name: 'Sietch',
     swatches: ['#8e6036', '#43352e', '#8f5cff', '#d7ff3f'],
+    surface: 'sietchSpice',
     primary: 'sietchSpice',
     secondary: 'sietchNeon',
   },
@@ -456,55 +478,55 @@ const applyThemeChrome = (
     root.style.setProperty('--theme-page-bg', surfaceScale[9]);
     root.style.setProperty(
       '--theme-page-glow-start',
-      mixRgb(surfaceScale[8], primaryScale[7], 0.34)
+      mixRgb(surfaceScale[8], primaryScale[7], 0.56)
     );
     root.style.setProperty('--theme-page-glow-end', surfaceScale[9]);
     root.style.setProperty(
       '--theme-searchbar-scrolled',
-      mixRgb(surfaceScale[7], primaryScale[7], 0.22)
+      mixRgb(surfaceScale[8], primaryScale[7], 0.44)
     );
     root.style.setProperty(
       '--theme-sidebar-start',
-      mixRgb(surfaceScale[8], primaryScale[8], 0.4)
+      mixRgb(surfaceScale[8], primaryScale[8], 0.58)
     );
     root.style.setProperty(
       '--theme-sidebar-end',
-      mixRgb(surfaceScale[10], primaryScale[9], 0.34)
+      mixRgb(surfaceScale[10], primaryScale[9], 0.52)
     );
     root.style.setProperty(
       '--theme-sidebar-border',
-      mixRgb(surfaceScale[7], secondaryScale[6], 0.28)
+      mixRgb(surfaceScale[7], secondaryScale[6], 0.48)
     );
     root.style.setProperty(
       '--theme-sidebar-hover',
-      mixRgb(surfaceScale[7], primaryScale[7], 0.36)
+      mixRgb(surfaceScale[7], primaryScale[7], 0.52)
     );
   } else {
     root.style.setProperty('--theme-page-bg', surfaceScale[9]);
     root.style.setProperty(
       '--theme-page-glow-start',
-      mixRgb(surfaceScale[8], primaryScale[6], 0.22)
+      mixRgb(surfaceScale[8], primaryScale[3], 0.44)
     );
     root.style.setProperty('--theme-page-glow-end', surfaceScale[9]);
     root.style.setProperty(
       '--theme-searchbar-scrolled',
-      mixRgb(surfaceScale[8], primaryScale[6], 0.16)
+      mixRgb(surfaceScale[8], primaryScale[2], 0.38)
     );
     root.style.setProperty(
       '--theme-sidebar-start',
-      mixRgb(primaryScale[8], themeScales.slate[8], 0.42)
+      mixRgb(primaryScale[7], surfaceScale[2], 0.24)
     );
     root.style.setProperty(
       '--theme-sidebar-end',
-      mixRgb(primaryScale[10], themeScales.slate[10], 0.46)
+      mixRgb(primaryScale[9], surfaceScale[1], 0.18)
     );
     root.style.setProperty(
       '--theme-sidebar-border',
-      mixRgb(primaryScale[7], secondaryScale[7], 0.28)
+      mixRgb(primaryScale[6], secondaryScale[6], 0.42)
     );
     root.style.setProperty(
       '--theme-sidebar-hover',
-      mixRgb(primaryScale[7], themeScales.slate[7], 0.34)
+      mixRgb(primaryScale[6], secondaryScale[5], 0.32)
     );
   }
 };
@@ -524,17 +546,43 @@ const mixRgb = (from: string, to: string, amount: number): string => {
 };
 
 const createSurfaceScale = (
+  surfaceScale: readonly string[],
   accentScale: readonly string[],
+  secondaryScale: readonly string[],
   mode: ThemeMode
 ): string[] => {
-  const baseScale =
-    mode === 'dark' ? themeScales.slate : [...themeScales.slate].reverse();
-  const tintAmounts = [
-    0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.15, 0.17, 0.19, 0.21, 0.24,
+  if (mode === 'dark') {
+    const slateMix = [
+      0.06, 0.08, 0.1, 0.14, 0.2, 0.26, 0.34, 0.42, 0.5, 0.58, 0.64,
+    ];
+    const accentMix = [
+      0.08, 0.1, 0.12, 0.16, 0.2, 0.24, 0.3, 0.36, 0.42, 0.48, 0.52,
+    ];
+
+    return surfaceScale.map((surface, index) =>
+      mixRgb(
+        mixRgb(surface, themeScales.slate[index], slateMix[index]),
+        accentScale[index],
+        accentMix[index]
+      )
+    );
+  }
+
+  const reversedSurfaceScale = [...surfaceScale].reverse();
+  const reversedSecondaryScale = [...secondaryScale].reverse();
+  const slateMix = [
+    0.1, 0.12, 0.14, 0.18, 0.22, 0.24, 0.2, 0.16, 0.12, 0.08, 0.04,
+  ];
+  const accentMix = [
+    0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.18, 0.16, 0.14, 0.12, 0.1,
   ];
 
-  return baseScale.map((base, index) =>
-    mixRgb(base, accentScale[index], tintAmounts[index])
+  return reversedSurfaceScale.map((surface, index) =>
+    mixRgb(
+      mixRgb(surface, themeScales.slate[index], slateMix[index]),
+      reversedSecondaryScale[index],
+      accentMix[index]
+    )
   );
 };
 
@@ -587,9 +635,15 @@ const applyTheme = (mode: ThemeMode, palette: string) => {
   document.documentElement.dataset.themeMode = mode;
   document.documentElement.dataset.themePalette = activePaletteId;
   document.documentElement.classList.toggle('dark', mode === 'dark');
+  const paletteSurfaceScale = themeScales[activePalette.surface];
   const primaryScale = themeScales[activePalette.primary];
   const secondaryScale = themeScales[activePalette.secondary];
-  const surfaceScale = createSurfaceScale(primaryScale, mode);
+  const surfaceScale = createSurfaceScale(
+    paletteSurfaceScale,
+    primaryScale,
+    secondaryScale,
+    mode
+  );
 
   applyScale(document.documentElement, 'indigo', primaryScale);
   applyScale(document.documentElement, 'purple', secondaryScale);
