@@ -105,10 +105,8 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
   const getEncodedSliderData = (slider: Partial<DiscoverSlider>) =>
     encodeURIExtraParams(slider.data ?? '');
 
-  const getSliderDataPart = (
-    slider: Partial<DiscoverSlider>,
-    index: number
-  ) => encodeURIExtraParams(slider.data?.split(',')[index] ?? '');
+  const getSliderDataPart = (slider: Partial<DiscoverSlider>, index: number) =>
+    encodeURIExtraParams(slider.data?.split(',')[index] ?? '');
 
   const updateSliders = async () => {
     try {
@@ -258,6 +256,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TRENDING:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey="trending"
                 title={intl.formatMessage(sliderTitles.trending)}
                 url="/api/v1/discover/trending"
@@ -268,6 +267,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.POPULAR_MOVIES:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey="popular-movies"
                 title={intl.formatMessage(sliderTitles.popularmovies)}
                 url="/api/v1/discover/movies"
@@ -282,6 +282,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.UPCOMING_MOVIES:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey="upcoming"
                 title={intl.formatMessage(sliderTitles.upcoming)}
                 linkUrl={`/discover/movies?primaryReleaseDateGte=${upcomingDate}`}
@@ -296,6 +297,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.POPULAR_TV:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey="popular-tv"
                 title={intl.formatMessage(sliderTitles.populartv)}
                 url="/api/v1/discover/tv"
@@ -307,6 +309,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.POPULAR_MUSIC:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey="popular-music"
                 title={intl.formatMessage(sliderTitles.popularmusic)}
                 url="/api/v1/discover/music"
@@ -319,6 +322,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.POPULAR_BOOKS:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey="popular-books"
                 title={intl.formatMessage(sliderTitles.popularbooks)}
                 url="/api/v1/discover/books"
@@ -334,6 +338,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.UPCOMING_TV:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey="upcoming-tv"
                 title={intl.formatMessage(sliderTitles.upcomingtv)}
                 linkUrl={`/discover/tv?firstAirDateGte=${upcomingDate}`}
@@ -348,6 +353,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_MOVIE_KEYWORD:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/movies"
@@ -361,6 +367,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_TV_KEYWORD:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/tv"
@@ -374,6 +381,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_MOVIE_GENRE:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url={`/api/v1/discover/movies`}
@@ -387,6 +395,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_TV_GENRE:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url={`/api/v1/discover/tv`}
@@ -398,6 +407,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_STUDIO:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url={`/api/v1/discover/movies/studio/${getEncodedSliderData(
@@ -412,20 +422,20 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_NETWORK:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url={`/api/v1/discover/tv/network/${getEncodedSliderData(
                   slider
                 )}`}
-                linkUrl={`/discover/tv/network/${getEncodedSliderData(
-                  slider
-                )}`}
+                linkUrl={`/discover/tv/network/${getEncodedSliderData(slider)}`}
               />
             );
             break;
           case DiscoverSliderType.TMDB_SEARCH:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/search"
@@ -437,6 +447,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_MOVIE_STREAMING_SERVICES:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/movies"
@@ -454,6 +465,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.TMDB_TV_STREAMING_SERVICES:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/tv"
@@ -471,6 +483,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.OPENLIBRARY_BOOK_SUBJECT:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/books"
@@ -487,6 +500,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.MUSICBRAINZ_MUSIC_GENRE:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/music"
@@ -503,6 +517,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
           case DiscoverSliderType.LISTENBRAINZ_MUSIC_CHART:
             sliderComponent = (
               <MediaSlider
+                hideWhenEmpty
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/music"

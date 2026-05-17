@@ -1576,6 +1576,55 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('falls back to MusicBrainz tags when ranked music sources are empty', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => ({
+      payload: {
+        count: 0,
+        release_groups: [],
+      },
+    }));
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: {
+        releases: [],
+      },
+    }));
+    const searchByTagMock = mock.method(
+      MusicBrainz.prototype,
+      'searchReleaseGroupsByTag',
+      async ({ tags }: { tags: string[] }) => ({
+        totalCount: 1,
+        releaseGroups: [
+          {
+            id: `album-${tags[0]}`,
+            score: 100,
+            media_type: 'album',
+            title: `${tags[0]} Album`,
+            'primary-type': 'Album',
+            'first-release-date': '2026-01-01',
+            'artist-credit': [
+              {
+                name: `${tags[0]} Artist`,
+                artist: {
+                  id: `artist-${tags[0]}`,
+                  name: `${tags[0]} Artist`,
+                  'sort-name': `${tags[0]} Artist`,
+                },
+              },
+            ],
+            posterPath: `https://cover.example/${tags[0]}.jpg`,
+          },
+        ],
+      })
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music?sortBy=ranked');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(searchByTagMock.mock.callCount(), 4);
+    assert.strictEqual(res.body.results.length, 4);
+  });
+
   it('falls back to ranked music discovery when an unsupported sort is requested', async () => {
     const topAlbumsMock = mock.method(
       ListenBrainzAPI.prototype,
@@ -1678,6 +1727,9 @@ describe('GET /discover/music', () => {
     });
     mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => {
       throw new Error('provider unavailable');
+    });
+    mock.method(MusicBrainz.prototype, 'searchReleaseGroupsByTag', async () => {
+      throw new Error('fallback provider unavailable');
     });
 
     const agent = await login();
@@ -1989,8 +2041,8 @@ describe('GET /discover/books', () => {
     const res = await agent.get('/discover/books?sortBy=ranked');
 
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(seenQueries.length, 8);
-    assert.strictEqual(new Set(seenQueries).size, 8);
+    assert.strictEqual(seenQueries.length, 12);
+    assert.strictEqual(new Set(seenQueries).size, 12);
     assert.strictEqual(
       seenQueries.every((query) => query.startsWith('subject:')),
       true

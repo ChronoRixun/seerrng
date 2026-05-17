@@ -378,6 +378,17 @@ const defaultBookDiscoverySubjects = [
   'poetry',
 ];
 
+const defaultMusicDiscoveryTags = [
+  'pop',
+  'rock',
+  'hip hop',
+  'electronic',
+  'jazz',
+  'folk',
+  'indie',
+  'soul',
+];
+
 const getDailyRotationOffset = (itemCount: number): number => {
   if (itemCount <= 0) {
     return 0;
@@ -1752,7 +1763,90 @@ discoverRoutes.get('/music', async (req, res) => {
           : [];
 
       if (!topAlbums.length && !freshReleases.length) {
-        throw new Error('No ranked music discovery sources were available');
+        logger.warn(
+          'No ListenBrainz ranked music discovery sources were available, falling back to MusicBrainz tags',
+          {
+            label: 'Discover Music',
+          }
+        );
+
+        const fallbackTags = rotateItems(
+          defaultMusicDiscoveryTags,
+          getDailyRotationOffset(defaultMusicDiscoveryTags.length)
+        ).slice(0, 4);
+        const fallbackResults = await Promise.allSettled(
+          fallbackTags.map((tag) =>
+            musicBrainz.searchReleaseGroupsByTag({
+              tags: [tag],
+              primaryTypes: ['Album'],
+              limit: Math.ceil(providerWindow.limit / 2),
+              offset: providerWindow.offset,
+            })
+          )
+        );
+        const fallbackAlbumsById = new Map<string, MbAlbumResult>();
+
+        fallbackResults
+          .flatMap((result) =>
+            result.status === 'fulfilled' ? result.value.releaseGroups : []
+          )
+          .forEach((album) => {
+            const existingAlbum = fallbackAlbumsById.get(album.id);
+
+            fallbackAlbumsById.set(
+              album.id,
+              existingAlbum
+                ? mergeMusicAlbumMetadata(existingAlbum, album)
+                : album
+            );
+          });
+
+        const fallbackAlbums = diversifyMusicAlbumsByArtist(
+          rankByQualityScore(
+            [...fallbackAlbumsById.values()].sort(
+              (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+            ),
+            scoreMusicAlbum,
+            undefined,
+            undefined,
+            shuffleSeed
+          ),
+          providerWindow.sliceEnd
+        ).slice(providerWindow.sliceStart, providerWindow.sliceEnd);
+
+        if (!fallbackAlbums.length) {
+          return res.status(200).json(emptyDiscoverResponse(page));
+        }
+
+        const fallbackMbIds = fallbackAlbums.map((album) => album.id);
+        const fallbackRelatedMedia = fallbackMbIds.length
+          ? await getRepository(Media).find({
+              where: { mbId: In(fallbackMbIds), mediaType: MediaType.MUSIC },
+              relations: { requests: true, watchlists: true },
+            })
+          : [];
+        fallbackRelatedMedia.forEach((media) => {
+          media.watchlists =
+            media.watchlists?.filter(
+              (watchlist) => watchlist.requestedBy.id === req.user?.id
+            ) ?? [];
+        });
+
+        return res.status(200).json({
+          page,
+          totalPages: fallbackAlbums.length === itemsPerPage ? page + 1 : 1,
+          totalResults: getUnknownTotalResults(
+            page,
+            fallbackAlbums.length,
+            itemsPerPage
+          ),
+          results: fallbackAlbums.map((album) =>
+            mapAlbumResult(
+              album,
+              fallbackRelatedMedia.find((media) => media.mbId === album.id)
+            )
+          ),
+        });
       }
 
       if (topAlbumsResult.status === 'rejected') {
@@ -2010,12 +2104,12 @@ discoverRoutes.get('/books', async (req, res) => {
             defaultBookDiscoverySubjects,
             getDailyRotationOffset(defaultBookDiscoverySubjects.length)
           )
-            .slice(0, 8)
+            .slice(0, 12)
             .map((defaultSubject) =>
               openLibrary.searchBooks({
                 query: `subject:${defaultSubject}`,
                 page,
-                limit: Math.ceil(itemsPerPage / 2),
+                limit: itemsPerPage,
               })
             )
         ).then((results) => {
