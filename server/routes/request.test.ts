@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import MusicBrainz from '@server/api/musicbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import {
@@ -620,6 +621,74 @@ describe('POST /request', () => {
     });
     assert.strictEqual(savedMedia.status, MediaStatus.PENDING);
     assert.strictEqual(savedMedia.requests.length, 1);
+  });
+
+  it('creates a music request when ListenBrainz album lookup fails for a valid release group', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [
+      {
+        id: 10,
+        name: 'Lidarr',
+        hostname: 'lidarr.local',
+        port: 8686,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 20,
+        activeProfileName: 'Music',
+        activeMetadataProfileId: 30,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/music',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+      },
+    ];
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () => {
+        throw new Error('ListenBrainz unavailable');
+      }
+    );
+    const getReleaseGroupDetailsMock = mock.method(
+      MusicBrainz.prototype,
+      'getReleaseGroupDetails',
+      async () =>
+        ({
+          id: 'release-group-id',
+          title: 'Kind of Blue',
+          score: 100,
+          media_type: 'album',
+          'primary-type': 'Album',
+          'first-release-date': '1959',
+          'artist-credit': [],
+          posterPath: undefined,
+          'type-id': '',
+          'primary-type-id': '',
+          count: 1,
+          releases: [],
+          releasedate: '1959',
+        }) as Awaited<ReturnType<MusicBrainz['getReleaseGroupDetails']>>
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      getReleaseGroupDetailsMock.mock.restore();
+      settings.lidarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.MUSIC,
+      mediaId: 'release-group-id',
+    });
+
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.type, MediaType.MUSIC);
+    assert.strictEqual(res.body.media.mbId, 'release-group-id');
   });
 
   it('rejects music requests without a default Lidarr server', async (t) => {

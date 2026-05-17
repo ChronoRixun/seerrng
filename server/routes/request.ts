@@ -75,6 +75,25 @@ const requestStatusFilters = [
 const requestSortFields = ['modified'] as const;
 const requestSortDirections = ['asc'] as const;
 
+const getErrorLogFields = (error: unknown) => ({
+  errorMessage: error instanceof Error ? error.message : 'Unknown error',
+  errorStack: error instanceof Error ? error.stack : undefined,
+});
+
+const getRequestLogBody = (body: Partial<MediaRequestBody> | undefined) => ({
+  mediaType: body?.mediaType,
+  mediaId: body?.mediaId,
+  is4k: body?.is4k,
+  serverId: body?.serverId,
+  profileId: body?.profileId,
+  metadataProfileId: body?.metadataProfileId,
+  format: body?.format,
+  editionId: body?.editionId,
+  hasIsbn13: !!body?.isbn13,
+  authorId: body?.authorId,
+  userId: body?.userId,
+});
+
 const parseRequestStatusAction = (
   status: unknown
 ): MediaRequestStatus | undefined => {
@@ -263,7 +282,10 @@ const sanitizeMediaRequestBody = (
 
   const bodyObject = body as Partial<Record<keyof MediaRequestBody, unknown>>;
 
-  const serverId = parseOptionalRequestOptionId(bodyObject.serverId, 'serverId');
+  const serverId = parseOptionalRequestOptionId(
+    bodyObject.serverId,
+    'serverId'
+  );
   if ('error' in serverId) {
     return serverId;
   }
@@ -331,17 +353,17 @@ const sanitizeMediaRequestBody = (
   }
 
   const value = {
-      ...body,
-      serverId: serverId.value,
-      profileId: profileId.value,
-      profileName: profileName.value,
-      rootFolder: rootFolder.value,
-      languageProfileId: languageProfileId.value,
-      metadataProfileId: metadataProfileId.value,
-      format: format.value,
-      userId: userId.value,
-      tags: tags.value,
-      seasons: seasons.value,
+    ...body,
+    serverId: serverId.value,
+    profileId: profileId.value,
+    profileName: profileName.value,
+    rootFolder: rootFolder.value,
+    languageProfileId: languageProfileId.value,
+    metadataProfileId: metadataProfileId.value,
+    format: format.value,
+    userId: userId.value,
+    tags: tags.value,
+    seasons: seasons.value,
   } as MediaRequestBody;
 
   return {
@@ -1116,7 +1138,16 @@ requestRoutes.get<
       return next({ status: 400, message: e.message });
     }
 
-    next({ status: 500, message: e.message });
+    logger.error('Failed to retrieve request list', {
+      label: 'Request',
+      ...getErrorLogFields(e),
+      requestQuery: req.query,
+    });
+
+    next({
+      status: 500,
+      message: e instanceof Error ? e.message : 'Unable to retrieve requests.',
+    });
   }
 });
 
@@ -1140,7 +1171,13 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
       return res.status(201).json(filterEntityResponse(request));
     } catch (error) {
       if (!(error instanceof Error)) {
-        return;
+        logger.error('Failed to submit media request', {
+          label: 'Request',
+          ...getErrorLogFields(error),
+          requestBody: getRequestLogBody(req.body),
+          userId: req.user?.id,
+        });
+        return next({ status: 500, message: 'Unable to submit request.' });
       }
 
       switch (error.constructor) {
@@ -1156,6 +1193,12 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
         case BlocklistedMediaError:
           return next({ status: 403, message: error.message });
         default:
+          logger.error('Failed to submit media request', {
+            label: 'Request',
+            ...getErrorLogFields(error),
+            requestBody: getRequestLogBody(req.body),
+            userId: req.user?.id,
+          });
           return next({ status: 500, message: error.message });
       }
     }
@@ -1173,7 +1216,11 @@ requestRoutes.post<never, BulkMediaRequestResponse, BulkMediaRequestBody>(
         });
       }
 
-      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      if (
+        !req.body ||
+        typeof req.body !== 'object' ||
+        Array.isArray(req.body)
+      ) {
         return next({
           status: 400,
           message: 'Request body must be an object.',

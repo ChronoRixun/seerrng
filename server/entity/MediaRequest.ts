@@ -1,4 +1,5 @@
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import MusicBrainz from '@server/api/musicbrainz';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import TheMovieDb from '@server/api/themoviedb';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
@@ -51,9 +52,78 @@ type MediaRequestOptions = {
 };
 
 const canUseAdvancedRequestOptions = (user: User): boolean =>
-  user.hasPermission([Permission.REQUEST_ADVANCED, Permission.MANAGE_REQUESTS], {
-    type: 'or',
-  });
+  user.hasPermission(
+    [Permission.REQUEST_ADVANCED, Permission.MANAGE_REQUESTS],
+    {
+      type: 'or',
+    }
+  );
+
+const resolveMusicReleaseGroupId = async (
+  mediaId: string,
+  listenbrainz: ListenBrainzAPI,
+  musicbrainz: MusicBrainz
+): Promise<string> => {
+  let listenBrainzError: unknown;
+
+  try {
+    const album = await listenbrainz.getAlbum(mediaId);
+
+    if (album.release_group_mbid) {
+      return album.release_group_mbid;
+    }
+  } catch (error) {
+    listenBrainzError = error;
+    logger.warn('ListenBrainz album lookup failed during music request', {
+      label: 'Media Request',
+      mediaId,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+
+  try {
+    const album = await musicbrainz.getReleaseGroupDetails({
+      releaseGroupId: mediaId,
+    });
+
+    return album.id;
+  } catch (releaseGroupError) {
+    logger.warn(
+      'MusicBrainz release group lookup failed during music request',
+      {
+        label: 'Media Request',
+        mediaId,
+        errorMessage:
+          releaseGroupError instanceof Error
+            ? releaseGroupError.message
+            : 'Unknown error',
+        errorStack:
+          releaseGroupError instanceof Error
+            ? releaseGroupError.stack
+            : undefined,
+      }
+    );
+  }
+
+  const resolvedReleaseGroupId = await musicbrainz
+    .getReleaseGroup({
+      releaseId: mediaId,
+    })
+    .catch((error) => {
+      if (listenBrainzError) {
+        throw listenBrainzError;
+      }
+
+      throw error;
+    });
+
+  if (!resolvedReleaseGroupId) {
+    throw new Error('MusicBrainz ID did not resolve to a release group.');
+  }
+
+  return resolvedReleaseGroupId;
+};
 
 @Entity()
 export class MediaRequest {
@@ -64,6 +134,7 @@ export class MediaRequest {
   ): Promise<MediaRequest> {
     const tmdb = new TheMovieDb();
     const listenbrainz = new ListenBrainzAPI();
+    const musicbrainz = new MusicBrainz();
     const openLibrary = new OpenLibraryAPI();
     const mediaRepository = getRepository(Media);
     const mediaIdentifierRepository = getRepository(MediaIdentifier);
@@ -170,8 +241,11 @@ export class MediaRequest {
     }
 
     if (requestBody.mediaType === MediaType.MUSIC) {
-      const album = await listenbrainz.getAlbum(requestBody.mediaId.toString());
-      const musicMbId = album.release_group_mbid;
+      const musicMbId = await resolveMusicReleaseGroupId(
+        requestBody.mediaId.toString(),
+        listenbrainz,
+        musicbrainz
+      );
       const blocklistedAlbum = await getRepository(Blocklist).findOne({
         where: {
           externalId: musicMbId,
@@ -739,7 +813,7 @@ export class MediaRequest {
     let tags = useAdvancedOptions
       ? (requestBody.tags ?? defaultServer?.tags)
       : defaultServer?.tags;
-    let languageProfileId =
+    const languageProfileId =
       requestBody.mediaType === MediaType.TV
         ? useAdvancedOptions
           ? (requestBody.languageProfileId ??
