@@ -5,6 +5,7 @@ import type {
   ReadarrSettings,
   SonarrSettings,
 } from '@server/lib/settings';
+import { normalizeUrlBase } from '@server/utils/serviceUrl';
 import {
   parseBoundedString,
   parseOptionalBoolean,
@@ -80,6 +81,22 @@ const parseOptionalExternalUrl = (
     : { error: 'externalUrl must be a valid HTTP URL.' };
 };
 
+const parseOptionalUrlBase = (
+  value: unknown
+): { value: string | undefined } | { error: string } => {
+  const parsed = parseOptionalServiceString(value, 'baseUrl');
+
+  if ('error' in parsed || parsed.value === undefined) {
+    return parsed;
+  }
+
+  const normalized = normalizeUrlBase(parsed.value);
+
+  return normalized || !parsed.value.trim()
+    ? { value: normalized || undefined }
+    : { error: 'baseUrl must be a relative path.' };
+};
+
 const parseDvrSettings = (
   body: unknown,
   current?: DVRSettings
@@ -111,7 +128,7 @@ const parseDvrSettings = (
   );
   if ('error' in activeDirectory) return activeDirectory;
 
-  const baseUrl = parseOptionalServiceString(settings.baseUrl, 'baseUrl');
+  const baseUrl = parseOptionalUrlBase(settings.baseUrl);
   if ('error' in baseUrl) return baseUrl;
 
   const externalUrl = parseOptionalExternalUrl(settings.externalUrl);

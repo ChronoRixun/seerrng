@@ -187,6 +187,37 @@ describe('Radarr settings routes', () => {
     assert.strictEqual(getSettings().radarr.length, 0);
   });
 
+  it('rejects malformed Servarr URL bases before persistence', async () => {
+    const absoluteRes = await request(app)
+      .post('/settings/radarr')
+      .send(makeRadarr({ baseUrl: 'https://evil.example/base' }));
+    const queryRes = await request(app)
+      .post('/settings/sonarr')
+      .send(makeSonarr({ baseUrl: '/sonarr?redirect=1' }));
+    const slashRes = await request(app)
+      .post('/settings/lidarr')
+      .send(makeLidarr({ baseUrl: '//evil.example/lidarr' }));
+
+    assert.strictEqual(absoluteRes.status, 400);
+    assert.match(absoluteRes.body.message, /baseUrl must be a relative path/i);
+    assert.strictEqual(queryRes.status, 400);
+    assert.match(queryRes.body.message, /baseUrl must be a relative path/i);
+    assert.strictEqual(slashRes.status, 400);
+    assert.match(slashRes.body.message, /baseUrl must be a relative path/i);
+    assert.strictEqual(getSettings().radarr.length, 0);
+    assert.strictEqual(getSettings().sonarr.length, 0);
+    assert.strictEqual(getSettings().lidarr.length, 0);
+  });
+
+  it('normalizes valid Servarr URL bases before persistence', async () => {
+    const res = await request(app)
+      .post('/settings/readarr')
+      .send(makeReadarr({ baseUrl: 'bookshelf/' }));
+
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(getSettings().readarr[0].baseUrl, '/bookshelf');
+  });
+
   it('does not clear Radarr defaults for string boolean payloads', async () => {
     getSettings().radarr = [makeRadarr({ id: 3, name: 'Primary Radarr' })];
 
