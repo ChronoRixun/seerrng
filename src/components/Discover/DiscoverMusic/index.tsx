@@ -9,7 +9,6 @@ import {
 } from '@app/components/Discover/LibraryFilterSlideover/filterUtils';
 import useDiscover from '@app/hooks/useDiscover';
 import { useBatchUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
-import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { BarsArrowDownIcon, FunnelIcon } from '@heroicons/react/24/solid';
 import type { AlbumResult } from '@server/models/Search';
@@ -63,16 +62,11 @@ const DiscoverMusic = () => {
     isReachingEnd,
     titles,
     fetchMore,
-    error,
   } = useDiscover<AlbumResult>(
     '/api/v1/discover/music',
     query ? { query } : { days, sortBy, genre, releaseType },
     { randomizeOrder: !query && sortBy === 'ranked' }
   );
-
-  if (error) {
-    return <ErrorPage statusCode={500} />;
-  }
 
   return (
     <>

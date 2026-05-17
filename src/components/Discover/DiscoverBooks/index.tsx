@@ -9,7 +9,6 @@ import {
 } from '@app/components/Discover/LibraryFilterSlideover/filterUtils';
 import useDiscover from '@app/hooks/useDiscover';
 import { useBatchUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
-import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
 import { BarsArrowDownIcon, FunnelIcon } from '@heroicons/react/24/solid';
 import type { BookResult } from '@server/models/Book';
@@ -64,16 +63,11 @@ const DiscoverBooks = () => {
     isReachingEnd,
     titles,
     fetchMore,
-    error,
   } = useDiscover<BookResult>(
     '/api/v1/discover/books',
     query ? { query, sortBy } : subject ? { subject, sortBy } : { sortBy },
     { randomizeOrder: sortBy === 'ranked' }
   );
-
-  if (error) {
-    return <ErrorPage statusCode={500} />;
-  }
 
   return (
     <>

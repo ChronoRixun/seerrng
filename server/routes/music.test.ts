@@ -132,9 +132,12 @@ describe('GET /music/:id artist lists', () => {
     }));
 
     const agent = await login();
-    const res = await agent.get('/music/release-group-id/artist-discography');
+    const res = await agent.get(
+      '/music/release-group-id/artist-discography?page=999999'
+    );
 
     assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.page, 500);
     assert.strictEqual(res.body.totalPages, 1);
     assert.strictEqual(res.body.totalResults, 0);
     assert.deepStrictEqual(res.body.results, []);
@@ -153,9 +156,12 @@ describe('GET /music/:id artist lists', () => {
     }));
 
     const agent = await login();
-    const res = await agent.get('/music/release-group-id/artist-similar');
+    const res = await agent.get(
+      '/music/release-group-id/artist-similar?page=999999'
+    );
 
     assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.page, 500);
     assert.strictEqual(res.body.totalPages, 1);
     assert.strictEqual(res.body.totalResults, 0);
     assert.deepStrictEqual(res.body.results, []);

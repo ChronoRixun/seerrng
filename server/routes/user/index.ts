@@ -66,14 +66,7 @@ const MAX_PUSH_ENDPOINT_LENGTH = 2048;
 const MAX_PUSH_KEY_LENGTH = 512;
 const MAX_USER_AGENT_LENGTH = 512;
 const MAX_USER_ID_VALUE = 1_000_000_000;
-
-type LocalUserBody = {
-  avatar?: string | null;
-  email?: string;
-  password?: string | null;
-  permissions?: number;
-  username?: string;
-};
+const MAX_WATCHLIST_PAGE = 500;
 
 const parseStringArray = (
   value: unknown,
@@ -248,6 +241,31 @@ const parsePushSubscriptionBody = (
       userAgent: userAgent.value ?? '',
     },
   };
+};
+
+const parsePushSubscriptionEndpointParam = (
+  value: unknown
+): { value: string } | { error: string } => {
+  const endpoint = parseBoundedString(value, {
+    fieldName: 'endpoint',
+    maxLength: MAX_PUSH_ENDPOINT_LENGTH,
+  });
+
+  if ('error' in endpoint) {
+    return endpoint;
+  }
+
+  try {
+    const parsedEndpoint = new URL(endpoint.value);
+
+    if (parsedEndpoint.protocol !== 'https:') {
+      return { error: 'endpoint must be an HTTPS URL.' };
+    }
+  } catch {
+    return { error: 'endpoint must be a valid URL.' };
+  }
+
+  return endpoint;
 };
 
 const parseLocalUserBody = (
@@ -732,13 +750,18 @@ router.get<{ id: string; endpoint: string }>(
         return next({ status: 404, message: 'User subscription not found.' });
       }
 
+      const endpoint = parsePushSubscriptionEndpointParam(req.params.endpoint);
+      if ('error' in endpoint) {
+        return next({ status: 400, message: endpoint.error });
+      }
+
       const userPushSub = await userPushSubRepository.findOneOrFail({
         relations: {
           user: true,
         },
         where: {
           user: { id: userId },
-          endpoint: req.params.endpoint,
+          endpoint: endpoint.value,
         },
       });
 
@@ -760,11 +783,16 @@ router.delete<{ id: string; endpoint: string }>(
         return res.status(204).send();
       }
 
+      const endpoint = parsePushSubscriptionEndpointParam(req.params.endpoint);
+      if ('error' in endpoint) {
+        return next({ status: 400, message: endpoint.error });
+      }
+
       const userPushSub = await userPushSubRepository.findOne({
         relations: { user: true },
         where: {
           user: { id: userId },
-          endpoint: req.params.endpoint,
+          endpoint: endpoint.value,
         },
       });
 
@@ -779,7 +807,7 @@ router.delete<{ id: string; endpoint: string }>(
     } catch (e) {
       logger.error('Something went wrong deleting the user push subcription', {
         label: 'API',
-        endpoint: req.params.endpoint,
+        endpoint: req.params.endpoint?.slice(0, MAX_PUSH_ENDPOINT_LENGTH),
         errorMessage: e.message,
       });
       return next({
@@ -1436,7 +1464,7 @@ router.get<{ id: string }, WatchlistResponse>(
     }
 
     const itemsPerPage = 20;
-    const page = parsePositiveInt(req.query.page, 1);
+    const page = parsePositiveInt(req.query.page, 1, MAX_WATCHLIST_PAGE);
 
     const user = await getRepository(User).findOneOrFail({
       where: { id: userId },

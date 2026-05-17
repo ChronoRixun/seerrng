@@ -35,6 +35,29 @@ const parseMetadataSettings = (
   return { value: { tv: body.tv, anime: body.anime } };
 };
 
+const parseMetadataTestBody = (
+  value: unknown
+): { value: { tmdb?: boolean; tvdb?: boolean } } | { error: string } => {
+  if (value === undefined || value === null) {
+    return { value: {} };
+  }
+
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { error: 'Invalid metadata test settings.' };
+  }
+
+  const body = value as { tmdb?: unknown; tvdb?: unknown };
+
+  if (
+    (body.tmdb !== undefined && typeof body.tmdb !== 'boolean') ||
+    (body.tvdb !== undefined && typeof body.tvdb !== 'boolean')
+  ) {
+    return { error: 'Metadata test flags must be booleans.' };
+  }
+
+  return { value: { tmdb: body.tmdb, tvdb: body.tvdb } };
+};
+
 metadataRoutes.get('/', (_req, res) => {
   const settings = getSettings();
   res.status(200).json({
@@ -123,10 +146,13 @@ metadataRoutes.post('/test', async (req, res) => {
   let tmdbTest = -1;
 
   try {
-    const body =
-      req.body && typeof req.body === 'object' && !Array.isArray(req.body)
-        ? (req.body as { tmdb?: unknown; tvdb?: unknown })
-        : {};
+    const parsedBody = parseMetadataTestBody(req.body);
+
+    if ('error' in parsedBody) {
+      return res.status(400).json({ success: false, error: parsedBody.error });
+    }
+
+    const body = parsedBody.value;
 
     try {
       if (body.tmdb === true) {

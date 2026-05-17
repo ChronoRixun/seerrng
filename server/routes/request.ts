@@ -262,20 +262,34 @@ const parseOptionalRequestSeasons = (
 };
 
 const sanitizeMediaRequestBody = (
-  body: MediaRequestBody
+  body: unknown
 ): RequestOptionValidationResult<MediaRequestBody> => {
-  const serverId = parseOptionalRequestOptionId(body.serverId, 'serverId');
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return {
+      error: {
+        status: 400,
+        message: 'Request body must be an object.',
+      },
+    };
+  }
+
+  const bodyObject = body as Partial<Record<keyof MediaRequestBody, unknown>>;
+
+  const serverId = parseOptionalRequestOptionId(bodyObject.serverId, 'serverId');
   if ('error' in serverId) {
     return serverId;
   }
 
-  const profileId = parseOptionalRequestOptionId(body.profileId, 'profileId');
+  const profileId = parseOptionalRequestOptionId(
+    bodyObject.profileId,
+    'profileId'
+  );
   if ('error' in profileId) {
     return profileId;
   }
 
   const languageProfileId = parseOptionalRequestOptionId(
-    body.languageProfileId,
+    bodyObject.languageProfileId,
     'languageProfileId'
   );
   if ('error' in languageProfileId) {
@@ -283,20 +297,20 @@ const sanitizeMediaRequestBody = (
   }
 
   const metadataProfileId = parseOptionalRequestOptionId(
-    body.metadataProfileId,
+    bodyObject.metadataProfileId,
     'metadataProfileId'
   );
   if ('error' in metadataProfileId) {
     return metadataProfileId;
   }
 
-  const userId = parseOptionalRequestOptionId(body.userId, 'userId');
+  const userId = parseOptionalRequestOptionId(bodyObject.userId, 'userId');
   if ('error' in userId) {
     return userId;
   }
 
   const rootFolder = parseOptionalRequestString(
-    body.rootFolder,
+    bodyObject.rootFolder,
     'rootFolder',
     maxRequestRootFolderLength
   );
@@ -305,7 +319,7 @@ const sanitizeMediaRequestBody = (
   }
 
   const profileName = parseOptionalRequestString(
-    body.profileName,
+    bodyObject.profileName,
     'profileName',
     maxRequestProfileNameLength
   );
@@ -313,23 +327,22 @@ const sanitizeMediaRequestBody = (
     return profileName;
   }
 
-  const format = parseOptionalBookFormat(body.format);
+  const format = parseOptionalBookFormat(bodyObject.format);
   if ('error' in format) {
     return format;
   }
 
-  const tags = parseOptionalRequestTags(body.tags);
+  const tags = parseOptionalRequestTags(bodyObject.tags);
   if ('error' in tags) {
     return tags;
   }
 
-  const seasons = parseOptionalRequestSeasons(body.seasons);
+  const seasons = parseOptionalRequestSeasons(bodyObject.seasons);
   if ('error' in seasons) {
     return seasons;
   }
 
-  return {
-    value: {
+  const value = {
       ...body,
       serverId: serverId.value,
       profileId: profileId.value,
@@ -341,7 +354,10 @@ const sanitizeMediaRequestBody = (
       userId: userId.value,
       tags: tags.value,
       seasons: seasons.value,
-    },
+  } as MediaRequestBody;
+
+  return {
+    value,
   };
 };
 

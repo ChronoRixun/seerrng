@@ -148,15 +148,15 @@ describe('GET /artist/:id/similar', () => {
 
     const agent = await login();
     const res = await agent.get(
-      '/artist/root-artist/similar?page=-10&pageSize=999'
+      '/artist/root-artist/similar?page=999999&pageSize=999'
     );
 
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.page, 1);
+    assert.strictEqual(res.body.page, 500);
     assert.strictEqual(res.body.pageSize, 50);
     assert.strictEqual(res.body.totalPages, 2);
     assert.strictEqual(res.body.totalResults, 60);
-    assert.strictEqual(res.body.results.length, 50);
+    assert.strictEqual(res.body.results.length, 0);
   });
 });
 

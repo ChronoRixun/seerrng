@@ -526,6 +526,15 @@ describe('GET /request', () => {
 });
 
 describe('POST /request', () => {
+  it('rejects malformed request bodies before request processing', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Request body must be an object/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
   it('rejects malformed advanced option payloads before request processing', async () => {
     const agent = await loginAs('friend@seerr.dev', 'test1234');
     const res = await agent.post('/request').send({
@@ -1610,6 +1619,36 @@ describe('PUT /request/:requestId', () => {
     assert.strictEqual(persisted.profileId, 22);
     assert.strictEqual(persisted.metadataProfileId, 33);
     assert.strictEqual(persisted.rootFolder, '/books');
+  });
+
+  it('rejects malformed request edit bodies before persistence', async () => {
+    const requestedBy = await getRepository(User).findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const mediaRequest = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media,
+        requestedBy,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'ebook',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put(`/request/${mediaRequest.id}`).send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Request body must be an object/i);
   });
 
   it('rejects music edits that point at a missing Lidarr server', async () => {

@@ -39,6 +39,8 @@ const parseWatchlistExternalId = (id: unknown): string | undefined => {
 watchlistRoutes.post<never, Watchlist, Watchlist>(
   '/',
   async (req, res, next) => {
+    let logPayload: { mediaType?: unknown; tmdbId?: unknown } = {};
+
     try {
       if (!req.user) {
         return next({
@@ -51,6 +53,10 @@ watchlistRoutes.post<never, Watchlist, Watchlist>(
         return next({ status: 400, message: 'Invalid watchlist payload.' });
       }
       const values = parsedBody.data;
+      logPayload = {
+        mediaType: values.mediaType,
+        tmdbId: values.tmdbId,
+      };
 
       const request = await Watchlist.createWatchlist({
         watchlistRequest: values,
@@ -65,8 +71,8 @@ watchlistRoutes.post<never, Watchlist, Watchlist>(
       switch (error.constructor) {
         case QueryFailedError:
           logger.warn('Something wrong with data watchlist', {
-            tmdbId: req.body.tmdbId,
-            mediaType: req.body.mediaType,
+            tmdbId: logPayload.tmdbId,
+            mediaType: logPayload.mediaType,
             label: 'Watchlist',
           });
           return next({ status: 409, message: 'Something wrong' });

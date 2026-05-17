@@ -142,6 +142,18 @@ describe('Settings route input validation', () => {
     assert.match(jellyfinRes.body.message, /Settings body must be an object/);
   });
 
+  it('rejects malformed metadata test bodies before provider calls', async () => {
+    const arrayRes = await request(app).post('/settings/metadatas/test').send([]);
+    const flagRes = await request(app)
+      .post('/settings/metadatas/test')
+      .send({ tmdb: 'true' });
+
+    assert.strictEqual(arrayRes.status, 400);
+    assert.match(arrayRes.body.error, /Invalid metadata test settings/);
+    assert.strictEqual(flagRes.status, 400);
+    assert.match(flagRes.body.error, /Metadata test flags must be booleans/);
+  });
+
   it('rejects malformed log search values before reading logs', async () => {
     const res = await request(app).get(
       '/settings/logs?search=error&search=warn'

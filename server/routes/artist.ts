@@ -19,6 +19,7 @@ import { In } from 'typeorm';
 const artistRoutes = Router();
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
+const MAX_PAGE = 500;
 const MAX_MUSICBRAINZ_ID_LENGTH = 128;
 const MAX_ALBUM_TYPE_LENGTH = 128;
 const ALL_ALBUM_TYPES = 'All';
@@ -36,7 +37,7 @@ artistRoutes.get('/:id/similar', async (req, res, next) => {
   }
 
   const artistId = parsedArtistId.value;
-  const page = parsePositiveInt(req.query.page, 1);
+  const page = parsePositiveInt(req.query.page, 1, MAX_PAGE);
   const pageSize = parsePositiveInt(
     req.query.pageSize,
     DEFAULT_PAGE_SIZE,
@@ -99,7 +100,7 @@ artistRoutes.get('/:id', async (req, res, next) => {
   const musicbrainz = new MusicBrainz();
   const theAudioDb = new TheAudioDb();
 
-  const page = parsePositiveInt(req.query.page, 1);
+  const page = parsePositiveInt(req.query.page, 1, MAX_PAGE);
   const pageSize = parsePositiveInt(
     req.query.pageSize,
     DEFAULT_PAGE_SIZE,

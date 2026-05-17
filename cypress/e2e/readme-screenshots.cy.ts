@@ -100,6 +100,8 @@ const installMocks = () => {
     { id: 3, type: 23, enabled: true, isBuiltIn: true, order: 2 },
   ]);
   cy.intercept('GET', '/api/v1/discover/trending*', response(movies));
+  cy.intercept('GET', '/api/v1/discover/movies*', response(movies));
+  cy.intercept('GET', '/api/v1/discover/tv*', response(movies));
   cy.intercept('GET', '/api/v1/discover/books*', response(books));
   cy.intercept('GET', '/api/v1/discover/music*', response(albums));
   cy.intercept('GET', '/api/v1/user/*/settings/card-text', {
@@ -113,19 +115,49 @@ const installMocks = () => {
 const waitForImages = () => {
   cy.get('[data-testid=title-card] img:visible')
     .should('have.length.greaterThan', 8)
-    .then(($images) => Cypress.$($images.toArray().slice(0, 10)))
-    .each(($img) => {
-      cy.wrap($img).should(($image) => {
-        const image = $image[0] as HTMLImageElement;
-        expect(image.complete).to.equal(true);
-        expect(image.naturalWidth).to.be.greaterThan(0);
-      });
+    .then({ timeout: 20000 }, ($images) => {
+      const images = ($images.toArray() as HTMLImageElement[]).filter(
+        (image) => image.currentSrc || image.src
+      );
+
+      return Cypress.Promise.all(
+        images.map(
+          (image) =>
+            new Cypress.Promise<void>((resolve, reject) => {
+              if (image.complete && image.naturalWidth > 0) {
+                resolve();
+                return;
+              }
+
+              const timeout = window.setTimeout(() => {
+                reject(new Error(`Timed out loading image: ${image.currentSrc || image.src}`));
+              }, 15000);
+
+              image.addEventListener(
+                'load',
+                () => {
+                  window.clearTimeout(timeout);
+                  resolve();
+                },
+                { once: true }
+              );
+              image.addEventListener(
+                'error',
+                () => {
+                  window.clearTimeout(timeout);
+                  reject(new Error(`Failed loading image: ${image.currentSrc || image.src}`));
+                },
+                { once: true }
+              );
+            })
+        )
+      );
     });
 };
 
 describe('README screenshots', () => {
   beforeEach(() => {
-    cy.viewport(1440, 900);
+    cy.viewport(1920, 1080);
     cy.loginAsAdmin();
     installMocks();
   });
@@ -136,6 +168,9 @@ describe('README screenshots', () => {
     cy.contains('Recommended Books').should('be.visible');
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     cy.contains('Recommended Music').scrollIntoView();
+    cy.contains('Meteora').should('be.visible');
+    cy.contains('The Clockwork Sea').should('be.visible');
+    waitForImages();
     cy.wait(1000);
     cy.screenshot('readme-discover', { capture: 'viewport' });
   });

@@ -151,6 +151,17 @@ describe('User route input validation', () => {
     assert.match(res.body.message, /User body must be an object/i);
   });
 
+  it('rejects malformed push subscription endpoint params before lookup', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const getRes = await agent.get('/user/1/pushSubscription/not-a-url');
+    const deleteRes = await agent.delete('/user/1/pushSubscription/not-a-url');
+
+    assert.strictEqual(getRes.status, 400);
+    assert.match(getRes.body.message, /endpoint must be a valid URL/i);
+    assert.strictEqual(deleteRes.status, 400);
+    assert.match(deleteRes.body.message, /endpoint must be a valid URL/i);
+  });
+
   it('rejects malformed local user create bodies', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/user').send([]);

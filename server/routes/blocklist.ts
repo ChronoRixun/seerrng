@@ -205,12 +205,24 @@ blocklistRoutes.post(
     type: 'or',
   }),
   async (req, res, next) => {
+    let logPayload: {
+      externalId?: unknown;
+      mediaType?: unknown;
+      tmdbId?: unknown;
+    } = {};
+
     try {
       const parsedBody = blocklistAdd.safeParse(req.body);
       if (!parsedBody.success) {
         return next({ status: 400, message: 'Invalid blocklist payload.' });
       }
       const values = parsedBody.data;
+      logPayload = {
+        externalId: values.externalId,
+        mediaType: values.mediaType,
+        tmdbId: values.tmdbId,
+      };
+
       if (
         (values.mediaType === MediaType.MOVIE ||
           values.mediaType === MediaType.TV) &&
@@ -252,9 +264,9 @@ blocklistRoutes.post(
         }
 
         logger.warn('Something wrong with data blocklist', {
-          tmdbId: req.body.tmdbId,
-          externalId: req.body.externalId,
-          mediaType: req.body.mediaType,
+          tmdbId: logPayload.tmdbId,
+          externalId: logPayload.externalId,
+          mediaType: logPayload.mediaType,
           label: 'Blocklist',
         });
         return next({ status: 409, message: 'Something wrong' });
@@ -406,7 +418,7 @@ blocklistRoutes.delete(
       let mediaItem: Media | null = null;
       if (mediaType === MediaType.MUSIC) {
         mediaItem = await mediaRepository.findOne({
-          where: { mbId: req.params.id, mediaType },
+          where: { mbId: lookup.externalId, mediaType },
         });
       } else if (mediaType === MediaType.BOOK) {
         const identifier = await getRepository(MediaIdentifier).findOne({
@@ -414,14 +426,14 @@ blocklistRoutes.delete(
             provider:
               blocklistItem.externalProvider ??
               MediaIdentifierProvider.OPENLIBRARY,
-            value: req.params.id,
+            value: lookup.externalId,
           },
           relations: { media: true },
         });
         mediaItem =
           identifier?.media.mediaType === mediaType ? identifier.media : null;
       } else {
-        const tmdbId = parseBlocklistNumericId(req.params.id);
+        const tmdbId = lookup.tmdbId;
         if (!tmdbId) {
           return next({
             status: 400,

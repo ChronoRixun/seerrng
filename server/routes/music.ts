@@ -23,6 +23,7 @@ import { In } from 'typeorm';
 
 const musicRoutes = Router();
 const MAX_MUSICBRAINZ_ID_LENGTH = 128;
+const MAX_PAGE = 500;
 
 class AlbumDetailsNotFoundError extends Error {
   constructor(message = 'Album not found') {
@@ -446,7 +447,7 @@ musicRoutes.get('/:id/artist-discography', async (req, res, next) => {
     const listenbrainzApi = new ListenBrainzAPI();
     const metadataAlbumRepository = getRepository(MetadataAlbum);
 
-    const page = parsePositiveInt(req.query.page, 1);
+    const page = parsePositiveInt(req.query.page, 1, MAX_PAGE);
     const pageSize = parsePositiveInt(req.query.pageSize, 20, 50);
     const parsedSlider = parseOptionalQueryBoolean(req.query.slider, 'Slider');
     if ('error' in parsedSlider) {
@@ -554,7 +555,7 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
     const theAudioDb = new TheAudioDb();
     const metadataArtistRepository = getRepository(MetadataArtist);
 
-    const page = parsePositiveInt(req.query.page, 1);
+    const page = parsePositiveInt(req.query.page, 1, MAX_PAGE);
     const pageSize = parsePositiveInt(req.query.pageSize, 20, 50);
 
     const albumData = await listenbrainzApi.getAlbum(mbId);
