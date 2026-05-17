@@ -26,8 +26,8 @@ import { getSettings } from '@server/lib/settings';
 import { getCombinedWatchlist } from '@server/lib/watchlist';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
-import { getHostname } from '@server/utils/getHostname';
 import { filterEntityResponse } from '@server/utils/entityResponse';
+import { getHostname } from '@server/utils/getHostname';
 import { normalizeJellyfinGuid } from '@server/utils/jellyfin';
 import {
   parseNonNegativeInt,
@@ -35,6 +35,7 @@ import {
   parsePositiveInt,
 } from '@server/utils/pagination';
 import { isOwnProfileOrAdmin } from '@server/utils/profileMiddleware';
+import { resolvesToLocalOrPrivateAddress } from '@server/utils/security';
 import {
   parseBoundedString,
   parseOptionalBoundedString,
@@ -129,7 +130,10 @@ const parsePositiveIntegerArray = (
 const parseUserRouteId = (id: unknown): number | undefined => {
   const parsedValue =
     typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, MAX_USER_ID_VALUE);
+  const parsed = parseOptionalNonNegativeInteger(
+    parsedValue,
+    MAX_USER_ID_VALUE
+  );
 
   return parsed && parsed > 0 ? parsed : undefined;
 };
@@ -171,16 +175,45 @@ const parseOptionalUserBodyObject = (
   return parseUserBodyObject(body);
 };
 
-const parsePushSubscriptionBody = (
+const validatePushSubscriptionEndpoint = async (
+  endpoint: string
+): Promise<{ value: string } | { error: string }> => {
+  let parsedEndpoint: URL;
+  try {
+    parsedEndpoint = new URL(endpoint);
+  } catch {
+    return { error: 'endpoint must be a valid URL.' };
+  }
+
+  if (parsedEndpoint.protocol !== 'https:') {
+    return { error: 'endpoint must be an HTTPS URL.' };
+  }
+
+  if (parsedEndpoint.username || parsedEndpoint.password) {
+    return { error: 'endpoint must not include credentials.' };
+  }
+
+  if (
+    process.env.SEERR_ALLOW_PRIVATE_PUSH_ENDPOINTS !== 'true' &&
+    (await resolvesToLocalOrPrivateAddress(parsedEndpoint.hostname))
+  ) {
+    return { error: 'endpoint must be a public HTTPS URL.' };
+  }
+
+  return { value: endpoint };
+};
+
+const parsePushSubscriptionBody = async (
   body: unknown
-):
+): Promise<
   | {
       value: Pick<
         UserPushSubscription,
         'auth' | 'endpoint' | 'p256dh' | 'userAgent'
       >;
     }
-  | { error: string } => {
+  | { error: string }
+> => {
   const parsedBody = parseUserBodyObject(body);
 
   if ('error' in parsedBody) {
@@ -196,14 +229,11 @@ const parsePushSubscriptionBody = (
     return endpoint;
   }
 
-  try {
-    const parsedEndpoint = new URL(endpoint.value);
-
-    if (parsedEndpoint.protocol !== 'https:') {
-      return { error: 'endpoint must be an HTTPS URL.' };
-    }
-  } catch {
-    return { error: 'endpoint must be a valid URL.' };
+  const validatedEndpoint = await validatePushSubscriptionEndpoint(
+    endpoint.value
+  );
+  if ('error' in validatedEndpoint) {
+    return validatedEndpoint;
   }
 
   const auth = parseBoundedString(parsedBody.value.auth, {
@@ -236,16 +266,16 @@ const parsePushSubscriptionBody = (
   return {
     value: {
       auth: auth.value,
-      endpoint: endpoint.value,
+      endpoint: validatedEndpoint.value,
       p256dh: p256dh.value,
       userAgent: userAgent.value ?? '',
     },
   };
 };
 
-const parsePushSubscriptionEndpointParam = (
+const parsePushSubscriptionEndpointParam = async (
   value: unknown
-): { value: string } | { error: string } => {
+): Promise<{ value: string } | { error: string }> => {
   const endpoint = parseBoundedString(value, {
     fieldName: 'endpoint',
     maxLength: MAX_PUSH_ENDPOINT_LENGTH,
@@ -255,17 +285,7 @@ const parsePushSubscriptionEndpointParam = (
     return endpoint;
   }
 
-  try {
-    const parsedEndpoint = new URL(endpoint.value);
-
-    if (parsedEndpoint.protocol !== 'https:') {
-      return { error: 'endpoint must be an HTTPS URL.' };
-    }
-  } catch {
-    return { error: 'endpoint must be a valid URL.' };
-  }
-
-  return endpoint;
+  return validatePushSubscriptionEndpoint(endpoint.value);
 };
 
 const parseLocalUserBody = (
@@ -385,95 +405,97 @@ router.get(
     type: 'or',
   }),
   async (req, res, next) => {
-  try {
-    const parsedIncludeIds = parseOptionalIncludeUserIds(req.query.includeIds);
-    if ('error' in parsedIncludeIds) {
-      return next({ status: 400, message: parsedIncludeIds.error });
-    }
-    const includeIds = parsedIncludeIds.value;
-    const pageSize = parsePositiveInt(
-      req.query.take,
-      Math.max(10, includeIds.length),
-      100
-    );
-    const skip = parseNonNegativeInt(req.query.skip);
-    const parsedQ = parseOptionalUserQueryString(
-      req.query.q,
-      'Search query',
-      MAX_USER_SEARCH_QUERY_LENGTH
-    );
-    if ('error' in parsedQ) {
-      return next({ status: 400, message: parsedQ.error });
-    }
-    const parsedSort = parseOptionalUserQueryString(
-      req.query.sort,
-      'Sort field',
-      MAX_USER_SORT_LENGTH
-    );
-    if ('error' in parsedSort) {
-      return next({ status: 400, message: parsedSort.error });
-    }
-    const parsedSortDirection = parseOptionalUserQueryString(
-      req.query.sortDirection,
-      'Sort direction',
-      MAX_USER_SORT_LENGTH
-    );
-    if ('error' in parsedSortDirection) {
-      return next({ status: 400, message: parsedSortDirection.error });
-    }
-
-    const q = parsedQ.value?.toLowerCase() ?? '';
-    const sortParam = parsedSort.value;
-    const sortDirectionQuery = parsedSortDirection.value?.toLowerCase();
-
-    let sortDirection: 'ASC' | 'DESC';
-    if (sortDirectionQuery === 'asc') {
-      sortDirection = 'ASC';
-    } else if (sortDirectionQuery === 'desc') {
-      sortDirection = 'DESC';
-    } else {
-      switch (sortParam) {
-        case 'displayname':
-          sortDirection = 'ASC';
-          break;
-        case 'requests':
-        case 'updated':
-          sortDirection = 'DESC';
-          break;
-        case 'created':
-        case 'usertype':
-        case 'role':
-        case undefined:
-        default:
-          sortDirection = 'ASC';
-          break;
-      }
-    }
-
-    let query = getRepository(User).createQueryBuilder('user');
-
-    if (q) {
-      query = query.where(
-        'LOWER(user.username) LIKE :q OR LOWER(user.email) LIKE :q OR LOWER(user.plexUsername) LIKE :q OR LOWER(user.jellyfinUsername) LIKE :q',
-        { q: `%${q}%` }
+    try {
+      const parsedIncludeIds = parseOptionalIncludeUserIds(
+        req.query.includeIds
       );
-    }
+      if ('error' in parsedIncludeIds) {
+        return next({ status: 400, message: parsedIncludeIds.error });
+      }
+      const includeIds = parsedIncludeIds.value;
+      const pageSize = parsePositiveInt(
+        req.query.take,
+        Math.max(10, includeIds.length),
+        100
+      );
+      const skip = parseNonNegativeInt(req.query.skip);
+      const parsedQ = parseOptionalUserQueryString(
+        req.query.q,
+        'Search query',
+        MAX_USER_SEARCH_QUERY_LENGTH
+      );
+      if ('error' in parsedQ) {
+        return next({ status: 400, message: parsedQ.error });
+      }
+      const parsedSort = parseOptionalUserQueryString(
+        req.query.sort,
+        'Sort field',
+        MAX_USER_SORT_LENGTH
+      );
+      if ('error' in parsedSort) {
+        return next({ status: 400, message: parsedSort.error });
+      }
+      const parsedSortDirection = parseOptionalUserQueryString(
+        req.query.sortDirection,
+        'Sort direction',
+        MAX_USER_SORT_LENGTH
+      );
+      if ('error' in parsedSortDirection) {
+        return next({ status: 400, message: parsedSortDirection.error });
+      }
 
-    if (includeIds.length > 0) {
-      query.andWhereInIds(includeIds);
-    }
+      const q = parsedQ.value?.toLowerCase() ?? '';
+      const sortParam = parsedSort.value;
+      const sortDirectionQuery = parsedSortDirection.value?.toLowerCase();
 
-    switch (sortParam) {
-      case 'created':
-        query = query.orderBy('user.createdAt', sortDirection);
-        break;
-      case 'updated':
-        query = query.orderBy('user.updatedAt', sortDirection);
-        break;
-      case 'displayname':
-        query = query
-          .addSelect(
-            `CASE WHEN (user.username IS NULL OR user.username = '') THEN (
+      let sortDirection: 'ASC' | 'DESC';
+      if (sortDirectionQuery === 'asc') {
+        sortDirection = 'ASC';
+      } else if (sortDirectionQuery === 'desc') {
+        sortDirection = 'DESC';
+      } else {
+        switch (sortParam) {
+          case 'displayname':
+            sortDirection = 'ASC';
+            break;
+          case 'requests':
+          case 'updated':
+            sortDirection = 'DESC';
+            break;
+          case 'created':
+          case 'usertype':
+          case 'role':
+          case undefined:
+          default:
+            sortDirection = 'ASC';
+            break;
+        }
+      }
+
+      let query = getRepository(User).createQueryBuilder('user');
+
+      if (q) {
+        query = query.where(
+          'LOWER(user.username) LIKE :q OR LOWER(user.email) LIKE :q OR LOWER(user.plexUsername) LIKE :q OR LOWER(user.jellyfinUsername) LIKE :q',
+          { q: `%${q}%` }
+        );
+      }
+
+      if (includeIds.length > 0) {
+        query.andWhereInIds(includeIds);
+      }
+
+      switch (sortParam) {
+        case 'created':
+          query = query.orderBy('user.createdAt', sortDirection);
+          break;
+        case 'updated':
+          query = query.orderBy('user.updatedAt', sortDirection);
+          break;
+        case 'displayname':
+          query = query
+            .addSelect(
+              `CASE WHEN (user.username IS NULL OR user.username = '') THEN (
                 CASE WHEN (user.plexUsername IS NULL OR user.plexUsername = '') THEN (
                   CASE WHEN (user.jellyfinUsername IS NULL OR user.jellyfinUsername = '') THEN
                     "user"."email"
@@ -486,61 +508,61 @@ router.get(
               ELSE
                 LOWER(user.username)
               END`,
-            'displayname_sort_key'
-          )
-          .orderBy('displayname_sort_key', sortDirection);
-        break;
-      case 'requests':
-        query = query
-          .addSelect((subQuery) => {
-            return subQuery
-              .select('COUNT(request.id)', 'request_count')
-              .from(MediaRequest, 'request')
-              .where('request.requestedBy.id = user.id');
-          }, 'request_count')
-          .orderBy('request_count', sortDirection);
-        break;
-      case 'usertype':
-        query = query.orderBy('user.userType', sortDirection);
-        break;
-      case 'role':
-        query = query
-          .addSelect(
-            `CASE
+              'displayname_sort_key'
+            )
+            .orderBy('displayname_sort_key', sortDirection);
+          break;
+        case 'requests':
+          query = query
+            .addSelect((subQuery) => {
+              return subQuery
+                .select('COUNT(request.id)', 'request_count')
+                .from(MediaRequest, 'request')
+                .where('request.requestedBy.id = user.id');
+            }, 'request_count')
+            .orderBy('request_count', sortDirection);
+          break;
+        case 'usertype':
+          query = query.orderBy('user.userType', sortDirection);
+          break;
+        case 'role':
+          query = query
+            .addSelect(
+              `CASE
               WHEN user.id = 1 THEN 0
               WHEN (user.permissions & ${Permission.ADMIN}) != 0 THEN 1
               ELSE 2
             END`,
-            'role_sort_key'
-          )
-          .orderBy('role_sort_key', sortDirection);
-        break;
-      default:
-        query = query.orderBy('user.id', sortDirection);
-        break;
+              'role_sort_key'
+            )
+            .orderBy('role_sort_key', sortDirection);
+          break;
+        default:
+          query = query.orderBy('user.id', sortDirection);
+          break;
+      }
+
+      const [users, userCount] = await query
+        .take(pageSize)
+        .skip(skip)
+        .distinct(true)
+        .getManyAndCount();
+
+      return res.status(200).json({
+        pageInfo: {
+          pages: Math.ceil(userCount / pageSize),
+          pageSize,
+          results: userCount,
+          page: Math.ceil(skip / pageSize) + 1,
+        },
+        results: User.filterMany(
+          users,
+          req.user?.hasPermission(Permission.MANAGE_USERS)
+        ),
+      } as UserResultsResponse);
+    } catch (e) {
+      next({ status: 500, message: e.message });
     }
-
-    const [users, userCount] = await query
-      .take(pageSize)
-      .skip(skip)
-      .distinct(true)
-      .getManyAndCount();
-
-    return res.status(200).json({
-      pageInfo: {
-        pages: Math.ceil(userCount / pageSize),
-        pageSize,
-        results: userCount,
-        page: Math.ceil(skip / pageSize) + 1,
-      },
-      results: User.filterMany(
-        users,
-        req.user?.hasPermission(Permission.MANAGE_USERS)
-      ),
-    } as UserResultsResponse);
-  } catch (e) {
-    next({ status: 500, message: e.message });
-  }
   }
 );
 
@@ -621,7 +643,7 @@ router.post<
     userAgent: string;
   }
 >('/registerPushSubscription', async (req, res, next) => {
-  const parsedBody = parsePushSubscriptionBody(req.body);
+  const parsedBody = await parsePushSubscriptionBody(req.body);
 
   if ('error' in parsedBody) {
     return next({ status: 400, message: parsedBody.error });
@@ -750,7 +772,9 @@ router.get<{ id: string; endpoint: string }>(
         return next({ status: 404, message: 'User subscription not found.' });
       }
 
-      const endpoint = parsePushSubscriptionEndpointParam(req.params.endpoint);
+      const endpoint = await parsePushSubscriptionEndpointParam(
+        req.params.endpoint
+      );
       if ('error' in endpoint) {
         return next({ status: 400, message: endpoint.error });
       }
@@ -783,7 +807,9 @@ router.delete<{ id: string; endpoint: string }>(
         return res.status(204).send();
       }
 
-      const endpoint = parsePushSubscriptionEndpointParam(req.params.endpoint);
+      const endpoint = await parsePushSubscriptionEndpointParam(
+        req.params.endpoint
+      );
       if ('error' in endpoint) {
         return next({ status: 400, message: endpoint.error });
       }

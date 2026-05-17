@@ -162,6 +162,41 @@ describe('User route input validation', () => {
     assert.match(deleteRes.body.message, /endpoint must be a valid URL/i);
   });
 
+  it('rejects unsafe push subscription endpoints before persistence or lookup', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const credentialedRes = await agent
+      .post('/user/registerPushSubscription')
+      .send({
+        endpoint: 'https://user:pass@push.example.com/sub',
+        auth: 'auth',
+        p256dh: 'p256dh',
+      });
+    const privateRes = await agent.post('/user/registerPushSubscription').send({
+      endpoint: 'https://127.0.0.1/push',
+      auth: 'auth',
+      p256dh: 'p256dh',
+    });
+    const privateLookupRes = await agent.get(
+      '/user/1/pushSubscription/https%3A%2F%2F127.0.0.1%2Fpush'
+    );
+
+    assert.strictEqual(credentialedRes.status, 400);
+    assert.match(
+      credentialedRes.body.message,
+      /endpoint must not include credentials/i
+    );
+    assert.strictEqual(privateRes.status, 400);
+    assert.match(
+      privateRes.body.message,
+      /endpoint must be a public HTTPS URL/i
+    );
+    assert.strictEqual(privateLookupRes.status, 400);
+    assert.match(
+      privateLookupRes.body.message,
+      /endpoint must be a public HTTPS URL/i
+    );
+  });
+
   it('rejects malformed local user create bodies', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/user').send([]);
@@ -180,7 +215,9 @@ describe('User route input validation', () => {
 
   it('rejects malformed Plex linked account bodies before provider calls', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
-    const res = await agent.post('/user/1/settings/linked-accounts/plex').send([]);
+    const res = await agent
+      .post('/user/1/settings/linked-accounts/plex')
+      .send([]);
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /User settings body must be an object/i);
