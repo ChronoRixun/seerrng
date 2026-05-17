@@ -11,6 +11,8 @@ import type { NotificationAgent, NotificationPayload } from './agent';
 import { BaseAgent, NOTIFICATION_HTTP_OPTIONS } from './agent';
 
 const MAX_WEBHOOK_PAYLOAD_BYTES = 64 * 1024;
+const MAX_WEBHOOK_PAYLOAD_DEPTH = 32;
+const MAX_WEBHOOK_PAYLOAD_NODES = 2_000;
 const MAX_WEBHOOK_CUSTOM_HEADERS = 20;
 const MAX_WEBHOOK_HEADER_VALUE_LENGTH = 4096;
 const WEBHOOK_HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
@@ -106,8 +108,21 @@ class WebhookAgent
   private parseKeys(
     finalPayload: Record<string, unknown>,
     payload: NotificationPayload,
-    type: Notification
+    type: Notification,
+    options: { depth: number; nodes: { count: number } } = {
+      depth: 0,
+      nodes: { count: 0 },
+    }
   ): Record<string, unknown> {
+    if (options.depth > MAX_WEBHOOK_PAYLOAD_DEPTH) {
+      throw new Error('Webhook payload exceeds maximum depth.');
+    }
+
+    options.nodes.count += 1;
+    if (options.nodes.count > MAX_WEBHOOK_PAYLOAD_NODES) {
+      throw new Error('Webhook payload exceeds maximum object count.');
+    }
+
     Object.keys(finalPayload).forEach((key) => {
       if (key === '{{extra}}') {
         finalPayload.extra = payload.extra ?? [];
@@ -161,7 +176,11 @@ class WebhookAgent
         finalPayload[key] = this.parseKeys(
           finalPayload[key] as Record<string, unknown>,
           payload,
-          type
+          type,
+          {
+            depth: options.depth + 1,
+            nodes: options.nodes,
+          }
         );
       }
     });
