@@ -6040,6 +6040,12 @@ paths:
             enum: [exact, range]
             example: exact
           description: Determines whether to use exact certification matching or a certification range (internal use only, not sent to TMDB API)
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: Results
@@ -6371,6 +6377,12 @@ paths:
             enum: [exact, range]
             example: exact
           description: Determines whether to use exact certification matching or a certification range (internal use only, not sent to TMDB API)
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: Results

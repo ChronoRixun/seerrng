@@ -269,6 +269,43 @@ describe('GET /discover/movies', () => {
     assert.strictEqual(callCount, 1);
   });
 
+  it('accepts shuffle seeds for root movie discovery', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/movie');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 1,
+        results: [
+          {
+            id: 1,
+            media_type: 'movie',
+            title: 'Seeded Movie',
+            original_title: 'Seeded Movie',
+            release_date: '2026-01-01',
+            adult: false,
+            video: false,
+            popularity: 20,
+            poster_path: '/seeded.jpg',
+            backdrop_path: '/seeded-backdrop.jpg',
+            vote_count: 100,
+            vote_average: 7,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+        ],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/movies?shuffleSeed=refresh-a');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results[0].title, 'Seeded Movie');
+  });
+
   it('ranks movie genre discovery by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       if (endpoint === '/genre/movie/list') {
@@ -510,6 +547,42 @@ describe('GET /discover/tv', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(callCount, 1);
+  });
+
+  it('accepts shuffle seeds for root series discovery', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/tv');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 1,
+        results: [
+          {
+            id: 1,
+            media_type: 'tv',
+            name: 'Seeded Series',
+            original_name: 'Seeded Series',
+            origin_country: ['US'],
+            first_air_date: '2026-01-01',
+            popularity: 20,
+            poster_path: '/seeded.jpg',
+            backdrop_path: '/seeded-backdrop.jpg',
+            vote_count: 100,
+            vote_average: 7,
+            genre_ids: [],
+            overview: '',
+            original_language: 'en',
+          },
+        ],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/tv?shuffleSeed=refresh-a');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results[0].name, 'Seeded Series');
   });
 
   it('ranks series genre discovery by quality signals within the TMDB page', async () => {
