@@ -1,7 +1,11 @@
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
-import { buildDiscoverQueryString } from '@server/utils/discoverQuery';
+import {
+  getPersistentResponse,
+  setPersistentResponse,
+} from '@app/utils/swrCache';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
+import { buildDiscoverQueryString } from '@server/utils/discoverQuery';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWRInfinite from 'swr/infinite';
@@ -130,6 +134,16 @@ const useDiscover = <
   const { addToast } = useToasts();
   const intl = useIntl();
   const [shuffleSeed, setShuffleSeed] = useState(getShuffleSeed);
+  const fallbackCacheKey = useMemo(
+    () =>
+      `discover-view:${endpoint}:${buildDiscoverQueryString(
+        (options ?? {}) as Record<string, unknown>
+      )}:${randomizeOrder ? 'random' : 'stable'}`,
+    [endpoint, options, randomizeOrder]
+  );
+  const [fallbackData] = useState(() =>
+    getPersistentResponse<(BaseSearchResult<T> & S)[]>(fallbackCacheKey)
+  );
   const {
     data,
     error,
@@ -137,9 +151,7 @@ const useDiscover = <
     setSize,
     isValidating,
     mutate: revalidate,
-  } = useSWRInfinite<
-    BaseSearchResult<T> & S
-  >(
+  } = useSWRInfinite<BaseSearchResult<T> & S>(
     (pageIndex: number, previousPageData) => {
       if (!enabled) {
         return null;
@@ -165,6 +177,7 @@ const useDiscover = <
       revalidateFirstPage: false,
       dedupingInterval: 30000,
       revalidateOnFocus: false,
+      fallbackData,
     }
   );
 
@@ -242,8 +255,7 @@ const useDiscover = <
   useWarmImageCache(titles);
 
   const rawResultCount = useMemo(
-    () =>
-      (data ?? []).reduce((total, page) => total + page.results.length, 0),
+    () => (data ?? []).reduce((total, page) => total + page.results.length, 0),
     [data]
   );
   const lastResultPage = data?.[data.length - 1];
@@ -260,9 +272,7 @@ const useDiscover = <
     hasMoreUnfilteredResults &&
     size < FILTERED_EMPTY_PAGE_SCAN_LIMIT;
   const isEmpty =
-    !isLoadingInitialData &&
-    titles.length === 0 &&
-    !shouldScanNextFilteredPage;
+    !isLoadingInitialData && titles.length === 0 && !shouldScanNextFilteredPage;
   const isReachingEnd =
     (!!data && (lastResultPage?.results.length ?? 0) < 20) ||
     (!!data && (lastResultPage?.totalResults ?? 0) <= size * 20) ||
@@ -276,6 +286,12 @@ const useDiscover = <
       setSize((currentSize) => currentSize + 1);
     }
   }, [setSize, shouldScanNextFilteredPage]);
+
+  useEffect(() => {
+    if (data?.length && titles.length) {
+      setPersistentResponse(fallbackCacheKey, data);
+    }
+  }, [data, fallbackCacheKey, titles.length]);
 
   useEffect(() => {
     if (error && titles.length) {

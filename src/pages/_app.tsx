@@ -10,6 +10,7 @@ import useSettings from '@app/hooks/useSettings';
 import enMessages from '@app/i18n/locale/en.json';
 import '@app/styles/globals.css';
 import { polyfillIntl } from '@app/utils/polyfillIntl';
+import { createPersistentSWRCache } from '@app/utils/swrCache';
 import '@fontsource-variable/inter';
 import type { AvailableLocale } from '@server/types/languages';
 import axios from 'axios';
@@ -134,6 +135,7 @@ const CoreApp = ({ Component, pageProps, router }: AppProps) => {
   );
   const [currentLocale, setLocale] = useState<AvailableLocale>('en');
   const loadedLocale = useRef<AvailableLocale>('en');
+  const swrCache = useRef(createPersistentSWRCache());
 
   useEffect(() => {
     polyfillIntl();
@@ -167,6 +169,7 @@ const CoreApp = ({ Component, pageProps, router }: AppProps) => {
   return (
     <SWRConfig
       value={{
+        provider: () => swrCache.current,
         fetcher: (url) => axios.get(url).then((res) => res.data),
         revalidateOnFocus: false,
         focusThrottleInterval: 30000,

@@ -8,6 +8,10 @@ import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
 import useWarmImageCache from '@app/hooks/useWarmImageCache';
 import {
+  getPersistentResponse,
+  setPersistentResponse,
+} from '@app/utils/swrCache';
+import {
   ArrowPathIcon,
   ArrowRightCircleIcon,
 } from '@heroicons/react/24/outline';
@@ -84,6 +88,13 @@ const MediaSlider = ({
   const [shuffleSeed, setShuffleSeed] = useState(() =>
     Math.random().toString(36).slice(2)
   );
+  const fallbackCacheKey = useMemo(
+    () => `discover-slider:${sliderKey}:${url}:${extraParams ?? ''}`,
+    [extraParams, sliderKey, url]
+  );
+  const [fallbackData] = useState(() =>
+    getPersistentResponse<MixedResult[]>(fallbackCacheKey)
+  );
   const getKey = useCallback(
     (pageIndex: number, previousPageData: MixedResult | null) => {
       if (!shouldLoad) {
@@ -110,6 +121,7 @@ const MediaSlider = ({
     revalidateFirstPage: false,
     dedupingInterval: 30000,
     revalidateOnFocus: false,
+    fallbackData,
   });
 
   const refreshRandomizedOrder = useCallback(() => {
@@ -200,6 +212,12 @@ const MediaSlider = ({
       setSize((currentSize) => currentSize + 1);
     }
   }, [setSize, shouldLoadMore]);
+
+  useEffect(() => {
+    if (data?.length && renderableTitles.length) {
+      setPersistentResponse(fallbackCacheKey, data);
+    }
+  }, [data, fallbackCacheKey, renderableTitles.length]);
 
   useEffect(() => {
     if (onNewTitles) {
