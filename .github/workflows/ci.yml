@@ -313,37 +313,51 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GitHub Container Registry on seerr.home
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh kspls0 \
+            "docker login ghcr.io --username '${{ github.repository_owner }}' --password-stdin"
 
       - name: Pull latest main image
-        run: docker pull ghcr.io/${{ github.repository }}:main
+        run: ssh kspls0 "docker pull ghcr.io/${{ github.repository }}:main"
 
       - name: Prepare config directory
         run: |
-          sudo install -d -m 0755 "$SEERRNG_CONFIG_DIR"
-          sudo chown -R 1000:1000 "$SEERRNG_CONFIG_DIR"
+          ssh kspls0 "sudo install -d -m 0755 '$SEERRNG_CONFIG_DIR' && sudo chown -R 1000:1000 '$SEERRNG_CONFIG_DIR'"
 
       - name: Deploy seerr.home
         run: |
+          ssh kspls0 \
+            "SEERRNG_CONTAINER_NAME='$SEERRNG_CONTAINER_NAME' \
+            SEERRNG_PORT='$SEERRNG_PORT' \
+            SEERRNG_CONFIG_DIR='$SEERRNG_CONFIG_DIR' \
+            SEERRNG_TAG='$SEERRNG_TAG' \
+            TZ='${TZ:-America/Regina}' \
+            LOG_LEVEL='${LOG_LEVEL:-info}' \
+            REPOSITORY='${{ github.repository }}' \
+            bash -s" <<'EOF'
           docker rm -f "$SEERRNG_CONTAINER_NAME" 2>/dev/null || true
           docker run -d \
             --name "$SEERRNG_CONTAINER_NAME" \
             --restart unless-stopped \
             --network host \
-            -e TZ="${TZ:-America/Regina}" \
+            -e TZ="$TZ" \
             -e PORT="$SEERRNG_PORT" \
             -e CONFIG_DIRECTORY=/app/config \
-            -e LOG_LEVEL="${LOG_LEVEL:-info}" \
+            -e LOG_LEVEL="$LOG_LEVEL" \
             -v "$SEERRNG_CONFIG_DIR:/app/config" \
-            "ghcr.io/${{ github.repository }}:$SEERRNG_TAG"
+            "ghcr.io/$REPOSITORY:$SEERRNG_TAG"
+          EOF
 
       - name: Verify seerr.home deployment
         run: |
+          ssh kspls0 \
+            "SEERRNG_CONTAINER_NAME='$SEERRNG_CONTAINER_NAME' \
+            SEERRNG_PORT='$SEERRNG_PORT' \
+            GITHUB_SHA='$GITHUB_SHA' \
+            bash -s" <<'EOF'
           docker ps --filter "name=^/${SEERRNG_CONTAINER_NAME}$" --filter "status=running" --format '{{.Names}}' | grep -qx "$SEERRNG_CONTAINER_NAME"
           status_ready=false
           for i in $(seq 1 90); do
@@ -356,3 +370,4 @@ jobs:
           done
           test "$status_ready" = true
           grep -q "\"commitTag\":\"${GITHUB_SHA}\"" status.json
+          EOF
