@@ -15,6 +15,10 @@ These settings are stored in the `settings.json` file located in the Seerr data 
 
 Apart from the settings, all other data—including user accounts, media requests, blocklist etc. are stored in the database (either SQLite or PostgreSQL).
 
+## Cache Data
+
+The `cache` directory is optional. It can contain image cache files, temporary cache metadata, and other data that Seerr can rebuild. Backing it up can preserve warm image caches after a restore, but it is not required for application correctness.
+
 # Backup
 
 ### SQLite

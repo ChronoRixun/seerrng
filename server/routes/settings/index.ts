@@ -34,6 +34,7 @@ import { parsePageParams } from '@server/utils/pagination';
 import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
 import {
   parseBoundedString,
+  parseOptionalAllowedString,
   parseOptionalBodyBoolean,
   parseOptionalBoundedString,
   parseOptionalQueryBoolean,
@@ -60,6 +61,7 @@ const MAX_LOG_SEARCH_LENGTH = 200;
 const MAX_JOB_SCHEDULE_LENGTH = 100;
 const MAX_LIBRARY_ENABLE_QUERY_LENGTH = 4096;
 const MAX_SETTINGS_PATH_ID_LENGTH = 128;
+const logFilters = ['debug', 'info', 'warn', 'error'] as const;
 
 const parseEnableList = (value: unknown) => {
   const parsed = parseOptionalBoundedString(value, {
@@ -654,14 +656,26 @@ settingsRoutes.get(
       take: 25,
       maxTake: 100,
     });
-    const search =
-      typeof req.query.search === 'string'
-        ? req.query.search.slice(0, MAX_LOG_SEARCH_LENGTH)
-        : '';
+    const parsedSearch = parseOptionalBoundedString(req.query.search, {
+      fieldName: 'Search',
+      maxLength: MAX_LOG_SEARCH_LENGTH,
+    });
+    if ('error' in parsedSearch) {
+      return next({ status: 400, message: parsedSearch.error });
+    }
+    const parsedFilter = parseOptionalAllowedString(req.query.filter, {
+      fieldName: 'Filter',
+      allowedValues: logFilters,
+      maxLength: 16,
+    });
+    if ('error' in parsedFilter) {
+      return next({ status: 400, message: parsedFilter.error });
+    }
+    const search = parsedSearch.value ?? '';
     const searchRegexp = new RegExp(escapeRegExp(search), 'i');
 
     let filter: string[] = [];
-    switch (req.query.filter) {
+    switch (parsedFilter.value) {
       case 'debug':
         filter.push('debug');
       // falls through
@@ -709,49 +723,47 @@ settingsRoutes.get(
     try {
       const logContent = await readLogTail(logFile);
 
-      logContent
-        .split('\n')
-        .forEach((line) => {
-          if (!line.length) return;
+      logContent.split('\n').forEach((line) => {
+        if (!line.length) return;
 
-          let logMessage: LogMessage & Record<string, unknown>;
-          try {
-            logMessage = JSON.parse(line);
-          } catch {
-            return;
-          }
+        let logMessage: LogMessage & Record<string, unknown>;
+        try {
+          logMessage = JSON.parse(line);
+        } catch {
+          return;
+        }
 
-          if (!filter.includes(logMessage.level)) {
-            return;
-          }
+        if (!filter.includes(logMessage.level)) {
+          return;
+        }
 
+        if (
+          !Object.keys(logMessage).every((key) =>
+            logMessageProperties.includes(key)
+          )
+        ) {
+          Object.keys(logMessage)
+            .filter((prop) => !logMessageProperties.includes(prop))
+            .forEach((prop) => {
+              set(logMessage, `data.${prop}`, logMessage[prop]);
+            });
+        }
+
+        if (search) {
           if (
-            !Object.keys(logMessage).every((key) =>
-              logMessageProperties.includes(key)
+            // label and data are sometimes undefined
+            !searchRegexp.test(logMessage.label ?? '') &&
+            !searchRegexp.test(logMessage.message) &&
+            !deepValueStrings(logMessage.data ?? {}).some((val) =>
+              searchRegexp.test(val)
             )
           ) {
-            Object.keys(logMessage)
-              .filter((prop) => !logMessageProperties.includes(prop))
-              .forEach((prop) => {
-                set(logMessage, `data.${prop}`, logMessage[prop]);
-              });
+            return;
           }
+        }
 
-          if (req.query.search) {
-            if (
-              // label and data are sometimes undefined
-              !searchRegexp.test(logMessage.label ?? '') &&
-              !searchRegexp.test(logMessage.message) &&
-              !deepValueStrings(logMessage.data ?? {}).some((val) =>
-                searchRegexp.test(val)
-              )
-            ) {
-              return;
-            }
-          }
-
-          logs.push(redactSecrets(logMessage));
-        });
+        logs.push(redactSecrets(logMessage));
+      });
 
       const displayedLogs = logs.reverse().slice(skip, skip + pageSize);
 
@@ -943,7 +955,10 @@ settingsRoutes.post<{ cacheId: AvailableCacheIds }>(
 settingsRoutes.post<{ dnsEntry: string }>(
   '/cache/dns/:dnsEntry/flush',
   (req, res, next) => {
-    const dnsEntry = parseSettingsPathId(req.params.dnsEntry, 'DNS cache entry');
+    const dnsEntry = parseSettingsPathId(
+      req.params.dnsEntry,
+      'DNS cache entry'
+    );
     if ('error' in dnsEntry) {
       return next({ status: 404, message: 'Cache not found.' });
     }

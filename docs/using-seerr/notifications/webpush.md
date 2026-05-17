@@ -14,12 +14,14 @@ The web push notification agent enables you and your users to receive Seerr noti
 
 This notification agent does not require any configuration, but is not enabled by default in Seerr.
 
+Seerr's service worker is also used for browser runtime caching. That cache is registered independently from web push, so disabling Web Push notifications does not disable browser caching for supported API, static asset, avatar proxy, or image proxy responses.
+
 To set up web push notifications, simply enable the agent in **Settings → Notifications → Web Push**.
 
 You and your users have the option to enable web push notifications by going to your **User Profile → Edit Settings → Notifications → Web Push → Enable web push**. Here you can also customize the notifications you'd like to receive.
 
 :::info[Mobile Users]
-For Web Push notifications to work on mobile you need to add Seerr to your home screen as progressive web app (PWA). 
+For Web Push notifications to work on mobile you need to add Seerr to your home screen as progressive web app (PWA).
 :::
 
 :::info[iOS Users]

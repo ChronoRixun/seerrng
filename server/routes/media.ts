@@ -20,6 +20,7 @@ import { isAuthenticated } from '@server/middleware/auth';
 import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePageParams } from '@server/utils/pagination';
 import {
+  parseOptionalAllowedString,
   parseOptionalBodyBoolean,
   parseOptionalNonNegativeInteger,
   parseOptionalQueryBoolean,
@@ -32,6 +33,15 @@ const mediaRoutes = Router();
 const maxMediaId = 1_000_000_000;
 const maxSeasonCount = 500;
 const maxSeasonNumber = 10_000;
+const mediaListFilters = [
+  'available',
+  'partial',
+  'allavailable',
+  'processing',
+  'pending',
+] as const;
+const mediaListSorts = ['modified', 'mediaAdded'] as const;
+const mediaFileFormats = ['ebook', 'audiobook', 'both'] as const;
 
 const parseMediaRouteId = (id: unknown): number | undefined => {
   const parsedValue =
@@ -48,6 +58,15 @@ const mediaStatusActions = [
   'pending',
   'unknown',
 ] as const;
+type MediaStatusAction = (typeof mediaStatusActions)[number];
+
+const parseMediaStatusAction = (
+  status: unknown
+): MediaStatusAction | undefined =>
+  typeof status === 'string' &&
+  mediaStatusActions.includes(status as MediaStatusAction)
+    ? (status as MediaStatusAction)
+    : undefined;
 
 const parseSeasonStatusUpdates = (
   seasons: unknown
@@ -97,10 +116,28 @@ mediaRoutes.get('/', async (req, res, next) => {
     take: 20,
     maxTake: 100,
   });
+  const parsedFilter = parseOptionalAllowedString(req.query.filter, {
+    fieldName: 'Filter',
+    allowedValues: mediaListFilters,
+    maxLength: 32,
+  });
+  if ('error' in parsedFilter) {
+    return next({ status: 400, message: parsedFilter.error });
+  }
+  const parsedSort = parseOptionalAllowedString(req.query.sort, {
+    fieldName: 'Sort',
+    allowedValues: mediaListSorts,
+    maxLength: 32,
+  });
+  if ('error' in parsedSort) {
+    return next({ status: 400, message: parsedSort.error });
+  }
+  const filter = parsedFilter.value;
+  const sort = parsedSort.value;
 
   let statusFilter = undefined;
 
-  switch (req.query.filter) {
+  switch (filter) {
     case 'available':
       statusFilter = MediaStatus.AVAILABLE;
       break;
@@ -125,7 +162,7 @@ mediaRoutes.get('/', async (req, res, next) => {
     id: 'DESC',
   };
 
-  switch (req.query.sort) {
+  switch (sort) {
     case 'modified':
       sortFilter = {
         updatedAt: 'DESC',
@@ -138,11 +175,10 @@ mediaRoutes.get('/', async (req, res, next) => {
   }
 
   let whereClause: FindOneOptions<Media>['where'];
-  if (statusFilter || req.query.sort === 'mediaAdded') {
+  if (statusFilter || sort === 'mediaAdded') {
     whereClause = {};
     if (statusFilter) whereClause.status = statusFilter;
-    if (req.query.sort === 'mediaAdded')
-      whereClause.mediaAddedAt = Not(IsNull());
+    if (sort === 'mediaAdded') whereClause.mediaAddedAt = Not(IsNull());
   }
 
   try {
@@ -182,11 +218,8 @@ mediaRoutes.post<
     if (!mediaId) {
       return next({ status: 404, message: 'Media does not exist.' });
     }
-    if (
-      !mediaStatusActions.includes(
-        req.params.status as (typeof mediaStatusActions)[number]
-      )
-    ) {
+    const statusAction = parseMediaStatusAction(req.params.status);
+    if (!statusAction) {
       return next({ status: 404, message: 'Media status does not exist.' });
     }
 
@@ -204,7 +237,7 @@ mediaRoutes.post<
     }
     const is4k = parsedIs4k.value ?? false;
 
-    switch (req.params.status) {
+    switch (statusAction) {
       case 'available':
         media[is4k ? 'status4k' : 'status'] = MediaStatus.AVAILABLE;
 
@@ -315,12 +348,15 @@ mediaRoutes.delete(
       const isMovie = media.mediaType === MediaType.MOVIE;
       const isMusic = media.mediaType === MediaType.MUSIC;
       const isBook = media.mediaType === MediaType.BOOK;
-      const bookFormat =
-        req.query.format === 'ebook' ||
-        req.query.format === 'audiobook' ||
-        req.query.format === 'both'
-          ? req.query.format
-          : 'both';
+      const parsedBookFormat = parseOptionalAllowedString(req.query.format, {
+        fieldName: 'Format',
+        allowedValues: mediaFileFormats,
+        maxLength: 16,
+      });
+      if ('error' in parsedBookFormat) {
+        return next({ status: 400, message: parsedBookFormat.error });
+      }
+      const bookFormat = parsedBookFormat.value ?? 'both';
 
       let serviceSettings;
       if (isMovie) {
@@ -545,7 +581,9 @@ mediaRoutes.get<{ id: string }, MediaWatchDataResponse>(
       return next({ status: 404, message: 'Media does not exist.' });
     }
 
-    const media = await getRepository(Media).findOne({ where: { id: mediaId } });
+    const media = await getRepository(Media).findOne({
+      where: { id: mediaId },
+    });
 
     if (!media) {
       return next({ status: 404, message: 'Media does not exist.' });

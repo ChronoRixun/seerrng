@@ -26,11 +26,11 @@ You must configure this setting in order to enable password reset and generation
 
 ## Enable Image Caching
 
-When enabled, Jellseerr will proxy and cache images from pre-configured sources (such as TMDB). This can use a significant amount of disk space.
+When enabled, Seerr will proxy and cache images from pre-configured sources such as TMDB, TVDB, Cover Art Archive, TheAudioDB, Open Library Covers, and Internet Archive. This can use a significant amount of disk space.
 
-Images are saved in the `config/cache/images` and stale images are cleared out every 24 hours.
+Images are saved in `config/cache/images`, and stale images are cleared out every 24 hours.
 
-You should enable this if you are having issues with loading images directly from TMDB in your browser.
+You should enable this if you are having issues loading external images directly in your browser, or if you want repeat page loads to reuse Seerr's local image cache. When enabled, Seerr also warms visible media images opportunistically so the first viewport is prioritized before off-screen content.
 
 ## Display Language
 

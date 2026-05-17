@@ -98,6 +98,19 @@ describe('GET /music/:id artist lists', () => {
     assert.strictEqual(getAlbum.mock.callCount(), 0);
   });
 
+  it('rejects malformed artist discography slider flags before provider lookup', async () => {
+    const getAlbum = mock.method(ListenBrainzAPI.prototype, 'getAlbum');
+
+    const agent = await login();
+    const res = await agent.get(
+      '/music/release-group-id/artist-discography?slider=yes'
+    );
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Slider must be valid/);
+    assert.strictEqual(getAlbum.mock.callCount(), 0);
+  });
+
   it('rejects malformed album IDs before similar artist provider lookup', async () => {
     const getAlbum = mock.method(ListenBrainzAPI.prototype, 'getAlbum');
 

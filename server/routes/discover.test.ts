@@ -164,6 +164,27 @@ describe('GET /discover/movies', () => {
     );
   });
 
+  it('rejects malformed root movie discovery query parameters before provider lookup', async () => {
+    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed movie query');
+    });
+
+    const agent = await login();
+    const arrayRes = await agent.get('/discover/movies?genre=28&genre=12');
+    const dateRes = await agent.get(
+      '/discover/movies?primaryReleaseDateGte=01/01/2026'
+    );
+
+    assert.strictEqual(arrayRes.status, 400);
+    assert.match(arrayRes.body.message, /Invalid discovery query/);
+    assert.strictEqual(dateRes.status, 400);
+    assert.match(dateRes.body.message, /Invalid discovery query/);
+    assert.strictEqual(
+      (tmdbGet as { mock: { callCount: () => number } }).mock.callCount(),
+      0
+    );
+  });
+
   it('ranks default movie discovery by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       assert.strictEqual(endpoint, '/discover/movie');
@@ -390,6 +411,25 @@ describe('GET /discover/tv', () => {
     assert.strictEqual(res.status, 404);
   });
 
+  it('rejects malformed root series discovery query parameters before provider lookup', async () => {
+    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed series query');
+    });
+
+    const agent = await login();
+    const languageRes = await agent.get('/discover/tv?language=en&language=fr');
+    const dateRes = await agent.get('/discover/tv?firstAirDateLte=01/01/2026');
+
+    assert.strictEqual(languageRes.status, 400);
+    assert.match(languageRes.body.message, /Invalid discovery query/);
+    assert.strictEqual(dateRes.status, 400);
+    assert.match(dateRes.body.message, /Invalid discovery query/);
+    assert.strictEqual(
+      (tmdbGet as { mock: { callCount: () => number } }).mock.callCount(),
+      0
+    );
+  });
+
   it('ranks default series discovery by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       assert.strictEqual(endpoint, '/discover/tv');
@@ -582,7 +622,10 @@ describe('GET /discover/music', () => {
     });
 
     assert.strictEqual(res.status, 400);
-    assert.match(res.body.message, /Primary release date start must be a string/);
+    assert.match(
+      res.body.message,
+      /Primary release date start must be a string/
+    );
     assert.strictEqual(searchReleaseGroupsByTag.mock.callCount(), 0);
     assert.strictEqual(getFreshReleases.mock.callCount(), 0);
   });

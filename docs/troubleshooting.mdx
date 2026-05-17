@@ -153,6 +153,41 @@ In a PowerShell window:
 If you can't get a response, then your server can't reach the TMDB API.
 This is usually due to a network configuration issue or a firewall blocking the connection.
 
+## Pages repopulate slowly after refresh or tab restore
+
+Seerr uses browser cache headers, image proxy caching, and a service-worker runtime cache to make repeat browsing faster. If every refresh or tab switch appears to repopulate from scratch, check the cache layers below.
+
+### Check reverse proxy cache headers
+
+If Seerr is behind a reverse proxy, make sure it is not adding `Cache-Control: no-store` to every response. Cacheable API routes, static assets, `/imageproxy/*`, `/avatarproxy/*`, and `/sw.js` should keep Seerr's upstream cache headers.
+
+You can check a cacheable route with:
+
+```bash
+curl -I https://seerr.example.com/api/v1/settings/public
+```
+
+Expected behavior depends on whether the route is protected by an auth gateway, but the response should not receive a blanket proxy-level `Cache-Control: no-store` header. See [Reverse Proxy](/extending-seerr/reverse-proxy#cache-headers) for the paths that should be excluded from global `no-store` rules.
+
+### Check service-worker registration
+
+In your browser developer tools, open **Application → Service Workers** and confirm that `/sw.js` is registered for your Seerr origin. Then check **Application → Cache Storage** for a `runtime-v1` cache after loading the app and visiting a few media pages.
+
+If no service worker is registered, verify that:
+
+- Seerr is served over HTTPS, or over `localhost` for local development.
+- `/sw.js` is reachable from the browser.
+- Your reverse proxy is not blocking `/sw.js`.
+- Your browser profile or privacy extensions are not blocking service workers.
+
+### Check image cache settings
+
+In **Settings → General**, enable **Image Caching** if you want Seerr to proxy and store supported external images locally. In **Settings → Jobs & Cache**, check the image cache count and size to confirm images are being stored.
+
+### Check hidden-tab behavior
+
+Seerr avoids warming image cache batches while the tab is hidden. This prevents background tabs from creating unnecessary work, but it also means visible pages are prioritized when you return to the tab.
+
 ## Account does not have admin privileges
 
 If your admin account no longer has admin privileges, this is typically because your Jellyfin/Emby user ID has changed on the server side.

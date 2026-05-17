@@ -248,6 +248,19 @@ describe('POST /blocklist', () => {
 });
 
 describe('GET and DELETE /blocklist/:id', () => {
+  it('rejects malformed blocklist list query parameters', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const malformedTake = await agent.get('/blocklist?take=1.5');
+    const repeatedSearch = await agent.get(
+      '/blocklist?search=movie&search=show'
+    );
+
+    assert.strictEqual(malformedTake.status, 400);
+    assert.match(malformedTake.body.message, /Invalid blocklist query/);
+    assert.strictEqual(repeatedSearch.status, 400);
+    assert.match(repeatedSearch.body.message, /Invalid blocklist query/);
+  });
+
   it('rejects malformed numeric media identifiers', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     const lookup = await agent

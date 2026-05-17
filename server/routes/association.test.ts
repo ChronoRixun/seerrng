@@ -354,6 +354,14 @@ describe('GET /association/:mediaType/:id', () => {
     assert.strictEqual(res.status, 400);
   });
 
+  it('rejects malformed includeWeak query values', async () => {
+    const agent = await login();
+    const res = await agent.get('/association/movie/123?includeWeak=yes');
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Include weak associations must be valid/);
+  });
+
   it('returns same-medium similar and recommended edges for a movie', async () => {
     mockTmdb();
     const agent = await login();

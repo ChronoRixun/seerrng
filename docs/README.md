@@ -30,6 +30,8 @@ Bookshelf through its Readarr-compatible API.
 - Support for **PostgreSQL** and **SQLite** databases.
 - Support for various notification agents.
 - Easily **Watchlist** or **Blocklist** media.
+- Browser, API, DNS, and image caching for faster refreshes and repeated browsing.
+- Service-worker runtime caching for cacheable API responses, static assets, and proxied images.
 - More features to come!
 
 ## We need your help!

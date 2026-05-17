@@ -14,7 +14,10 @@ import logger from '@server/logger';
 import { mapMusicDetails } from '@server/models/Music';
 import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePositiveInt } from '@server/utils/pagination';
-import { parseBoundedString } from '@server/utils/validation';
+import {
+  parseBoundedString,
+  parseOptionalQueryBoolean,
+} from '@server/utils/validation';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
@@ -445,7 +448,11 @@ musicRoutes.get('/:id/artist-discography', async (req, res, next) => {
 
     const page = parsePositiveInt(req.query.page, 1);
     const pageSize = parsePositiveInt(req.query.pageSize, 20, 50);
-    const isSlider = req.query.slider === 'true';
+    const parsedSlider = parseOptionalQueryBoolean(req.query.slider, 'Slider');
+    if ('error' in parsedSlider) {
+      return res.status(400).json({ status: 400, message: parsedSlider.error });
+    }
+    const isSlider = parsedSlider.value ?? false;
 
     const albumData = await listenbrainzApi.getAlbum(mbId);
     const artistData = albumData?.release_group_metadata?.artist?.artists?.[0];

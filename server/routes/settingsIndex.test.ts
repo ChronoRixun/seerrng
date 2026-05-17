@@ -99,8 +99,26 @@ describe('Settings route input validation', () => {
     assert.match(jellyfinRes.body.message, /Cancel must be a boolean/);
   });
 
+  it('rejects malformed log search values before reading logs', async () => {
+    const res = await request(app).get(
+      '/settings/logs?search=error&search=warn'
+    );
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Search must be a string/);
+  });
+
+  it('rejects unknown log filters before reading logs', async () => {
+    const res = await request(app).get('/settings/logs?filter=trace');
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Filter must be valid/);
+  });
+
   it('rejects oversized job IDs before lookup', async () => {
-    const res = await request(app).post(`/settings/jobs/${'x'.repeat(129)}/run`);
+    const res = await request(app).post(
+      `/settings/jobs/${'x'.repeat(129)}/run`
+    );
 
     assert.strictEqual(res.status, 404);
   });

@@ -123,6 +123,24 @@ async function loginAs(email: string, password: string) {
   }
 }
 
+describe('GET /media', () => {
+  it('rejects malformed list filter values', async () => {
+    const res = await request(app).get(
+      '/media?filter=pending&filter=available'
+    );
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Filter must be a string/);
+  });
+
+  it('rejects unknown list sort values', async () => {
+    const res = await request(app).get('/media?sort=drop-table');
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Sort must be valid/);
+  });
+});
+
 describe('POST /media/:id/:status', () => {
   it('rejects malformed media IDs before lookup', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
@@ -209,6 +227,26 @@ describe('DELETE /media/:id/file', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /is4k must be valid/i);
+    assert.strictEqual(removeBookMock.mock.callCount(), 0);
+  });
+
+  it('rejects unknown book format query values before deletion', async () => {
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+        serviceId: 10,
+        externalServiceId: 100,
+        externalServiceSlug: 'ebook-slug',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.delete(`/media/${media.id}/file?format=pdf`);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Format must be valid/);
     assert.strictEqual(removeBookMock.mock.callCount(), 0);
   });
 

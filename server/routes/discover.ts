@@ -425,34 +425,42 @@ const getValidatedTmdbSort = (sortBy: unknown): SortOptions =>
     ? sortBy
     : 'popularity.desc') as SortOptions;
 
+const optionalTmdbQueryString = (maxLength = MAX_DISCOVER_FILTER_LENGTH) =>
+  z.string().trim().max(maxLength).optional();
+const optionalTmdbDateString = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .optional();
+
 const QueryFilterOptions = z.object({
-  page: z.coerce.string().optional(),
-  sortBy: z.coerce.string().optional(),
-  primaryReleaseDateGte: z.coerce.string().optional(),
-  primaryReleaseDateLte: z.coerce.string().optional(),
-  firstAirDateGte: z.coerce.string().optional(),
-  firstAirDateLte: z.coerce.string().optional(),
-  studio: z.coerce.string().optional(),
-  genre: z.coerce.string().optional(),
-  keywords: z.coerce.string().optional(),
-  excludeKeywords: z.coerce.string().optional(),
-  language: z.coerce.string().optional(),
-  withRuntimeGte: z.coerce.string().optional(),
-  withRuntimeLte: z.coerce.string().optional(),
-  voteAverageGte: z.coerce.string().optional(),
-  voteAverageLte: z.coerce.string().optional(),
-  voteCountGte: z.coerce.string().optional(),
-  voteCountLte: z.coerce.string().optional(),
-  network: z.coerce.string().optional(),
-  watchProviders: z.coerce.string().optional(),
-  watchRegion: z.coerce.string().optional(),
-  status: z.coerce.string().optional(),
-  certification: z.coerce.string().optional(),
-  certificationGte: z.coerce.string().optional(),
-  certificationLte: z.coerce.string().optional(),
-  certificationCountry: z.coerce.string().optional(),
+  page: optionalTmdbQueryString(16),
+  sortBy: optionalTmdbQueryString(64),
+  primaryReleaseDateGte: optionalTmdbDateString,
+  primaryReleaseDateLte: optionalTmdbDateString,
+  firstAirDateGte: optionalTmdbDateString,
+  firstAirDateLte: optionalTmdbDateString,
+  studio: optionalTmdbQueryString(),
+  genre: optionalTmdbQueryString(),
+  keywords: optionalTmdbQueryString(),
+  excludeKeywords: optionalTmdbQueryString(),
+  language: optionalTmdbQueryString(32),
+  withRuntimeGte: optionalTmdbQueryString(16),
+  withRuntimeLte: optionalTmdbQueryString(16),
+  voteAverageGte: optionalTmdbQueryString(16),
+  voteAverageLte: optionalTmdbQueryString(16),
+  voteCountGte: optionalTmdbQueryString(16),
+  voteCountLte: optionalTmdbQueryString(16),
+  network: optionalTmdbQueryString(),
+  watchProviders: optionalTmdbQueryString(),
+  watchRegion: optionalTmdbQueryString(16),
+  status: optionalTmdbQueryString(32),
+  certification: optionalTmdbQueryString(32),
+  certificationGte: optionalTmdbQueryString(32),
+  certificationLte: optionalTmdbQueryString(32),
+  certificationCountry: optionalTmdbQueryString(16),
   certificationMode: z.enum(['exact', 'range']).optional(),
-  shuffleSeed: z.coerce.string().optional(),
+  shuffleSeed: optionalTmdbQueryString(128),
 });
 
 export type FilterOptions = z.infer<typeof QueryFilterOptions>;
@@ -464,7 +472,14 @@ discoverRoutes.get('/movies', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage(req.user);
 
   try {
-    const query = ApiQuerySchema.parse(req.query);
+    const parsedQuery = ApiQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return res.status(400).json({
+        status: 400,
+        message: 'Invalid discovery query parameters.',
+      });
+    }
+    const query = parsedQuery.data;
     const keywords = query.keywords;
     const excludeKeywords = query.excludeKeywords;
     const parsedShuffleSeed = parseOptionalDiscoverString(
@@ -772,7 +787,10 @@ discoverRoutes.get('/movies/upcoming', async (req, res, next) => {
     .split('T')[0];
 
   try {
-    const parsedLanguage = parseDiscoverLanguage(req.query.language, req.locale);
+    const parsedLanguage = parseDiscoverLanguage(
+      req.query.language,
+      req.locale
+    );
     if ('error' in parsedLanguage) {
       return res
         .status(400)
@@ -822,7 +840,14 @@ discoverRoutes.get('/tv', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage(req.user);
 
   try {
-    const query = ApiQuerySchema.parse(req.query);
+    const parsedQuery = ApiQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return res.status(400).json({
+        status: 400,
+        message: 'Invalid discovery query parameters.',
+      });
+    }
+    const query = parsedQuery.data;
     const keywords = query.keywords;
     const excludeKeywords = query.excludeKeywords;
     const parsedShuffleSeed = parseOptionalDiscoverString(
@@ -1133,7 +1158,10 @@ discoverRoutes.get('/tv/upcoming', async (req, res, next) => {
     .split('T')[0];
 
   try {
-    const parsedLanguage = parseDiscoverLanguage(req.query.language, req.locale);
+    const parsedLanguage = parseDiscoverLanguage(
+      req.query.language,
+      req.locale
+    );
     if ('error' in parsedLanguage) {
       return res
         .status(400)
@@ -1202,7 +1230,10 @@ discoverRoutes.get('/trending', async (req, res, next) => {
         .status(400)
         .json({ status: 400, message: parsedTimeWindow.error });
     }
-    const parsedLanguage = parseDiscoverLanguage(req.query.language, req.locale);
+    const parsedLanguage = parseDiscoverLanguage(
+      req.query.language,
+      req.locale
+    );
     if ('error' in parsedLanguage) {
       return res
         .status(400)

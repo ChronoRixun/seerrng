@@ -53,6 +53,9 @@ SeerrNG is intended for lawful personal media management. The project does not c
 - Support for various notification agents.
 - Mobile-friendly design, for when you need to approve requests on the go!
 - Support for watchlisting & blocklisting media.
+- Browser and host-side caching for faster repeat loads, refreshes, and tab restores.
+- Image proxy caching and cache warming for posters, backdrops, avatars, music artwork, and book covers.
+- Service-worker runtime caching for cacheable API responses, static assets, and proxied images.
 
 With more features on the way! Check out our [issue tracker](/../../issues) to see the features which have already been requested.
 
@@ -70,6 +73,19 @@ SeerrNG reads TMDB credentials from the environment:
 - `TMDB_READ_ACCESS_TOKEN`: TMDB API read access token (v4 bearer token).
 
 Use deployment secrets, `.env` files, or container environment variables for these values. Do not commit private deployment credentials to the repository.
+
+## Performance and Caching
+
+SeerrNG includes several cache layers intended to make refreshes, tab restores, and repeated browsing much faster while still keeping media data fresh:
+
+- **Browser runtime cache**: the service worker registers independently of push notification setup and keeps a bounded `runtime-v1` cache for cacheable API responses, static assets, avatar proxy responses, and image proxy responses.
+- **Stale-while-revalidate responses**: cacheable public/settings/discover/search/media API responses and proxied images can be served immediately from cache while SeerrNG refreshes them in the background.
+- **Image proxy cache**: externally sourced images are proxied through SeerrNG, stored under the config cache directory when image caching is enabled, and returned with browser cache headers plus validators for efficient `304 Not Modified` responses.
+- **Visible-first image warming**: media sliders warm only the currently visible titles first, cap warmup batches, dedupe repeated warm requests, and schedule warmup work during idle time so below-the-fold content does not block the first populated viewport.
+- **Background-tab restraint**: browser image warming is skipped while the tab is hidden so switching away and back does not create unnecessary warmup traffic.
+- **DNS and external API caches**: Jobs & Cache settings expose cache statistics and flush controls for external API, DNS, and image cache data.
+
+When SeerrNG is behind a reverse proxy, avoid blanket `Cache-Control: no-store` on cacheable API, static asset, `/imageproxy/*`, `/avatarproxy/*`, and `/sw.js` paths. Protected app pages can remain non-cacheable, but stripping cache headers from the cacheable paths will prevent the browser and service worker from doing useful work.
 
 ## Preview
 

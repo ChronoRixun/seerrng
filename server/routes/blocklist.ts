@@ -20,20 +20,31 @@ const maxBlocklistId = 1_000_000_000;
 const maxBlocklistTextLength = 512;
 const maxBlocklistedTagsLength = 4096;
 
+const strictPositiveInteger = z.preprocess(
+  (value) =>
+    typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
+  z.number().int().positive().max(maxBlocklistId)
+);
+const strictNonNegativeInteger = z.preprocess(
+  (value) =>
+    typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
+  z.number().int().nonnegative().max(maxBlocklistId)
+);
+
 export const blocklistAdd = z.object({
-  tmdbId: z.coerce.number().int().positive().max(maxBlocklistId).optional(),
+  tmdbId: strictPositiveInteger.optional(),
   externalId: z.string().trim().min(1).max(maxBlocklistTextLength).optional(),
   externalProvider: z.nativeEnum(MediaIdentifierProvider).optional(),
   mediaType: z.nativeEnum(MediaType),
   title: z.string().trim().max(maxBlocklistTextLength).optional(),
-  user: z.coerce.number().int().positive().max(maxBlocklistId).optional(),
+  user: strictPositiveInteger.optional(),
   blocklistedTags: z.string().trim().max(maxBlocklistedTagsLength).optional(),
 });
 
 const blocklistGet = z.object({
-  take: z.coerce.number().int().positive().max(100).default(25),
-  skip: z.coerce.number().int().nonnegative().default(0),
-  search: z.string().optional(),
+  take: strictPositiveInteger.pipe(z.number().max(100)).default(25),
+  skip: strictNonNegativeInteger.default(0),
+  search: z.string().trim().max(maxBlocklistTextLength).optional(),
   filter: z.enum(['all', 'manual', 'blocklistedTags']).optional(),
 });
 
@@ -89,7 +100,14 @@ blocklistRoutes.get(
     type: 'or',
   }),
   async (req, res, next) => {
-    const { take, skip, search, filter } = blocklistGet.parse(req.query);
+    const parsedQuery = blocklistGet.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return next({
+        status: 400,
+        message: 'Invalid blocklist query parameters.',
+      });
+    }
+    const { take, skip, search, filter } = parsedQuery.data;
 
     try {
       let query = getRepository(Blocklist)

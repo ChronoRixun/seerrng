@@ -5,7 +5,10 @@ import { enqueueImageCacheWarm } from '@server/lib/imageCacheWarmer';
 import logger from '@server/logger';
 import { parsePositiveInt } from '@server/utils/pagination';
 import { parsePositiveRouteId } from '@server/utils/routeId';
-import { parseBoundedString } from '@server/utils/validation';
+import {
+  parseBoundedString,
+  parseOptionalQueryBoolean,
+} from '@server/utils/validation';
 import type { Response } from 'express';
 import { Router } from 'express';
 
@@ -32,6 +35,14 @@ const VALID_MEDIA_TYPES = new Set<AssociationMediaType>([
 ]);
 const MAX_ASSOCIATION_EXTERNAL_ID_LENGTH = 128;
 
+const parseAssociationMediaType = (
+  mediaType: unknown
+): AssociationMediaType | undefined =>
+  typeof mediaType === 'string' &&
+  VALID_MEDIA_TYPES.has(mediaType as AssociationMediaType)
+    ? (mediaType as AssociationMediaType)
+    : undefined;
+
 const parseAssociationId = (
   mediaType: AssociationMediaType,
   id: unknown
@@ -49,9 +60,9 @@ const parseAssociationId = (
 };
 
 associationRoutes.get('/:mediaType/:id', async (req, res, next) => {
-  const mediaType = req.params.mediaType as AssociationMediaType;
+  const mediaType = parseAssociationMediaType(req.params.mediaType);
 
-  if (!VALID_MEDIA_TYPES.has(mediaType)) {
+  if (!mediaType) {
     return next({
       status: 400,
       message: 'Invalid association media type.',
@@ -70,10 +81,17 @@ associationRoutes.get('/:mediaType/:id', async (req, res, next) => {
     req.query.limit === undefined
       ? undefined
       : parsePositiveInt(req.query.limit, 60, 60);
+  const includeWeak = parseOptionalQueryBoolean(
+    req.query.includeWeak,
+    'Include weak associations'
+  );
+  if ('error' in includeWeak) {
+    return next({ status: 400, message: includeWeak.error });
+  }
 
   try {
     const graph = await getAssociations(mediaType, associationId, req.user, {
-      includeWeak: req.query.includeWeak === 'true',
+      includeWeak: includeWeak.value ?? false,
       limit,
     });
 

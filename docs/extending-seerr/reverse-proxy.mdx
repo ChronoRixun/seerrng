@@ -12,6 +12,34 @@ Base URLs cannot be configured in Seerr. With this limitation, only subdomain co
 A Nginx subfolder workaround configuration is provided below, but it is not officially supported.
 :::
 
+## Cache Headers
+
+Seerr sends cache headers for selected public/settings/discover/search/media API responses, static assets, `/imageproxy/*`, `/avatarproxy/*`, and `/sw.js`. These headers allow browsers and the service worker to reuse cached responses, serve stale data while revalidating, and avoid repopulating the page from scratch after a refresh or tab restore.
+
+Do not add a blanket `Cache-Control: no-store` header to every proxied Seerr response. Protected application pages can remain non-cacheable, but cacheable API, static asset, image proxy, avatar proxy, and service-worker paths should keep Seerr's upstream cache headers.
+
+If your proxy must set global security headers, scope `no-store` rules so they exclude at least:
+
+- `/api/v1/settings/public`
+- `/api/v1/settings/discover`
+- `/api/v1/discover*`
+- `/api/v1/search*`
+- `/api/v1/movie/*`
+- `/api/v1/tv/*`
+- `/api/v1/collection/*`
+- `/api/v1/person/*`
+- `/api/v1/music/*`
+- `/api/v1/book/*`
+- `/api/v1/author/*`
+- `/api/v1/artist/*`
+- `/imageproxy/*`
+- `/avatarproxy/*`
+- `/_next/static/*`
+- `/sw.js`
+- `/offline.html`
+- `/site.webmanifest`
+- common static file extensions such as `.css`, `.js`, `.json`, `.png`, `.jpg`, `.webp`, `.svg`, `.woff2`, and `.wasm`
+
 ## Nginx
 
 import Tabs from '@theme/Tabs';
