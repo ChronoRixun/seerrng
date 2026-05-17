@@ -17,6 +17,7 @@ const messages = defineMessages('components.Association', {
   alsoconnected: 'Also connected',
   explore: 'Explore the full map',
   empty: 'No associations found yet.',
+  loaderror: 'Could not load associations.',
 });
 
 interface AssociationPopoverProps {
@@ -54,7 +55,7 @@ const EdgeRow = ({ edge }: { edge: AssociationEdge }) => {
 
 const AssociationPopover = ({ mediaType, id }: AssociationPopoverProps) => {
   const intl = useIntl();
-  const { edges, isLoading } = useAssociations(mediaType, id, {
+  const { edges, isLoading, isError } = useAssociations(mediaType, id, {
     includeWeak: true,
   });
   const similarLabel =
@@ -89,7 +90,13 @@ const AssociationPopover = ({ mediaType, id }: AssociationPopoverProps) => {
           </div>
         )}
 
-        {!isLoading && edges.length === 0 && (
+        {!isLoading && isError && (
+          <div className="px-3 py-6 text-center text-sm text-red-300">
+            {intl.formatMessage(messages.loaderror)}
+          </div>
+        )}
+
+        {!isLoading && !isError && edges.length === 0 && (
           <div className="px-3 py-6 text-center text-sm text-gray-400">
             {intl.formatMessage(messages.empty)}
           </div>
