@@ -17,6 +17,8 @@ const messages = defineMessages('components.Discover.DiscoverTvKeyword', {
 const DiscoverTvKeyword = () => {
   const router = useRouter();
   const intl = useIntl();
+  const keywords =
+    typeof router.query.keywords === 'string' ? router.query.keywords : '';
 
   const {
     isLoadingInitialData,
@@ -30,8 +32,9 @@ const DiscoverTvKeyword = () => {
   } = useDiscover<TvResult, { keywords: TmdbKeyword[] }>(
     `/api/v1/discover/tv`,
     {
-      keywords: encodeURIExtraParams(router.query.keywords as string),
-    }
+      keywords: encodeURIExtraParams(keywords),
+    },
+    { enabled: !!keywords }
   );
 
   if (error) {

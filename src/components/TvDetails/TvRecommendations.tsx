@@ -18,7 +18,10 @@ const messages = defineMessages('components.TvDetails', {
 const TvRecommendations = () => {
   const router = useRouter();
   const intl = useIntl();
-  const { data: tvData } = useSWR<TvDetails>(`/api/v1/tv/${router.query.tvId}`);
+  const tvId = typeof router.query.tvId === 'string' ? router.query.tvId : '';
+  const { data: tvData } = useSWR<TvDetails>(
+    tvId ? `/api/v1/tv/${tvId}` : null
+  );
   const {
     isLoadingInitialData,
     isEmpty,
@@ -28,9 +31,9 @@ const TvRecommendations = () => {
     fetchMore,
     error,
   } = useDiscover<TvResult>(
-    `/api/v1/tv/${router.query.tvId}/recommendations`,
+    `/api/v1/tv/${tvId}/recommendations`,
     undefined,
-    { randomizeOrder: true }
+    { enabled: !!tvId, randomizeOrder: true }
   );
 
   if (error) {

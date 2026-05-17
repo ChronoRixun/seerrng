@@ -18,6 +18,8 @@ const messages = defineMessages('components.Discover.DiscoverStudio', {
 const DiscoverMovieStudio = () => {
   const router = useRouter();
   const intl = useIntl();
+  const studioId =
+    typeof router.query.studioId === 'string' ? router.query.studioId : '';
 
   const {
     isLoadingInitialData,
@@ -29,7 +31,9 @@ const DiscoverMovieStudio = () => {
     error,
     firstResultData,
   } = useDiscover<MovieResult, { studio: ProductionCompany }>(
-    `/api/v1/discover/movies/studio/${router.query.studioId}`
+    `/api/v1/discover/movies/studio/${studioId}`,
+    undefined,
+    { enabled: !!studioId }
   );
 
   if (error) {

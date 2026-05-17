@@ -18,6 +18,8 @@ const messages = defineMessages('components.Discover.DiscoverNetwork', {
 const DiscoverTvNetwork = () => {
   const router = useRouter();
   const intl = useIntl();
+  const networkId =
+    typeof router.query.networkId === 'string' ? router.query.networkId : '';
 
   const {
     isLoadingInitialData,
@@ -29,7 +31,9 @@ const DiscoverTvNetwork = () => {
     error,
     firstResultData,
   } = useDiscover<TvResult, { network: TvNetwork }>(
-    `/api/v1/discover/tv/network/${router.query.networkId}`
+    `/api/v1/discover/tv/network/${networkId}`,
+    undefined,
+    { enabled: !!networkId }
   );
 
   if (error) {

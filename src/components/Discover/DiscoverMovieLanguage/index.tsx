@@ -16,6 +16,8 @@ const messages = defineMessages('components.Discover.DiscoverMovieLanguage', {
 const DiscoverMovieLanguage = () => {
   const router = useRouter();
   const intl = useIntl();
+  const language =
+    typeof router.query.language === 'string' ? router.query.language : '';
 
   const {
     isLoadingInitialData,
@@ -34,7 +36,9 @@ const DiscoverMovieLanguage = () => {
         name: string;
       };
     }
-  >(`/api/v1/discover/movies/language/${router.query.language}`);
+  >(`/api/v1/discover/movies/language/${language}`, undefined, {
+    enabled: !!language,
+  });
 
   if (error) {
     return <ErrorPage statusCode={500} />;
@@ -43,7 +47,7 @@ const DiscoverMovieLanguage = () => {
   const title = isLoadingInitialData
     ? intl.formatMessage(globalMessages.loading)
     : intl.formatMessage(messages.languageMovies, {
-        language: intl.formatDisplayName(router.query.language as string, {
+        language: intl.formatDisplayName(language, {
           type: 'language',
           fallback: 'none',
         }),

@@ -16,6 +16,8 @@ const messages = defineMessages('components.Discover.DiscoverTvGenre', {
 const DiscoverTvGenre = () => {
   const router = useRouter();
   const intl = useIntl();
+  const genreId =
+    typeof router.query.genreId === 'string' ? router.query.genreId : '';
 
   const {
     isLoadingInitialData,
@@ -27,7 +29,9 @@ const DiscoverTvGenre = () => {
     error,
     firstResultData,
   } = useDiscover<TvResult, { genre: { id: number; name: string } }>(
-    `/api/v1/discover/tv/genre/${router.query.genreId}`
+    `/api/v1/discover/tv/genre/${genreId}`,
+    undefined,
+    { enabled: !!genreId }
   );
 
   if (error) {

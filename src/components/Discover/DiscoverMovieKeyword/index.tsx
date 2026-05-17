@@ -17,6 +17,8 @@ const messages = defineMessages('components.Discover.DiscoverMovieKeyword', {
 const DiscoverMovieKeyword = () => {
   const router = useRouter();
   const intl = useIntl();
+  const keywords =
+    typeof router.query.keywords === 'string' ? router.query.keywords : '';
 
   const {
     isLoadingInitialData,
@@ -30,8 +32,9 @@ const DiscoverMovieKeyword = () => {
   } = useDiscover<MovieResult, { keywords: TmdbKeyword[] }>(
     `/api/v1/discover/movies`,
     {
-      keywords: encodeURIExtraParams(router.query.keywords as string),
-    }
+      keywords: encodeURIExtraParams(keywords),
+    },
+    { enabled: !!keywords }
   );
 
   if (error) {

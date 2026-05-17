@@ -18,8 +18,10 @@ const messages = defineMessages('components.MovieDetails', {
 const MovieSimilar = () => {
   const router = useRouter();
   const intl = useIntl();
+  const movieId =
+    typeof router.query.movieId === 'string' ? router.query.movieId : '';
   const { data: movieData } = useSWR<MovieDetails>(
-    `/api/v1/movie/${router.query.movieId}`
+    movieId ? `/api/v1/movie/${movieId}` : null
   );
   const {
     isLoadingInitialData,
@@ -30,9 +32,9 @@ const MovieSimilar = () => {
     fetchMore,
     error,
   } = useDiscover<MovieResult>(
-    `/api/v1/movie/${router.query.movieId}/similar`,
+    `/api/v1/movie/${movieId}/similar`,
     undefined,
-    { randomizeOrder: true }
+    { enabled: !!movieId, randomizeOrder: true }
   );
 
   if (error) {

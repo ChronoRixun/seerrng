@@ -16,6 +16,8 @@ const messages = defineMessages('components.Discover.DiscoverTvLanguage', {
 const DiscoverTvLanguage = () => {
   const router = useRouter();
   const intl = useIntl();
+  const language =
+    typeof router.query.language === 'string' ? router.query.language : '';
 
   const {
     isLoadingInitialData,
@@ -34,7 +36,9 @@ const DiscoverTvLanguage = () => {
         name: string;
       };
     }
-  >(`/api/v1/discover/tv/language/${router.query.language}`);
+  >(`/api/v1/discover/tv/language/${language}`, undefined, {
+    enabled: !!language,
+  });
 
   if (error) {
     return <ErrorPage statusCode={500} />;
@@ -43,7 +47,7 @@ const DiscoverTvLanguage = () => {
   const title = isLoadingInitialData
     ? intl.formatMessage(globalMessages.loading)
     : intl.formatMessage(messages.languageSeries, {
-        language: intl.formatDisplayName(router.query.language as string, {
+        language: intl.formatDisplayName(language, {
           type: 'language',
           fallback: 'none',
         }),
