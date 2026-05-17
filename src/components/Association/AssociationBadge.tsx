@@ -2,8 +2,8 @@ import type { AssociationMediaType } from '@app/hooks/useAssociations';
 import useAssociations, {
   toAssociationMediaType,
 } from '@app/hooks/useAssociations';
-import LinkedNodesIcon from '@app/assets/linked-nodes.svg';
 import defineMessages from '@app/utils/defineMessages';
+import { ShareIcon } from '@heroicons/react/20/solid';
 import { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useIntl } from 'react-intl';
@@ -12,6 +12,7 @@ import AssociationPopover from './AssociationPopover';
 
 const messages = defineMessages('components.Association', {
   associations: 'Associations',
+  similar: 'Similar',
 });
 
 interface AssociationBadgeProps {
@@ -64,7 +65,7 @@ const AssociationBadge = ({
 
   const buttonClass =
     variant === 'card'
-      ? 'flex h-4 items-center justify-center rounded-full border border-cyan-400 bg-cyan-600/85 px-2 text-white shadow-md backdrop-blur transition hover:border-cyan-300 hover:bg-cyan-500/90 sm:h-5'
+      ? 'flex h-4 items-center justify-center gap-1 rounded-full border border-cyan-300 bg-cyan-600/90 px-1.5 text-white shadow-md backdrop-blur transition hover:border-cyan-200 hover:bg-cyan-500/95 sm:h-5 sm:px-2'
       : 'flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-gray-300 ring-1 ring-gray-700 transition hover:text-white';
 
   return (
@@ -86,7 +87,15 @@ const AssociationBadge = ({
           setIsOpen((open) => !open);
         }}
       >
-        <LinkedNodesIcon className="h-3 w-3" />
+        <ShareIcon
+          className={variant === 'card' ? 'h-3 w-3' : 'h-4 w-4'}
+          aria-hidden="true"
+        />
+        {variant === 'card' && (
+          <span className="hidden text-[0.625rem] font-medium uppercase leading-none tracking-wider sm:inline">
+            {intl.formatMessage(messages.similar)}
+          </span>
+        )}
       </button>
       {isOpen &&
         ReactDOM.createPortal(
