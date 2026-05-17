@@ -355,4 +355,4 @@ jobs:
             fi
             sleep 2
           done
-          grep -q '"buildVersion":"main"' status.json
+          grep -q "\"commitTag\":\"${GITHUB_SHA}\"" status.json

@@ -12,11 +12,21 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/sw.js',
+        source:
+          '/:path*\\.(aac|avif|css|flac|gif|ico|jpg|jpeg|js|m4a|map|mjs|mp3|mp4|oga|ogg|ogv|opus|otf|png|svg|ttf|wasm|wav|webm|webp|woff|woff2)',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-cache',
+            value: THIRTY_DAY_STATIC_CACHE,
+          },
+        ],
+      },
+      {
+        source: '/:path*\\.(json|txt|vtt|xml)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: THIRTY_DAY_STATIC_CACHE,
           },
         ],
       },
@@ -39,21 +49,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source:
-          '/:path*\\.(aac|avif|css|flac|gif|ico|jpg|jpeg|js|m4a|map|mjs|mp3|mp4|oga|ogg|ogv|opus|otf|png|svg|ttf|wasm|wav|webm|webp|woff|woff2)',
+        source: '/sw.js',
         headers: [
           {
             key: 'Cache-Control',
-            value: THIRTY_DAY_STATIC_CACHE,
-          },
-        ],
-      },
-      {
-        source: '/:path*\\.(json|txt|vtt|xml)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: THIRTY_DAY_STATIC_CACHE,
+            value: 'no-cache',
           },
         ],
       },
