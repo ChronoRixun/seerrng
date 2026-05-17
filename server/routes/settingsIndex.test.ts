@@ -66,6 +66,80 @@ describe('Settings route input validation', () => {
     assert.strictEqual(saveMock.mock.callCount(), 0);
   });
 
+  it('rejects malformed main settings values before saving', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const appUrlRes = await request(app)
+      .post('/settings/main')
+      .send({ applicationUrl: 'javascript:alert(1)' });
+    const trailingUrlRes = await request(app)
+      .post('/settings/main')
+      .send({ youtubeUrl: 'https://youtube.com/' });
+    const boolRes = await request(app)
+      .post('/settings/main')
+      .send({ localLogin: 'true' });
+    const tagsLimitRes = await request(app)
+      .post('/settings/main')
+      .send({ blocklistedTagsLimit: 251 });
+
+    assert.strictEqual(appUrlRes.status, 400);
+    assert.match(
+      appUrlRes.body.message,
+      /applicationUrl must be a valid HTTP URL/
+    );
+    assert.strictEqual(trailingUrlRes.status, 400);
+    assert.match(
+      trailingUrlRes.body.message,
+      /youtubeUrl must not end with a slash/
+    );
+    assert.strictEqual(boolRes.status, 400);
+    assert.match(boolRes.body.message, /localLogin must be a boolean/);
+    assert.strictEqual(tagsLimitRes.status, 400);
+    assert.match(
+      tagsLimitRes.body.message,
+      /blocklistedTagsLimit must be a valid number/
+    );
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
+  it('rejects malformed main default quota settings before saving', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const shapeRes = await request(app)
+      .post('/settings/main')
+      .send({ defaultQuotas: [] });
+    const nestedShapeRes = await request(app)
+      .post('/settings/main')
+      .send({ defaultQuotas: { movie: [] } });
+    const quotaLimitRes = await request(app)
+      .post('/settings/main')
+      .send({ defaultQuotas: { movie: { quotaLimit: 'nope' } } });
+    const quotaDaysRes = await request(app)
+      .post('/settings/main')
+      .send({ defaultQuotas: { book: { quotaDays: 10001 } } });
+
+    assert.strictEqual(shapeRes.status, 400);
+    assert.match(shapeRes.body.message, /defaultQuotas must be an object/);
+    assert.strictEqual(nestedShapeRes.status, 400);
+    assert.match(
+      nestedShapeRes.body.message,
+      /defaultQuotas.movie must be an object/
+    );
+    assert.strictEqual(quotaLimitRes.status, 400);
+    assert.match(
+      quotaLimitRes.body.message,
+      /defaultQuotas.movie.quotaLimit must be a valid number/
+    );
+    assert.strictEqual(quotaDaysRes.status, 400);
+    assert.match(
+      quotaDaysRes.body.message,
+      /defaultQuotas.book.quotaDays must be a valid number/
+    );
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
   it('rejects unsafe Tautulli external URLs before saving', async () => {
     const settings = getSettings();
     const saveMock = mock.method(settings, 'save', async () => undefined);

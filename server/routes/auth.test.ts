@@ -128,6 +128,61 @@ describe('POST /auth/jellyfin', () => {
     assert.strictEqual(res.status, 400);
     assert.strictEqual(res.body.error, 'Request body must be an object.');
   });
+
+  it('rejects malformed Jellyfin setup port values before external auth', async () => {
+    const res = await request(app)
+      .post('/auth/jellyfin')
+      .send({
+        username: 'admin',
+        hostname: 'jellyfin.example.com',
+        port: 70000,
+      });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(
+      res.body.error,
+      'port must be an integer between 1 and 65535.'
+    );
+  });
+
+  it('rejects malformed Jellyfin setup TLS flags before external auth', async () => {
+    const res = await request(app)
+      .post('/auth/jellyfin')
+      .send({
+        username: 'admin',
+        hostname: 'jellyfin.example.com',
+        useSsl: 'yes',
+      });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error, 'useSsl must be a boolean.');
+  });
+
+  it('rejects absolute Jellyfin setup URL bases before external auth', async () => {
+    const res = await request(app)
+      .post('/auth/jellyfin')
+      .send({
+        username: 'admin',
+        hostname: 'jellyfin.example.com',
+        urlBase: 'https://evil.example.com/jellyfin',
+      });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error, 'urlBase must be a relative path.');
+  });
+
+  it('rejects unsupported Jellyfin setup server types before external auth', async () => {
+    const res = await request(app)
+      .post('/auth/jellyfin')
+      .send({
+        username: 'admin',
+        hostname: 'jellyfin.example.com',
+        serverType: 999,
+      });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error, 'serverType must be Jellyfin or Emby.');
+  });
 });
 
 describe('POST /auth/local', () => {

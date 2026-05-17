@@ -3,6 +3,7 @@ import PlexAPI from '@server/api/plexapi';
 import PlexTvAPI from '@server/api/plextv';
 import TautulliAPI from '@server/api/tautulli';
 import { ApiErrorCode } from '@server/constants/error';
+import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
@@ -17,7 +18,7 @@ import { scheduledJobs } from '@server/job/schedule';
 import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 import ImageProxy from '@server/lib/imageproxy';
-import { Permission } from '@server/lib/permissions';
+import { MAX_PERMISSION_VALUE, Permission } from '@server/lib/permissions';
 import { jellyfinFullScanner } from '@server/lib/scanners/jellyfin';
 import { plexFullScanner } from '@server/lib/scanners/plex';
 import type { JobId, Library, MainSettings } from '@server/lib/settings';
@@ -71,6 +72,10 @@ const MAX_PROXY_STRING_LENGTH = 512;
 const MAX_PROXY_BYPASS_LENGTH = 4096;
 const MAX_PROXY_PORT = 65_535;
 const MAX_DNS_CACHE_TTL = 86_400;
+const MAX_MAIN_STRING_LENGTH = 512;
+const MAX_BLOCKLISTED_TAGS_LENGTH = 4096;
+const MAX_BLOCKLISTED_TAGS_LIMIT = 250;
+const MAX_DEFAULT_QUOTA_VALUE = 10_000;
 const logFilters = ['debug', 'info', 'warn', 'error'] as const;
 
 const parseEnableList = (value: unknown) => {
@@ -282,6 +287,147 @@ const parseNetworkSettingsBody = (
   return { value };
 };
 
+const parseMainSettingsBody = (
+  body: Record<string, unknown>
+): { value: Record<string, unknown> } | { error: string } => {
+  const value = { ...body };
+
+  for (const [key, fieldName] of [
+    ['applicationTitle', 'applicationTitle'],
+    ['locale', 'locale'],
+    ['discoverRegion', 'discoverRegion'],
+    ['streamingRegion', 'streamingRegion'],
+    ['originalLanguage', 'originalLanguage'],
+    ['blocklistRegion', 'blocklistRegion'],
+    ['blocklistLanguage', 'blocklistLanguage'],
+  ] as const) {
+    const parsed = parseOptionalBoundedString(value[key], {
+      fieldName,
+      maxLength: MAX_MAIN_STRING_LENGTH,
+    });
+    if ('error' in parsed) {
+      return parsed;
+    }
+    value[key] = parsed.value;
+  }
+
+  const blocklistedTags = parseOptionalBoundedString(value.blocklistedTags, {
+    fieldName: 'blocklistedTags',
+    maxLength: MAX_BLOCKLISTED_TAGS_LENGTH,
+  });
+  if ('error' in blocklistedTags) {
+    return blocklistedTags;
+  }
+  value.blocklistedTags = blocklistedTags.value;
+
+  for (const [key, fieldName] of [
+    ['hideAvailable', 'hideAvailable'],
+    ['hideBlocklisted', 'hideBlocklisted'],
+    ['localLogin', 'localLogin'],
+    ['mediaServerLogin', 'mediaServerLogin'],
+    ['newPlexLogin', 'newPlexLogin'],
+    ['partialRequestsEnabled', 'partialRequestsEnabled'],
+    ['enableSpecialEpisodes', 'enableSpecialEpisodes'],
+    ['cacheImages', 'cacheImages'],
+  ] as const) {
+    const parsed = parseOptionalBooleanSetting(value[key], fieldName);
+    if ('error' in parsed) {
+      return parsed;
+    }
+    value[key] = parsed.value;
+  }
+
+  for (const [key, fieldName, max] of [
+    ['blocklistedTagsLimit', 'blocklistedTagsLimit', MAX_BLOCKLISTED_TAGS_LIMIT],
+    ['defaultPermissions', 'defaultPermissions', MAX_PERMISSION_VALUE],
+  ] as const) {
+    const parsed = parseOptionalNetworkInteger(value[key], fieldName, max);
+    if ('error' in parsed) {
+      return parsed;
+    }
+    value[key] = parsed.value;
+  }
+
+  if (value.mediaServerType !== undefined) {
+    const parsed = parseOptionalNetworkInteger(
+      value.mediaServerType,
+      'mediaServerType',
+      MediaServerType.NOT_CONFIGURED
+    );
+    if ('error' in parsed || parsed.value === undefined || parsed.value < 1) {
+      return { error: 'mediaServerType must be valid.' };
+    }
+    value.mediaServerType = parsed.value;
+  }
+
+  if (value.defaultQuotas !== undefined) {
+    if (
+      !value.defaultQuotas ||
+      typeof value.defaultQuotas !== 'object' ||
+      Array.isArray(value.defaultQuotas)
+    ) {
+      return { error: 'defaultQuotas must be an object.' };
+    }
+
+    const defaultQuotas = {
+      ...(value.defaultQuotas as Record<string, unknown>),
+    };
+
+    for (const mediaType of ['movie', 'tv', 'music', 'book'] as const) {
+      if (defaultQuotas[mediaType] === undefined) {
+        continue;
+      }
+
+      if (
+        !defaultQuotas[mediaType] ||
+        typeof defaultQuotas[mediaType] !== 'object' ||
+        Array.isArray(defaultQuotas[mediaType])
+      ) {
+        return { error: `defaultQuotas.${mediaType} must be an object.` };
+      }
+
+      const quota = {
+        ...(defaultQuotas[mediaType] as Record<string, unknown>),
+      };
+
+      for (const [key, fieldName] of [
+        ['quotaLimit', `defaultQuotas.${mediaType}.quotaLimit`],
+        ['quotaDays', `defaultQuotas.${mediaType}.quotaDays`],
+      ] as const) {
+        const parsed = parseOptionalNetworkInteger(
+          quota[key],
+          fieldName,
+          MAX_DEFAULT_QUOTA_VALUE
+        );
+        if ('error' in parsed) {
+          return parsed;
+        }
+        quota[key] = parsed.value;
+      }
+
+      defaultQuotas[mediaType] = quota;
+    }
+
+    value.defaultQuotas = defaultQuotas;
+  }
+
+  for (const [key, fieldName] of [
+    ['applicationUrl', 'applicationUrl'],
+    ['youtubeUrl', 'youtubeUrl'],
+  ] as const) {
+    const parsed = validateOptionalHttpUrl(value[key], fieldName);
+    if ('error' in parsed) {
+      return parsed;
+    }
+    if (parsed.value?.endsWith('/')) {
+      return { error: `${fieldName} must not end with a slash.` };
+    }
+    value[key] = parsed.value;
+  }
+
+  return { value };
+};
+
 const readLogTail = async (
   logFile: string,
   maxBytes = MAX_LOG_READ_BYTES
@@ -342,10 +488,14 @@ settingsRoutes.post('/main', async (req, res) => {
   if ('error' in parsedBody) {
     return res.status(400).json({ message: parsedBody.error });
   }
+  const parsedMain = parseMainSettingsBody(parsedBody.value);
+  if ('error' in parsedMain) {
+    return res.status(400).json({ message: parsedMain.error });
+  }
 
   settings.main = merge(
     settings.main,
-    preserveRedactedSecrets(parsedBody.value, settings.main)
+    preserveRedactedSecrets(parsedMain.value, settings.main)
   );
   await settings.save();
 

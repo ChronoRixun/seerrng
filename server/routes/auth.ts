@@ -19,8 +19,10 @@ import {
   getRateLimitKey,
   resolvesToLocalOrPrivateAddress,
 } from '@server/utils/security';
+import { normalizeUrlBase } from '@server/utils/serviceUrl';
 import {
   parseBoundedString,
+  parseOptionalBodyBoolean,
   parseOptionalBoundedString,
 } from '@server/utils/validation';
 import axios from 'axios';
@@ -34,6 +36,7 @@ const MAX_AUTH_TOKEN_LENGTH = 4096;
 const MAX_HOSTNAME_LENGTH = 255;
 const MAX_URL_BASE_LENGTH = 512;
 const MAX_RESET_GUID_LENGTH = 64;
+const MAX_PORT = 65_535;
 
 const parseLoginIdentifier = (
   value: unknown,
@@ -82,6 +85,40 @@ const parseRequestBodyObject = (
   return { value: body as Record<string, unknown> };
 };
 
+const parseOptionalPort = (
+  value: unknown,
+  fieldName: string
+): { value: number | undefined } | { error: string } => {
+  if (value === undefined || value === null || value === '') {
+    return { value: undefined };
+  }
+
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > MAX_PORT
+  ) {
+    return { error: `${fieldName} must be an integer between 1 and 65535.` };
+  }
+
+  return { value };
+};
+
+const parseOptionalMediaServerType = (
+  value: unknown
+): { value: MediaServerType.JELLYFIN | MediaServerType.EMBY | undefined } | {
+  error: string;
+} => {
+  if (value === undefined || value === null || value === '') {
+    return { value: undefined };
+  }
+
+  return value === MediaServerType.JELLYFIN || value === MediaServerType.EMBY
+    ? { value }
+    : { error: 'serverType must be Jellyfin or Emby.' };
+};
+
 const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
@@ -125,7 +162,7 @@ authRoutes.get('/me', isAuthenticated(), async (req, res) => {
   return res.status(200).json(user.filter(true));
 });
 
-authRoutes.post('/plex', async (req, res, next) => {
+authRoutes.post('/plex', authRateLimit, async (req, res, next) => {
   const settings = getSettings();
   const userRepository = getRepository(User);
   const parsedBody = parseRequestBodyObject(req.body);
@@ -366,11 +403,34 @@ authRoutes.post('/jellyfin', authRateLimit, async (req, res, next) => {
     return res.status(400).json({ error: urlBase.error });
   }
 
+  const normalizedUrlBase = normalizeUrlBase(urlBase.value);
+  if (urlBase.value && !normalizedUrlBase) {
+    return res.status(400).json({ error: 'urlBase must be a relative path.' });
+  }
+
+  const port = parseOptionalPort(body.port, 'port');
+  if ('error' in port) {
+    return res.status(400).json({ error: port.error });
+  }
+
+  const useSsl = parseOptionalBodyBoolean(body.useSsl, 'useSsl');
+  if ('error' in useSsl) {
+    return res.status(400).json({ error: useSsl.error });
+  }
+
+  const serverType = parseOptionalMediaServerType(body.serverType);
+  if ('error' in serverType) {
+    return res.status(400).json({ error: serverType.error });
+  }
+
   body.username = username.value;
   body.password = password.value;
   body.email = email.value;
   body.hostname = hostname.value;
-  body.urlBase = urlBase.value;
+  body.urlBase = normalizedUrlBase || undefined;
+  body.port = port.value;
+  body.useSsl = useSsl.value;
+  body.serverType = serverType.value;
 
   //Make sure jellyfin login is enabled, but only if jellyfin && Emby is not already configured
   if (
