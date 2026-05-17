@@ -13,6 +13,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
+const maxWarmRequestUrls = 100;
 
 const proxyRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -89,6 +90,22 @@ function initArchiveOrgImageProxy() {
   }
   return _archiveOrgImageProxy;
 }
+let _theAudioDbImageProxy: ImageProxy;
+function initTheAudioDbImageProxy() {
+  if (!_theAudioDbImageProxy) {
+    _theAudioDbImageProxy = new ImageProxy(
+      'theaudiodb',
+      'https://www.theaudiodb.com',
+      {
+        rateLimitOptions: {
+          maxRequests: 10,
+          maxRPS: 20,
+        },
+      }
+    );
+  }
+  return _theAudioDbImageProxy;
+}
 let _openLibraryCoversImageProxy: ImageProxy;
 function initOpenLibraryCoversImageProxy() {
   if (!_openLibraryCoversImageProxy) {
@@ -130,6 +147,8 @@ router.get<{
       imageData = await initCoverArtArchiveImageProxy().getImage(imagePath);
     } else if (req.params.type === 'archiveorg') {
       imageData = await initArchiveOrgImageProxy().getImage(imagePath);
+    } else if (req.params.type === 'theaudiodb') {
+      imageData = await initTheAudioDbImageProxy().getImage(imagePath);
     } else if (req.params.type === 'openlibrarycovers') {
       imageData = await initOpenLibraryCoversImageProxy().getImage(imagePath);
     } else {
@@ -174,18 +193,16 @@ router.get<{
   }
 });
 
-router.post(
-  '/warm',
-  warmRateLimit,
-  (req, res) => {
-    const urls = Array.isArray(req.body?.urls) ? req.body.urls : [];
+router.post('/warm', warmRateLimit, (req, res) => {
+  const urls = Array.isArray(req.body?.urls)
+    ? req.body.urls.slice(0, maxWarmRequestUrls)
+    : [];
 
-    enqueueImageCacheWarm(
-      urls.filter((url: unknown): url is string => typeof url === 'string')
-    );
+  enqueueImageCacheWarm(
+    urls.filter((url: unknown): url is string => typeof url === 'string')
+  );
 
-    return res.status(202).json({ accepted: true });
-  }
-);
+  return res.status(202).json({ accepted: true });
+});
 
 export default router;

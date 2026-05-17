@@ -34,6 +34,12 @@ describe('getImageCacheWarmProvider', () => {
     );
     assert.equal(
       getImageCacheWarmProvider(
+        new URL('https://www.theaudiodb.com/images/media/artist/thumb.jpg')
+      ),
+      'theaudiodb'
+    );
+    assert.equal(
+      getImageCacheWarmProvider(
         new URL('https://covers.openlibrary.org/b/id/123-L.jpg')
       ),
       'openlibrarycovers'

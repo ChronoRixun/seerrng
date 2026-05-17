@@ -31,6 +31,25 @@ describe('getImageCacheUrl', () => {
     );
   });
 
+  it('rewrites supported image providers by URL even when the type is generic', () => {
+    assert.equal(
+      getImageCacheUrl({
+        cacheImages: true,
+        src: 'https://covers.openlibrary.org/b/id/123-L.jpg',
+        type: 'tmdb',
+      }),
+      '/imageproxy/openlibrarycovers/b/id/123-L.jpg'
+    );
+    assert.equal(
+      getImageCacheUrl({
+        cacheImages: true,
+        src: 'https://coverartarchive.org/release/id/front-250',
+        type: 'tmdb',
+      }),
+      '/imageproxy/coverartarchive/release/id/front-250'
+    );
+  });
+
   it('rewrites music provider variants', () => {
     assert.equal(
       getImageCacheUrl({
@@ -47,6 +66,14 @@ describe('getImageCacheUrl', () => {
         type: 'music',
       }),
       '/imageproxy/archiveorg/download/artist/thumb.jpg'
+    );
+    assert.equal(
+      getImageCacheUrl({
+        cacheImages: true,
+        src: 'https://www.theaudiodb.com/images/media/artist/thumb.jpg',
+        type: 'music',
+      }),
+      '/imageproxy/theaudiodb/images/media/artist/thumb.jpg'
     );
   });
 

@@ -17,10 +17,24 @@ const PROXIED_IMAGE_PREFIXES = {
     source: /^https:\/\/archive\.org\//,
     target: '/imageproxy/archiveorg/',
   },
+  musicTheAudioDb: {
+    source: /^https:\/\/www\.theaudiodb\.com\//,
+    target: '/imageproxy/theaudiodb/',
+  },
   book: {
     source: /^https:\/\/covers\.openlibrary\.org\//,
     target: '/imageproxy/openlibrarycovers/',
   },
+};
+
+const getProxiedImageUrl = (src: string): string | null => {
+  for (const { source, target } of Object.values(PROXIED_IMAGE_PREFIXES)) {
+    if (source.test(src)) {
+      return src.replace(source, target);
+    }
+  }
+
+  return null;
 };
 
 export const isRemoteAvatarCacheUrlAllowed = (src: string): boolean => {
@@ -54,6 +68,12 @@ export const getImageCacheUrl = ({
 }): string => {
   if (!cacheImages || src.startsWith('/')) {
     return src;
+  }
+
+  const proxiedImageUrl = getProxiedImageUrl(src);
+
+  if (proxiedImageUrl) {
+    return proxiedImageUrl;
   }
 
   if (type === 'tmdb') {

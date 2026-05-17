@@ -37,6 +37,16 @@ const archiveOrgImageProxy = new ImageProxy(
     },
   }
 );
+const theAudioDbImageProxy = new ImageProxy(
+  'theaudiodb',
+  'https://www.theaudiodb.com',
+  {
+    rateLimitOptions: {
+      maxRequests: 5,
+      maxRPS: 10,
+    },
+  }
+);
 const openLibraryCoversImageProxy = new ImageProxy(
   'openlibrarycovers',
   'https://covers.openlibrary.org',
@@ -58,6 +68,8 @@ export const getImageCacheWarmProvider = (url: URL): string | null => {
       return 'coverartarchive';
     case 'https://archive.org':
       return 'archiveorg';
+    case 'https://www.theaudiodb.com':
+      return 'theaudiodb';
     case 'https://covers.openlibrary.org':
       return 'openlibrarycovers';
     default:
@@ -80,6 +92,8 @@ const getProxyForUrl = (url: URL): ImageProxy | null => {
       return coverArtArchiveImageProxy;
     case 'archiveorg':
       return archiveOrgImageProxy;
+    case 'theaudiodb':
+      return theAudioDbImageProxy;
     case 'openlibrarycovers':
       return openLibraryCoversImageProxy;
     default:
