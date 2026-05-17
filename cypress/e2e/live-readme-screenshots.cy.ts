@@ -41,90 +41,8 @@ const waitForImages = () => {
     });
 };
 
-const findDeep = <T extends Element>(
-  selector: string,
-  root: Document | ShadowRoot | Element
-): T | null => {
-  const direct = root.querySelector<T>(selector);
-  if (direct) return direct;
-  for (const element of Array.from(root.querySelectorAll<Element>('*'))) {
-    if (element.shadowRoot) {
-      const nested = findDeep<T>(selector, element.shadowRoot);
-      if (nested) return nested;
-    }
-  }
-  return null;
-};
-
-const getDeep = <T extends Element>(selector: string) =>
-  cy.document().then({ timeout: 30000 }, (doc) => {
-    return new Cypress.Promise<T>((resolve, reject) => {
-      const started = Date.now();
-      const poll = () => {
-        const element = findDeep<T>(selector, doc);
-        if (element) {
-          resolve(element);
-          return;
-        }
-        if (Date.now() - started > 30000) {
-          reject(new Error(`Timed out finding ${selector}`));
-          return;
-        }
-        window.setTimeout(poll, 250);
-      };
-      poll();
-    });
-  });
-
-const getDeepText = <T extends Element>(selector: string, pattern: RegExp) =>
-  cy.document().then({ timeout: 30000 }, (doc) => {
-    return new Cypress.Promise<T>((resolve, reject) => {
-      const collect = (root: Document | ShadowRoot | Element): T[] => {
-        const matches = Array.from(root.querySelectorAll<T>(selector));
-        for (const element of Array.from(root.querySelectorAll<Element>('*'))) {
-          if (element.shadowRoot) matches.push(...collect(element.shadowRoot));
-        }
-        return matches;
-      };
-      const started = Date.now();
-      const poll = () => {
-        const element = collect(doc).find((candidate) =>
-          pattern.test(candidate.textContent ?? '')
-        );
-        if (element) {
-          resolve(element);
-          return;
-        }
-        if (Date.now() - started > 30000) {
-          reject(new Error(`Timed out finding ${selector} matching ${pattern}`));
-          return;
-        }
-        window.setTimeout(poll, 250);
-      };
-      poll();
-    });
-  });
-
 const login = () => {
-  cy.visit('https://request.snape.tech/', { timeout: 60000 });
-  getDeep<HTMLInputElement>('input').then((input) =>
-    cy.wrap(input).clear({ force: true }).type(Cypress.env('LIVE_README_EMAIL'), {
-      force: true,
-    })
-  );
-  getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
-    cy.wrap(button).click({ force: true })
-  );
-  getDeep<HTMLInputElement>('input[type="password"]').then((input) =>
-    cy.wrap(input).clear({ force: true }).type(Cypress.env('LIVE_README_PASSWORD'), {
-      force: true,
-      log: false,
-    })
-  );
-  getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
-    cy.wrap(button).click({ force: true })
-  );
-  cy.location('hostname', { timeout: 60000 }).should('eq', 'request.snape.tech');
+  cy.visit('http://192.168.50.85:5055/login', { timeout: 60000 });
   cy.location('pathname', { timeout: 60000 }).then((pathname) => {
     if (pathname === '/login') {
       cy.get('input[placeholder*="Email" i], input[type="email"]', { timeout: 30000 })
@@ -152,12 +70,12 @@ describe('live README screenshots', () => {
     waitForImages();
     cy.screenshot('live-readme-discover', { capture: 'viewport' });
 
-    cy.visit('https://request.snape.tech/discover/books');
+    cy.visit('http://192.168.50.85:5055/discover/books');
     cy.contains(/Books/i, { timeout: 60000 }).should('be.visible');
     waitForImages();
     cy.screenshot('live-readme-books', { capture: 'viewport' });
 
-    cy.visit('https://request.snape.tech/discover/music');
+    cy.visit('http://192.168.50.85:5055/discover/music');
     cy.contains(/Music/i, { timeout: 60000 }).should('be.visible');
     waitForImages();
     cy.screenshot('live-readme-music', { capture: 'viewport' });
