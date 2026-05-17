@@ -34,10 +34,13 @@ const parseNumberArray = (
   const parsedValues = new Set<number>();
 
   for (const item of value) {
-    const parsed = parseOptionalNonNegativeInteger(
-      Number(item),
-      MAX_SERVICE_ID
-    );
+    const parsedValue =
+      typeof item === 'number'
+        ? item
+        : typeof item === 'string' && item.trim() !== ''
+          ? Number(item)
+          : undefined;
+    const parsed = parseOptionalNonNegativeInteger(parsedValue, MAX_SERVICE_ID);
 
     if (parsed === undefined) {
       return { error: `${fieldName} contains an invalid value.` };

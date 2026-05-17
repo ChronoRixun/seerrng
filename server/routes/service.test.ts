@@ -159,6 +159,24 @@ describe('Radarr settings routes', () => {
     assert.match(res.body.message, /settings must be an object/i);
   });
 
+  it('rejects malformed Servarr tag arrays before persistence', async () => {
+    const nestedTagsRes = await request(app)
+      .post('/settings/radarr')
+      .send(makeRadarr({ tags: [[2]] as unknown as number[] }));
+    const decimalOverrideRuleRes = await request(app)
+      .post('/settings/radarr')
+      .send(makeRadarr({ overrideRule: ['2.5'] as unknown as number[] }));
+
+    assert.strictEqual(nestedTagsRes.status, 400);
+    assert.match(nestedTagsRes.body.message, /tags contains an invalid value/i);
+    assert.strictEqual(decimalOverrideRuleRes.status, 400);
+    assert.match(
+      decimalOverrideRuleRes.body.message,
+      /overrideRule contains an invalid value/i
+    );
+    assert.strictEqual(getSettings().radarr.length, 0);
+  });
+
   it('rejects unsafe external service URLs before persistence', async () => {
     const res = await request(app)
       .post('/settings/radarr')
