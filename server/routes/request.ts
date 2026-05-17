@@ -1169,6 +1169,13 @@ requestRoutes.post<never, BulkMediaRequestResponse, BulkMediaRequestBody>(
         });
       }
 
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        return next({
+          status: 400,
+          message: 'Request body must be an object.',
+        });
+      }
+
       if (
         req.body.mediaType !== MediaType.MUSIC &&
         req.body.mediaType !== MediaType.BOOK
