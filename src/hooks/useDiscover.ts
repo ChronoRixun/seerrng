@@ -1,5 +1,6 @@
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
+import { buildDiscoverQueryString } from '@server/utils/discoverQuery';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
@@ -7,6 +8,8 @@ import useSWRInfinite from 'swr/infinite';
 import useSettings from './useSettings';
 import { Permission, useUser } from './useUser';
 import useWarmImageCache from './useWarmImageCache';
+
+export { encodeURIExtraParams } from '@server/utils/discoverQuery';
 
 export interface BaseSearchResult<T> {
   page: number;
@@ -45,40 +48,7 @@ interface DiscoverResult<T, S> {
 
 const FILTERED_EMPTY_PAGE_SCAN_LIMIT = 10;
 
-const extraEncodes: [RegExp, string][] = [
-  [/\(/g, '%28'],
-  [/\)/g, '%29'],
-  [/!/g, '%21'],
-  [/\*/g, '%2A'],
-];
-
-export const encodeURIExtraParams = (string: string): string => {
-  let finalString = encodeURIComponent(string);
-
-  extraEncodes.forEach((encode) => {
-    finalString = finalString.replace(encode[0], encode[1]);
-  });
-
-  return finalString;
-};
-
 const getShuffleSeed = (): string => Math.random().toString(36).slice(2);
-
-const getQueryParamValue = (value: unknown): string | undefined => {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => getQueryParamValue(item))
-      .find((item): item is string => item !== undefined);
-  }
-
-  const stringValue = String(value);
-
-  return stringValue ? stringValue : undefined;
-};
 
 const hasLinkedBookFormat = (
   mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
@@ -179,17 +149,7 @@ const useDiscover = <
         params.shuffleSeed = shuffleSeed;
       }
 
-      const finalQueryString = Object.keys(params)
-        .flatMap((paramKey) => {
-          const paramValue = getQueryParamValue(params[paramKey]);
-
-          return paramValue
-            ? [`${paramKey}=${encodeURIExtraParams(paramValue)}`]
-            : [];
-        })
-        .join('&');
-
-      return `${endpoint}?${finalQueryString}`;
+      return `${endpoint}?${buildDiscoverQueryString(params)}`;
     },
     {
       initialSize: 1,
