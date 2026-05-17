@@ -1,11 +1,16 @@
 import type { User } from '@server/entity/User';
-import type { TautulliSettings } from '@server/lib/settings';
+import { getSettings, type TautulliSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { requestInterceptorFunction } from '@server/utils/customProxyAgent';
 import { buildServiceUrl } from '@server/utils/serviceUrl';
 import type { AxiosInstance } from 'axios';
 import axios from 'axios';
 import { uniqWith } from 'lodash';
+
+export const TAUTULLI_HTTP_LIMITS = {
+  maxContentLength: 2 * 1024 * 1024,
+  maxBodyLength: 1024,
+} as const;
 
 export interface TautulliHistoryRecord {
   date: number;
@@ -127,6 +132,8 @@ class TautulliAPI {
         urlBase: settings.urlBase,
       }),
       params: { apikey: settings.apiKey },
+      timeout: getSettings().network.apiRequestTimeout,
+      ...TAUTULLI_HTTP_LIMITS,
     });
     this.axios.interceptors.request.use(requestInterceptorFunction);
   }
