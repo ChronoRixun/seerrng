@@ -264,6 +264,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 title={intl.formatMessage(sliderTitles.popularmovies)}
                 url="/api/v1/discover/movies"
                 linkUrl="/discover/movies"
+                randomizeOrder
               />
             );
             break;
@@ -291,6 +292,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 title={intl.formatMessage(sliderTitles.populartv)}
                 url="/api/v1/discover/tv"
                 linkUrl="/discover/tv"
+                randomizeOrder
               />
             );
             break;
@@ -302,6 +304,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 url="/api/v1/discover/music"
                 linkUrl="/discover/music"
                 extraParams="sortBy=ranked"
+                randomizeOrder
               />
             );
             break;
@@ -313,6 +316,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 url="/api/v1/discover/books"
                 linkUrl="/discover/books"
                 extraParams="sortBy=ranked"
+                randomizeOrder
               />
             );
             break;
@@ -458,6 +462,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 linkUrl={`/discover/books?subject=${encodeURIExtraParams(
                   slider.data ?? ''
                 )}&sortBy=ranked`}
+                randomizeOrder
               />
             );
             break;
@@ -473,6 +478,7 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 linkUrl={`/discover/music?genre=${encodeURIExtraParams(
                   slider.data ?? ''
                 )}&sortBy=ranked`}
+                randomizeOrder
               />
             );
             break;

@@ -19,7 +19,7 @@ import type {
   TvResult,
 } from '@server/models/Search';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
 import useSWRInfinite from 'swr/infinite';
 
@@ -45,6 +45,7 @@ interface MediaSliderProps {
   hideWhenEmpty?: boolean;
   extraParams?: string;
   onNewTitles?: (titleCount: number) => void;
+  randomizeOrder?: boolean;
 }
 
 type SliderTitle =
@@ -66,6 +67,7 @@ const MediaSlider = ({
   sliderKey,
   hideWhenEmpty = false,
   onNewTitles,
+  randomizeOrder = false,
 }: MediaSliderProps) => {
   const settings = useSettings();
   const { visibility } = useCardTextVisibility();
@@ -75,6 +77,7 @@ const MediaSlider = ({
     triggerOnce: true,
   });
   const shouldLoad = isEditingSafe() || inView;
+  const [shuffleSeed] = useState(() => Math.random().toString(36).slice(2));
   const getKey = useCallback(
     (pageIndex: number, previousPageData: MixedResult | null) => {
       if (!shouldLoad) {
@@ -85,11 +88,19 @@ const MediaSlider = ({
         return null;
       }
 
-      return `${url}?page=${pageIndex + 1}${
-        extraParams ? `&${extraParams}` : ''
-      }`;
+      const params = [`page=${pageIndex + 1}`];
+
+      if (extraParams) {
+        params.push(extraParams);
+      }
+
+      if (randomizeOrder) {
+        params.push(`shuffleSeed=${shuffleSeed}`);
+      }
+
+      return `${url}?${params.join('&')}`;
     },
-    [extraParams, shouldLoad, url]
+    [extraParams, randomizeOrder, shouldLoad, shuffleSeed, url]
   );
 
   const { data, error, setSize, size } = useSWRInfinite<MixedResult>(getKey, {

@@ -698,6 +698,9 @@ const CreateSlider = ({ onCreate, slider }: CreateSliderProps) => {
                           encodeURIExtraParams(values.data)
                         )
                   }
+                  randomizeOrder={activeOption.params?.includes(
+                    'sortBy=ranked'
+                  )}
                   onNewTitles={updateResultCount}
                 />
               </div>
