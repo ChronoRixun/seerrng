@@ -453,6 +453,16 @@ const applyThemeChrome = (
   mode: ThemeMode
 ) => {
   if (mode === 'dark') {
+    root.style.setProperty('--theme-page-bg', surfaceScale[9]);
+    root.style.setProperty(
+      '--theme-page-glow-start',
+      mixRgb(surfaceScale[8], primaryScale[7], 0.34)
+    );
+    root.style.setProperty('--theme-page-glow-end', surfaceScale[9]);
+    root.style.setProperty(
+      '--theme-searchbar-scrolled',
+      mixRgb(surfaceScale[7], primaryScale[7], 0.22)
+    );
     root.style.setProperty(
       '--theme-sidebar-start',
       mixRgb(surfaceScale[8], primaryScale[8], 0.4)
@@ -470,6 +480,16 @@ const applyThemeChrome = (
       mixRgb(surfaceScale[7], primaryScale[7], 0.36)
     );
   } else {
+    root.style.setProperty('--theme-page-bg', surfaceScale[9]);
+    root.style.setProperty(
+      '--theme-page-glow-start',
+      mixRgb(surfaceScale[8], primaryScale[6], 0.22)
+    );
+    root.style.setProperty('--theme-page-glow-end', surfaceScale[9]);
+    root.style.setProperty(
+      '--theme-searchbar-scrolled',
+      mixRgb(surfaceScale[8], primaryScale[6], 0.16)
+    );
     root.style.setProperty(
       '--theme-sidebar-start',
       mixRgb(primaryScale[8], themeScales.slate[8], 0.42)

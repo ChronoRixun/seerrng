@@ -41,6 +41,10 @@
     --theme-sidebar-end: 17 24 39;
     --theme-sidebar-border: 55 65 81;
     --theme-sidebar-hover: 55 65 81;
+    --theme-page-bg: 17 24 39;
+    --theme-page-glow-start: 31 41 55;
+    --theme-page-glow-end: 17 24 39;
+    --theme-searchbar-scrolled: 55 65 81;
   }
 
   [data-theme-mode='light'] {
@@ -331,7 +335,7 @@
   }
 
   body {
-    @apply bg-gray-900;
+    background-color: rgb(var(--theme-page-bg));
     -webkit-overflow-scrolling: touch;
   }
 
@@ -368,6 +372,30 @@
   .sidebar-link-idle:hover,
   .sidebar-link-idle:focus {
     background-color: rgb(var(--theme-sidebar-hover));
+  }
+
+  .app-shell {
+    background-color: rgb(var(--theme-page-bg));
+  }
+
+  .app-backdrop {
+    background: linear-gradient(
+      225deg,
+      rgb(var(--theme-page-glow-start)) 0%,
+      rgb(var(--theme-page-glow-end)) 100%
+    );
+  }
+
+  .app-backdrop-fade {
+    background: linear-gradient(
+      0deg,
+      rgb(var(--theme-page-bg)) 0%,
+      rgb(var(--theme-page-bg) / 0) 100%
+    );
+  }
+
+  .app-searchbar-scrolled {
+    background-color: rgb(var(--theme-searchbar-scrolled) / 0.8);
   }
 
   .slideover {
