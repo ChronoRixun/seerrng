@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { themePalettes } from './ThemeContext';
+import { getThemeTokens, themePalettes } from './ThemeContext';
 
 describe('themePalettes', () => {
   it('includes the Sietch palette displayed by the theme picker', () => {
@@ -26,6 +26,48 @@ describe('themePalettes', () => {
         primary: 'sietchSpice',
         secondary: 'sietchNeon',
       }
+    );
+  });
+
+  it('gives every palette distinct page and sidebar chrome in both modes', () => {
+    for (const mode of ['dark', 'light'] as const) {
+      const chromeSignatures = themePalettes.map((palette) => {
+        const tokens = getThemeTokens(mode, palette.id);
+
+        return [
+          tokens.pageBg,
+          tokens.pageGlowStart,
+          tokens.searchbarScrolled,
+          tokens.sidebarStart,
+          tokens.sidebarEnd,
+        ].join('|');
+      });
+
+      assert.equal(
+        new Set(chromeSignatures).size,
+        themePalettes.length,
+        `${mode} theme chrome should be unique per palette`
+      );
+    }
+  });
+
+  it('keeps Sietch spice-led with neon as the secondary accent', () => {
+    const darkTokens = getThemeTokens('dark', 'sietch-neon');
+    const [pageRed, pageGreen, pageBlue] = darkTokens.pageBg
+      .split(' ')
+      .map(Number);
+    const [accentRed, accentGreen, accentBlue] = darkTokens.sidebarBorder
+      .split(' ')
+      .map(Number);
+
+    assert.ok(pageRed >= pageBlue, 'Sietch page background should stay warm');
+    assert.ok(
+      pageGreen >= pageBlue,
+      'Sietch page background should stay brown'
+    );
+    assert.ok(
+      accentBlue > accentRed && accentBlue > accentGreen,
+      'Sietch secondary accents should stay neon purple'
     );
   });
 });

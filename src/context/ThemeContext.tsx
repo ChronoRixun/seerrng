@@ -450,8 +450,8 @@ const themeScales = {
     '116 75 43',
     '91 62 45',
     '67 53 46',
-    '49 43 41',
-    '29 26 25',
+    '58 45 32',
+    '35 27 20',
   ],
 } as const;
 
@@ -553,7 +553,7 @@ const createSurfaceScale = (
 ): string[] => {
   if (mode === 'dark') {
     const slateMix = [
-      0.06, 0.08, 0.1, 0.14, 0.2, 0.26, 0.34, 0.42, 0.5, 0.58, 0.64,
+      0.03, 0.04, 0.06, 0.08, 0.12, 0.16, 0.22, 0.28, 0.34, 0.38, 0.42,
     ];
     const accentMix = [
       0.08, 0.1, 0.12, 0.16, 0.2, 0.24, 0.3, 0.36, 0.42, 0.48, 0.52,
@@ -624,39 +624,73 @@ const getThemePalette = (palette: string): ThemePalette =>
   themePalettes.find((themePalette) => themePalette.id === palette) ??
   themePalettes[0];
 
+export const getThemeTokens = (mode: ThemeMode, palette: string) => {
+  const activePalette = getThemePalette(palette);
+  const primaryScale = themeScales[activePalette.primary];
+  const secondaryScale = themeScales[activePalette.secondary];
+  const surfaceScale = createSurfaceScale(
+    themeScales[activePalette.surface],
+    primaryScale,
+    secondaryScale,
+    mode
+  );
+
+  return {
+    activePaletteId: activePalette.id,
+    primaryScale,
+    secondaryScale,
+    surfaceScale,
+    pageBg: surfaceScale[9],
+    pageGlowStart:
+      mode === 'dark'
+        ? mixRgb(surfaceScale[8], primaryScale[7], 0.56)
+        : mixRgb(surfaceScale[8], primaryScale[3], 0.44),
+    searchbarScrolled:
+      mode === 'dark'
+        ? mixRgb(surfaceScale[8], primaryScale[7], 0.44)
+        : mixRgb(surfaceScale[8], primaryScale[2], 0.38),
+    sidebarStart:
+      mode === 'dark'
+        ? mixRgb(surfaceScale[8], primaryScale[8], 0.58)
+        : mixRgb(primaryScale[7], surfaceScale[2], 0.24),
+    sidebarEnd:
+      mode === 'dark'
+        ? mixRgb(surfaceScale[10], primaryScale[9], 0.52)
+        : mixRgb(primaryScale[9], surfaceScale[1], 0.18),
+    sidebarBorder:
+      mode === 'dark'
+        ? mixRgb(surfaceScale[7], secondaryScale[6], 0.48)
+        : mixRgb(primaryScale[6], secondaryScale[6], 0.42),
+    sidebarHover:
+      mode === 'dark'
+        ? mixRgb(surfaceScale[7], primaryScale[7], 0.52)
+        : mixRgb(primaryScale[6], secondaryScale[5], 0.32),
+  };
+};
+
 const applyTheme = (mode: ThemeMode, palette: string) => {
   if (typeof window === 'undefined') {
     return;
   }
 
-  const activePalette = getThemePalette(palette);
-  const activePaletteId = activePalette.id;
+  const themeTokens = getThemeTokens(mode, palette);
 
   document.documentElement.dataset.themeMode = mode;
-  document.documentElement.dataset.themePalette = activePaletteId;
+  document.documentElement.dataset.themePalette = themeTokens.activePaletteId;
   document.documentElement.classList.toggle('dark', mode === 'dark');
-  const paletteSurfaceScale = themeScales[activePalette.surface];
-  const primaryScale = themeScales[activePalette.primary];
-  const secondaryScale = themeScales[activePalette.secondary];
-  const surfaceScale = createSurfaceScale(
-    paletteSurfaceScale,
-    primaryScale,
-    secondaryScale,
-    mode
-  );
 
-  applyScale(document.documentElement, 'indigo', primaryScale);
-  applyScale(document.documentElement, 'purple', secondaryScale);
-  applyScale(document.documentElement, 'gray', surfaceScale);
+  applyScale(document.documentElement, 'indigo', themeTokens.primaryScale);
+  applyScale(document.documentElement, 'purple', themeTokens.secondaryScale);
+  applyScale(document.documentElement, 'gray', themeTokens.surfaceScale);
   applyThemeChrome(
     document.documentElement,
-    surfaceScale,
-    primaryScale,
-    secondaryScale,
+    themeTokens.surfaceScale,
+    themeTokens.primaryScale,
+    themeTokens.secondaryScale,
     mode
   );
   window.localStorage.setItem(THEME_MODE_KEY, mode);
-  window.localStorage.setItem(THEME_PALETTE_KEY, activePaletteId);
+  window.localStorage.setItem(THEME_PALETTE_KEY, themeTokens.activePaletteId);
 };
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
