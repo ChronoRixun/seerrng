@@ -13,6 +13,28 @@ interface MergedQueryString {
   path: string;
 }
 
+export const getQueryParamString = (
+  value: ParsedUrlQuery[string]
+): string | undefined => {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  return undefined;
+};
+
+export const getPositiveQueryParamNumber = (
+  value: ParsedUrlQuery[string],
+  fallback?: number
+): number | undefined => {
+  const stringValue = getQueryParamString(value);
+  const parsedValue = stringValue ? Number(stringValue) : undefined;
+
+  return parsedValue && Number.isInteger(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : fallback;
+};
+
 /**
  * Returns a filtered object containing only key/value pairs that don't exist in the current
  * router path.

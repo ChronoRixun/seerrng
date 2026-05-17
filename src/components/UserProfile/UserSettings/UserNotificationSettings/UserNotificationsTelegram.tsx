@@ -2,6 +2,7 @@ import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import NotificationTypeSelector from '@app/components/NotificationTypeSelector';
 import useToasts from '@app/hooks/useToasts';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
@@ -37,7 +38,8 @@ const UserTelegramSettings = () => {
   const intl = useIntl();
   const { addToast } = useToasts();
   const router = useRouter();
-  const { user } = useUser({ id: Number(router.query.userId) });
+  const userId = getPositiveQueryParamNumber(router.query.userId);
+  const { user } = useUser({ id: userId });
   const {
     data,
     error,

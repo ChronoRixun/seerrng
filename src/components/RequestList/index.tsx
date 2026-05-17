@@ -4,7 +4,11 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
 import RequestItem from '@app/components/RequestList/RequestItem';
-import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
+import {
+  getPositiveQueryParamNumber,
+  getQueryParamString,
+  useUpdateQueryParams,
+} from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
@@ -60,8 +64,9 @@ const isMediaType = (value: unknown): value is MediaType =>
 const RequestList = () => {
   const router = useRouter();
   const intl = useIntl();
+  const userId = getPositiveQueryParamNumber(router.query.userId);
   const { user } = useUser({
-    id: Number(router.query.userId),
+    id: userId,
   });
   const { user: currentUser, hasPermission } = useUser();
   const [currentFilter, setCurrentFilter] = useState<Filter>(Filter.PENDING);
@@ -71,7 +76,7 @@ const RequestList = () => {
     useState<SortDirection>('desc');
   const [currentPageSize, setCurrentPageSize] = useState<number>(10);
 
-  const page = router.query.page ? Number(router.query.page) : 1;
+  const page = getPositiveQueryParamNumber(router.query.page, 1) ?? 1;
   const pageIndex = page - 1;
   const updateQueryParams = useUpdateQueryParams({ page: page.toString() });
   const effectiveFilter = Object.values(Filter).includes(
@@ -94,8 +99,8 @@ const RequestList = () => {
         }&filter=${effectiveFilter}&mediaType=${effectiveMediaType}&sort=${currentSort}&sortDirection=${currentSortDirection}${
           router.pathname.startsWith('/profile')
             ? `&requestedBy=${currentUser?.id}`
-            : router.query.userId
-              ? `&requestedBy=${router.query.userId}`
+            : userId
+              ? `&requestedBy=${userId}`
               : ''
         }`
       : null
@@ -120,12 +125,15 @@ const RequestList = () => {
     }
 
     // If filter value is provided in query, use that instead
-    if (Object.values(Filter).includes(router.query.filter as Filter)) {
-      setCurrentFilter(router.query.filter as Filter);
+    const filter = getQueryParamString(router.query.filter);
+    const mediaType = getQueryParamString(router.query.mediaType);
+
+    if (Object.values(Filter).includes(filter as Filter)) {
+      setCurrentFilter(filter as Filter);
     }
 
-    if (isMediaType(router.query.mediaType)) {
-      setCurrentMediaType(router.query.mediaType);
+    if (isMediaType(mediaType)) {
+      setCurrentMediaType(mediaType);
     }
   }, [router.query.filter, router.query.mediaType]);
 

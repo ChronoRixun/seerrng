@@ -12,7 +12,10 @@ import BulkEditModal from '@app/components/UserList/BulkEditModal';
 import PlexImportModal from '@app/components/UserList/PlexImportModal';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
-import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
+import {
+  getPositiveQueryParamNumber,
+  useUpdateQueryParams,
+} from '@app/hooks/useUpdateQueryParams';
 import type { User } from '@app/hooks/useUser';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -117,7 +120,7 @@ const UserList = () => {
   const [currentSort, setCurrentSort] = useState<Sort>('created');
   const [currentPageSize, setCurrentPageSize] = useState<number>(10);
 
-  const page = router.query.page ? Number(router.query.page) : 1;
+  const page = getPositiveQueryParamNumber(router.query.page, 1) ?? 1;
   const pageIndex = page - 1;
   const updateQueryParams = useUpdateQueryParams({ page: page.toString() });
 

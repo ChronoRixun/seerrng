@@ -7,6 +7,7 @@ import Slider from '@app/components/Slider';
 import TitleCard from '@app/components/TitleCard';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import ProfileHeader from '@app/components/UserProfile/ProfileHeader';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
@@ -55,8 +56,9 @@ const hasBackdropPath = (
 const UserProfile = () => {
   const intl = useIntl();
   const router = useRouter();
+  const userId = getPositiveQueryParamNumber(router.query.userId);
   const { user, error } = useUser({
-    id: Number(router.query.userId),
+    id: userId,
   });
   const { user: currentUser, hasPermission: currentHasPermission } = useUser();
   const [availableTitles, setAvailableTitles] = useState<

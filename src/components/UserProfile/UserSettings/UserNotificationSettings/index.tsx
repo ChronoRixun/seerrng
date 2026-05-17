@@ -6,6 +6,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import type { SettingsRoute } from '@app/components/Common/SettingsTabs';
 import SettingsTabs from '@app/components/Common/SettingsTabs';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -35,7 +36,8 @@ const UserNotificationSettings = ({
 }: UserNotificationSettingsProps) => {
   const intl = useIntl();
   const router = useRouter();
-  const { user } = useUser({ id: Number(router.query.userId) });
+  const userId = getPositiveQueryParamNumber(router.query.userId);
+  const { user } = useUser({ id: userId });
   const { data, error } = useSWR<UserSettingsNotificationsResponse>(
     user ? `/api/v1/user/${user?.id}/settings/notifications` : null
   );

@@ -7,6 +7,7 @@ import NotificationTypeSelector, {
 import { OpenPgpLink } from '@app/components/Settings/Notifications/NotificationsEmail';
 import SettingsBadge from '@app/components/Settings/SettingsBadge';
 import useToasts from '@app/hooks/useToasts';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
@@ -35,7 +36,8 @@ const UserEmailSettings = () => {
   const intl = useIntl();
   const { addToast } = useToasts();
   const router = useRouter();
-  const { user } = useUser({ id: Number(router.query.userId) });
+  const userId = getPositiveQueryParamNumber(router.query.userId);
+  const { user } = useUser({ id: userId });
   const {
     data,
     error,

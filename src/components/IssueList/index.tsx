@@ -3,7 +3,10 @@ import Header from '@app/components/Common/Header';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import IssueItem from '@app/components/IssueList/IssueItem';
-import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
+import {
+  getPositiveQueryParamNumber,
+  useUpdateQueryParams,
+} from '@app/hooks/useUpdateQueryParams';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import {
@@ -40,7 +43,7 @@ const IssueList = () => {
   const [currentSort, setCurrentSort] = useState<Sort>('added');
   const [currentPageSize, setCurrentPageSize] = useState<number>(10);
 
-  const page = router.query.page ? Number(router.query.page) : 1;
+  const page = getPositiveQueryParamNumber(router.query.page, 1) ?? 1;
   const pageIndex = page - 1;
   const updateQueryParams = useUpdateQueryParams({ page: page.toString() });
 

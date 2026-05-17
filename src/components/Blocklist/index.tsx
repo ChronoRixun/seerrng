@@ -8,7 +8,10 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import useDebouncedState from '@app/hooks/useDebouncedState';
 import useToasts from '@app/hooks/useToasts';
-import { useUpdateQueryParams } from '@app/hooks/useUpdateQueryParams';
+import {
+  getPositiveQueryParamNumber,
+  useUpdateQueryParams,
+} from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -85,7 +88,7 @@ const Blocklist = () => {
   const router = useRouter();
   const intl = useIntl();
 
-  const page = router.query.page ? Number(router.query.page) : 1;
+  const page = getPositiveQueryParamNumber(router.query.page, 1) ?? 1;
   const pageIndex = page - 1;
   const updateQueryParams = useUpdateQueryParams({ page: page.toString() });
 
@@ -97,7 +100,9 @@ const Blocklist = () => {
     `/api/v1/blocklist/?take=${currentPageSize}&skip=${
       pageIndex * currentPageSize
     }&filter=${currentFilter}${
-      debouncedSearchFilter ? `&search=${debouncedSearchFilter}` : ''
+      debouncedSearchFilter
+        ? `&search=${encodeURIComponent(debouncedSearchFilter)}`
+        : ''
     }`,
     {
       refreshInterval: 0,

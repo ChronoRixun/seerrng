@@ -9,6 +9,7 @@ import { availableLanguages } from '@app/context/LanguageContext';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -102,12 +103,13 @@ const UserGeneralSettings = () => {
   const [musicQuotaEnabled, setMusicQuotaEnabled] = useState(false);
   const [bookQuotaEnabled, setBookQuotaEnabled] = useState(false);
   const router = useRouter();
+  const userId = getPositiveQueryParamNumber(router.query.userId);
   const {
     user,
     hasPermission,
     revalidate: revalidateUser,
   } = useUser({
-    id: Number(router.query.userId),
+    id: userId,
   });
   const { user: currentUser, hasPermission: currentHasPermission } = useUser();
   const { currentSettings } = useSettings();

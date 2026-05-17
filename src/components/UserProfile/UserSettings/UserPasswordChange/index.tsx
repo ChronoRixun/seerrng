@@ -5,6 +5,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import SensitiveInput from '@app/components/Common/SensitiveInput';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -51,7 +52,8 @@ const UserPasswordChange = () => {
   const { addToast } = useToasts();
   const router = useRouter();
   const { user: currentUser } = useUser();
-  const { user, hasPermission } = useUser({ id: Number(router.query.userId) });
+  const userId = getPositiveQueryParamNumber(router.query.userId);
+  const { user, hasPermission } = useUser({ id: userId });
   const {
     data,
     error,

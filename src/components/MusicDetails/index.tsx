@@ -10,6 +10,7 @@ import MediaSlider from '@app/components/MediaSlider';
 import BulkRequestModal from '@app/components/RequestModal/BulkRequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useToasts from '@app/hooks/useToasts';
+import { getQueryParamString } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -93,14 +94,13 @@ const MusicDetails = () => {
   const [isBlocklisting, setIsBlocklisting] = useState(false);
   const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
   const [toggleWatchlist, setToggleWatchlist] = useState(true);
+  const musicId = getQueryParamString(router.query.musicId);
 
   const {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<MusicDetailsType>(
-    router.query.musicId ? `/api/v1/music/${router.query.musicId}` : null
-  );
+  } = useSWR<MusicDetailsType>(musicId ? `/api/v1/music/${musicId}` : null);
 
   useEffect(() => {
     setShowManager(router.query.manage === '1');
@@ -276,7 +276,7 @@ const MusicDetails = () => {
             setShowManager(false);
             router.push({
               pathname: router.pathname,
-              query: { musicId: router.query.musicId },
+              query: { musicId },
             });
           }}
           revalidate={() => revalidate()}

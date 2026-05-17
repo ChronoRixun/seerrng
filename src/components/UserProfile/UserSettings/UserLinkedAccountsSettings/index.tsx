@@ -6,6 +6,7 @@ import ConfirmButton from '@app/components/Common/ConfirmButton';
 import Dropdown from '@app/components/Common/Dropdown';
 import PageTitle from '@app/components/Common/PageTitle';
 import useSettings from '@app/hooks/useSettings';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
@@ -54,11 +55,12 @@ const UserLinkedAccountsSettings = () => {
   const settings = useSettings();
   const router = useRouter();
   const { user: currentUser } = useUser();
+  const userId = getPositiveQueryParamNumber(router.query.userId);
   const {
     user,
     hasPermission,
     revalidate: revalidateUser,
-  } = useUser({ id: Number(router.query.userId) });
+  } = useUser({ id: userId });
   const { data: passwordInfo } = useSWR<{ hasPassword: boolean }>(
     user ? `/api/v1/user/${user?.id}/settings/password` : null
   );

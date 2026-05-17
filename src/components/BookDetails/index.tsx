@@ -9,6 +9,7 @@ import IssueBlock from '@app/components/IssueBlock';
 import BulkRequestModal from '@app/components/RequestModal/BulkRequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useToasts from '@app/hooks/useToasts';
+import { getQueryParamString } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -91,14 +92,13 @@ const BookDetails = () => {
   const [isBlocklisting, setIsBlocklisting] = useState(false);
   const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
   const [toggleWatchlist, setToggleWatchlist] = useState(true);
+  const bookId = getQueryParamString(router.query.bookId);
 
   const {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<BookDetailsType>(
-    router.query.bookId ? `/api/v1/book/${router.query.bookId}` : null
-  );
+  } = useSWR<BookDetailsType>(bookId ? `/api/v1/book/${bookId}` : null);
 
   useEffect(() => {
     setShowManager(router.query.manage === '1');
@@ -302,7 +302,7 @@ const BookDetails = () => {
             setShowManager(false);
             router.push({
               pathname: router.pathname,
-              query: { bookId: router.query.bookId },
+              query: { bookId },
             });
           }}
           revalidate={() => revalidate()}

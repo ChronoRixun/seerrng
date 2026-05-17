@@ -2,6 +2,7 @@ import Header from '@app/components/Common/Header';
 import ListView from '@app/components/Common/ListView';
 import PageTitle from '@app/components/Common/PageTitle';
 import useDiscover from '@app/hooks/useDiscover';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { useUser } from '@app/hooks/useUser';
 import ErrorPage from '@app/pages/_error';
 import defineMessages from '@app/utils/defineMessages';
@@ -18,8 +19,9 @@ const messages = defineMessages('components.Discover.DiscoverWatchlist', {
 const DiscoverWatchlist = () => {
   const intl = useIntl();
   const router = useRouter();
+  const userId = getPositiveQueryParamNumber(router.query.userId);
   const { user } = useUser({
-    id: Number(router.query.userId),
+    id: userId,
   });
   const { user: currentUser } = useUser();
 
@@ -36,8 +38,8 @@ const DiscoverWatchlist = () => {
     `/api/v1/${
       router.pathname.startsWith('/profile')
         ? `user/${currentUser?.id}`
-        : router.query.userId
-          ? `user/${router.query.userId}`
+        : userId
+          ? `user/${userId}`
           : 'discover'
     }/watchlist`
   );
@@ -47,18 +49,18 @@ const DiscoverWatchlist = () => {
   }
 
   const title = intl.formatMessage(
-    router.query.userId ? messages.watchlist : messages.discoverwatchlist
+    userId ? messages.watchlist : messages.discoverwatchlist
   );
 
   return (
     <>
       <PageTitle
-        title={[title, router.query.userId ? user?.displayName : '']}
+        title={[title, userId ? user?.displayName : '']}
       />
       <div className="mb-5 mt-1">
         <Header
           subtext={
-            router.query.userId ? (
+            userId ? (
               <Link href={`/users/${user?.id}`} className="hover:underline">
                 {user?.displayName}
               </Link>

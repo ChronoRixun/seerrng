@@ -5,6 +5,7 @@ import type { SettingsRoute } from '@app/components/Common/SettingsTabs';
 import SettingsTabs from '@app/components/Common/SettingsTabs';
 import ProfileHeader from '@app/components/UserProfile/ProfileHeader';
 import useSettings from '@app/hooks/useSettings';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -33,7 +34,8 @@ const UserSettings = ({ children }: UserSettingsProps) => {
   const router = useRouter();
   const settings = useSettings();
   const { user: currentUser } = useUser();
-  const { user, error } = useUser({ id: Number(router.query.userId) });
+  const userId = getPositiveQueryParamNumber(router.query.userId);
+  const { user, error } = useUser({ id: userId });
   const intl = useIntl();
   const { data } = useSWR<UserSettingsNotificationsResponse>(
     user ? `/api/v1/user/${user?.id}/settings/notifications` : null

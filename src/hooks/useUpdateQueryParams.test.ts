@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 import type { NextRouter } from 'next/router';
 import {
   filterQueryString,
+  getPositiveQueryParamNumber,
+  getQueryParamString,
   mergeQueryString,
 } from './useUpdateQueryParams';
 
@@ -51,6 +53,24 @@ describe('filterQueryString', () => {
     strictEqual(filtered.userId, undefined);
     strictEqual(filtered.id, 'should-stay');
     strictEqual(filtered.page, '2');
+  });
+});
+
+describe('query param parsing', () => {
+  it('returns only non-empty scalar query strings', () => {
+    strictEqual(getQueryParamString('abc'), 'abc');
+    strictEqual(getQueryParamString(''), undefined);
+    strictEqual(getQueryParamString(['abc', 'def']), undefined);
+    strictEqual(getQueryParamString(undefined), undefined);
+  });
+
+  it('returns positive integer query params or a fallback', () => {
+    strictEqual(getPositiveQueryParamNumber('2'), 2);
+    strictEqual(getPositiveQueryParamNumber('0', 1), 1);
+    strictEqual(getPositiveQueryParamNumber('-1', 1), 1);
+    strictEqual(getPositiveQueryParamNumber('1.5', 1), 1);
+    strictEqual(getPositiveQueryParamNumber(['2'], 1), 1);
+    strictEqual(getPositiveQueryParamNumber(undefined), undefined);
   });
 });
 

@@ -4,6 +4,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import PermissionEdit from '@app/components/PermissionEdit';
 import useToasts from '@app/hooks/useToasts';
+import { getPositiveQueryParamNumber } from '@app/hooks/useUpdateQueryParams';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
@@ -30,8 +31,9 @@ const UserPermissions = () => {
   const { addToast } = useToasts();
   const router = useRouter();
   const { user: currentUser } = useUser();
+  const userId = getPositiveQueryParamNumber(router.query.userId);
   const { user, revalidate: revalidateUser } = useUser({
-    id: Number(router.query.userId),
+    id: userId,
   });
   const {
     data,
