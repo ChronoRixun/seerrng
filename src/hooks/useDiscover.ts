@@ -64,6 +64,22 @@ export const encodeURIExtraParams = (string: string): string => {
 
 const getShuffleSeed = (): string => Math.random().toString(36).slice(2);
 
+const getQueryParamValue = (value: unknown): string | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => getQueryParamValue(item))
+      .find((item): item is string => item !== undefined);
+  }
+
+  const stringValue = String(value);
+
+  return stringValue ? stringValue : undefined;
+};
+
 const hasLinkedBookFormat = (
   mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
   format: 'ebook' | 'audiobook'
@@ -164,10 +180,13 @@ const useDiscover = <
       }
 
       const finalQueryString = Object.keys(params)
-        .map(
-          (paramKey) =>
-            `${paramKey}=${encodeURIExtraParams(String(params[paramKey]))}`
-        )
+        .flatMap((paramKey) => {
+          const paramValue = getQueryParamValue(params[paramKey]);
+
+          return paramValue
+            ? [`${paramKey}=${encodeURIExtraParams(paramValue)}`]
+            : [];
+        })
         .join('&');
 
       return `${endpoint}?${finalQueryString}`;
