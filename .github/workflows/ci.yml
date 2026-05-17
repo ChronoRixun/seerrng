@@ -349,10 +349,14 @@ jobs:
       - name: Verify seerr.home deployment
         run: |
           docker ps --filter "name=^/${SEERRNG_CONTAINER_NAME}$" --filter "status=running" --format '{{.Names}}' | grep -qx "$SEERRNG_CONTAINER_NAME"
+          status_ready=false
           for i in $(seq 1 90); do
-            if curl --fail --silent --show-error "http://127.0.0.1:${SEERRNG_PORT}/api/v1/status" | tee status.json; then
+            if curl --fail --silent --show-error "http://127.0.0.1:${SEERRNG_PORT}/api/v1/status" --output status.json; then
+              status_ready=true
+              cat status.json
               break
             fi
             sleep 2
           done
+          test "$status_ready" = true
           grep -q "\"commitTag\":\"${GITHUB_SHA}\"" status.json
