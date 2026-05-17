@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 import type { Response } from 'express';
 import { createReadStream, promises } from 'fs';
 import mime from 'mime/lite';
-import path, { join } from 'path';
+import path from 'path';
 import sharp from 'sharp';
 
 type ImageMeta = {
@@ -17,9 +17,10 @@ type ImageMeta = {
   extension: string | null;
   cacheKey: string;
   cacheMiss: boolean;
+  lastModified: number;
 };
 
-type ImageResponse = {
+export type ImageResponse = {
   meta: ImageMeta;
   // Exactly one of these is set: a buffer for hot/just-fetched images,
   // or a file path to stream from disk for larger cold images.
@@ -32,11 +33,91 @@ const baseCacheDirectory = process.env.CONFIG_DIRECTORY
   : path.join(__dirname, '../../config/cache/images');
 
 const WEBP_QUALITY = 80;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const LRU_MAX_BYTES = 64 * 1024 * 1024;
 const LRU_MAX_ENTRIES = 512;
 // Images larger than this are streamed from disk instead of held in memory.
 const LRU_ITEM_MAX_BYTES = 1.5 * 1024 * 1024;
 const TRANSCODABLE_CONTENT_TYPE = /^image\/(jpe?g|png|webp|avif|bmp|tiff)$/i;
+const DEFAULT_IMAGE_CACHE_MAX_AGE = 86400;
+const resolvedBaseCacheDirectory = path.resolve(baseCacheDirectory);
+
+export const parseCacheControlMaxAge = (
+  cacheControl: string | undefined
+): number => {
+  const maxAge = cacheControl?.match(/(?:^|,)\s*max-age=(\d+)\s*(?:,|$)/i);
+
+  if (!maxAge) {
+    return DEFAULT_IMAGE_CACHE_MAX_AGE;
+  }
+
+  const parsed = Number(maxAge[1]);
+
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_IMAGE_CACHE_MAX_AGE;
+};
+
+export const getImageCacheLastModified = (
+  expireAt: number,
+  maxAge: number,
+  now = Date.now()
+): number => {
+  if (
+    Number.isFinite(expireAt) &&
+    Number.isFinite(maxAge) &&
+    maxAge > 0 &&
+    expireAt > 0
+  ) {
+    return expireAt - maxAge * 1000;
+  }
+
+  return now;
+};
+
+export const getImageResponseContentType = (
+  extension: string | null | undefined
+): string => {
+  if (!extension) {
+    return 'application/octet-stream';
+  }
+
+  return mime.getType(extension) ?? `image/${extension}`;
+};
+
+const getHeaderString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string');
+  }
+
+  return undefined;
+};
+
+const resolveCachePath = (...segments: string[]): string => {
+  const resolved = path.resolve(baseCacheDirectory, ...segments);
+  const relative = path.relative(resolvedBaseCacheDirectory, resolved);
+
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('Image cache path escapes cache directory');
+  }
+
+  return resolved;
+};
+
+const assertCachePath = (target: string): string => {
+  const resolved = path.resolve(target);
+  const relative = path.relative(resolvedBaseCacheDirectory, resolved);
+
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('Image cache path escapes cache directory');
+  }
+
+  return resolved;
+};
 
 type LruEntry = {
   buffer: Buffer;
@@ -44,6 +125,7 @@ type LruEntry = {
   expireAt: number;
   etag: string;
   extension: string | null;
+  lastModified: number;
 };
 
 /**
@@ -131,7 +213,13 @@ export async function sendImage(
   }
 
   try {
-    const { size } = await promises.stat(imageData.filePath);
+    const stat = await promises.lstat(imageData.filePath);
+    if (!stat.isFile()) {
+      res.status(500).end();
+      return;
+    }
+
+    const { size } = stat;
     res.writeHead(200, { ...headers, 'Content-Length': size });
     const stream = createReadStream(imageData.filePath);
     stream.on('error', () => {
@@ -149,13 +237,13 @@ export async function sendImage(
 class ImageProxy {
   public static async clearCache(key: string) {
     let deletedImages = 0;
-    const cacheDirectory = path.join(baseCacheDirectory, key);
+    const cacheDirectory = resolveCachePath(key);
 
     try {
       const files = await promises.readdir(cacheDirectory);
 
       for (const file of files) {
-        const filePath = path.join(cacheDirectory, file);
+        const filePath = resolveCachePath(key, file);
         const stat = await promises.lstat(filePath);
 
         if (stat.isDirectory()) {
@@ -167,7 +255,7 @@ class ImageProxy {
             const now = Date.now();
 
             if (now > expireAt) {
-              await promises.rm(path.join(filePath), {
+              await promises.rm(filePath, {
                 recursive: true,
               });
               deletedImages += 1;
@@ -197,7 +285,7 @@ class ImageProxy {
   public static async getImageStats(
     key: string
   ): Promise<{ size: number; imageCount: number }> {
-    const cacheDirectory = path.join(baseCacheDirectory, key);
+    const cacheDirectory = resolveCachePath(key);
 
     const imageTotalSize = await ImageProxy.getDirectorySize(cacheDirectory);
     const imageCount = await ImageProxy.getImageCount(cacheDirectory);
@@ -215,12 +303,14 @@ class ImageProxy {
       });
 
       const paths = files.map(async (file) => {
-        const path = join(dir, file.name);
+        const filePath = assertCachePath(path.join(dir, file.name));
 
-        if (file.isDirectory()) return await ImageProxy.getDirectorySize(path);
+        if (file.isDirectory()) {
+          return await ImageProxy.getDirectorySize(filePath);
+        }
 
         if (file.isFile()) {
-          const { size } = await promises.stat(path);
+          const { size } = await promises.lstat(filePath);
 
           return size;
         }
@@ -315,7 +405,7 @@ class ImageProxy {
   public async clearCachedImage(path: string) {
     // find cacheKey
     const cacheKey = this.getCacheKey(path);
-    const directory = join(this.getCacheDirectory(), cacheKey);
+    const directory = resolveCachePath(this.key, cacheKey);
 
     memoryCache.delete(cacheKey);
 
@@ -340,6 +430,15 @@ class ImageProxy {
     }
 
     try {
+      const stat = await promises.lstat(directory);
+      if (!stat.isDirectory()) {
+        logger.error('Cached image path is not a directory', {
+          label: 'Image Cache',
+          cacheKey,
+        });
+        return;
+      }
+
       const files = await promises.readdir(directory);
 
       await promises.rm(directory, { recursive: true });
@@ -369,20 +468,22 @@ class ImageProxy {
           extension: cached.extension,
           cacheKey,
           cacheMiss: false,
+          lastModified: cached.lastModified,
         },
         imageBuffer: cached.buffer,
       };
     }
 
     try {
-      const directory = join(this.getCacheDirectory(), cacheKey);
+      const directory = resolveCachePath(this.key, cacheKey);
       const files = await promises.readdir(directory);
 
       for (const file of files) {
         const [maxAgeSt, expireAtSt, etag, extension] = file.split('.');
-        const filePath = join(directory, file);
+        const filePath = assertCachePath(path.join(directory, file));
         const expireAt = Number(expireAtSt);
         const maxAge = Number(maxAgeSt);
+        const lastModified = getImageCacheLastModified(expireAt, maxAge, now);
 
         const meta: ImageMeta = {
           curRevalidate: maxAge,
@@ -392,9 +493,15 @@ class ImageProxy {
           extension,
           cacheKey,
           cacheMiss: false,
+          lastModified,
         };
 
-        const { size } = await promises.stat(filePath);
+        const stat = await promises.lstat(filePath);
+        if (!stat.isFile()) {
+          continue;
+        }
+
+        const { size } = stat;
 
         if (size <= LRU_ITEM_MAX_BYTES) {
           const buffer = await promises.readFile(filePath);
@@ -404,6 +511,7 @@ class ImageProxy {
             expireAt,
             etag,
             extension,
+            lastModified,
           });
           return { meta, imageBuffer: buffer };
         }
@@ -422,15 +530,25 @@ class ImageProxy {
     cacheKey: string
   ): Promise<ImageResponse | null> {
     try {
-      const directory = join(this.getCacheDirectory(), cacheKey);
+      const directory = resolveCachePath(this.key, cacheKey);
       const response = await this.axios.get(path, {
         responseType: 'arraybuffer',
+        maxContentLength: MAX_IMAGE_BYTES,
+        maxBodyLength: MAX_IMAGE_BYTES,
       });
 
       let buffer = Buffer.from(response.data, 'binary');
+      if (buffer.length > MAX_IMAGE_BYTES) {
+        throw new Error('Image exceeds maximum allowed size');
+      }
 
-      const contentType = response.headers['content-type'] || '';
+      const contentType =
+        getHeaderString(response.headers['content-type']) ?? '';
       let extension = mime.getExtension(contentType) || '';
+
+      if (!contentType.toLowerCase().startsWith('image/')) {
+        throw new Error('Upstream response is not an image');
+      }
 
       if (TRANSCODABLE_CONTENT_TYPE.test(contentType)) {
         try {
@@ -446,13 +564,12 @@ class ImageProxy {
         }
       }
 
-      let maxAge = Number(
-        (response.headers['cache-control'] ?? '0').split('=')[1]
+      const maxAge = parseCacheControlMaxAge(
+        getHeaderString(response.headers['cache-control'])
       );
-
-      if (!maxAge) maxAge = 86400;
-      const expireAt = Date.now() + maxAge * 1000;
-      const etag = (response.headers.etag ?? '').replace(/"/g, '');
+      const lastModified = Date.now();
+      const expireAt = lastModified + maxAge * 1000;
+      const etag = this.getHash([buffer]);
 
       const filePath = await this.writeToCacheDir(
         directory,
@@ -470,6 +587,7 @@ class ImageProxy {
           expireAt,
           etag,
           extension,
+          lastModified,
         });
       } else {
         memoryCache.delete(cacheKey);
@@ -484,6 +602,7 @@ class ImageProxy {
           extension,
           cacheKey,
           cacheMiss: true,
+          lastModified,
         },
         ...(buffer.length <= LRU_ITEM_MAX_BYTES
           ? { imageBuffer: buffer }
@@ -506,13 +625,27 @@ class ImageProxy {
     buffer: Buffer,
     etag: string
   ): Promise<string> {
-    const filename = join(dir, `${maxAge}.${expireAt}.${etag}.${extension}`);
+    const safeDir = assertCachePath(dir);
+    const filename = assertCachePath(
+      path.join(safeDir, `${maxAge}.${expireAt}.${etag}.${extension}`)
+    );
 
-    await promises.rm(dir, { force: true, recursive: true }).catch(() => {
+    const existing = await promises.lstat(safeDir).catch((e) => {
+      if (e.code === 'ENOENT') {
+        return null;
+      }
+      throw e;
+    });
+
+    if (existing && !existing.isDirectory()) {
+      throw new Error('Image cache path is not a directory');
+    }
+
+    await promises.rm(safeDir, { force: true, recursive: true }).catch(() => {
       // do nothing
     });
 
-    await promises.mkdir(dir, { recursive: true });
+    await promises.mkdir(safeDir, { recursive: true });
     await promises.writeFile(filename, buffer);
 
     return filename;
@@ -535,7 +668,7 @@ class ImageProxy {
   }
 
   private getCacheDirectory() {
-    return path.join(baseCacheDirectory, this.key);
+    return resolveCachePath(this.key);
   }
 }
 

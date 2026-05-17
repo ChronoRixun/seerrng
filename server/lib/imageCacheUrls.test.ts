@@ -21,6 +21,10 @@ describe('extractImageCacheUrls', () => {
           mediaType: 'book',
           posterPath: 'https://covers.openlibrary.org/b/id/123-L.jpg',
         },
+        {
+          tvdbId: 123,
+          remotePoster: 'https://artworks.thetvdb.com/banners/poster.jpg',
+        },
       ],
       graph: {
         edges: [
@@ -47,6 +51,7 @@ describe('extractImageCacheUrls', () => {
       'https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/movie-backdrop.jpg',
       'https://coverartarchive.org/release/release-id/front-250',
       'https://covers.openlibrary.org/b/id/123-L.jpg',
+      'https://artworks.thetvdb.com/banners/poster.jpg',
       'https://archive.org/download/artist/thumb.jpg',
       'https://archive.org/download/artist/backdrop.jpg',
       'https://image.tmdb.org/t/p/w600_and_h900_bestv2/person.jpg',

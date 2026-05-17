@@ -1,17 +1,36 @@
 import { MediaServerType } from '@server/constants/server';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
-import ImageProxy, { sendImage } from '@server/lib/imageproxy';
+import {
+  getBrowserImageResponseHeaders,
+  shouldSendBrowserImageNotModified,
+} from '@server/lib/browserImageCache';
+import ImageProxy, {
+  getImageResponseContentType,
+  sendImage,
+  type ImageResponse,
+} from '@server/lib/imageproxy';
+import { getRemoteAvatarCacheUrl } from '@server/lib/remoteAvatarCache';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { getAppVersion } from '@server/utils/appVersion';
 import { getHostname } from '@server/utils/getHostname';
+import { getRateLimitKey } from '@server/utils/security';
 import axios from 'axios';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import gravatarUrl from 'gravatar-url';
 import { createHash } from 'node:crypto';
 
 const router = Router();
+
+const avatarProxyRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getRateLimitKey,
+});
 
 let _avatarImageProxy: ImageProxy | null = null;
 
@@ -36,6 +55,49 @@ async function initAvatarImageProxy() {
     });
   }
   return _avatarImageProxy;
+}
+
+async function sendCachedAvatarImage({
+  imageData,
+  immutable = false,
+  ifModifiedSince,
+  ifNoneMatch,
+  res,
+  skipNotModified = false,
+}: {
+  imageData: ImageResponse;
+  immutable?: boolean;
+  ifModifiedSince: string | string[] | undefined;
+  ifNoneMatch: string | string[] | undefined;
+  res: Response;
+  skipNotModified?: boolean;
+}) {
+  const etag = `"${imageData.meta.etag}"`;
+  const browserCacheHeaders = getBrowserImageResponseHeaders({
+    cacheKey: imageData.meta.cacheKey,
+    cacheMiss: imageData.meta.cacheMiss,
+    etag,
+    immutable,
+    lastModified: imageData.meta.lastModified,
+    maxAge: imageData.meta.curRevalidate,
+  });
+
+  if (
+    !skipNotModified &&
+    shouldSendBrowserImageNotModified({
+      etag,
+      ifModifiedSince,
+      ifNoneMatch,
+      lastModified: imageData.meta.lastModified,
+    })
+  ) {
+    return res.status(304).set(browserCacheHeaders).end();
+  }
+
+  return sendImage(res, imageData, {
+    'Content-Type': getImageResponseContentType(imageData.meta.extension),
+    ...browserCacheHeaders,
+  });
 }
 
 function getJellyfinAvatarUrl(userId: string) {
@@ -119,9 +181,46 @@ export async function checkAvatarChanged(
   }
 }
 
-router.get('/:jellyfinUserId', async (req, res) => {
+router.get('/remote', avatarProxyRateLimit, async (req, res) => {
   try {
-    if (!req.params.jellyfinUserId.match(/^[a-f0-9]{32}$/)) {
+    const rawAvatarUrl = Array.isArray(req.query.url)
+      ? req.query.url.filter(
+          (value): value is string => typeof value === 'string'
+        )
+      : typeof req.query.url === 'string'
+        ? req.query.url
+        : undefined;
+    const avatarUrl = getRemoteAvatarCacheUrl(rawAvatarUrl);
+
+    if (!avatarUrl) {
+      return res.status(400).json({ error: 'Unsupported avatar URL' });
+    }
+
+    const avatarImageCache = await initAvatarImageProxy();
+    const imageData = await avatarImageCache.getImage(avatarUrl);
+
+    return sendCachedAvatarImage({
+      imageData,
+      ifModifiedSince: req.headers['if-modified-since'],
+      ifNoneMatch: req.headers['if-none-match'],
+      res,
+    });
+  } catch (e) {
+    logger.error('Failed to proxy remote avatar image', {
+      errorMessage: e.message,
+    });
+
+    if (!res.headersSent) {
+      return res.status(400).json({ error: e.message });
+    }
+  }
+});
+
+router.get('/:jellyfinUserId', avatarProxyRateLimit, async (req, res) => {
+  try {
+    const jellyfinUserId = String(req.params.jellyfinUserId);
+
+    if (!jellyfinUserId.match(/^[a-f0-9]{32}$/)) {
       const mediaServerType = getSettings().main.mediaServerType;
       throw new Error(
         `Provided URL is not ${
@@ -139,7 +238,7 @@ router.get('/:jellyfinUserId', async (req, res) => {
     const versionParam = req.query.v;
 
     const user = await getRepository(User).findOne({
-      where: { jellyfinUserId: req.params.jellyfinUserId },
+      where: { jellyfinUserId },
     });
 
     const fallbackUrl = gravatarUrl(user?.email || 'none', {
@@ -147,7 +246,7 @@ router.get('/:jellyfinUserId', async (req, res) => {
       size: 200,
     });
 
-    const jellyfinAvatarUrl = getJellyfinAvatarUrl(req.params.jellyfinUserId);
+    const jellyfinAvatarUrl = getJellyfinAvatarUrl(jellyfinUserId);
 
     let imageData;
     if (user?.avatarVersion) {
@@ -162,21 +261,22 @@ router.get('/:jellyfinUserId', async (req, res) => {
       imageData = await avatarImageCache.getImage(fallbackUrl);
     }
 
-    if (userEtag && userEtag === `"${imageData.meta.etag}"` && !versionParam) {
-      return res.status(304).end();
-    }
-
-    await sendImage(res, imageData, {
-      'Content-Type': `image/${imageData.meta.extension}`,
-      'Cache-Control': `public, max-age=${imageData.meta.curRevalidate}`,
-      ETag: `"${imageData.meta.etag}"`,
-      'OS-Cache-Key': imageData.meta.cacheKey,
-      'OS-Cache-Status': imageData.meta.cacheMiss ? 'MISS' : 'HIT',
+    await sendCachedAvatarImage({
+      imageData,
+      ifModifiedSince: req.headers['if-modified-since'],
+      ifNoneMatch: userEtag,
+      immutable: Boolean(versionParam),
+      res,
+      skipNotModified: Boolean(versionParam),
     });
   } catch (e) {
     logger.error('Failed to proxy avatar image', {
       errorMessage: e.message,
     });
+
+    if (!res.headersSent) {
+      return res.status(400).json({ error: e.message });
+    }
   }
 });
 

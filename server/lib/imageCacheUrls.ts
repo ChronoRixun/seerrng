@@ -1,6 +1,7 @@
 type ImageWarmableRecord = {
   mediaType?: unknown;
   posterPath?: unknown;
+  remotePoster?: unknown;
   backdropPath?: unknown;
   profilePath?: unknown;
   artistThumb?: unknown;
@@ -35,6 +36,8 @@ const getWarmableImageUrls = (item: ImageWarmableRecord): string[] => {
       urls.push(normalizeExternalImageUrl(item.posterPath));
     }
   }
+
+  urls.push(normalizeExternalImageUrl(item.remotePoster));
 
   if (
     typeof item.backdropPath === 'string' &&

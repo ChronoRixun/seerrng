@@ -19,6 +19,7 @@ import WebhookAgent from '@server/lib/notifications/agents/webhook';
 import WebPushAgent from '@server/lib/notifications/agents/webpush';
 import checkOverseerrMerge from '@server/lib/overseerrMerge';
 import { getSettings } from '@server/lib/settings';
+import { setStaticAssetCacheControl } from '@server/lib/staticAssetCache';
 import logger from '@server/logger';
 import clearCookies from '@server/middleware/clearcookies';
 import routes from '@server/routes';
@@ -244,7 +245,11 @@ app
     server.use('/imageproxy', clearCookies, imageproxy);
     server.use('/avatarproxy', clearCookies, avatarproxy);
 
-    server.get('*path', (req, res) => handle(req, res));
+    server.get('*path', (req, res) => {
+      setStaticAssetCacheControl(req, res);
+
+      return handle(req, res);
+    });
     server.use(
       (
         err: { status: number; message: string; errors: string[] },

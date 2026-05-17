@@ -1,9 +1,36 @@
+import {
+  getBrowserImageResponseHeaders,
+  shouldSendBrowserImageNotModified,
+} from '@server/lib/browserImageCache';
 import { enqueueImageCacheWarm } from '@server/lib/imageCacheWarmer';
-import ImageProxy, { sendImage } from '@server/lib/imageproxy';
+import ImageProxy, {
+  getImageResponseContentType,
+  sendImage,
+} from '@server/lib/imageproxy';
 import logger from '@server/logger';
+import { getRateLimitKey } from '@server/utils/security';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+const proxyRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getRateLimitKey,
+});
+
+const warmRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getRateLimitKey,
+});
+
+router.use(proxyRateLimit);
 
 // Delay the initialization of ImageProxy instances until the proxy (if any) is properly configured
 let _tmdbImageProxy: ImageProxy;
@@ -83,9 +110,12 @@ router.get<{
   type: string;
   path: string[];
 }>('/:type/*path', async (req, res) => {
-  const imagePath = '/' + req.params.path.join('/');
+  const queryIndex = req.url.indexOf('?');
+  const imagePathname = '/' + req.params.path.join('/');
+  const imagePath =
+    imagePathname + (queryIndex === -1 ? '' : req.url.slice(queryIndex));
 
-  if (imagePath.startsWith('//') || imagePath.includes('://')) {
+  if (imagePathname.startsWith('//') || imagePathname.includes('://')) {
     logger.error('Invalid URL for image proxy', { imagePath });
     return res.status(403).send('Invalid URL for image proxy');
   }
@@ -111,11 +141,29 @@ router.get<{
       return;
     }
 
+    const etag = `"${imageData.meta.etag}"`;
+    const browserCacheHeaders = getBrowserImageResponseHeaders({
+      cacheKey: imageData.meta.cacheKey,
+      cacheMiss: imageData.meta.cacheMiss,
+      etag,
+      lastModified: imageData.meta.lastModified,
+      maxAge: imageData.meta.curRevalidate,
+    });
+
+    if (
+      shouldSendBrowserImageNotModified({
+        etag,
+        ifModifiedSince: req.headers['if-modified-since'],
+        ifNoneMatch: req.headers['if-none-match'],
+        lastModified: imageData.meta.lastModified,
+      })
+    ) {
+      return res.status(304).set(browserCacheHeaders).end();
+    }
+
     await sendImage(res, imageData, {
-      'Content-Type': `image/${imageData.meta.extension}`,
-      'Cache-Control': `public, max-age=${imageData.meta.curRevalidate}`,
-      'OS-Cache-Key': imageData.meta.cacheKey,
-      'OS-Cache-Status': imageData.meta.cacheMiss ? 'MISS' : 'HIT',
+      'Content-Type': getImageResponseContentType(imageData.meta.extension),
+      ...browserCacheHeaders,
     });
   } catch (e) {
     logger.error('Failed to proxy image', {
@@ -126,14 +174,18 @@ router.get<{
   }
 });
 
-router.post('/warm', (req, res) => {
-  const urls = Array.isArray(req.body?.urls) ? req.body.urls : [];
+router.post(
+  '/warm',
+  warmRateLimit,
+  (req, res) => {
+    const urls = Array.isArray(req.body?.urls) ? req.body.urls : [];
 
-  enqueueImageCacheWarm(
-    urls.filter((url: unknown): url is string => typeof url === 'string')
-  );
+    enqueueImageCacheWarm(
+      urls.filter((url: unknown): url is string => typeof url === 'string')
+    );
 
-  return res.status(202).json({ accepted: true });
-});
+    return res.status(202).json({ accepted: true });
+  }
+);
 
 export default router;

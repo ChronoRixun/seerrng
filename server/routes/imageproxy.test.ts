@@ -1,0 +1,124 @@
+import assert from 'node:assert/strict';
+import { afterEach, describe, it, mock } from 'node:test';
+
+import type { ImageResponse } from '@server/lib/imageproxy';
+import ImageProxy from '@server/lib/imageproxy';
+import express from 'express';
+import request from 'supertest';
+import imageproxyRoutes from './imageproxy';
+
+const imageResponse: ImageResponse = {
+  meta: {
+    cacheKey: 'cache-key',
+    cacheMiss: false,
+    curRevalidate: 3600,
+    etag: 'etag-value',
+    extension: 'jpg',
+    isStale: false,
+    lastModified: Date.UTC(2026, 0, 1, 0, 0, 0),
+    revalidateAfter: Date.UTC(2026, 0, 1, 1, 0, 0),
+  },
+  imageBuffer: Buffer.from('image-bytes'),
+};
+
+function createApp() {
+  const app = express();
+  app.use(express.json());
+  app.use('/imageproxy', imageproxyRoutes);
+  return app;
+}
+
+afterEach(() => {
+  mock.restoreAll();
+});
+
+describe('GET /imageproxy/:type/*path', () => {
+  it('sends browser cache headers with proxied images', async () => {
+    mock.method(ImageProxy.prototype, 'getImage', async () => imageResponse);
+
+    const res = await request(createApp()).get(
+      '/imageproxy/tmdb/t/p/w300/poster.jpg'
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(res.headers['content-type'], 'image/jpeg');
+    assert.equal(res.headers.etag, '"etag-value"');
+    assert.equal(res.headers['last-modified'], 'Thu, 01 Jan 2026 00:00:00 GMT');
+    assert.equal(
+      res.headers['cache-control'],
+      'public, max-age=3600, stale-while-revalidate=2592000, stale-if-error=604800'
+    );
+    assert.equal(res.headers['os-cache-key'], 'cache-key');
+    assert.equal(res.headers['os-cache-status'], 'HIT');
+    assert.equal(res.body.toString(), 'image-bytes');
+  });
+
+  it('returns 304 with cache headers when the browser validator matches', async () => {
+    mock.method(ImageProxy.prototype, 'getImage', async () => imageResponse);
+
+    const res = await request(createApp())
+      .get('/imageproxy/tmdb/t/p/w300/poster.jpg')
+      .set('If-None-Match', '"etag-value"');
+
+    assert.equal(res.status, 304);
+    assert.equal(res.headers.etag, '"etag-value"');
+    assert.equal(
+      res.headers['cache-control'],
+      'public, max-age=3600, stale-while-revalidate=2592000, stale-if-error=604800'
+    );
+    assert.equal(res.text, '');
+  });
+
+  it('keeps query strings in the upstream cache key', async () => {
+    const getImage = mock.method(
+      ImageProxy.prototype,
+      'getImage',
+      async () => imageResponse
+    );
+
+    const res = await request(createApp()).get(
+      '/imageproxy/tmdb/t/p/w300/poster.jpg?version=2&language=en'
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(
+      getImage.mock.calls[0].arguments[0],
+      '/t/p/w300/poster.jpg?version=2&language=en'
+    );
+  });
+
+  it('validates only the path segment when query strings contain URLs', async () => {
+    const getImage = mock.method(
+      ImageProxy.prototype,
+      'getImage',
+      async () => imageResponse
+    );
+
+    const res = await request(createApp()).get(
+      '/imageproxy/tmdb/t/p/w300/poster.jpg?source=https%3A%2F%2Fexample.com%2Fposter.jpg'
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(
+      getImage.mock.calls[0].arguments[0],
+      '/t/p/w300/poster.jpg?source=https%3A%2F%2Fexample.com%2Fposter.jpg'
+    );
+  });
+
+  it('supports HEAD requests with browser cache headers and no body', async () => {
+    mock.method(ImageProxy.prototype, 'getImage', async () => imageResponse);
+
+    const res = await request(createApp()).head(
+      '/imageproxy/tmdb/t/p/w300/poster.jpg'
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(res.headers['content-type'], 'image/jpeg');
+    assert.equal(res.headers.etag, '"etag-value"');
+    assert.equal(
+      res.headers['cache-control'],
+      'public, max-age=3600, stale-while-revalidate=2592000, stale-if-error=604800'
+    );
+    assert.equal(res.text, undefined);
+  });
+});

@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react';
 type ImageWarmableResult = {
   mediaType?: string;
   posterPath?: string | null;
+  remotePoster?: string | null;
   backdropPath?: string | null;
   profilePath?: string | null;
   artistThumb?: string | null;
@@ -38,6 +39,8 @@ const getImageUrls = (item: ImageWarmableResult): string[] => {
     urls.push(normalizeExternalImageUrl(item.posterPath));
   }
 
+  urls.push(normalizeExternalImageUrl(item.remotePoster));
+
   if (
     item.backdropPath &&
     ['movie', 'tv', 'collection'].includes(item.mediaType ?? '')
@@ -46,7 +49,11 @@ const getImageUrls = (item: ImageWarmableResult): string[] => {
   }
 
   if (item.profilePath) {
-    urls.push(getTmdbImageUrl(item.profilePath, 'w600_and_h900_bestv2'));
+    urls.push(
+      item.profilePath.startsWith('/')
+        ? getTmdbImageUrl(item.profilePath, 'w600_and_h900_bestv2')
+        : normalizeExternalImageUrl(item.profilePath)
+    );
   }
 
   urls.push(

@@ -11,6 +11,12 @@ const tmdbImageProxy = new ImageProxy('tmdb', 'https://image.tmdb.org', {
     maxRPS: 20,
   },
 });
+const tvdbImageProxy = new ImageProxy('tvdb', 'https://artworks.thetvdb.com', {
+  rateLimitOptions: {
+    maxRequests: 10,
+    maxRPS: 20,
+  },
+});
 const coverArtArchiveImageProxy = new ImageProxy(
   'coverartarchive',
   'https://coverartarchive.org',
@@ -42,24 +48,43 @@ const openLibraryCoversImageProxy = new ImageProxy(
   }
 );
 
+export const getImageCacheWarmProvider = (url: URL): string | null => {
+  switch (url.origin) {
+    case 'https://image.tmdb.org':
+      return 'tmdb';
+    case 'https://artworks.thetvdb.com':
+      return 'tvdb';
+    case 'https://coverartarchive.org':
+      return 'coverartarchive';
+    case 'https://archive.org':
+      return 'archiveorg';
+    case 'https://covers.openlibrary.org':
+      return 'openlibrarycovers';
+    default:
+      return null;
+  }
+};
+
+export const getImageCacheWarmPath = (url: URL): string =>
+  `${url.pathname}${url.search}`;
+
 const getProxyForUrl = (url: URL): ImageProxy | null => {
-  if (url.origin === 'https://image.tmdb.org') {
-    return tmdbImageProxy;
-  }
+  const provider = getImageCacheWarmProvider(url);
 
-  if (url.origin === 'https://coverartarchive.org') {
-    return coverArtArchiveImageProxy;
+  switch (provider) {
+    case 'tmdb':
+      return tmdbImageProxy;
+    case 'tvdb':
+      return tvdbImageProxy;
+    case 'coverartarchive':
+      return coverArtArchiveImageProxy;
+    case 'archiveorg':
+      return archiveOrgImageProxy;
+    case 'openlibrarycovers':
+      return openLibraryCoversImageProxy;
+    default:
+      return null;
   }
-
-  if (url.origin === 'https://archive.org') {
-    return archiveOrgImageProxy;
-  }
-
-  if (url.origin === 'https://covers.openlibrary.org') {
-    return openLibraryCoversImageProxy;
-  }
-
-  return null;
 };
 
 const warmUrl = async (rawUrl: string) => {
@@ -70,7 +95,7 @@ const warmUrl = async (rawUrl: string) => {
     return;
   }
 
-  await proxy.getImage(`${url.pathname}${url.search}`);
+  await proxy.getImage(getImageCacheWarmPath(url));
 };
 
 export const enqueueImageCacheWarm = (urls: string[]) => {
