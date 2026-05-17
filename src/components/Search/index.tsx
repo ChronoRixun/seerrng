@@ -24,12 +24,15 @@ const messages = defineMessages('components.Search', {
 const Search = () => {
   const intl = useIntl();
   const router = useRouter();
+  const query =
+    typeof router.query.query === 'string' ? router.query.query.trim() : '';
   const searchOptions = useMemo(
     () => ({
-      query: router.query.query,
+      query,
     }),
-    [router.query.query]
+    [query]
   );
+  const isSearchReady = router.isReady && !!query;
 
   const {
     isLoadingInitialData,
@@ -47,6 +50,7 @@ const Search = () => {
     | ArtistResult
     | BookResult
   >(`/api/v1/search`, searchOptions, {
+    enabled: isSearchReady,
     hideAvailable: false,
     hideBlocklisted: false,
   });
@@ -63,9 +67,12 @@ const Search = () => {
       </div>
       <ListView
         items={titles}
-        isEmpty={isEmpty}
+        isEmpty={isSearchReady && isEmpty}
         isLoading={
-          isLoadingInitialData || (isLoadingMore && (titles?.length ?? 0) > 0)
+          !router.isReady ||
+          (isSearchReady &&
+            (isLoadingInitialData ||
+              (isLoadingMore && (titles?.length ?? 0) > 0)))
         }
         isReachingEnd={isReachingEnd}
         onScrollBottom={fetchMore}

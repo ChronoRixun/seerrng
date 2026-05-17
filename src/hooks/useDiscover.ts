@@ -118,7 +118,12 @@ const useDiscover = <
 >(
   endpoint: string,
   options?: O,
-  { hideAvailable = true, hideBlocklisted = true, randomizeOrder = false } = {}
+  {
+    enabled = true,
+    hideAvailable = true,
+    hideBlocklisted = true,
+    randomizeOrder = false,
+  } = {}
 ): DiscoverResult<T, S> => {
   const settings = useSettings();
   const { hasPermission } = useUser();
@@ -136,6 +141,10 @@ const useDiscover = <
     BaseSearchResult<T> & S
   >(
     (pageIndex: number, previousPageData) => {
+      if (!enabled) {
+        return null;
+      }
+
       if (previousPageData && pageIndex + 1 > previousPageData.totalPages) {
         return null;
       }
@@ -159,7 +168,7 @@ const useDiscover = <
     }
   );
 
-  const isLoadingInitialData = !data && !error;
+  const isLoadingInitialData = enabled && !data && !error;
   const isLoadingMore =
     isLoadingInitialData ||
     (size > 0 &&
