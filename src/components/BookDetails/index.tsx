@@ -429,7 +429,9 @@ const BookDetails = () => {
               <span>
                 {intl.formatMessage(messages.author)}:{' '}
                 {data.authorId ? (
-                  <Link href={`/author/${data.authorId}`}>{data.author}</Link>
+                  <Link href={`/author/${encodeApiPathSegment(data.authorId)}`}>
+                    {data.author}
+                  </Link>
                 ) : (
                   data.author
                 )}
@@ -453,7 +455,11 @@ const BookDetails = () => {
                 <span>{intl.formatMessage(messages.author)}</span>
                 <span className="media-fact-value">
                   {data.authorId ? (
-                    <Link href={`/author/${data.authorId}`}>{data.author}</Link>
+                    <Link
+                      href={`/author/${encodeApiPathSegment(data.authorId)}`}
+                    >
+                      {data.author}
+                    </Link>
                   ) : (
                     data.author
                   )}

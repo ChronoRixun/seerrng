@@ -315,6 +315,16 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
           : item.mediaType === 'book' && item.externalId
             ? `/api/v1/book/${encodeApiPathSegment(item.externalId)}`
             : null;
+  const mediaHref =
+    item.mediaType === 'movie'
+      ? `/movie/${item.tmdbId}`
+      : item.mediaType === 'tv'
+        ? `/tv/${item.tmdbId}`
+        : item.mediaType === 'music' && item.externalId
+          ? `/music/${encodeApiPathSegment(item.externalId)}`
+          : item.mediaType === 'book' && item.externalId
+            ? `/book/${encodeApiPathSegment(item.externalId)}`
+            : '/';
   const { data: title, error } = useSWR<BlocklistTitle>(inView ? url : null);
 
   if (!title && !error) {
@@ -381,15 +391,7 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
       <div className="relative flex w-full flex-col justify-between overflow-hidden sm:flex-row">
         <div className="relative z-10 flex w-full items-center overflow-hidden pl-4 pr-4 sm:pr-0 xl:w-7/12 2xl:w-2/3">
           <Link
-            href={
-              item.mediaType === 'movie'
-                ? `/movie/${item.tmdbId}`
-                : item.mediaType === 'tv'
-                  ? `/tv/${item.tmdbId}`
-                  : item.mediaType === 'music'
-                    ? `/music/${item.externalId}`
-                    : `/book/${item.externalId}`
-            }
+            href={mediaHref}
             className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
           >
             <CachedImage
@@ -426,17 +428,7 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
                       : title.firstAirDate
                 )?.slice(0, 4)}
             </div>
-            <Link
-              href={
-                item.mediaType === 'movie'
-                  ? `/movie/${item.tmdbId}`
-                  : item.mediaType === 'tv'
-                    ? `/tv/${item.tmdbId}`
-                    : item.mediaType === 'music'
-                      ? `/music/${item.externalId}`
-                      : `/book/${item.externalId}`
-              }
-            >
+            <Link href={mediaHref}>
               <span className="mr-2 min-w-0 truncate text-lg font-bold text-white hover:underline xl:text-xl">
                 {title &&
                   (isMovie(title)

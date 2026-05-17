@@ -90,6 +90,24 @@ const getBookId = (request: NonFunctionProperties<MediaRequest>) =>
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
 
+const getRequestDetailHref = (
+  request: NonFunctionProperties<MediaRequest>,
+  manage = false
+) => {
+  const suffix = manage ? '?manage=1' : '';
+  const bookId = getBookId(request);
+
+  if (request.type === 'music' && request.media.mbId) {
+    return `/music/${encodeApiPathSegment(request.media.mbId)}${suffix}`;
+  }
+
+  if (request.type === 'book' && bookId) {
+    return `/book/${encodeApiPathSegment(bookId)}${suffix}`;
+  }
+
+  return `/${request.type}/${request.media.tmdbId}${suffix}`;
+};
+
 const getRequestDownloadStatus = (
   request: NonFunctionProperties<MediaRequest>
 ) => {
@@ -631,15 +649,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
         <div className="relative flex w-full flex-col justify-between overflow-hidden sm:flex-row">
           <div className="relative z-10 flex w-full items-center overflow-hidden pl-4 pr-4 sm:pr-0 xl:w-7/12 2xl:w-2/3">
             <Link
-              href={
-                requestData.type === 'movie'
-                  ? `/movie/${requestData.media.tmdbId}`
-                  : requestData.type === 'tv'
-                    ? `/tv/${requestData.media.tmdbId}`
-                    : requestData.type === 'music'
-                      ? `/music/${requestData.media.mbId}`
-                      : `/book/${getBookId(requestData)}`
-              }
+              href={getRequestDetailHref(requestData)}
               className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
             >
               <CachedImage
@@ -672,15 +682,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                 )?.slice(0, 4)}
               </div>
               <Link
-                href={
-                  requestData.type === 'movie'
-                    ? `/movie/${requestData.media.tmdbId}`
-                    : requestData.type === 'tv'
-                      ? `/tv/${requestData.media.tmdbId}`
-                      : requestData.type === 'music'
-                        ? `/music/${requestData.media.mbId}`
-                        : `/book/${getBookId(requestData)}`
-                }
+                href={getRequestDetailHref(requestData)}
                 className="mr-2 min-w-0 truncate text-lg font-bold text-white hover:underline xl:text-xl"
               >
                 {isMovie(title)
@@ -733,13 +735,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
               ) : requestData.status === MediaRequestStatus.FAILED ? (
                 <Badge
                   badgeType="danger"
-                  href={
-                    requestData.type === 'music'
-                      ? `/music/${requestData.media.mbId}?manage=1`
-                      : requestData.type === 'book'
-                        ? `/book/${getBookId(requestData)}?manage=1`
-                        : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
-                  }
+                  href={getRequestDetailHref(requestData, true)}
                 >
                   {intl.formatMessage(globalMessages.failed)}
                 </Badge>
@@ -747,13 +743,7 @@ const RequestItem = ({ request, revalidateList }: RequestItemProps) => {
                 getRequestMediaStatus(requestData) === MediaStatus.DELETED ? (
                 <Badge
                   badgeType="warning"
-                  href={
-                    requestData.type === 'music'
-                      ? `/music/${requestData.media.mbId}?manage=1`
-                      : requestData.type === 'book'
-                        ? `/book/${getBookId(requestData)}?manage=1`
-                        : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
-                  }
+                  href={getRequestDetailHref(requestData, true)}
                 >
                   {intl.formatMessage(globalMessages.pending)}
                 </Badge>

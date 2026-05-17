@@ -84,6 +84,24 @@ const getBookId = (request: NonFunctionProperties<MediaRequest>) =>
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
 
+const getRequestDetailHref = (
+  request: NonFunctionProperties<MediaRequest>,
+  manage = false
+) => {
+  const suffix = manage ? '?manage=1' : '';
+  const bookId = getBookId(request);
+
+  if (request.type === 'music' && request.media.mbId) {
+    return `/music/${encodeApiPathSegment(request.media.mbId)}${suffix}`;
+  }
+
+  if (request.type === 'book' && bookId) {
+    return `/book/${encodeApiPathSegment(bookId)}${suffix}`;
+  }
+
+  return `/${request.type}/${request.media.tmdbId}${suffix}`;
+};
+
 const getRequestDownloadStatus = (
   request: NonFunctionProperties<MediaRequest>
 ) => {
@@ -542,15 +560,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
             )}
           </div>
           <Link
-            href={
-              request.type === 'movie'
-                ? `/movie/${requestData.media.tmdbId}`
-                : request.type === 'tv'
-                  ? `/tv/${requestData.media.tmdbId}`
-                  : requestData.type === 'music'
-                    ? `/music/${requestData.media.mbId}`
-                    : `/book/${getBookId(requestData)}`
-            }
+            href={getRequestDetailHref(requestData)}
             className="overflow-hidden overflow-ellipsis whitespace-nowrap text-base font-bold text-white hover:underline sm:text-lg"
           >
             {isMovie(title)
@@ -648,13 +658,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
             ) : requestData.status === MediaRequestStatus.FAILED ? (
               <Badge
                 badgeType="danger"
-                href={
-                  requestData.type === 'music'
-                    ? `/music/${requestData.media.mbId}?manage=1`
-                    : requestData.type === 'book'
-                      ? `/book/${getBookId(requestData)}?manage=1`
-                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
-                }
+                href={getRequestDetailHref(requestData, true)}
               >
                 {intl.formatMessage(globalMessages.failed)}
               </Badge>
@@ -662,13 +666,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               getRequestMediaStatus(requestData) === MediaStatus.DELETED ? (
               <Badge
                 badgeType="warning"
-                href={
-                  requestData.type === 'music'
-                    ? `/music/${requestData.media.mbId}?manage=1`
-                    : requestData.type === 'book'
-                      ? `/book/${getBookId(requestData)}?manage=1`
-                      : `/${requestData.type}/${requestData.media.tmdbId}?manage=1`
-                }
+                href={getRequestDetailHref(requestData, true)}
               >
                 {intl.formatMessage(globalMessages.pending)}
               </Badge>
@@ -860,15 +858,7 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
           </div>
         </div>
         <Link
-          href={
-            request.type === 'movie'
-              ? `/movie/${requestData.media.tmdbId}`
-              : request.type === 'tv'
-                ? `/tv/${requestData.media.tmdbId}`
-                : request.type === 'music'
-                  ? `/music/${requestData.media.mbId}`
-                  : `/book/${getBookId(requestData)}`
-          }
+          href={getRequestDetailHref(requestData)}
           className="w-20 flex-shrink-0 scale-100 transform-gpu cursor-pointer overflow-hidden rounded-md shadow-sm transition duration-300 hover:scale-105 hover:shadow-md sm:w-28"
         >
           <CachedImage

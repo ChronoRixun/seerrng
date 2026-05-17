@@ -1,4 +1,5 @@
 import CachedImage from '@app/components/Common/CachedImage';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import { UserCircleIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -22,7 +23,7 @@ const ArtistCard = ({
 
   return (
     <Link
-      href={`/artist/${artistId}`}
+      href={`/artist/${encodeApiPathSegment(artistId)}`}
       prefetch={false}
       className={canExpand ? 'w-full' : 'w-36 sm:w-36 md:w-44'}
       onMouseEnter={() => setHovered(true)}

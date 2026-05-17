@@ -384,7 +384,7 @@ const MusicDetails = () => {
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <Link
-              href={`/artist/${data.artist.id}`}
+              href={`/artist/${encodeApiPathSegment(data.artist.id)}`}
               className="font-medium text-gray-100 transition hover:text-white"
             >
               {data.artist.name}
@@ -515,7 +515,7 @@ const MusicDetails = () => {
             <div className="media-fact">
               <span>{intl.formatMessage(messages.artist)}</span>
               <span className="media-fact-value">
-                <Link href={`/artist/${data.artist.id}`}>
+                <Link href={`/artist/${encodeApiPathSegment(data.artist.id)}`}>
                   {data.artist.name}
                 </Link>
               </span>

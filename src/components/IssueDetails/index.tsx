@@ -238,9 +238,11 @@ const IssueDetails = () => {
       ? `/movie/${issueData.media.tmdbId}`
       : issueData.media.mediaType === MediaType.TV
         ? `/tv/${issueData.media.tmdbId}`
-        : issueData.media.mediaType === MediaType.MUSIC
-          ? `/music/${issueData.media.mbId}`
-          : `/book/${bookId}`;
+        : issueData.media.mediaType === MediaType.MUSIC && issueData.media.mbId
+          ? `/music/${encodeApiPathSegment(issueData.media.mbId)}`
+          : bookId
+            ? `/book/${encodeApiPathSegment(bookId)}`
+            : '/';
   const posterPath =
     isMusic(data) || isBook(data)
       ? data.posterPath

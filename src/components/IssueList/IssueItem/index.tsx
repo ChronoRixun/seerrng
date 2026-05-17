@@ -75,6 +75,16 @@ const IssueItem = ({ issue }: IssueItemProps) => {
           : issue.media.mediaType === MediaType.BOOK && bookId
             ? `/api/v1/book/${encodeApiPathSegment(bookId)}`
             : null;
+  const mediaHref =
+    issue.media.mediaType === MediaType.MOVIE
+      ? `/movie/${issue.media.tmdbId}`
+      : issue.media.mediaType === MediaType.TV
+        ? `/tv/${issue.media.tmdbId}`
+        : issue.media.mediaType === MediaType.MUSIC && issue.media.mbId
+          ? `/music/${encodeApiPathSegment(issue.media.mbId)}`
+          : bookId
+            ? `/book/${encodeApiPathSegment(bookId)}`
+            : '/';
   const { data: title, error } = useSWR<IssueTitle>(inView ? url : null);
 
   if (!url && inView) {
@@ -196,15 +206,7 @@ const IssueItem = ({ issue }: IssueItemProps) => {
       <div className="relative flex w-full flex-col justify-between overflow-hidden sm:flex-row">
         <div className="relative z-10 flex w-full items-center overflow-hidden pl-4 pr-4 sm:pr-0 xl:w-7/12 2xl:w-2/3">
           <Link
-            href={
-              issue.media.mediaType === MediaType.MOVIE
-                ? `/movie/${issue.media.tmdbId}`
-                : issue.media.mediaType === MediaType.TV
-                  ? `/tv/${issue.media.tmdbId}`
-                  : issue.media.mediaType === MediaType.MUSIC
-                    ? `/music/${issue.media.mbId}`
-                    : `/book/${bookId}`
-            }
+            href={mediaHref}
             className="relative h-auto w-12 flex-shrink-0 scale-100 transform-gpu overflow-hidden rounded-md transition duration-300 hover:scale-105"
           >
             <CachedImage
@@ -235,15 +237,7 @@ const IssueItem = ({ issue }: IssueItemProps) => {
               )?.slice(0, 4)}
             </div>
             <Link
-              href={
-                issue.media.mediaType === MediaType.MOVIE
-                  ? `/movie/${issue.media.tmdbId}`
-                  : issue.media.mediaType === MediaType.TV
-                    ? `/tv/${issue.media.tmdbId}`
-                    : issue.media.mediaType === MediaType.MUSIC
-                      ? `/music/${issue.media.mbId}`
-                      : `/book/${bookId}`
-              }
+              href={mediaHref}
               className="mr-2 min-w-0 truncate text-lg font-bold text-white hover:underline xl:text-xl"
             >
               {isMovie(title)

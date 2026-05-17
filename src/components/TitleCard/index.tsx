@@ -374,10 +374,10 @@ const TitleCard = ({
         : mediaType === 'tv'
           ? `/tv/${id}`
           : mediaType === 'album'
-            ? `/music/${id}`
+            ? `/music/${encodeApiPathSegment(id)}`
             : mediaType === 'book'
-              ? `/book/${id}`
-              : `/artist/${id}`;
+              ? `/book/${encodeApiPathSegment(id)}`
+              : `/artist/${encodeApiPathSegment(id)}`;
   const displayImage = image?.startsWith('http')
     ? image
     : image
