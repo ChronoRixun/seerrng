@@ -59,6 +59,9 @@ export interface OpenLibraryEdition {
   isbn_10?: string[];
   isbn_13?: string[];
   physical_format?: string;
+  works?: {
+    key: string;
+  }[];
 }
 
 interface OpenLibraryEditionsResponse {
@@ -124,6 +127,18 @@ class OpenLibraryAPI extends ExternalAPI {
 
     return this.get<OpenLibraryWork>(
       `${normalizedWorkId}.json`,
+      undefined,
+      43200
+    );
+  }
+
+  public async getEdition(editionId: string): Promise<OpenLibraryEdition> {
+    const normalizedEditionId = editionId.startsWith('/books/')
+      ? editionId
+      : `/books/${editionId}`;
+
+    return this.get<OpenLibraryEdition>(
+      `${normalizedEditionId}.json`,
       undefined,
       43200
     );

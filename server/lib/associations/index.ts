@@ -383,12 +383,23 @@ const buildForBook = async (
   opts: AssociationOptions
 ): Promise<AssociationGraph> => {
   const openLibrary = new OpenLibraryAPI();
-  const work = await openLibrary.getWork(openLibraryId);
-  const authorId = work.authors?.[0]?.author.key.replace('/authors/', '');
+  let work = await openLibrary.getWork(openLibraryId);
+  let workId = openLibraryId;
+
+  if (!work.key?.startsWith('/works/')) {
+    const edition = await openLibrary.getEdition(openLibraryId);
+    const editionWorkId = edition.works?.[0]?.key?.replace('/works/', '');
+    if (editionWorkId) {
+      work = await openLibrary.getWork(editionWorkId);
+      workId = editionWorkId;
+    }
+  }
+
+  const authorId = work.authors?.[0]?.author?.key?.replace('/authors/', '');
 
   if (!authorId) {
     return finalize(
-      { mediaType: 'book', id: openLibraryId, title: work.title },
+      { mediaType: 'book', id: workId, title: work.title },
       [],
       opts
     );
@@ -427,7 +438,7 @@ const buildForBook = async (
   });
 
   return finalize(
-    { mediaType: 'book', id: openLibraryId, title: work.title },
+    { mediaType: 'book', id: workId, title: work.title },
     edges,
     opts
   );

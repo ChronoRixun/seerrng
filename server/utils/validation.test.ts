@@ -144,6 +144,12 @@ describe('parseOptionalQueryBoolean', () => {
     assert.deepEqual(parseOptionalQueryBoolean('false', 'Sync'), {
       value: false,
     });
+    assert.deepEqual(parseOptionalQueryBoolean(true, 'Sync'), {
+      value: true,
+    });
+    assert.deepEqual(parseOptionalQueryBoolean(false, 'Sync'), {
+      value: false,
+    });
     assert.deepEqual(parseOptionalQueryBoolean(['true'], 'Sync'), {
       error: 'Sync must be a string.',
     });

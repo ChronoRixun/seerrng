@@ -2,8 +2,8 @@ import type { AssociationMediaType } from '@app/hooks/useAssociations';
 import useAssociations, {
   toAssociationMediaType,
 } from '@app/hooks/useAssociations';
+import LinkedNodesIcon from '@app/assets/linked-nodes.svg';
 import defineMessages from '@app/utils/defineMessages';
-import { GlobeAltIcon } from '@heroicons/react/24/outline';
 import { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useIntl } from 'react-intl';
@@ -64,7 +64,7 @@ const AssociationBadge = ({
 
   const buttonClass =
     variant === 'card'
-      ? 'flex h-7 w-7 items-center justify-center rounded-full bg-gray-900/80 text-white ring-1 ring-gray-600 backdrop-blur transition hover:bg-gray-700'
+      ? 'flex h-4 items-center justify-center rounded-full border border-cyan-400 bg-cyan-600/85 px-2 text-white shadow-md backdrop-blur transition hover:border-cyan-300 hover:bg-cyan-500/90 sm:h-5'
       : 'flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-gray-300 ring-1 ring-gray-700 transition hover:text-white';
 
   return (
@@ -86,7 +86,7 @@ const AssociationBadge = ({
           setIsOpen((open) => !open);
         }}
       >
-        <GlobeAltIcon className="h-4 w-4" />
+        <LinkedNodesIcon className="h-3 w-3" />
       </button>
       {isOpen &&
         ReactDOM.createPortal(

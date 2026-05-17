@@ -71,6 +71,10 @@ export const parseOptionalQueryBoolean = (
   value: unknown,
   fieldName: string
 ): { value: boolean | undefined } | { error: string } => {
+  if (typeof value === 'boolean') {
+    return { value };
+  }
+
   const parsed = parseOptionalAllowedString(value, {
     fieldName,
     allowedValues: ['true', 'false'] as const,
