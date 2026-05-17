@@ -163,6 +163,61 @@ const waitForImages = () => {
     });
 };
 
+const prepareScreenshot = () => {
+  cy.document().then((document) => {
+    const style = document.createElement('style');
+    style.setAttribute('data-testid', 'readme-screenshot-style');
+    style.textContent = `
+      *, *::before, *::after {
+        scrollbar-width: none !important;
+      }
+
+      *::-webkit-scrollbar {
+        display: none !important;
+      }
+
+      html, body {
+        overflow: hidden !important;
+      }
+    `;
+    document.head.appendChild(style);
+  });
+};
+
+const captureReadmeScreenshot = (name: string) => {
+  prepareScreenshot();
+  cy.window().then((window) => {
+    window.scrollTo(0, 0);
+  });
+  cy.then(() =>
+    Cypress.automation('remote:debugger:protocol', {
+      command: 'Emulation.setDeviceMetricsOverride',
+      params: {
+        width: 1920,
+        height: 1080,
+        deviceScaleFactor: 1,
+        mobile: false,
+      },
+    })
+  );
+  cy.then(() =>
+    Cypress.automation('remote:debugger:protocol', {
+      command: 'Page.captureScreenshot',
+      params: {
+        captureBeyondViewport: false,
+        format: 'png',
+        fromSurface: true,
+      },
+    })
+  ).then(({ data }) => {
+    cy.writeFile(
+      `cypress/screenshots/readme-screenshots.cy.ts/${name}.png`,
+      data,
+      'base64'
+    );
+  });
+};
+
 describe('README screenshots', () => {
   beforeEach(() => {
     cy.viewport(1920, 1080);
@@ -181,7 +236,7 @@ describe('README screenshots', () => {
     waitForImages();
     cy.contains('Recommended Music').scrollIntoView();
     cy.wait(1000);
-    cy.screenshot('readme-discover', { capture: 'viewport' });
+    captureReadmeScreenshot('readme-discover');
   });
 
   it('captures the books pane', () => {
@@ -189,7 +244,7 @@ describe('README screenshots', () => {
     cy.contains('[data-testid=page-header]', 'Books').should('be.visible');
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     waitForImages();
-    cy.screenshot('readme-books', { capture: 'viewport' });
+    captureReadmeScreenshot('readme-books');
   });
 
   it('captures the music pane', () => {
@@ -197,6 +252,6 @@ describe('README screenshots', () => {
     cy.contains('[data-testid=page-header]', 'Music').should('be.visible');
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     waitForImages();
-    cy.screenshot('readme-music', { capture: 'viewport' });
+    captureReadmeScreenshot('readme-music');
   });
 });
