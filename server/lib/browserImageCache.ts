@@ -3,6 +3,25 @@ export const BROWSER_IMAGE_IMMUTABLE_CACHE_MAX_AGE = 30 * 24 * 60 * 60;
 export const BROWSER_IMAGE_STALE_WHILE_REVALIDATE = 30 * 24 * 60 * 60;
 export const BROWSER_IMAGE_STALE_IF_ERROR = 7 * 24 * 60 * 60;
 const BROWSER_IMAGE_DEFAULT_MAX_AGE = 24 * 60 * 60;
+const MAX_CONDITIONAL_HEADER_LENGTH = 1024;
+const MAX_ETAG_CANDIDATES = 32;
+
+const getSafeConditionalHeaderValues = (
+  value: string | string[] | undefined
+): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  const values = Array.isArray(value) ? value : [value];
+
+  return values.filter(
+    (candidate) =>
+      typeof candidate === 'string' &&
+      candidate.length <= MAX_CONDITIONAL_HEADER_LENGTH &&
+      !/[\r\n]/.test(candidate)
+  );
+};
 
 export const getBrowserImageCacheControl = (
   originMaxAge: number,
@@ -68,12 +87,13 @@ export const doesBrowserImageEtagMatch = (
     return false;
   }
 
-  const values = Array.isArray(ifNoneMatch) ? ifNoneMatch : [ifNoneMatch];
+  const values = getSafeConditionalHeaderValues(ifNoneMatch);
   const normalizedEtag = etag.replace(/^W\//, '');
 
   return values.some((value) =>
     value
       .split(',')
+      .slice(0, MAX_ETAG_CANDIDATES)
       .map((candidate) => candidate.trim())
       .map((candidate) => candidate.replace(/^W\//, ''))
       .some((candidate) => candidate === '*' || candidate === normalizedEtag)
@@ -88,9 +108,7 @@ export const doesBrowserImageLastModifiedMatch = (
     return false;
   }
 
-  const values = Array.isArray(ifModifiedSince)
-    ? ifModifiedSince
-    : [ifModifiedSince];
+  const values = getSafeConditionalHeaderValues(ifModifiedSince);
 
   return values.some((value) => {
     const parsed = Date.parse(value);

@@ -152,6 +152,11 @@ describe('doesBrowserImageEtagMatch', () => {
     assert.equal(doesBrowserImageEtagMatch(undefined, '"abc"'), false);
     assert.equal(doesBrowserImageEtagMatch('"other"', '"abc"'), false);
   });
+
+  it('ignores oversized or malformed validator headers', () => {
+    assert.equal(doesBrowserImageEtagMatch(`${'"x",'.repeat(400)}"abc"`, '"abc"'), false);
+    assert.equal(doesBrowserImageEtagMatch('"abc"\r\nX-Test: yes', '"abc"'), false);
+  });
 });
 
 describe('shouldSendBrowserImageNotModified', () => {
@@ -180,6 +185,20 @@ describe('shouldSendBrowserImageNotModified', () => {
         lastModified,
       }),
       true
+    );
+  });
+
+  it('ignores oversized If-Modified-Since values', () => {
+    const lastModified = Date.UTC(2026, 0, 1, 0, 0, 0);
+
+    assert.equal(
+      shouldSendBrowserImageNotModified({
+        etag: '"abc"',
+        ifModifiedSince: 'Thu, 01 Jan 2026 00:00:00 GMT'.padEnd(1025, ' '),
+        ifNoneMatch: undefined,
+        lastModified,
+      }),
+      false
     );
   });
 });
