@@ -89,7 +89,17 @@ When SeerrNG is behind a reverse proxy, avoid blanket `Cache-Control: no-store` 
 
 ## Preview
 
-<img src="./public/preview.jpg" alt="Seerr application preview" />
+### Discover
+
+<img src="./public/preview.jpg" alt="SeerrNG Discover panel" />
+
+### Books
+
+<img src="./public/preview-books.jpg" alt="SeerrNG Books pane" />
+
+### Music
+
+<img src="./public/preview-music.jpg" alt="SeerrNG Music pane" />
 
 ## Migrating from Overseerr/Jellyseerr to Seerr
 

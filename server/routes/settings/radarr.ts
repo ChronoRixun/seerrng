@@ -33,9 +33,9 @@ radarrRoutes.post('/', async (req, res) => {
   // If we are setting this as the default, clear any previous defaults for the same type first
   // ex: if is4k is true, it will only remove defaults for other servers that have is4k set to true
   // and are the default
-  if (req.body.isDefault) {
+  if (newRadarr.isDefault) {
     settings.radarr
-      .filter((radarrInstance) => radarrInstance.is4k === req.body.is4k)
+      .filter((radarrInstance) => radarrInstance.is4k === newRadarr.is4k)
       .forEach((radarrInstance) => {
         radarrInstance.isDefault = false;
       });
@@ -100,9 +100,7 @@ radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
       return next({ status: '404', message: 'Settings instance not found' });
     }
 
-    const radarrIndex = settings.radarr.findIndex(
-      (r) => r.id === radarrId
-    );
+    const radarrIndex = settings.radarr.findIndex((r) => r.id === radarrId);
 
     if (radarrIndex === -1) {
       return next({ status: '404', message: 'Settings instance not found' });
@@ -112,7 +110,10 @@ radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
     // ex: if is4k is true, it will only remove defaults for other servers that have is4k set to true
     // and are the default
     const parsedRadarr = parseRadarrSettings(
-      preserveRedactedSecrets(req.body, settings.radarr[radarrIndex]) as Partial<RadarrSettings>,
+      preserveRedactedSecrets(
+        req.body,
+        settings.radarr[radarrIndex]
+      ) as Partial<RadarrSettings>,
       settings.radarr[radarrIndex]
     );
 
@@ -122,7 +123,9 @@ radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
 
     if (parsedRadarr.value.isDefault) {
       settings.radarr
-        .filter((radarrInstance) => radarrInstance.is4k === parsedRadarr.value.is4k)
+        .filter(
+          (radarrInstance) => radarrInstance.is4k === parsedRadarr.value.is4k
+        )
         .forEach((radarrInstance) => {
           radarrInstance.isDefault = false;
         });
@@ -145,9 +148,7 @@ radarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
-  const radarrSettings = settings.radarr.find(
-    (r) => r.id === radarrId
-  );
+  const radarrSettings = settings.radarr.find((r) => r.id === radarrId);
 
   if (!radarrSettings) {
     return next({ status: '404', message: 'Settings instance not found' });
@@ -175,9 +176,7 @@ radarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
     return next({ status: '404', message: 'Settings instance not found' });
   }
 
-  const radarrIndex = settings.radarr.findIndex(
-    (r) => r.id === radarrId
-  );
+  const radarrIndex = settings.radarr.findIndex((r) => r.id === radarrId);
 
   if (radarrIndex === -1) {
     return next({ status: '404', message: 'Settings instance not found' });

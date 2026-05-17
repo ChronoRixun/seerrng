@@ -8,7 +8,6 @@ import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parseOptionalNonNegativeInteger } from '@server/utils/validation';
 import { Router } from 'express';
 import { QueryFailedError } from 'typeorm';
-import { z } from 'zod';
 
 import { MediaType } from '@server/constants/media';
 import { watchlistCreate } from '@server/interfaces/api/watchlistCreate';
@@ -47,7 +46,11 @@ watchlistRoutes.post<never, Watchlist, Watchlist>(
           message: 'You must be logged in to add watchlist.',
         });
       }
-      const values = watchlistCreate.parse(req.body);
+      const parsedBody = watchlistCreate.safeParse(req.body);
+      if (!parsedBody.success) {
+        return next({ status: 400, message: 'Invalid watchlist payload.' });
+      }
+      const values = parsedBody.data;
 
       const request = await Watchlist.createWatchlist({
         watchlistRequest: values,
@@ -57,10 +60,6 @@ watchlistRoutes.post<never, Watchlist, Watchlist>(
     } catch (error) {
       if (!(error instanceof Error)) {
         return;
-      }
-
-      if (error instanceof z.ZodError) {
-        return next({ status: 400, message: 'Invalid watchlist payload.' });
       }
 
       switch (error.constructor) {

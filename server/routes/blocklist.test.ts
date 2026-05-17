@@ -83,6 +83,19 @@ describe('POST /blocklist', () => {
     assert.strictEqual(await getRepository(Blocklist).count(), 0);
   });
 
+  it('rejects non-integer blocklist tmdb IDs before persistence', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/blocklist').send({
+      mediaType: MediaType.MOVIE,
+      tmdbId: '1.5',
+      title: 'Bad Movie',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Invalid blocklist payload/);
+    assert.strictEqual(await getRepository(Blocklist).count(), 0);
+  });
+
   it('rejects oversized external blocklist identifiers', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/blocklist').send({

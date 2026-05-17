@@ -152,6 +152,33 @@ afterEach(() => {
 });
 
 describe('Radarr settings routes', () => {
+  it('does not clear Radarr defaults for string boolean payloads', async () => {
+    getSettings().radarr = [makeRadarr({ id: 3, name: 'Primary Radarr' })];
+
+    const res = await request(app)
+      .post('/settings/radarr')
+      .send(
+        makeRadarr({
+          name: 'String Boolean Radarr',
+          isDefault: 'true' as unknown as boolean,
+          is4k: 'false' as unknown as boolean,
+        })
+      );
+
+    assert.strictEqual(res.status, 201);
+    assert.deepStrictEqual(
+      getSettings().radarr.map(({ name, isDefault, is4k }) => ({
+        name,
+        isDefault,
+        is4k,
+      })),
+      [
+        { name: 'Primary Radarr', isDefault: true, is4k: false },
+        { name: 'String Boolean Radarr', isDefault: false, is4k: false },
+      ]
+    );
+  });
+
   it('rejects malformed settings IDs before update lookup', async () => {
     getSettings().radarr = [makeRadarr({ id: 4 })];
 
@@ -174,6 +201,47 @@ describe('Radarr settings routes', () => {
 });
 
 describe('Sonarr settings routes', () => {
+  it('does not clear Sonarr defaults for string boolean payloads', async () => {
+    getSettings().sonarr = [makeSonarr({ id: 3, name: 'Primary Sonarr' })];
+
+    const res = await request(app)
+      .post('/settings/sonarr')
+      .send(
+        makeSonarr({
+          name: 'String Boolean Sonarr',
+          isDefault: 'true' as unknown as boolean,
+          is4k: 'false' as unknown as boolean,
+        })
+      );
+
+    assert.strictEqual(res.status, 201);
+    assert.deepStrictEqual(
+      getSettings().sonarr.map(({ name, isDefault, is4k }) => ({
+        name,
+        isDefault,
+        is4k,
+      })),
+      [
+        { name: 'Primary Sonarr', isDefault: true, is4k: false },
+        { name: 'String Boolean Sonarr', isDefault: false, is4k: false },
+      ]
+    );
+  });
+
+  it('rejects non-string Sonarr series type values', async () => {
+    const res = await request(app)
+      .post('/settings/sonarr')
+      .send(
+        makeSonarr({
+          seriesType: ['standard'] as unknown as SonarrSettings['seriesType'],
+        })
+      );
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /seriesType is invalid/);
+    assert.strictEqual(getSettings().sonarr.length, 0);
+  });
+
   it('rejects malformed settings IDs before update lookup', async () => {
     getSettings().sonarr = [makeSonarr({ id: 4 })];
 
@@ -210,7 +278,9 @@ describe('Lidarr settings routes', () => {
   it('rejects malformed settings IDs before profile lookup', async () => {
     getSettings().lidarr = [makeLidarr({ id: 4 })];
 
-    const res = await request(app).get('/settings/lidarr/not-a-number/profiles');
+    const res = await request(app).get(
+      '/settings/lidarr/not-a-number/profiles'
+    );
 
     assert.strictEqual(res.status, 404);
   });

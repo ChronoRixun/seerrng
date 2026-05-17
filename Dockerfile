@@ -6,7 +6,7 @@ ENV TARGETPLATFORM=${TARGETPLATFORM:-linux/amd64}
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN apk add --no-cache python3 make g++ gcc libc6-compat bash && \
+RUN apk add --no-cache python3 py3-setuptools make g++ gcc libc6-compat bash && \
   npm install --global node-gyp
 
 COPY . ./app

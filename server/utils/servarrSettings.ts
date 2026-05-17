@@ -33,7 +33,10 @@ const parseNumberArray = (
   const parsedValues = new Set<number>();
 
   for (const item of value) {
-    const parsed = parseOptionalNonNegativeInteger(Number(item), MAX_SERVICE_ID);
+    const parsed = parseOptionalNonNegativeInteger(
+      Number(item),
+      MAX_SERVICE_ID
+    );
 
     if (parsed === undefined) {
       return { error: `${fieldName} contains an invalid value.` };
@@ -88,7 +91,10 @@ const parseDvrSettings = (
   const baseUrl = parseOptionalServiceString(body.baseUrl, 'baseUrl');
   if ('error' in baseUrl) return baseUrl;
 
-  const externalUrl = parseOptionalServiceString(body.externalUrl, 'externalUrl');
+  const externalUrl = parseOptionalServiceString(
+    body.externalUrl,
+    'externalUrl'
+  );
   if ('error' in externalUrl) return externalUrl;
 
   const tags = parseNumberArray(body.tags, 'tags');
@@ -164,12 +170,15 @@ export const parseSonarrSettings = (
   if ('error' in parsed) return parsed;
 
   const seriesTypes = ['standard', 'daily', 'anime'] as const;
-  const seriesType = seriesTypes.includes(body.seriesType as never)
-    ? body.seriesType
-    : undefined;
-  const animeSeriesType = seriesTypes.includes(body.animeSeriesType as never)
-    ? body.animeSeriesType
-    : undefined;
+  const seriesType =
+    typeof body.seriesType === 'string' && seriesTypes.includes(body.seriesType)
+      ? body.seriesType
+      : undefined;
+  const animeSeriesType =
+    typeof body.animeSeriesType === 'string' &&
+    seriesTypes.includes(body.animeSeriesType)
+      ? body.animeSeriesType
+      : undefined;
 
   if (!seriesType || !animeSeriesType) {
     return { error: 'seriesType is invalid.' };
@@ -220,7 +229,8 @@ export const parseSonarrSettings = (
         MAX_SERVICE_ID
       ),
       animeTags: animeTags.value,
-      enableSeasonFolders: parseOptionalBoolean(body.enableSeasonFolders) ?? false,
+      enableSeasonFolders:
+        parseOptionalBoolean(body.enableSeasonFolders) ?? false,
       monitorNewItems,
     },
   };

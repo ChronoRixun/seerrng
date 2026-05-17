@@ -206,7 +206,11 @@ blocklistRoutes.post(
   }),
   async (req, res, next) => {
     try {
-      const values = blocklistAdd.parse(req.body);
+      const parsedBody = blocklistAdd.safeParse(req.body);
+      if (!parsedBody.success) {
+        return next({ status: 400, message: 'Invalid blocklist payload.' });
+      }
+      const values = parsedBody.data;
       if (
         (values.mediaType === MediaType.MOVIE ||
           values.mediaType === MediaType.TV) &&

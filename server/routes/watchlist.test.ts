@@ -123,6 +123,18 @@ describe('POST /watchlist', () => {
     assert.strictEqual(await getRepository(Watchlist).count(), 0);
   });
 
+  it('rejects non-integer watchlist tmdb IDs before persistence', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/watchlist').send({
+      mediaType: MediaType.MOVIE,
+      tmdbId: '1.5',
+      title: 'Bad Movie',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(await getRepository(Watchlist).count(), 0);
+  });
+
   it('auto-requests music watchlist items when music watchlist sync is enabled', async () => {
     const userRepository = getRepository(User);
     const admin = await userRepository.findOneOrFail({
