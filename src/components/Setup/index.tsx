@@ -11,6 +11,7 @@ import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
 import useToasts from '@app/hooks/useToasts';
 import defineMessages from '@app/utils/defineMessages';
+import versionedAsset from '@app/utils/versionedAsset';
 import { MediaServerType } from '@server/constants/server';
 import type { Library } from '@server/lib/settings';
 import axios from 'axios';
@@ -168,7 +169,7 @@ const Setup = () => {
       <div className="relative z-40 px-4 sm:mx-auto sm:w-full sm:max-w-4xl">
         <div className="relative mb-10 h-48 max-w-full sm:mx-auto sm:h-64 sm:max-w-md">
           <Image
-            src="/logo_stacked.svg"
+            src={versionedAsset('/logo_stacked.svg')}
             alt="Logo"
             fill
             className="object-contain"

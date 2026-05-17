@@ -3,6 +3,7 @@ import ImageFader from '@app/components/Common/ImageFader';
 import PageTitle from '@app/components/Common/PageTitle';
 import LanguagePicker from '@app/components/Layout/LanguagePicker';
 import defineMessages from '@app/utils/defineMessages';
+import versionedAsset from '@app/utils/versionedAsset';
 import { ArrowLeftIcon, EnvelopeIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
@@ -58,7 +59,7 @@ const ResetPassword = () => {
       <div className="relative z-40 mt-10 flex flex-col items-center px-4 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="relative h-48 w-full max-w-full drop-shadow-[0_2px_8px_rgba(15,23,42,0.65)]">
           <Image
-            src="/logo_stacked.svg"
+            src={versionedAsset('/logo_stacked.svg')}
             alt="Logo"
             fill
             className="object-contain"

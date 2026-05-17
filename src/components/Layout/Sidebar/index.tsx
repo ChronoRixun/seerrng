@@ -3,6 +3,7 @@ import VersionStatus from '@app/components/Layout/VersionStatus';
 import useClickOutside from '@app/hooks/useClickOutside';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
+import versionedAsset from '@app/utils/versionedAsset';
 import { Transition } from '@headlessui/react';
 import {
   BookOpenIcon,
@@ -221,7 +222,7 @@ const Sidebar = ({
                       <span className="w-full px-4 text-xl text-gray-50">
                         <Link href="/" className="relative block h-24 w-64">
                           <Image
-                            src="/logo_full.svg"
+                            src={versionedAsset('/logo_full.svg')}
                             alt="Logo"
                             fill
                             className="object-contain object-left"
@@ -289,7 +290,7 @@ const Sidebar = ({
                 <span className="w-full px-4 py-2 text-2xl text-gray-50">
                   <Link href="/" className="relative block h-24">
                     <Image
-                      src="/logo_full.svg"
+                      src={versionedAsset('/logo_full.svg')}
                       alt="Logo"
                       fill
                       className="object-contain object-left"

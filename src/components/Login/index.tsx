@@ -11,6 +11,7 @@ import PlexLoginButton from '@app/components/Login/PlexLoginButton';
 import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
+import versionedAsset from '@app/utils/versionedAsset';
 import { Transition } from '@headlessui/react';
 import { XCircleIcon } from '@heroicons/react/24/solid';
 import { MediaServerType } from '@server/constants/server';
@@ -129,7 +130,7 @@ const Login = () => {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/os_icon.svg"
+              src={versionedAsset('/os_icon.svg')}
               alt={settings.currentSettings.applicationTitle}
               className="mr-2 h-5"
             />
@@ -165,7 +166,7 @@ const Login = () => {
       <div className="relative z-40 mt-10 flex flex-col items-center px-4 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="relative h-48 w-full max-w-full drop-shadow-[0_2px_8px_rgba(15,23,42,0.65)]">
           <Image
-            src="/logo_stacked.svg"
+            src={versionedAsset('/logo_stacked.svg')}
             alt="Logo"
             fill
             className="object-contain"
