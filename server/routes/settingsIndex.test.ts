@@ -115,6 +115,315 @@ describe('Settings route input validation', () => {
     assert.match(res.body.message, /Filter must be valid/);
   });
 
+  it('rejects malformed webhook notification bodies before persistence', async () => {
+    const missingOptions = await request(app)
+      .post('/settings/notifications/webhook')
+      .send({ enabled: false, types: 0 });
+    const stringEnabled = await request(app)
+      .post('/settings/notifications/webhook')
+      .send({
+        enabled: 'false',
+        types: 0,
+        options: {
+          webhookUrl: 'https://example.com/webhook',
+          jsonPayload: '{}',
+        },
+      });
+
+    assert.strictEqual(missingOptions.status, 400);
+    assert.match(
+      missingOptions.body.message,
+      /Webhook options must be an object/
+    );
+    assert.strictEqual(stringEnabled.status, 400);
+    assert.match(stringEnabled.body.message, /Enabled must be a boolean/);
+  });
+
+  it('persists normalized webhook notification bodies', async () => {
+    const res = await request(app)
+      .post('/settings/notifications/webhook')
+      .send({
+        enabled: false,
+        embedPoster: true,
+        types: 7,
+        options: {
+          webhookUrl: 'https://example.com/webhook',
+          jsonPayload: '{}',
+          authHeader: 'Bearer test',
+          customHeaders: [{ key: 'X-Test', value: 'ok' }],
+          supportVariables: true,
+        },
+      });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(
+      getSettings().notifications.agents.webhook.enabled,
+      false
+    );
+    assert.strictEqual(getSettings().notifications.agents.webhook.types, 7);
+    assert.deepStrictEqual(
+      getSettings().notifications.agents.webhook.options.customHeaders,
+      [{ key: 'X-Test', value: 'ok' }]
+    );
+  });
+
+  it('rejects malformed Gotify and ntfy notification bodies before persistence', async () => {
+    const gotifyRes = await request(app)
+      .post('/settings/notifications/gotify')
+      .send({
+        enabled: 'false',
+        types: 0,
+        options: { url: 'https://example.com/gotify' },
+      });
+    const ntfyRes = await request(app)
+      .post('/settings/notifications/ntfy')
+      .send({
+        enabled: false,
+        types: '1',
+        options: { url: 'https://example.com/ntfy' },
+      });
+
+    assert.strictEqual(gotifyRes.status, 400);
+    assert.match(gotifyRes.body.message, /Enabled must be a boolean/);
+    assert.strictEqual(ntfyRes.status, 400);
+    assert.match(ntfyRes.body.message, /Notification types must be valid/);
+  });
+
+  it('persists normalized Gotify and ntfy notification bodies', async () => {
+    const gotifyRes = await request(app)
+      .post('/settings/notifications/gotify')
+      .send({
+        enabled: false,
+        embedPoster: true,
+        types: 3,
+        options: {
+          url: 'https://example.com/gotify',
+          token: 'token',
+          priority: 5,
+          locale: 'en',
+        },
+      });
+    const ntfyRes = await request(app)
+      .post('/settings/notifications/ntfy')
+      .send({
+        enabled: false,
+        embedPoster: false,
+        types: 4,
+        options: {
+          url: 'https://example.com/ntfy',
+          topic: 'topic',
+          locale: 'en',
+        },
+      });
+
+    assert.strictEqual(gotifyRes.status, 200);
+    assert.strictEqual(ntfyRes.status, 200);
+    assert.strictEqual(
+      getSettings().notifications.agents.gotify.enabled,
+      false
+    );
+    assert.strictEqual(getSettings().notifications.agents.gotify.types, 3);
+    assert.strictEqual(getSettings().notifications.agents.ntfy.enabled, false);
+    assert.strictEqual(getSettings().notifications.agents.ntfy.types, 4);
+  });
+
+  it('rejects malformed Discord and Slack notification bodies before persistence', async () => {
+    const discordRes = await request(app)
+      .post('/settings/notifications/discord')
+      .send({
+        enabled: 'false',
+        types: 0,
+        options: { webhookUrl: 'https://example.com/discord' },
+      });
+    const slackRes = await request(app)
+      .post('/settings/notifications/slack')
+      .send({
+        enabled: false,
+        types: 0,
+        options: { webhookUrl: 123 },
+      });
+
+    assert.strictEqual(discordRes.status, 400);
+    assert.match(discordRes.body.message, /Enabled must be a boolean/);
+    assert.strictEqual(slackRes.status, 400);
+    assert.match(slackRes.body.message, /Slack webhook URL must be a string/);
+  });
+
+  it('persists normalized Discord and Slack notification bodies', async () => {
+    const discordRes = await request(app)
+      .post('/settings/notifications/discord')
+      .send({
+        enabled: false,
+        embedPoster: true,
+        types: 5,
+        options: {
+          webhookUrl: 'https://example.com/discord',
+          botUsername: 'Seerr',
+          enableMentions: false,
+          locale: 'en',
+          useUserLocale: false,
+        },
+      });
+    const slackRes = await request(app)
+      .post('/settings/notifications/slack')
+      .send({
+        enabled: false,
+        embedPoster: false,
+        types: 6,
+        options: {
+          webhookUrl: 'https://example.com/slack',
+          locale: 'en',
+        },
+      });
+
+    assert.strictEqual(discordRes.status, 200);
+    assert.strictEqual(slackRes.status, 200);
+    assert.strictEqual(
+      getSettings().notifications.agents.discord.enabled,
+      false
+    );
+    assert.strictEqual(getSettings().notifications.agents.discord.types, 5);
+    assert.strictEqual(getSettings().notifications.agents.slack.enabled, false);
+    assert.strictEqual(getSettings().notifications.agents.slack.types, 6);
+  });
+
+  it('rejects malformed remaining notification bodies before persistence', async () => {
+    const telegramRes = await request(app)
+      .post('/settings/notifications/telegram')
+      .send({
+        enabled: 'false',
+        types: 0,
+        options: {
+          botAPI: 'token',
+          chatId: 'chat',
+          messageThreadId: '',
+          sendSilently: false,
+        },
+      });
+    const pushbulletRes = await request(app)
+      .post('/settings/notifications/pushbullet')
+      .send({
+        enabled: false,
+        types: 0,
+        options: { accessToken: 123 },
+      });
+    const pushoverRes = await request(app)
+      .post('/settings/notifications/pushover')
+      .send({
+        enabled: false,
+        types: '0',
+        options: {
+          accessToken: 'token',
+          userToken: 'user',
+          sound: 'pushover',
+        },
+      });
+    const emailRes = await request(app)
+      .post('/settings/notifications/email')
+      .send({
+        enabled: false,
+        types: 0,
+        options: {
+          userEmailRequired: false,
+          emailFrom: 'test@example.com',
+          smtpHost: 'smtp.example.com',
+          smtpPort: '587',
+          secure: false,
+          ignoreTls: false,
+          requireTls: false,
+          allowSelfSigned: false,
+          senderName: 'Seerr',
+        },
+      });
+    const webpushRes = await request(app)
+      .post('/settings/notifications/webpush')
+      .send({ enabled: false, types: 0 });
+
+    assert.strictEqual(telegramRes.status, 400);
+    assert.match(telegramRes.body.message, /Enabled must be a boolean/);
+    assert.strictEqual(pushbulletRes.status, 400);
+    assert.match(pushbulletRes.body.message, /accessToken must be a string/);
+    assert.strictEqual(pushoverRes.status, 400);
+    assert.match(pushoverRes.body.message, /Notification types must be valid/);
+    assert.strictEqual(emailRes.status, 400);
+    assert.match(emailRes.body.message, /smtpPort must be a number/);
+    assert.strictEqual(webpushRes.status, 400);
+    assert.match(webpushRes.body.message, /Web push options must be an object/);
+  });
+
+  it('persists normalized remaining notification bodies', async () => {
+    const telegramRes = await request(app)
+      .post('/settings/notifications/telegram')
+      .send({
+        enabled: false,
+        embedPoster: true,
+        types: 8,
+        options: {
+          botAPI: 'token',
+          chatId: 'chat',
+          messageThreadId: '',
+          sendSilently: false,
+        },
+      });
+    const pushbulletRes = await request(app)
+      .post('/settings/notifications/pushbullet')
+      .send({
+        enabled: false,
+        embedPoster: false,
+        types: 9,
+        options: { accessToken: 'token' },
+      });
+    const pushoverRes = await request(app)
+      .post('/settings/notifications/pushover')
+      .send({
+        enabled: false,
+        embedPoster: true,
+        types: 10,
+        options: {
+          accessToken: 'token',
+          userToken: 'user',
+          sound: 'pushover',
+        },
+      });
+    const emailRes = await request(app)
+      .post('/settings/notifications/email')
+      .send({
+        enabled: false,
+        embedPoster: false,
+        types: 11,
+        options: {
+          userEmailRequired: false,
+          emailFrom: 'test@example.com',
+          smtpHost: 'smtp.example.com',
+          smtpPort: 587,
+          secure: false,
+          ignoreTls: false,
+          requireTls: false,
+          allowSelfSigned: false,
+          senderName: 'Seerr',
+        },
+      });
+    const webpushRes = await request(app)
+      .post('/settings/notifications/webpush')
+      .send({
+        enabled: false,
+        embedPoster: true,
+        types: 12,
+        options: {},
+      });
+
+    assert.strictEqual(telegramRes.status, 200);
+    assert.strictEqual(pushbulletRes.status, 200);
+    assert.strictEqual(pushoverRes.status, 200);
+    assert.strictEqual(emailRes.status, 200);
+    assert.strictEqual(webpushRes.status, 200);
+    assert.strictEqual(getSettings().notifications.agents.telegram.types, 8);
+    assert.strictEqual(getSettings().notifications.agents.pushbullet.types, 9);
+    assert.strictEqual(getSettings().notifications.agents.pushover.types, 10);
+    assert.strictEqual(getSettings().notifications.agents.email.types, 11);
+    assert.strictEqual(getSettings().notifications.agents.webpush.types, 12);
+  });
+
   it('rejects oversized job IDs before lookup', async () => {
     const res = await request(app).post(
       `/settings/jobs/${'x'.repeat(129)}/run`

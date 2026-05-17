@@ -122,3 +122,44 @@ describe('GET /imageproxy/:type/*path', () => {
     assert.equal(res.text, undefined);
   });
 });
+
+describe('POST /imageproxy/warm', () => {
+  it('rejects malformed warm payloads', async () => {
+    const missingUrls = await request(createApp())
+      .post('/imageproxy/warm')
+      .send({});
+    const nonStringUrl = await request(createApp())
+      .post('/imageproxy/warm')
+      .send({ urls: ['https://image.tmdb.org/t/p/w300/poster.jpg', 123] });
+    const oversizedUrl = await request(createApp())
+      .post('/imageproxy/warm')
+      .send({ urls: [`https://${'x'.repeat(2042)}`] });
+
+    assert.equal(missingUrls.status, 400);
+    assert.match(missingUrls.body.error, /urls must be an array/);
+    assert.equal(nonStringUrl.status, 400);
+    assert.match(nonStringUrl.body.error, /urls must contain strings/);
+    assert.equal(oversizedUrl.status, 400);
+    assert.match(oversizedUrl.body.error, /2048 characters/);
+  });
+
+  it('rejects oversized warm URL batches', async () => {
+    const res = await request(createApp())
+      .post('/imageproxy/warm')
+      .send({
+        urls: Array.from({ length: 101 }, () => 'https://example.com/a.jpg'),
+      });
+
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /100 values/);
+  });
+
+  it('accepts bounded warm URL batches', async () => {
+    const res = await request(createApp())
+      .post('/imageproxy/warm')
+      .send({ urls: ['https://image.tmdb.org/t/p/w300/poster.jpg'] });
+
+    assert.equal(res.status, 202);
+    assert.deepEqual(res.body, { accepted: true });
+  });
+});

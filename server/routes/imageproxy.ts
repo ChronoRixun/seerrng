@@ -14,6 +14,7 @@ import rateLimit from 'express-rate-limit';
 
 const router = Router();
 const maxWarmRequestUrls = 100;
+const maxWarmUrlLength = 2048;
 
 const proxyRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -194,13 +195,34 @@ router.get<{
 });
 
 router.post('/warm', warmRateLimit, (req, res) => {
-  const urls = Array.isArray(req.body?.urls)
-    ? req.body.urls.slice(0, maxWarmRequestUrls)
-    : [];
+  if (!Array.isArray(req.body?.urls)) {
+    return res.status(400).json({ error: 'urls must be an array.' });
+  }
 
-  enqueueImageCacheWarm(
-    urls.filter((url: unknown): url is string => typeof url === 'string')
-  );
+  if (req.body.urls.length > maxWarmRequestUrls) {
+    return res
+      .status(400)
+      .json({ error: `urls are limited to ${maxWarmRequestUrls} values.` });
+  }
+
+  const urls: string[] = [];
+  for (const url of req.body.urls) {
+    if (typeof url !== 'string') {
+      return res.status(400).json({ error: 'urls must contain strings.' });
+    }
+
+    if (url.length > maxWarmUrlLength) {
+      return res
+        .status(400)
+        .json({
+          error: `urls must be ${maxWarmUrlLength} characters or fewer.`,
+        });
+    }
+
+    urls.push(url);
+  }
+
+  enqueueImageCacheWarm(urls);
 
   return res.status(202).json({ accepted: true });
 });

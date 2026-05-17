@@ -1,5 +1,5 @@
 <p align="center">
-<img src="./public/logo_full.svg" alt="Seerr" style="margin: 20px 0;">
+<img src="./public/logo_full.svg" alt="SeerrNG" style="margin: 20px 0;">
 </p>
 <p align="center">
 <img src="https://github.com/snapetech/seerrng/actions/workflows/ci.yml/badge.svg" alt="SeerrNG CI">

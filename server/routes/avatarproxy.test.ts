@@ -106,6 +106,20 @@ describe('GET /avatarproxy/remote', () => {
     assert.deepEqual(res.body, { error: 'Unsupported avatar URL' });
   });
 
+  it('rejects duplicate remote avatar URL query params', async () => {
+    mockAvatarDependencies();
+
+    const res = await request(createApp()).get('/avatarproxy/remote').query({
+      url: [
+        'https://secure.gravatar.com/avatar/abc?d=mm',
+        'https://secure.gravatar.com/avatar/def?d=mm',
+      ],
+    });
+
+    assert.equal(res.status, 400);
+    assert.deepEqual(res.body, { error: 'Avatar URL must be a string' });
+  });
+
   it('supports HEAD requests with browser cache headers and no body', async () => {
     mockAvatarDependencies();
 
@@ -125,6 +139,20 @@ describe('GET /avatarproxy/remote', () => {
 });
 
 describe('GET /avatarproxy/:jellyfinUserId', () => {
+  it('rejects malformed Jellyfin user IDs before cache lookup', async () => {
+    const getImageMock = mock.method(
+      ImageProxy.prototype,
+      'getImage',
+      async () => avatarResponse
+    );
+
+    const res = await request(createApp()).get('/avatarproxy/not-a-guid');
+
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /avatar/);
+    assert.equal(getImageMock.mock.callCount(), 0);
+  });
+
   it('rejects oversized avatar version parameters', async () => {
     mockAvatarDependencies();
 

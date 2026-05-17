@@ -57,7 +57,12 @@ const ResetPassword = () => {
       </div>
       <div className="relative z-40 mt-10 flex flex-col items-center px-4 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="relative h-48 w-full max-w-full drop-shadow-[0_2px_8px_rgba(15,23,42,0.65)]">
-          <Image src="/logo_stacked.svg" alt="Logo" fill />
+          <Image
+            src="/logo_stacked.svg"
+            alt="Logo"
+            fill
+            className="object-contain"
+          />
         </div>
         <h2 className="mt-12 text-center text-3xl font-extrabold leading-9 text-gray-100">
           {intl.formatMessage(messages.resetpassword)}

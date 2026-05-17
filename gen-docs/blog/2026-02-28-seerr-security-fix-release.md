@@ -3,7 +3,7 @@ title: "Seerr v3.1.0: Critical Security Release"
 description: "Seerr v3.1.0 addresses three CVEs, including a high-priority vulnerability affecting Plex-configured instances. Upgrade immediately."
 slug: seerr-3-1-0-security-release
 authors: [seerr-team]
-image: https://raw.githubusercontent.com/seerr-team/seerr/refs/heads/develop/gen-docs/static/img/logo_full.svg
+image: https://raw.githubusercontent.com/snapetech/seerrng/refs/heads/main/gen-docs/static/img/logo_full.svg
 hide_table_of_contents: false
 ---
 

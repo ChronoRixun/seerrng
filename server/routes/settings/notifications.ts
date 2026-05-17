@@ -12,7 +12,19 @@ import SlackAgent from '@server/lib/notifications/agents/slack';
 import TelegramAgent from '@server/lib/notifications/agents/telegram';
 import WebhookAgent from '@server/lib/notifications/agents/webhook';
 import WebPushAgent from '@server/lib/notifications/agents/webpush';
-import { getSettings, type NotificationAgentWebhook } from '@server/lib/settings';
+import {
+  getSettings,
+  type NotificationAgentConfig,
+  type NotificationAgentDiscord,
+  type NotificationAgentEmail,
+  type NotificationAgentGotify,
+  type NotificationAgentNtfy,
+  type NotificationAgentPushbullet,
+  type NotificationAgentPushover,
+  type NotificationAgentSlack,
+  type NotificationAgentTelegram,
+  type NotificationAgentWebhook,
+} from '@server/lib/settings';
 import type { AvailableLocale } from '@server/types/languages';
 import {
   isSafeHttpUrl,
@@ -36,6 +48,28 @@ const messages = defineMessages('notifications.test', {
   subject: 'Test Notification',
   message: 'Check check, 1, 2, 3. Are we coming in clear?',
 });
+
+type RouteError = { status: number; message: string };
+type UrlNotificationBody = {
+  enabled: boolean;
+  embedPoster: boolean;
+  types: number;
+  options: Record<string, unknown> & { url: string };
+};
+
+type WebhookUrlNotificationBody = {
+  enabled: boolean;
+  embedPoster: boolean;
+  types: number;
+  options: Record<string, unknown> & { webhookUrl: string };
+};
+
+type GenericNotificationBody = {
+  enabled: boolean;
+  embedPoster: boolean;
+  types: number;
+  options: Record<string, unknown>;
+};
 
 const sendTestNotification = async (agent: NotificationAgent, user: User) => {
   const intl = getIntl(user.settings?.locale as AvailableLocale);
@@ -102,7 +136,9 @@ const validateWebhookHeaders = (
 
 const parseWebhookBody = (body: unknown) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return { error: { status: 400, message: 'Webhook settings must be an object.' } };
+    return {
+      error: { status: 400, message: 'Webhook settings must be an object.' },
+    };
   }
 
   const value = body as {
@@ -115,7 +151,10 @@ const parseWebhookBody = (body: unknown) => {
   if ('error' in enabled) {
     return { error: { status: 400, message: enabled.error } };
   }
-  const embedPoster = parseOptionalBodyBoolean(value.embedPoster, 'Embed poster');
+  const embedPoster = parseOptionalBodyBoolean(
+    value.embedPoster,
+    'Embed poster'
+  );
   if ('error' in embedPoster) {
     return { error: { status: 400, message: embedPoster.error } };
   }
@@ -124,10 +163,18 @@ const parseWebhookBody = (body: unknown) => {
     MAX_NOTIFICATION_TYPES
   );
   if (types === undefined) {
-    return { error: { status: 400, message: 'Notification types must be valid.' } };
+    return {
+      error: { status: 400, message: 'Notification types must be valid.' },
+    };
   }
-  if (!value.options || typeof value.options !== 'object' || Array.isArray(value.options)) {
-    return { error: { status: 400, message: 'Webhook options must be an object.' } };
+  if (
+    !value.options ||
+    typeof value.options !== 'object' ||
+    Array.isArray(value.options)
+  ) {
+    return {
+      error: { status: 400, message: 'Webhook options must be an object.' },
+    };
   }
 
   const options = value.options as {
@@ -167,11 +214,15 @@ const parseWebhookBody = (body: unknown) => {
     customHeaders = [];
     for (const header of options.customHeaders) {
       if (!header || typeof header !== 'object') {
-        return { error: { status: 400, message: 'Invalid webhook custom header.' } };
+        return {
+          error: { status: 400, message: 'Invalid webhook custom header.' },
+        };
       }
       const { key, value } = header as { key?: unknown; value?: unknown };
       if (typeof key !== 'string' || typeof value !== 'string') {
-        return { error: { status: 400, message: 'Invalid webhook custom header.' } };
+        return {
+          error: { status: 400, message: 'Invalid webhook custom header.' },
+        };
       }
       customHeaders.push({ key, value });
     }
@@ -192,6 +243,232 @@ const parseWebhookBody = (body: unknown) => {
 
   return {
     value: parsedWebhook,
+  };
+};
+
+const parseUrlNotificationBody = (
+  body: unknown,
+  label: string
+): { value: UrlNotificationBody } | { error: RouteError } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return {
+      error: { status: 400, message: `${label} settings must be an object.` },
+    };
+  }
+
+  const value = body as {
+    enabled?: unknown;
+    embedPoster?: unknown;
+    types?: unknown;
+    options?: unknown;
+  };
+  const enabled = parseOptionalBodyBoolean(value.enabled, 'Enabled');
+  if ('error' in enabled) {
+    return { error: { status: 400, message: enabled.error } };
+  }
+  const embedPoster = parseOptionalBodyBoolean(
+    value.embedPoster,
+    'Embed poster'
+  );
+  if ('error' in embedPoster) {
+    return { error: { status: 400, message: embedPoster.error } };
+  }
+  const types = parseOptionalNonNegativeInteger(
+    value.types,
+    MAX_NOTIFICATION_TYPES
+  );
+  if (types === undefined) {
+    return {
+      error: { status: 400, message: 'Notification types must be valid.' },
+    };
+  }
+  if (
+    !value.options ||
+    typeof value.options !== 'object' ||
+    Array.isArray(value.options)
+  ) {
+    return {
+      error: { status: 400, message: `${label} options must be an object.` },
+    };
+  }
+
+  const options = value.options as Record<string, unknown>;
+  if (typeof options.url !== 'string') {
+    return {
+      error: { status: 400, message: `${label} URL must be a string.` },
+    };
+  }
+
+  return {
+    value: {
+      enabled: enabled.value ?? false,
+      embedPoster: embedPoster.value ?? false,
+      types,
+      options: {
+        ...options,
+        url: options.url,
+      },
+    },
+  };
+};
+
+const parseGenericNotificationBody = (
+  body: unknown,
+  label: string,
+  requiredStringOptions: string[] = [],
+  requiredBooleanOptions: string[] = [],
+  requiredNumberOptions: string[] = []
+): { value: GenericNotificationBody } | { error: RouteError } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return {
+      error: { status: 400, message: `${label} settings must be an object.` },
+    };
+  }
+
+  const value = body as {
+    enabled?: unknown;
+    embedPoster?: unknown;
+    types?: unknown;
+    options?: unknown;
+  };
+  const enabled = parseOptionalBodyBoolean(value.enabled, 'Enabled');
+  if ('error' in enabled) {
+    return { error: { status: 400, message: enabled.error } };
+  }
+  const embedPoster = parseOptionalBodyBoolean(
+    value.embedPoster,
+    'Embed poster'
+  );
+  if ('error' in embedPoster) {
+    return { error: { status: 400, message: embedPoster.error } };
+  }
+  const types = parseOptionalNonNegativeInteger(
+    value.types,
+    MAX_NOTIFICATION_TYPES
+  );
+  if (types === undefined) {
+    return {
+      error: { status: 400, message: 'Notification types must be valid.' },
+    };
+  }
+  if (
+    !value.options ||
+    typeof value.options !== 'object' ||
+    Array.isArray(value.options)
+  ) {
+    return {
+      error: { status: 400, message: `${label} options must be an object.` },
+    };
+  }
+
+  const options = value.options as Record<string, unknown>;
+  for (const option of requiredStringOptions) {
+    if (typeof options[option] !== 'string') {
+      return {
+        error: {
+          status: 400,
+          message: `${label} ${option} must be a string.`,
+        },
+      };
+    }
+  }
+  for (const option of requiredBooleanOptions) {
+    if (typeof options[option] !== 'boolean') {
+      return {
+        error: {
+          status: 400,
+          message: `${label} ${option} must be a boolean.`,
+        },
+      };
+    }
+  }
+  for (const option of requiredNumberOptions) {
+    if (
+      typeof options[option] !== 'number' ||
+      !Number.isFinite(options[option])
+    ) {
+      return {
+        error: {
+          status: 400,
+          message: `${label} ${option} must be a number.`,
+        },
+      };
+    }
+  }
+
+  return {
+    value: {
+      enabled: enabled.value ?? false,
+      embedPoster: embedPoster.value ?? false,
+      types,
+      options,
+    },
+  };
+};
+
+const parseWebhookUrlNotificationBody = (
+  body: unknown,
+  label: string
+): { value: WebhookUrlNotificationBody } | { error: RouteError } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return {
+      error: { status: 400, message: `${label} settings must be an object.` },
+    };
+  }
+
+  const value = body as {
+    enabled?: unknown;
+    embedPoster?: unknown;
+    types?: unknown;
+    options?: unknown;
+  };
+  const enabled = parseOptionalBodyBoolean(value.enabled, 'Enabled');
+  if ('error' in enabled) {
+    return { error: { status: 400, message: enabled.error } };
+  }
+  const embedPoster = parseOptionalBodyBoolean(
+    value.embedPoster,
+    'Embed poster'
+  );
+  if ('error' in embedPoster) {
+    return { error: { status: 400, message: embedPoster.error } };
+  }
+  const types = parseOptionalNonNegativeInteger(
+    value.types,
+    MAX_NOTIFICATION_TYPES
+  );
+  if (types === undefined) {
+    return {
+      error: { status: 400, message: 'Notification types must be valid.' },
+    };
+  }
+  if (
+    !value.options ||
+    typeof value.options !== 'object' ||
+    Array.isArray(value.options)
+  ) {
+    return {
+      error: { status: 400, message: `${label} options must be an object.` },
+    };
+  }
+
+  const options = value.options as Record<string, unknown>;
+  if (typeof options.webhookUrl !== 'string') {
+    return {
+      error: { status: 400, message: `${label} webhook URL must be a string.` },
+    };
+  }
+
+  return {
+    value: {
+      enabled: enabled.value ?? false,
+      embedPoster: embedPoster.value ?? false,
+      types,
+      options: {
+        ...options,
+        webhookUrl: options.webhookUrl,
+      },
+    },
   };
 };
 
@@ -226,9 +503,14 @@ notificationRoutes.get('/discord', (_req, res) => {
 
 notificationRoutes.post('/discord', async (req, res) => {
   const settings = getSettings();
-  const validationError = req.body.enabled
+  const parsedBody = parseWebhookUrlNotificationBody(req.body, 'Discord');
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
+  const validationError = body.enabled
     ? await validateNotificationUrl(
-        req.body.options?.webhookUrl,
+        body.options.webhookUrl,
         'Discord webhook URL'
       )
     : undefined;
@@ -238,7 +520,7 @@ notificationRoutes.post('/discord', async (req, res) => {
   }
 
   settings.notifications.agents.discord = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentDiscord,
     settings.notifications.agents.discord
   );
   await settings.save();
@@ -254,8 +536,14 @@ notificationRoutes.post('/discord/test', async (req, res, next) => {
     });
   }
 
+  const parsedBody = parseWebhookUrlNotificationBody(req.body, 'Discord');
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const body = parsedBody.value;
+
   const validationError = await validateNotificationUrl(
-    req.body.options?.webhookUrl,
+    body.options.webhookUrl,
     'Discord webhook URL'
   );
 
@@ -263,7 +551,7 @@ notificationRoutes.post('/discord/test', async (req, res, next) => {
     return next(validationError);
   }
 
-  const discordAgent = new DiscordAgent(req.body);
+  const discordAgent = new DiscordAgent(body as NotificationAgentDiscord);
   if (await sendTestNotification(discordAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -282,9 +570,14 @@ notificationRoutes.get('/slack', (_req, res) => {
 
 notificationRoutes.post('/slack', async (req, res) => {
   const settings = getSettings();
-  const validationError = req.body.enabled
+  const parsedBody = parseWebhookUrlNotificationBody(req.body, 'Slack');
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
+  const validationError = body.enabled
     ? await validateNotificationUrl(
-        req.body.options?.webhookUrl,
+        body.options.webhookUrl,
         'Slack webhook URL'
       )
     : undefined;
@@ -294,7 +587,7 @@ notificationRoutes.post('/slack', async (req, res) => {
   }
 
   settings.notifications.agents.slack = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentSlack,
     settings.notifications.agents.slack
   );
   await settings.save();
@@ -310,8 +603,14 @@ notificationRoutes.post('/slack/test', async (req, res, next) => {
     });
   }
 
+  const parsedBody = parseWebhookUrlNotificationBody(req.body, 'Slack');
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const body = parsedBody.value;
+
   const validationError = await validateNotificationUrl(
-    req.body.options?.webhookUrl,
+    body.options.webhookUrl,
     'Slack webhook URL'
   );
 
@@ -319,7 +618,7 @@ notificationRoutes.post('/slack/test', async (req, res, next) => {
     return next(validationError);
   }
 
-  const slackAgent = new SlackAgent(req.body);
+  const slackAgent = new SlackAgent(body as NotificationAgentSlack);
   if (await sendTestNotification(slackAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -338,9 +637,19 @@ notificationRoutes.get('/telegram', (_req, res) => {
 
 notificationRoutes.post('/telegram', async (req, res) => {
   const settings = getSettings();
+  const parsedBody = parseGenericNotificationBody(
+    req.body,
+    'Telegram',
+    ['botAPI', 'chatId', 'messageThreadId'],
+    ['sendSilently']
+  );
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
 
   settings.notifications.agents.telegram = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentTelegram,
     settings.notifications.agents.telegram
   );
   await settings.save();
@@ -356,7 +665,18 @@ notificationRoutes.post('/telegram/test', async (req, res, next) => {
     });
   }
 
-  const telegramAgent = new TelegramAgent(req.body);
+  const parsedBody = parseGenericNotificationBody(
+    req.body,
+    'Telegram',
+    ['botAPI', 'chatId', 'messageThreadId'],
+    ['sendSilently']
+  );
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const telegramAgent = new TelegramAgent(
+    parsedBody.value as NotificationAgentTelegram
+  );
   if (await sendTestNotification(telegramAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -375,9 +695,16 @@ notificationRoutes.get('/pushbullet', (_req, res) => {
 
 notificationRoutes.post('/pushbullet', async (req, res) => {
   const settings = getSettings();
+  const parsedBody = parseGenericNotificationBody(req.body, 'Pushbullet', [
+    'accessToken',
+  ]);
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
 
   settings.notifications.agents.pushbullet = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentPushbullet,
     settings.notifications.agents.pushbullet
   );
   await settings.save();
@@ -393,7 +720,15 @@ notificationRoutes.post('/pushbullet/test', async (req, res, next) => {
     });
   }
 
-  const pushbulletAgent = new PushbulletAgent(req.body);
+  const parsedBody = parseGenericNotificationBody(req.body, 'Pushbullet', [
+    'accessToken',
+  ]);
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const pushbulletAgent = new PushbulletAgent(
+    parsedBody.value as NotificationAgentPushbullet
+  );
   if (await sendTestNotification(pushbulletAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -412,9 +747,18 @@ notificationRoutes.get('/pushover', (_req, res) => {
 
 notificationRoutes.post('/pushover', async (req, res) => {
   const settings = getSettings();
+  const parsedBody = parseGenericNotificationBody(req.body, 'Pushover', [
+    'accessToken',
+    'userToken',
+    'sound',
+  ]);
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
 
   settings.notifications.agents.pushover = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentPushover,
     settings.notifications.agents.pushover
   );
   await settings.save();
@@ -430,7 +774,17 @@ notificationRoutes.post('/pushover/test', async (req, res, next) => {
     });
   }
 
-  const pushoverAgent = new PushoverAgent(req.body);
+  const parsedBody = parseGenericNotificationBody(req.body, 'Pushover', [
+    'accessToken',
+    'userToken',
+    'sound',
+  ]);
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const pushoverAgent = new PushoverAgent(
+    parsedBody.value as NotificationAgentPushover
+  );
   if (await sendTestNotification(pushoverAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -449,9 +803,26 @@ notificationRoutes.get('/email', (_req, res) => {
 
 notificationRoutes.post('/email', async (req, res) => {
   const settings = getSettings();
+  const parsedBody = parseGenericNotificationBody(
+    req.body,
+    'Email',
+    ['emailFrom', 'smtpHost', 'senderName'],
+    [
+      'userEmailRequired',
+      'secure',
+      'ignoreTls',
+      'requireTls',
+      'allowSelfSigned',
+    ],
+    ['smtpPort']
+  );
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
 
   settings.notifications.agents.email = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentEmail,
     settings.notifications.agents.email
   );
   await settings.save();
@@ -467,7 +838,23 @@ notificationRoutes.post('/email/test', async (req, res, next) => {
     });
   }
 
-  const emailAgent = new EmailAgent(req.body);
+  const parsedBody = parseGenericNotificationBody(
+    req.body,
+    'Email',
+    ['emailFrom', 'smtpHost', 'senderName'],
+    [
+      'userEmailRequired',
+      'secure',
+      'ignoreTls',
+      'requireTls',
+      'allowSelfSigned',
+    ],
+    ['smtpPort']
+  );
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const emailAgent = new EmailAgent(parsedBody.value as NotificationAgentEmail);
   if (await sendTestNotification(emailAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -486,9 +873,14 @@ notificationRoutes.get('/webpush', (_req, res) => {
 
 notificationRoutes.post('/webpush', async (req, res) => {
   const settings = getSettings();
+  const parsedBody = parseGenericNotificationBody(req.body, 'Web push');
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
 
   settings.notifications.agents.webpush = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentConfig,
     settings.notifications.agents.webpush
   );
   await settings.save();
@@ -504,7 +896,13 @@ notificationRoutes.post('/webpush/test', async (req, res, next) => {
     });
   }
 
-  const webpushAgent = new WebPushAgent(req.body);
+  const parsedBody = parseGenericNotificationBody(req.body, 'Web push');
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const webpushAgent = new WebPushAgent(
+    parsedBody.value as NotificationAgentConfig
+  );
   if (await sendTestNotification(webpushAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -561,13 +959,9 @@ notificationRoutes.post('/webhook', async (req, res, next) => {
     }[];
 
     const validationError = body.enabled
-      ? await validateNotificationUrl(
-          body.options.webhookUrl,
-          'Webhook URL',
-          {
-            allowTemplates: body.options.supportVariables,
-          }
-        )
+      ? await validateNotificationUrl(body.options.webhookUrl, 'Webhook URL', {
+          allowTemplates: body.options.supportVariables,
+        })
       : undefined;
 
     if (validationError) {
@@ -580,9 +974,9 @@ notificationRoutes.post('/webhook', async (req, res, next) => {
         embedPoster: body.embedPoster,
         types: body.types,
         options: {
-          jsonPayload: Buffer.from(JSON.stringify(body.options.jsonPayload)).toString(
-            'base64'
-          ),
+          jsonPayload: Buffer.from(
+            JSON.stringify(body.options.jsonPayload)
+          ).toString('base64'),
           webhookUrl: body.options.webhookUrl,
           authHeader: body.options.authHeader,
           customHeaders,
@@ -641,9 +1035,9 @@ notificationRoutes.post('/webhook/test', async (req, res, next) => {
       embedPoster: body.embedPoster,
       types: body.types,
       options: {
-        jsonPayload: Buffer.from(JSON.stringify(body.options.jsonPayload)).toString(
-          'base64'
-        ),
+        jsonPayload: Buffer.from(
+          JSON.stringify(body.options.jsonPayload)
+        ).toString('base64'),
         webhookUrl: body.options.webhookUrl,
         authHeader: body.options.authHeader,
         customHeaders,
@@ -673,8 +1067,13 @@ notificationRoutes.get('/gotify', (_req, res) => {
 
 notificationRoutes.post('/gotify', async (req, res) => {
   const settings = getSettings();
-  const validationError = req.body.enabled
-    ? await validateNotificationUrl(req.body.options?.url, 'Gotify URL')
+  const parsedBody = parseUrlNotificationBody(req.body, 'Gotify');
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
+  const validationError = body.enabled
+    ? await validateNotificationUrl(body.options.url, 'Gotify URL')
     : undefined;
 
   if (validationError) {
@@ -682,7 +1081,7 @@ notificationRoutes.post('/gotify', async (req, res) => {
   }
 
   settings.notifications.agents.gotify = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentGotify,
     settings.notifications.agents.gotify
   );
   await settings.save();
@@ -698,8 +1097,14 @@ notificationRoutes.post('/gotify/test', async (req, res, next) => {
     });
   }
 
+  const parsedBody = parseUrlNotificationBody(req.body, 'Gotify');
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const body = parsedBody.value;
+
   const validationError = await validateNotificationUrl(
-    req.body.options?.url,
+    body.options.url,
     'Gotify URL'
   );
 
@@ -707,7 +1112,7 @@ notificationRoutes.post('/gotify/test', async (req, res, next) => {
     return next(validationError);
   }
 
-  const gotifyAgent = new GotifyAgent(req.body);
+  const gotifyAgent = new GotifyAgent(body as NotificationAgentGotify);
   if (await sendTestNotification(gotifyAgent, req.user)) {
     return res.status(204).send();
   } else {
@@ -726,8 +1131,13 @@ notificationRoutes.get('/ntfy', (_req, res) => {
 
 notificationRoutes.post('/ntfy', async (req, res) => {
   const settings = getSettings();
-  const validationError = req.body.enabled
-    ? await validateNotificationUrl(req.body.options?.url, 'ntfy URL')
+  const parsedBody = parseUrlNotificationBody(req.body, 'ntfy');
+  if ('error' in parsedBody) {
+    return res.status(parsedBody.error.status).json(parsedBody.error);
+  }
+  const body = parsedBody.value;
+  const validationError = body.enabled
+    ? await validateNotificationUrl(body.options.url, 'ntfy URL')
     : undefined;
 
   if (validationError) {
@@ -735,7 +1145,7 @@ notificationRoutes.post('/ntfy', async (req, res) => {
   }
 
   settings.notifications.agents.ntfy = preserveRedactedSecrets(
-    req.body,
+    body as NotificationAgentNtfy,
     settings.notifications.agents.ntfy
   );
   await settings.save();
@@ -751,8 +1161,14 @@ notificationRoutes.post('/ntfy/test', async (req, res, next) => {
     });
   }
 
+  const parsedBody = parseUrlNotificationBody(req.body, 'ntfy');
+  if ('error' in parsedBody) {
+    return next(parsedBody.error);
+  }
+  const body = parsedBody.value;
+
   const validationError = await validateNotificationUrl(
-    req.body.options?.url,
+    body.options.url,
     'ntfy URL'
   );
 
@@ -760,7 +1176,7 @@ notificationRoutes.post('/ntfy/test', async (req, res, next) => {
     return next(validationError);
   }
 
-  const ntfyAgent = new NtfyAgent(req.body);
+  const ntfyAgent = new NtfyAgent(body as NotificationAgentNtfy);
   if (await sendTestNotification(ntfyAgent, req.user)) {
     return res.status(204).send();
   } else {

@@ -25,6 +25,7 @@ import { createHash } from 'node:crypto';
 
 const router = Router();
 const MAX_AVATAR_VERSION_LENGTH = 128;
+const JELLYFIN_USER_ID_PATTERN = /^[a-f0-9]{32}$/;
 
 const avatarProxyRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -185,14 +186,11 @@ export async function checkAvatarChanged(
 
 router.get('/remote', avatarProxyRateLimit, async (req, res) => {
   try {
-    const rawAvatarUrl = Array.isArray(req.query.url)
-      ? req.query.url.filter(
-          (value): value is string => typeof value === 'string'
-        )
-      : typeof req.query.url === 'string'
-        ? req.query.url
-        : undefined;
-    const avatarUrl = getRemoteAvatarCacheUrl(rawAvatarUrl);
+    if (Array.isArray(req.query.url)) {
+      return res.status(400).json({ error: 'Avatar URL must be a string' });
+    }
+
+    const avatarUrl = getRemoteAvatarCacheUrl(req.query.url);
 
     if (!avatarUrl) {
       return res.status(400).json({ error: 'Unsupported avatar URL' });
@@ -220,17 +218,20 @@ router.get('/remote', avatarProxyRateLimit, async (req, res) => {
 
 router.get('/:jellyfinUserId', avatarProxyRateLimit, async (req, res) => {
   try {
-    const jellyfinUserId = String(req.params.jellyfinUserId);
+    const jellyfinUserId = req.params.jellyfinUserId;
 
-    if (!jellyfinUserId.match(/^[a-f0-9]{32}$/)) {
+    if (
+      typeof jellyfinUserId !== 'string' ||
+      !JELLYFIN_USER_ID_PATTERN.test(jellyfinUserId)
+    ) {
       const mediaServerType = getSettings().main.mediaServerType;
-      throw new Error(
-        `Provided URL is not ${
+      return res.status(400).json({
+        error: `Provided URL is not ${
           mediaServerType === MediaServerType.JELLYFIN
             ? 'a Jellyfin'
             : 'an Emby'
-        } avatar.`
-      );
+        } avatar.`,
+      });
     }
 
     const avatarImageCache = await initAvatarImageProxy();
