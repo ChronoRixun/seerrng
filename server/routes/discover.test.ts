@@ -129,7 +129,9 @@ describe('GET /discover/movies', () => {
   });
 
   it('rejects malformed discover language query values before provider lookup', async () => {
-    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get');
+    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed language');
+    });
 
     const agent = await login();
     const res = await agent
@@ -138,11 +140,16 @@ describe('GET /discover/movies', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /Language must be a string/);
-    assert.strictEqual((tmdbGet as { mock: { callCount: () => number } }).mock.callCount(), 0);
+    assert.strictEqual(
+      (tmdbGet as { mock: { callCount: () => number } }).mock.callCount(),
+      0
+    );
   });
 
   it('rejects malformed trending query enums before provider lookup', async () => {
-    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get');
+    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed trending enums');
+    });
 
     const agent = await login();
     const res = await agent
@@ -151,7 +158,10 @@ describe('GET /discover/movies', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /Media type must be valid/);
-    assert.strictEqual((tmdbGet as { mock: { callCount: () => number } }).mock.callCount(), 0);
+    assert.strictEqual(
+      (tmdbGet as { mock: { callCount: () => number } }).mock.callCount(),
+      0
+    );
   });
 
   it('ranks default movie discovery by quality signals within the TMDB page', async () => {
