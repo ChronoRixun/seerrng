@@ -19,6 +19,7 @@ import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePageParams } from '@server/utils/pagination';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import {
   parseOptionalAllowedString,
   parseOptionalBodyBoolean,
@@ -43,13 +44,8 @@ const mediaListFilters = [
 const mediaListSorts = ['modified', 'mediaAdded'] as const;
 const mediaFileFormats = ['ebook', 'audiobook', 'both'] as const;
 
-const parseMediaRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxMediaId);
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseMediaRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, maxMediaId);
 
 const mediaStatusActions = [
   'available',

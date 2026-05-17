@@ -5,22 +5,17 @@ import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { MAX_ISSUE_MESSAGE_LENGTH } from '@server/constants/issue';
 import { filterEntityResponse } from '@server/utils/entityResponse';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import {
   parseBoundedString,
-  parseOptionalNonNegativeInteger,
 } from '@server/utils/validation';
 import { Router } from 'express';
 
 const issueCommentRoutes = Router();
 const maxIssueCommentId = 1_000_000_000;
 
-const parseIssueCommentId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxIssueCommentId);
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseIssueCommentId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, maxIssueCommentId);
 
 const parseIssueCommentBodyObject = (
   body: unknown

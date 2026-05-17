@@ -11,7 +11,10 @@ import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
-import { parseOptionalNonNegativeInteger } from '@server/utils/validation';
+import {
+  parseNonNegativeRouteId,
+  parsePositiveRouteId,
+} from '@server/utils/routeId';
 import { Router, type Request } from 'express';
 
 const serviceRoutes = Router();
@@ -27,19 +30,11 @@ const canViewOperationalServiceDetails = (req: Request) =>
   req.user?.hasPermission(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }) ??
   false;
 
-const parseServiceRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxServiceRouteId);
+const parseServiceRouteId = (id: unknown): number | undefined =>
+  parseNonNegativeRouteId(id, maxServiceRouteId);
 
-  return parsed;
-};
-
-const parsePositiveServiceRouteId = (id: unknown): number | undefined => {
-  const parsed = parseServiceRouteId(id);
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parsePositiveServiceRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, maxServiceRouteId);
 
 const filterServiceServer = (
   server: ServiceCommonServer,

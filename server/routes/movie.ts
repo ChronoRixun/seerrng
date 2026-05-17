@@ -12,10 +12,10 @@ import { mapMovieDetails } from '@server/models/Movie';
 import { mapMovieResult } from '@server/models/Search';
 import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePositiveInt } from '@server/utils/pagination';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import {
   parseOptionalBoundedString,
   parseOptionalLanguage,
-  parseOptionalNonNegativeInteger,
 } from '@server/utils/validation';
 import { Router } from 'express';
 
@@ -23,13 +23,8 @@ const movieRoutes = Router();
 const maxTmdbId = 1_000_000_000;
 const maxShuffleSeedLength = 128;
 
-const parseTmdbRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxTmdbId);
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseTmdbRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, maxTmdbId);
 
 movieRoutes.get('/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();

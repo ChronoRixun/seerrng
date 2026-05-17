@@ -11,6 +11,7 @@ import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { filterEntityResponse } from '@server/utils/entityResponse';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import { Router } from 'express';
 import { EntityNotFoundError, In, QueryFailedError } from 'typeorm';
 import { z } from 'zod';
@@ -48,13 +49,8 @@ const blocklistGet = z.object({
   filter: z.enum(['all', 'manual', 'blocklistedTags']).optional(),
 });
 
-const parseBlocklistNumericId = (id: string): number | undefined => {
-  const parsed = Number(id);
-
-  return Number.isInteger(parsed) && parsed > 0 && parsed <= maxBlocklistId
-    ? parsed
-    : undefined;
-};
+const parseBlocklistNumericId = (id: string): number | undefined =>
+  parsePositiveRouteId(id, maxBlocklistId);
 
 const parseBlocklistExternalId = (id: string): string | undefined => {
   const trimmed = id.trim();

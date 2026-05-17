@@ -14,9 +14,12 @@ import { mapSeasonWithEpisodes, mapTvDetails } from '@server/models/Tv';
 import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePositiveInt } from '@server/utils/pagination';
 import {
+  parseNonNegativeRouteId,
+  parsePositiveRouteId,
+} from '@server/utils/routeId';
+import {
   parseOptionalBoundedString,
   parseOptionalLanguage,
-  parseOptionalNonNegativeInteger,
 } from '@server/utils/validation';
 import { Router } from 'express';
 
@@ -25,21 +28,11 @@ const maxTmdbTvId = 1_000_000_000;
 const maxTvSeasonNumber = 10_000;
 const maxShuffleSeedLength = 128;
 
-const parseTvRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxTmdbTvId);
+const parseTvRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, maxTmdbTvId);
 
-  return parsed && parsed > 0 ? parsed : undefined;
-};
-
-const parseSeasonRouteNumber = (seasonNumber: unknown): number | undefined => {
-  const parsedValue =
-    typeof seasonNumber === 'string' && seasonNumber.trim() !== ''
-      ? Number(seasonNumber)
-      : seasonNumber;
-  return parseOptionalNonNegativeInteger(parsedValue, maxTvSeasonNumber);
-};
+const parseSeasonRouteNumber = (seasonNumber: unknown): number | undefined =>
+  parseNonNegativeRouteId(seasonNumber, maxTvSeasonNumber);
 
 tvRoutes.get('/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();

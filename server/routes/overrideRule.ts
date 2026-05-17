@@ -3,6 +3,7 @@ import OverrideRule from '@server/entity/OverrideRule';
 import type { OverrideRuleResultsResponse } from '@server/interfaces/api/overrideRuleInterfaces';
 import { Permission } from '@server/lib/permissions';
 import { isAuthenticated } from '@server/middleware/auth';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import {
   parseBoundedString,
   parseOptionalNonNegativeInteger,
@@ -48,16 +49,8 @@ type OverrideRuleRequest<P = Record<string, string>> = Request<
   OverrideRuleBody
 >;
 
-const parseOverrideRuleRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(
-    parsedValue,
-    MAX_OVERRIDE_RULE_ID
-  );
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseOverrideRuleRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, MAX_OVERRIDE_RULE_ID);
 
 const parseOptionalRuleString = (
   value: unknown,

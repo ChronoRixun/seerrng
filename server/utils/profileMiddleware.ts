@@ -1,13 +1,8 @@
 import { Permission } from '@server/lib/permissions';
-import { parseOptionalNonNegativeInteger } from './validation';
+import { parsePositiveRouteId } from './routeId';
 
-const parseProfileId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, 1_000_000_000);
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseProfileId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, 1_000_000_000);
 
 export const isOwnProfile = (): Middleware => {
   return (req, res, next) => {

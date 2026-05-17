@@ -23,6 +23,7 @@ import {
   isOwnProfile,
   isOwnProfileOrAdmin,
 } from '@server/utils/profileMiddleware';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import { redactSecrets } from '@server/utils/security';
 import {
   parseBoundedString,
@@ -43,16 +44,8 @@ const MAX_LINKED_ACCOUNT_PASSWORD_LENGTH = 512;
 const isCardTextVisibility = (value: unknown): value is CardTextVisibility =>
   value === 'always' || value === 'hover';
 
-const parseUserSettingsRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(
-    parsedValue,
-    MAX_USER_SETTINGS_ID_VALUE
-  );
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseUserSettingsRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, MAX_USER_SETTINGS_ID_VALUE);
 
 const parseUserSettingsBodyObject = (
   body: unknown

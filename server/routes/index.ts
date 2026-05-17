@@ -31,7 +31,6 @@ import {
   parseBoundedString,
   parseOptionalBoundedString,
   parseOptionalLanguage,
-  parseOptionalNonNegativeInteger,
 } from '@server/utils/validation';
 import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
@@ -62,13 +61,8 @@ const maxTmdbId = 1_000_000_000;
 const MAX_PUSHOVER_TOKEN_LENGTH = 256;
 const MAX_WATCH_REGION_LENGTH = 16;
 
-const parseTmdbRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxTmdbId);
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseTmdbRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, maxTmdbId);
 
 const publicStatusRateLimit = rateLimit({
   windowMs: 60 * 1000,

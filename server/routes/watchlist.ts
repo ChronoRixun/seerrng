@@ -5,7 +5,7 @@ import {
 } from '@server/entity/Watchlist';
 import logger from '@server/logger';
 import { filterEntityResponse } from '@server/utils/entityResponse';
-import { parseOptionalNonNegativeInteger } from '@server/utils/validation';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import { Router } from 'express';
 import { QueryFailedError } from 'typeorm';
 
@@ -16,13 +16,8 @@ const watchlistRoutes = Router();
 const maxWatchlistId = 1_000_000_000;
 const maxWatchlistExternalIdLength = 512;
 
-const parseWatchlistNumericId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxWatchlistId);
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseWatchlistNumericId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, maxWatchlistId);
 
 const parseWatchlistExternalId = (id: unknown): string | undefined => {
   if (typeof id !== 'string') {

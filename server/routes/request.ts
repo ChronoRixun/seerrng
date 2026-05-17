@@ -38,6 +38,7 @@ import {
   parseOptionalPositiveInt,
   parsePageParams,
 } from '@server/utils/pagination';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import {
   parseOptionalAllowedString,
   parseOptionalBoundedString,
@@ -101,14 +102,9 @@ const parseOptionalRequestOptionId = (
     return { value: undefined };
   }
 
-  const parsedValue =
-    typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
-  const parsed = parseOptionalNonNegativeInteger(
-    parsedValue,
-    maxRequestIdValue
-  );
+  const parsed = parsePositiveRouteId(value, maxRequestIdValue);
 
-  if (parsed === undefined || parsed === 0) {
+  if (parsed === undefined) {
     return {
       error: {
         status: 400,
@@ -120,16 +116,8 @@ const parseOptionalRequestOptionId = (
   return { value: parsed };
 };
 
-const parseRequestParamId = (value: unknown): number | undefined => {
-  const parsedValue =
-    typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
-  const parsed = parseOptionalNonNegativeInteger(
-    parsedValue,
-    maxRequestIdValue
-  );
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseRequestParamId = (value: unknown): number | undefined =>
+  parsePositiveRouteId(value, maxRequestIdValue);
 
 const parseOptionalRequestString = (
   value: unknown,

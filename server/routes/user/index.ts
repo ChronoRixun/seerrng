@@ -35,6 +35,7 @@ import {
   parsePositiveInt,
 } from '@server/utils/pagination';
 import { isOwnProfileOrAdmin } from '@server/utils/profileMiddleware';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import { resolvesToLocalOrPrivateAddress } from '@server/utils/security';
 import {
   parseBoundedString,
@@ -133,16 +134,8 @@ const parsePositiveIntegerArray = (
   return { value: [...parsedValues] };
 };
 
-const parseUserRouteId = (id: unknown): number | undefined => {
-  const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
-  const parsed = parseOptionalNonNegativeInteger(
-    parsedValue,
-    MAX_USER_ID_VALUE
-  );
-
-  return parsed && parsed > 0 ? parsed : undefined;
-};
+const parseUserRouteId = (id: unknown): number | undefined =>
+  parsePositiveRouteId(id, MAX_USER_ID_VALUE);
 
 const parseOptionalIncludeUserIds = (
   value: unknown
