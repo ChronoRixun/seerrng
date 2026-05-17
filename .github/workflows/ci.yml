@@ -333,10 +333,26 @@ jobs:
           sudo chown -R 1000:1000 "$SEERRNG_CONFIG_DIR"
 
       - name: Deploy seerr.home
-        run: docker compose -f deploy/compose.main.yml up -d --remove-orphans --wait --wait-timeout 180
+        run: |
+          docker rm -f "$SEERRNG_CONTAINER_NAME" 2>/dev/null || true
+          docker run -d \
+            --name "$SEERRNG_CONTAINER_NAME" \
+            --restart unless-stopped \
+            --network host \
+            -e TZ="${TZ:-America/Regina}" \
+            -e PORT="$SEERRNG_PORT" \
+            -e CONFIG_DIRECTORY=/app/config \
+            -e LOG_LEVEL="${LOG_LEVEL:-info}" \
+            -v "$SEERRNG_CONFIG_DIR:/app/config" \
+            "ghcr.io/${{ github.repository }}:$SEERRNG_TAG"
 
       - name: Verify seerr.home deployment
         run: |
           docker ps --filter "name=^/${SEERRNG_CONTAINER_NAME}$" --filter "status=running" --format '{{.Names}}' | grep -qx "$SEERRNG_CONTAINER_NAME"
-          curl --fail --silent --show-error "http://127.0.0.1:${SEERRNG_PORT}/api/v1/status" | tee status.json
+          for i in $(seq 1 90); do
+            if curl --fail --silent --show-error "http://127.0.0.1:${SEERRNG_PORT}/api/v1/status" | tee status.json; then
+              break
+            fi
+            sleep 2
+          done
           grep -q '"buildVersion":"main"' status.json
