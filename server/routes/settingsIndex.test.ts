@@ -49,6 +49,37 @@ afterEach(() => {
 });
 
 describe('Settings route input validation', () => {
+  it('rejects malformed persisted settings bodies before saving', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const mainRes = await request(app).post('/settings/main').send([]);
+    const networkRes = await request(app).post('/settings/network').send([]);
+    const tautulliRes = await request(app).post('/settings/tautulli').send([]);
+
+    assert.strictEqual(mainRes.status, 400);
+    assert.match(mainRes.body.message, /Settings body must be an object/);
+    assert.strictEqual(networkRes.status, 400);
+    assert.match(networkRes.body.message, /Settings body must be an object/);
+    assert.strictEqual(tautulliRes.status, 400);
+    assert.match(tautulliRes.body.message, /Settings body must be an object/);
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
+  it('rejects malformed media server settings bodies before external work', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const plexRes = await request(app).post('/settings/plex').send([]);
+    const jellyfinRes = await request(app).post('/settings/jellyfin').send([]);
+
+    assert.strictEqual(plexRes.status, 400);
+    assert.match(plexRes.body.message, /Settings body must be an object/);
+    assert.strictEqual(jellyfinRes.status, 400);
+    assert.match(jellyfinRes.body.message, /Settings body must be an object/);
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
   it('rejects array Plex library enable queries instead of throwing', async () => {
     const res = await request(app)
       .get('/settings/plex/library')

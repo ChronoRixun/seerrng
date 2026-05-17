@@ -89,6 +89,16 @@ const parseSettingsPathId = (value: unknown, fieldName: string) =>
     maxLength: MAX_SETTINGS_PATH_ID_LENGTH,
   });
 
+const parseSettingsBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Settings body must be an object.' };
+  }
+
+  return { value: body as Record<string, unknown> };
+};
+
 const readLogTail = async (
   logFile: string,
   maxBytes = MAX_LOG_READ_BYTES
@@ -145,10 +155,14 @@ settingsRoutes.get('/main', (req, res, next) => {
 
 settingsRoutes.post('/main', async (req, res) => {
   const settings = getSettings();
+  const parsedBody = parseSettingsBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ message: parsedBody.error });
+  }
 
   settings.main = merge(
     settings.main,
-    preserveRedactedSecrets(req.body, settings.main)
+    preserveRedactedSecrets(parsedBody.value, settings.main)
   );
   await settings.save();
 
@@ -163,10 +177,14 @@ settingsRoutes.get('/network', (req, res) => {
 
 settingsRoutes.post('/network', async (req, res) => {
   const settings = getSettings();
+  const parsedBody = parseSettingsBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ message: parsedBody.error });
+  }
 
   settings.network = merge(
     settings.network,
-    preserveRedactedSecrets(req.body, settings.network)
+    preserveRedactedSecrets(parsedBody.value, settings.network)
   );
   await settings.save();
 
@@ -194,6 +212,10 @@ settingsRoutes.get('/plex', (_req, res) => {
 settingsRoutes.post('/plex', async (req, res, next) => {
   const userRepository = getRepository(User);
   const settings = getSettings();
+  const parsedBody = parseSettingsBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ message: parsedBody.error });
+  }
   try {
     const admin = await userRepository.findOneOrFail({
       select: { id: true, plexToken: true },
@@ -202,7 +224,7 @@ settingsRoutes.post('/plex', async (req, res, next) => {
 
     Object.assign(
       settings.plex,
-      preserveRedactedSecrets(req.body, settings.plex)
+      preserveRedactedSecrets(parsedBody.value, settings.plex)
     );
 
     const plexClient = new PlexAPI({ plexToken: admin.plexToken });
@@ -370,6 +392,10 @@ settingsRoutes.get('/jellyfin', (_req, res) => {
 settingsRoutes.post('/jellyfin', async (req, res, next) => {
   const userRepository = getRepository(User);
   const settings = getSettings();
+  const parsedBody = parseSettingsBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ message: parsedBody.error });
+  }
 
   try {
     const admin = await userRepository.findOneOrFail({
@@ -378,7 +404,10 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
       order: { id: 'ASC' },
     });
 
-    const sanitizedBody = preserveRedactedSecrets(req.body, settings.jellyfin);
+    const sanitizedBody = preserveRedactedSecrets(
+      parsedBody.value,
+      settings.jellyfin
+    );
     const tempJellyfinSettings = { ...settings.jellyfin, ...sanitizedBody };
 
     const jellyfinClient = new JellyfinAPI(
@@ -550,10 +579,14 @@ settingsRoutes.get('/tautulli', (_req, res) => {
 
 settingsRoutes.post('/tautulli', async (req, res, next) => {
   const settings = getSettings();
+  const parsedBody = parseSettingsBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ message: parsedBody.error });
+  }
 
   Object.assign(
     settings.tautulli,
-    preserveRedactedSecrets(req.body, settings.tautulli)
+    preserveRedactedSecrets(parsedBody.value, settings.tautulli)
   );
 
   if (settings.tautulli.hostname) {

@@ -108,10 +108,7 @@ const parseDvrSettings = (
   const overrideRule = parseNumberArray(settings.overrideRule, 'overrideRule');
   if ('error' in overrideRule) return overrideRule;
 
-  const port = parseOptionalNonNegativeInteger(
-    settings.port,
-    MAX_SERVICE_PORT
-  );
+  const port = parseOptionalNonNegativeInteger(settings.port, MAX_SERVICE_PORT);
   const activeProfileId = parseOptionalNonNegativeInteger(
     settings.activeProfileId,
     MAX_SERVICE_ID
