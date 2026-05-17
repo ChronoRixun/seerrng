@@ -14,7 +14,7 @@ const bookTitles = [
   ['To Kill a Mockingbird', 'Harper Lee'],
   ['Pride and Prejudice', 'Jane Austen'],
   ['The Catcher in the Rye', 'J. D. Salinger'],
-  ['The Handmaid\'s Tale', 'Margaret Atwood'],
+  ["The Handmaid's Tale", 'Margaret Atwood'],
   ['The Road', 'Cormac McCarthy'],
   ['Project Hail Mary', 'Andy Weir'],
   ['The Martian', 'Andy Weir'],
@@ -29,7 +29,7 @@ const bookTitles = [
   ['The Silent Patient', 'Alex Michaelides'],
   ['Gone Girl', 'Gillian Flynn'],
   ['The Hunger Games', 'Suzanne Collins'],
-  ['Harry Potter and the Sorcerer\'s Stone', 'J. K. Rowling'],
+  ["Harry Potter and the Sorcerer's Stone", 'J. K. Rowling'],
 ];
 
 const albumTitles = [
@@ -184,40 +184,6 @@ const prepareScreenshot = () => {
   });
 };
 
-const captureReadmeScreenshot = (name: string) => {
-  prepareScreenshot();
-  cy.window().then((window) => {
-    window.scrollTo(0, 0);
-  });
-  cy.then(() =>
-    Cypress.automation('remote:debugger:protocol', {
-      command: 'Emulation.setDeviceMetricsOverride',
-      params: {
-        width: 1920,
-        height: 1080,
-        deviceScaleFactor: 1,
-        mobile: false,
-      },
-    })
-  );
-  cy.then(() =>
-    Cypress.automation('remote:debugger:protocol', {
-      command: 'Page.captureScreenshot',
-      params: {
-        captureBeyondViewport: false,
-        format: 'png',
-        fromSurface: true,
-      },
-    })
-  ).then(({ data }) => {
-    cy.writeFile(
-      `cypress/screenshots/readme-screenshots.cy.ts/${name}.png`,
-      data,
-      'base64'
-    );
-  });
-};
-
 describe('README screenshots', () => {
   beforeEach(() => {
     cy.viewport(1920, 1080);
@@ -235,8 +201,9 @@ describe('README screenshots', () => {
     cy.contains('The Hobbit').should('exist');
     waitForImages();
     cy.contains('Recommended Music').scrollIntoView();
+    prepareScreenshot();
     cy.wait(1000);
-    captureReadmeScreenshot('readme-discover');
+    cy.screenshot('readme-discover', { capture: 'viewport', scale: false });
   });
 
   it('captures the books pane', () => {
@@ -244,7 +211,8 @@ describe('README screenshots', () => {
     cy.contains('[data-testid=page-header]', 'Books').should('be.visible');
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     waitForImages();
-    captureReadmeScreenshot('readme-books');
+    prepareScreenshot();
+    cy.screenshot('readme-books', { capture: 'viewport', scale: false });
   });
 
   it('captures the music pane', () => {
@@ -252,6 +220,7 @@ describe('README screenshots', () => {
     cy.contains('[data-testid=page-header]', 'Music').should('be.visible');
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     waitForImages();
-    captureReadmeScreenshot('readme-music');
+    prepareScreenshot();
+    cy.screenshot('readme-music', { capture: 'viewport', scale: false });
   });
 });
