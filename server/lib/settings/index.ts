@@ -407,6 +407,14 @@ const SETTINGS_PATH = process.env.CONFIG_DIRECTORY
   ? `${process.env.CONFIG_DIRECTORY}/settings.json`
   : path.join(__dirname, '../../../config/settings.json');
 
+export const MAX_SETTINGS_FILE_BYTES = 2 * 1024 * 1024;
+
+export const assertSettingsFileSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes < 0 || bytes > MAX_SETTINGS_FILE_BYTES) {
+    throw new Error('Settings file exceeds maximum size');
+  }
+};
+
 class Settings {
   private data: AllSettings;
   private saveLock: Promise<void> = Promise.resolve();
@@ -860,9 +868,15 @@ class Settings {
 
     let data;
     try {
+      const stat = await fs.stat(SETTINGS_PATH);
+      assertSettingsFileSize(stat.size);
       data = await fs.readFile(SETTINGS_PATH, 'utf-8');
-    } catch {
-      await this.save();
+    } catch (e) {
+      if (e.code === 'ENOENT') {
+        await this.save();
+      } else {
+        throw e;
+      }
     }
 
     let change = false;
