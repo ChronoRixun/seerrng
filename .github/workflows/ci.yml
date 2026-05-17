@@ -26,7 +26,7 @@ jobs:
   i18n:
     name: i18n Check
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, seerrng, linux-build]
     permissions:
       contents: read
       pull-requests: write
@@ -90,7 +90,7 @@ jobs:
   test:
     name: Lint & Test Build
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, seerrng, linux-build]
     container: node:22.22.2-alpine3.23@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f
     steps:
       - name: Checkout
@@ -131,7 +131,7 @@ jobs:
   unit-test:
     name: Unit Tests
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, seerrng, linux-build]
     container: node:22.22.2-alpine3.23@sha256:8ea2348b068a9544dae7317b4f3aafcdc032df1647bb7d768a05a5cad1a7683f
     permissions:
       checks: write
@@ -177,11 +177,13 @@ jobs:
     name: Build cache (${{ matrix.platform }})
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     strategy:
+      fail-fast: false
       matrix:
         platform:
           - linux/amd64
           - linux/arm64
-    runs-on: [self-hosted, Linux, X64]
+    runs-on:
+      [self-hosted, seerrng, linux-build, linux-amd64, linux-arm64-cross]
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -225,7 +227,8 @@ jobs:
   publish:
     name: Publish multi-arch image
     needs: build
-    runs-on: [self-hosted, Linux, X64]
+    runs-on:
+      [self-hosted, seerrng, linux-build, linux-amd64, linux-arm64-cross]
     permissions:
       contents: read
       packages: write
@@ -295,7 +298,7 @@ jobs:
     name: Deploy main to seerr.home
     if: github.ref == 'refs/heads/main'
     needs: publish
-    runs-on: [self-hosted, kspls0]
+    runs-on: [self-hosted, seerrng, kspls0]
     permissions:
       contents: read
       packages: read
