@@ -1291,6 +1291,35 @@ describe('GET /discover/music', () => {
     );
   });
 
+  it('accepts shuffle seeds for ranked music discovery', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => ({
+      payload: {
+        count: 1,
+        release_groups: [
+          {
+            artist_mbids: ['artist-charted'],
+            artist_name: 'Charted Artist',
+            caa_release_mbid: '',
+            listen_count: 5000,
+            release_group_mbid: 'album-charted',
+            release_group_name: 'Charted Album',
+          },
+        ],
+      },
+    }));
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: { releases: [] },
+    }));
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/music?sortBy=ranked&shuffleSeed=refresh-a'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results[0].title, 'Charted Album');
+  });
+
   it('keeps richer metadata when ranked music sources return the same album', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => ({
       payload: {
@@ -1894,6 +1923,36 @@ describe('GET /discover/books', () => {
       true
     );
     assert.strictEqual(res.body.results.length > 1, true);
+  });
+
+  it('accepts shuffle seeds for ranked book discovery', async () => {
+    mock.method(
+      OpenLibraryAPI.prototype,
+      'searchBooks',
+      async ({ query }: { query: string }) => ({
+        numFound: 1,
+        start: 0,
+        docs: [
+          {
+            key: `/works/${query.replace(/[^a-z_]/g, '')}`,
+            title: query,
+            cover_i: 1,
+            edition_count: 10,
+            ratings_average: 4,
+            ratings_count: 10,
+            want_to_read_count: 10,
+          },
+        ],
+      })
+    );
+
+    const agent = await login();
+    const res = await agent.get(
+      '/discover/books?sortBy=ranked&shuffleSeed=refresh-a'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results.length > 0, true);
   });
 
   it('diversifies the default recommended book feed by author', async () => {

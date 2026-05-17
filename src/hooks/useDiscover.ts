@@ -43,6 +43,8 @@ interface DiscoverResult<T, S> {
   mutate?: () => void;
 }
 
+const FILTERED_EMPTY_PAGE_SCAN_LIMIT = 10;
+
 const extraEncodes: [RegExp, string][] = [
   [/\(/g, '%28'],
   [/\)/g, '%29'],
@@ -59,6 +61,8 @@ export const encodeURIExtraParams = (string: string): string => {
 
   return finalString;
 };
+
+const getShuffleSeed = (): string => Math.random().toString(36).slice(2);
 
 const hasLinkedBookFormat = (
   mediaInfo: NonNullable<BaseMedia['mediaInfo']>,
@@ -134,8 +138,15 @@ const useDiscover = <
   const { hasPermission } = useUser();
   const { addToast } = useToasts();
   const intl = useIntl();
-  const [shuffleSeed] = useState(() => Math.random().toString(36).slice(2));
-  const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite<
+  const [shuffleSeed, setShuffleSeed] = useState(getShuffleSeed);
+  const {
+    data,
+    error,
+    size,
+    setSize,
+    isValidating,
+    mutate: revalidate,
+  } = useSWRInfinite<
     BaseSearchResult<T> & S
   >(
     (pageIndex: number, previousPageData) => {
@@ -155,7 +166,7 @@ const useDiscover = <
       const finalQueryString = Object.keys(params)
         .map(
           (paramKey) =>
-            `${paramKey}=${encodeURIExtraParams(params[paramKey] as string)}`
+            `${paramKey}=${encodeURIExtraParams(String(params[paramKey]))}`
         )
         .join('&');
 
@@ -181,7 +192,20 @@ const useDiscover = <
     setSize((currentSize) => currentSize + 1);
   }, [setSize]);
 
-  const canManageBlocklist = hasPermission(Permission.MANAGE_BLOCKLIST);
+  const mutate = useCallback(() => {
+    if (randomizeOrder) {
+      setSize(1);
+      setShuffleSeed(getShuffleSeed());
+      return;
+    }
+
+    void revalidate();
+  }, [randomizeOrder, revalidate, setSize]);
+
+  const canViewBlocklist = hasPermission(
+    [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
+    { type: 'or' }
+  );
   const titles = useMemo(() => {
     const resultKeys = new Set<string>();
     let filteredTitles: T[] = [];
@@ -210,9 +234,8 @@ const useDiscover = <
     }
 
     if (
-      settings.currentSettings.hideBlocklisted &&
       hideBlocklisted &&
-      canManageBlocklist
+      (settings.currentSettings.hideBlocklisted || !canViewBlocklist)
     ) {
       filteredTitles = filteredTitles.filter(
         (i) => !i.mediaInfo || i.mediaInfo.status !== MediaStatus.BLOCKLISTED
@@ -221,7 +244,7 @@ const useDiscover = <
 
     return filteredTitles;
   }, [
-    canManageBlocklist,
+    canViewBlocklist,
     data,
     hideAvailable,
     hideBlocklisted,
@@ -230,12 +253,41 @@ const useDiscover = <
   ]);
   useWarmImageCache(titles);
 
-  const isEmpty = !isLoadingInitialData && titles?.length === 0;
+  const rawResultCount = useMemo(
+    () =>
+      (data ?? []).reduce((total, page) => total + page.results.length, 0),
+    [data]
+  );
+  const lastResultPage = data?.[data.length - 1];
+  const hasMoreUnfilteredResults =
+    !!lastResultPage &&
+    lastResultPage.results.length >= 20 &&
+    lastResultPage.totalResults > size * 20;
+  const shouldScanNextFilteredPage =
+    !isLoadingInitialData &&
+    !isLoadingMore &&
+    !isValidating &&
+    titles.length === 0 &&
+    rawResultCount > 0 &&
+    hasMoreUnfilteredResults &&
+    size < FILTERED_EMPTY_PAGE_SCAN_LIMIT;
+  const isEmpty =
+    !isLoadingInitialData &&
+    titles.length === 0 &&
+    !shouldScanNextFilteredPage;
   const isReachingEnd =
-    isEmpty ||
-    (!!data && (data[data?.length - 1]?.results.length ?? 0) < 20) ||
-    (!!data && (data[data?.length - 1]?.totalResults ?? 0) <= size * 20) ||
-    (!!data && (data[data?.length - 1]?.totalResults ?? 0) < 41);
+    (!!data && (lastResultPage?.results.length ?? 0) < 20) ||
+    (!!data && (lastResultPage?.totalResults ?? 0) <= size * 20) ||
+    (!!data && (lastResultPage?.totalResults ?? 0) < 41) ||
+    (titles.length === 0 &&
+      rawResultCount > 0 &&
+      size >= FILTERED_EMPTY_PAGE_SCAN_LIMIT);
+
+  useEffect(() => {
+    if (shouldScanNextFilteredPage) {
+      setSize((currentSize) => currentSize + 1);
+    }
+  }, [setSize, shouldScanNextFilteredPage]);
 
   useEffect(() => {
     if (error && titles.length) {

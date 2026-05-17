@@ -6692,6 +6692,12 @@ paths:
           schema:
             type: string
             example: kind of blue
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: Music discovery results
@@ -6750,6 +6756,12 @@ paths:
               - rating
               - editions
             default: ranked
+        - in: query
+          name: shuffleSeed
+          schema:
+            type: string
+            maxLength: 128
+            example: refresh-1
       responses:
         '200':
           description: Book discovery results
