@@ -102,6 +102,14 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
 
   const hasChanged = () => !Object.is(discoverData, sliders);
 
+  const getEncodedSliderData = (slider: Partial<DiscoverSlider>) =>
+    encodeURIExtraParams(slider.data ?? '');
+
+  const getSliderDataPart = (
+    slider: Partial<DiscoverSlider>,
+    index: number
+  ) => encodeURIExtraParams(slider.data?.split(',')[index] ?? '');
+
   const updateSliders = async () => {
     try {
       await axios.post('/api/v1/settings/discover', sliders);
@@ -343,12 +351,10 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/movies"
-                extraParams={
-                  slider.data
-                    ? `keywords=${encodeURIExtraParams(slider.data)}`
-                    : ''
-                }
-                linkUrl={`/discover/movies?keywords=${slider.data}`}
+                extraParams={`keywords=${getEncodedSliderData(slider)}`}
+                linkUrl={`/discover/movies?keywords=${getEncodedSliderData(
+                  slider
+                )}`}
               />
             );
             break;
@@ -358,12 +364,10 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/tv"
-                extraParams={
-                  slider.data
-                    ? `keywords=${encodeURIExtraParams(slider.data)}`
-                    : ''
-                }
-                linkUrl={`/discover/tv?keywords=${slider.data}`}
+                extraParams={`keywords=${getEncodedSliderData(slider)}`}
+                linkUrl={`/discover/tv?keywords=${getEncodedSliderData(
+                  slider
+                )}`}
               />
             );
             break;
@@ -373,8 +377,10 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url={`/api/v1/discover/movies`}
-                extraParams={`genre=${slider.data}`}
-                linkUrl={`/discover/movies?genre=${slider.data}`}
+                extraParams={`genre=${getEncodedSliderData(slider)}`}
+                linkUrl={`/discover/movies?genre=${getEncodedSliderData(
+                  slider
+                )}`}
               />
             );
             break;
@@ -384,8 +390,8 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url={`/api/v1/discover/tv`}
-                extraParams={`genre=${slider.data}`}
-                linkUrl={`/discover/tv?genre=${slider.data}`}
+                extraParams={`genre=${getEncodedSliderData(slider)}`}
+                linkUrl={`/discover/tv?genre=${getEncodedSliderData(slider)}`}
               />
             );
             break;
@@ -394,8 +400,12 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
               <MediaSlider
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
-                url={`/api/v1/discover/movies/studio/${slider.data}`}
-                linkUrl={`/discover/movies/studio/${slider.data}`}
+                url={`/api/v1/discover/movies/studio/${getEncodedSliderData(
+                  slider
+                )}`}
+                linkUrl={`/discover/movies/studio/${getEncodedSliderData(
+                  slider
+                )}`}
               />
             );
             break;
@@ -404,8 +414,12 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
               <MediaSlider
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
-                url={`/api/v1/discover/tv/network/${slider.data}`}
-                linkUrl={`/discover/tv/network/${slider.data}`}
+                url={`/api/v1/discover/tv/network/${getEncodedSliderData(
+                  slider
+                )}`}
+                linkUrl={`/discover/tv/network/${getEncodedSliderData(
+                  slider
+                )}`}
               />
             );
             break;
@@ -415,8 +429,8 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/search"
-                extraParams={`query=${slider.data}`}
-                linkUrl={`/search?query=${slider.data}`}
+                extraParams={`query=${getEncodedSliderData(slider)}`}
+                linkUrl={`/search?query=${getEncodedSliderData(slider)}`}
               />
             );
             break;
@@ -426,12 +440,14 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/movies"
-                extraParams={`watchRegion=${
-                  slider.data?.split(',')[0]
-                }&watchProviders=${slider.data?.split(',')[1]}`}
-                linkUrl={`/discover/movies?watchRegion=${
-                  slider.data?.split(',')[0]
-                }&watchProviders=${slider.data?.split(',')[1]}`}
+                extraParams={`watchRegion=${getSliderDataPart(
+                  slider,
+                  0
+                )}&watchProviders=${getSliderDataPart(slider, 1)}`}
+                linkUrl={`/discover/movies?watchRegion=${getSliderDataPart(
+                  slider,
+                  0
+                )}&watchProviders=${getSliderDataPart(slider, 1)}`}
               />
             );
             break;
@@ -441,12 +457,14 @@ const Discover = ({ initialSliders }: DiscoverProps) => {
                 sliderKey={`custom-slider-${slider.id}`}
                 title={slider.title ?? ''}
                 url="/api/v1/discover/tv"
-                extraParams={`watchRegion=${
-                  slider.data?.split(',')[0]
-                }&watchProviders=${slider.data?.split(',')[1]}`}
-                linkUrl={`/discover/tv?watchRegion=${
-                  slider.data?.split(',')[0]
-                }&watchProviders=${slider.data?.split(',')[1]}`}
+                extraParams={`watchRegion=${getSliderDataPart(
+                  slider,
+                  0
+                )}&watchProviders=${getSliderDataPart(slider, 1)}`}
+                linkUrl={`/discover/tv?watchRegion=${getSliderDataPart(
+                  slider,
+                  0
+                )}&watchProviders=${getSliderDataPart(slider, 1)}`}
               />
             );
             break;
