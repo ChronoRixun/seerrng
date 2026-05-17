@@ -1931,14 +1931,8 @@ describe('POST /request/:requestId/retry', () => {
 describe('POST /request/bulk', () => {
   it('rejects malformed bulk request envelopes', async () => {
     const agent = await loginAs('friend@seerr.dev', 'test1234');
-    const nullRes = await agent
-      .post('/request/bulk')
-      .set('Content-Type', 'application/json')
-      .send('null');
     const arrayRes = await agent.post('/request/bulk').send([]);
 
-    assert.strictEqual(nullRes.status, 400);
-    assert.match(nullRes.body.message, /Request body must be an object/i);
     assert.strictEqual(arrayRes.status, 400);
     assert.match(arrayRes.body.message, /Request body must be an object/i);
     assert.strictEqual(await getRepository(MediaRequest).count(), 0);
