@@ -162,9 +162,9 @@ export const themePalettes: ThemePalette[] = [
   {
     id: 'sietch-neon',
     name: 'Sietch',
-    swatches: ['#6f5f54', '#3b3f46', '#8f5cff', '#d7ff3f'],
-    primary: 'sietchNeon',
-    secondary: 'sietchSpice',
+    swatches: ['#8e6036', '#43352e', '#8f5cff', '#d7ff3f'],
+    primary: 'sietchSpice',
+    secondary: 'sietchNeon',
   },
 ];
 
@@ -445,6 +445,50 @@ const applyScale = (
   });
 };
 
+const applyThemeChrome = (
+  root: HTMLElement,
+  surfaceScale: readonly string[],
+  primaryScale: readonly string[],
+  secondaryScale: readonly string[],
+  mode: ThemeMode
+) => {
+  if (mode === 'dark') {
+    root.style.setProperty(
+      '--theme-sidebar-start',
+      mixRgb(surfaceScale[8], primaryScale[8], 0.4)
+    );
+    root.style.setProperty(
+      '--theme-sidebar-end',
+      mixRgb(surfaceScale[10], primaryScale[9], 0.34)
+    );
+    root.style.setProperty(
+      '--theme-sidebar-border',
+      mixRgb(surfaceScale[7], secondaryScale[6], 0.28)
+    );
+    root.style.setProperty(
+      '--theme-sidebar-hover',
+      mixRgb(surfaceScale[7], primaryScale[7], 0.36)
+    );
+  } else {
+    root.style.setProperty(
+      '--theme-sidebar-start',
+      mixRgb(primaryScale[8], themeScales.slate[8], 0.42)
+    );
+    root.style.setProperty(
+      '--theme-sidebar-end',
+      mixRgb(primaryScale[10], themeScales.slate[10], 0.46)
+    );
+    root.style.setProperty(
+      '--theme-sidebar-border',
+      mixRgb(primaryScale[7], secondaryScale[7], 0.28)
+    );
+    root.style.setProperty(
+      '--theme-sidebar-hover',
+      mixRgb(primaryScale[7], themeScales.slate[7], 0.34)
+    );
+  }
+};
+
 const parseRgb = (value: string): [number, number, number] =>
   value.split(' ').map((part) => Number(part)) as [number, number, number];
 
@@ -523,20 +567,19 @@ const applyTheme = (mode: ThemeMode, palette: string) => {
   document.documentElement.dataset.themeMode = mode;
   document.documentElement.dataset.themePalette = activePaletteId;
   document.documentElement.classList.toggle('dark', mode === 'dark');
-  applyScale(
+  const primaryScale = themeScales[activePalette.primary];
+  const secondaryScale = themeScales[activePalette.secondary];
+  const surfaceScale = createSurfaceScale(primaryScale, mode);
+
+  applyScale(document.documentElement, 'indigo', primaryScale);
+  applyScale(document.documentElement, 'purple', secondaryScale);
+  applyScale(document.documentElement, 'gray', surfaceScale);
+  applyThemeChrome(
     document.documentElement,
-    'indigo',
-    themeScales[activePalette.primary]
-  );
-  applyScale(
-    document.documentElement,
-    'purple',
-    themeScales[activePalette.secondary]
-  );
-  applyScale(
-    document.documentElement,
-    'gray',
-    createSurfaceScale(themeScales[activePalette.primary], mode)
+    surfaceScale,
+    primaryScale,
+    secondaryScale,
+    mode
   );
   window.localStorage.setItem(THEME_MODE_KEY, mode);
   window.localStorage.setItem(THEME_PALETTE_KEY, activePaletteId);
