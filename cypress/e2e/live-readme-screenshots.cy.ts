@@ -76,16 +76,51 @@ const getDeep = <T extends Element>(selector: string) =>
     });
   });
 
+const getDeepText = <T extends Element>(selector: string, pattern: RegExp) =>
+  cy.document().then({ timeout: 30000 }, (doc) => {
+    return new Cypress.Promise<T>((resolve, reject) => {
+      const collect = (root: Document | ShadowRoot | Element): T[] => {
+        const matches = Array.from(root.querySelectorAll<T>(selector));
+        for (const element of Array.from(root.querySelectorAll<Element>('*'))) {
+          if (element.shadowRoot) matches.push(...collect(element.shadowRoot));
+        }
+        return matches;
+      };
+      const started = Date.now();
+      const poll = () => {
+        const element = collect(doc).find((candidate) =>
+          pattern.test(candidate.textContent ?? '')
+        );
+        if (element) {
+          resolve(element);
+          return;
+        }
+        if (Date.now() - started > 30000) {
+          reject(new Error(`Timed out finding ${selector} matching ${pattern}`));
+          return;
+        }
+        window.setTimeout(poll, 250);
+      };
+      poll();
+    });
+  });
+
 const login = () => {
   cy.visit('https://request.snape.tech/', { timeout: 60000 });
   getDeep<HTMLInputElement>('input').then((input) =>
-    cy.wrap(input).type(`${Cypress.env('LIVE_README_EMAIL')}{enter}`, { force: true })
+    cy.wrap(input).type(Cypress.env('LIVE_README_EMAIL'), { force: true })
+  );
+  getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
+    cy.wrap(button).click({ force: true })
   );
   getDeep<HTMLInputElement>('input[type="password"]').then((input) =>
-    cy.wrap(input).type(`${Cypress.env('LIVE_README_PASSWORD')}{enter}`, {
+    cy.wrap(input).type(Cypress.env('LIVE_README_PASSWORD'), {
       force: true,
       log: false,
     })
+  );
+  getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
+    cy.wrap(button).click({ force: true })
   );
   cy.location('hostname', { timeout: 60000 }).should('eq', 'request.snape.tech');
 };
