@@ -141,8 +141,33 @@ const MediaSlider = ({
     settings.currentSettings.hideAvailable,
     settings.currentSettings.hideBlocklisted,
   ]);
+  const blocklistVisibility = hasPermission(
+    [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
+    { type: 'or' }
+  );
+
+  const renderableTitles = useMemo(
+    () =>
+      titles.filter((title) => {
+        if (blocklistVisibility) {
+          return true;
+        }
+
+        return (
+          (title as TvResult | MovieResult | AlbumResult | BookResult).mediaInfo
+            ?.status !== MediaStatus.BLOCKLISTED
+        );
+      }),
+    [blocklistVisibility, titles]
+  );
+  const visibleTitles = useMemo(
+    () => renderableTitles.slice(0, 20),
+    [renderableTitles]
+  );
+  useWarmImageCache(visibleTitles, { enabled: shouldLoad, maxUrls: 20 });
+
   const shouldLoadMore =
-    titles.length < 24 &&
+    renderableTitles.length < 24 &&
     size < 5 &&
     (data?.[0]?.totalResults ?? 0) > size * 20;
 
@@ -156,41 +181,20 @@ const MediaSlider = ({
     if (onNewTitles) {
       // We aren't reporting all titles. We just want to know if there are any titles
       // at all for our purposes.
-      onNewTitles(titles.length);
+      onNewTitles(renderableTitles.length);
     }
-  }, [onNewTitles, titles.length]);
-
-  const blocklistVisibility = hasPermission(
-    [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
-    { type: 'or' }
-  );
-
-  const visibleTitles = useMemo(
-    () =>
-      titles.slice(0, 20).filter((title) => {
-        if (blocklistVisibility) {
-          return true;
-        }
-
-        return (
-          (title as TvResult | MovieResult | AlbumResult | BookResult).mediaInfo
-            ?.status !== MediaStatus.BLOCKLISTED
-        );
-      }),
-    [blocklistVisibility, titles]
-  );
-  useWarmImageCache(visibleTitles, { enabled: shouldLoad, maxUrls: 20 });
+  }, [onNewTitles, renderableTitles.length]);
 
   const showMorePosters = useMemo(
     () =>
-      titles
+      renderableTitles
         .slice(20, 24)
         .map((title) =>
           title.mediaType !== 'person' && title.mediaType !== 'artist'
             ? title.posterPath
             : undefined
         ),
-    [titles]
+    [renderableTitles]
   );
 
   const finalTitles = useMemo(() => {
@@ -287,7 +291,7 @@ const MediaSlider = ({
       }
     });
 
-    if (linkUrl && titles.length > 20) {
+    if (linkUrl && renderableTitles.length > 20) {
       cardTitles.push(
         <ShowMoreCard key="show-more" url={linkUrl} posters={showMorePosters} />
       );
@@ -296,8 +300,8 @@ const MediaSlider = ({
     return cardTitles;
   }, [
     linkUrl,
+    renderableTitles.length,
     showMorePosters,
-    titles.length,
     visibleTitles,
     visibility.album,
     visibility.book,
@@ -305,7 +309,13 @@ const MediaSlider = ({
     visibility.tv,
   ]);
 
-  if (hideWhenEmpty && data && (data[0]?.results ?? []).length === 0) {
+  const hasReachedEnd =
+    !!data &&
+    ((data[data.length - 1]?.results.length ?? 0) < 20 ||
+      (data[data.length - 1]?.totalResults ?? 0) <= size * 20 ||
+      size >= 5);
+
+  if (hideWhenEmpty && data && hasReachedEnd && !renderableTitles.length) {
     return null;
   }
 
@@ -331,7 +341,7 @@ const MediaSlider = ({
       <Slider
         sliderKey={sliderKey}
         isLoading={!data && !error}
-        isEmpty={false}
+        isEmpty={!!data && hasReachedEnd && !renderableTitles.length}
         items={finalTitles}
       />
     </div>
