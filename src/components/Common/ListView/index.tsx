@@ -55,17 +55,30 @@ const ListView = ({
   const intl = useIntl();
   const { hasPermission } = useUser();
   const { visibility } = useCardTextVisibility();
-  useVerticalScroll(onScrollBottom, !isLoading && !isEmpty && !isReachingEnd);
 
   const blocklistVisibility = hasPermission(
     [Permission.MANAGE_BLOCKLIST, Permission.VIEW_BLOCKLIST],
     { type: 'or' }
   );
+  const visibleItems = useMemo(
+    () =>
+      items?.filter((title) => {
+        if (blocklistVisibility) {
+          return true;
+        }
+
+        return (
+          (title as TvResult | MovieResult | AlbumResult | BookResult)
+            .mediaInfo?.status !== MediaStatus.BLOCKLISTED
+        );
+      }),
+    [blocklistVisibility, items]
+  );
   const plexCards = useMemo(
     () =>
-      plexItems?.map((title, index) => (
-        <li key={`${title.ratingKey}-${index}`}>
-          {title.mediaType === 'music' && title.mbId ? (
+      plexItems?.flatMap((title, index) => {
+        const card =
+          title.mediaType === 'music' && title.mbId ? (
             <LibraryTitleCard
               id={title.mbId}
               type="album"
@@ -93,24 +106,18 @@ const ListView = ({
               canExpand
               mutateParent={mutateParent}
             />
-          ) : null}
-        </li>
-      )),
+          ) : null;
+
+        return card
+          ? [<li key={`${title.ratingKey}-${index}`}>{card}</li>]
+          : [];
+      }),
     [mutateParent, plexItems]
   );
   const itemCards = useMemo(
     () =>
-      items
-        ?.filter((title) => {
-          if (!blocklistVisibility)
-            return (
-              (title as TvResult | MovieResult | AlbumResult | BookResult)
-                .mediaInfo?.status !== MediaStatus.BLOCKLISTED
-            );
-          return title;
-        })
-        .map((title, index) => {
-          let titleCard: React.ReactNode;
+      visibleItems?.map((title, index) => {
+        let titleCard: React.ReactNode;
 
           switch (title.mediaType) {
             case 'movie':
@@ -246,16 +253,23 @@ const ListView = ({
               break;
           }
 
-          return <li key={`${title.id}-${index}`}>{titleCard}</li>;
-        }),
+        return <li key={`${title.id}-${index}`}>{titleCard}</li>;
+      }),
     [
-      blocklistVisibility,
-      items,
+      visibleItems,
       visibility.album,
       visibility.book,
       visibility.movie,
       visibility.tv,
     ]
+  );
+  const hasRenderableItems =
+    (plexCards?.length ?? 0) > 0 || (itemCards?.length ?? 0) > 0;
+  const effectiveIsEmpty =
+    isEmpty || (!isLoading && isReachingEnd && !hasRenderableItems);
+  useVerticalScroll(
+    onScrollBottom,
+    !isLoading && !effectiveIsEmpty && !isReachingEnd
   );
   const placeholderCards = useMemo(
     () =>
@@ -269,7 +283,7 @@ const ListView = ({
 
   return (
     <>
-      {isEmpty && (
+      {effectiveIsEmpty && (
         <div className="mt-64 w-full text-center text-2xl text-gray-400">
           {intl.formatMessage(globalMessages.noresults)}
         </div>
