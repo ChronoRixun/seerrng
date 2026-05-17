@@ -5,7 +5,10 @@ import { getSettings } from '@server/lib/settings';
 import type { Express } from 'express';
 import express from 'express';
 import request from 'supertest';
-import settingsRoutes from './settings';
+import settingsRoutes, {
+  deepLogValueStrings,
+  parseLogMessages,
+} from './settings';
 
 let app: Express;
 
@@ -338,6 +341,42 @@ describe('Settings route input validation', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /Filter must be valid/);
+  });
+
+  it('bounds and redacts parsed log records', () => {
+    const validLine = JSON.stringify({
+      timestamp: '2026-01-01T00:00:00.000Z',
+      level: 'error',
+      message: 'failed with token',
+      apiKey: 'super-secret',
+    });
+    const oversizedLine = JSON.stringify({
+      level: 'error',
+      message: 'x'.repeat(70 * 1024),
+    });
+    const malformedShape = JSON.stringify({
+      level: 'error',
+      message: { nested: 'not a string' },
+    });
+
+    const logs = parseLogMessages(
+      [validLine, oversizedLine, malformedShape, 'not-json'].join('\n'),
+      ['error']
+    );
+
+    assert.strictEqual(logs.length, 1);
+    assert.deepStrictEqual(logs[0].data, { apiKey: '[REDACTED]' });
+  });
+
+  it('bounds deep log search traversal', () => {
+    let nested: Record<string, unknown> = { value: 'too-deep' };
+    for (let i = 0; i < 20; i += 1) {
+      nested = { nested };
+    }
+
+    const values = deepLogValueStrings(nested, 8, 5);
+
+    assert.deepStrictEqual(values, []);
   });
 
   it('rejects malformed webhook notification bodies before persistence', async () => {

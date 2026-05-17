@@ -63,6 +63,9 @@ import sonarrRoutes from './sonarr';
 
 const settingsRoutes = Router();
 const MAX_LOG_READ_BYTES = 2 * 1024 * 1024;
+const MAX_LOG_LINE_BYTES = 64 * 1024;
+const MAX_LOG_SEARCH_DEPTH = 8;
+const MAX_LOG_SEARCH_VALUES = 500;
 const MAX_LOG_SEARCH_LENGTH = 200;
 const MAX_JOB_SCHEDULE_LENGTH = 100;
 const MAX_LIBRARY_ENABLE_QUERY_LENGTH = 4096;
@@ -451,6 +454,106 @@ const readLogTail = async (
   } finally {
     await handle.close();
   }
+};
+
+export const deepLogValueStrings = (
+  obj: Record<string, unknown>,
+  maxDepth = MAX_LOG_SEARCH_DEPTH,
+  maxValues = MAX_LOG_SEARCH_VALUES
+): string[] => {
+  const values: string[] = [];
+  const stack: { value: unknown; depth: number }[] = [{ value: obj, depth: 0 }];
+
+  while (stack.length && values.length < maxValues) {
+    const item = stack.pop();
+    if (!item) {
+      break;
+    }
+
+    const { value, depth } = item;
+
+    if (typeof value === 'string') {
+      values.push(value);
+      continue;
+    }
+
+    if (typeof value === 'number') {
+      values.push(value.toString());
+      continue;
+    }
+
+    if (!value || typeof value !== 'object' || depth >= maxDepth) {
+      continue;
+    }
+
+    for (const nestedValue of Object.values(value as Record<string, unknown>)) {
+      stack.push({ value: nestedValue, depth: depth + 1 });
+    }
+  }
+
+  return values;
+};
+
+export const parseLogMessages = (
+  logContent: string,
+  filter: string[],
+  searchRegexp?: RegExp
+): LogMessage[] => {
+  const logs: LogMessage[] = [];
+  const logMessageProperties = [
+    'timestamp',
+    'level',
+    'label',
+    'message',
+    'data',
+  ];
+
+  logContent.split('\n').forEach((line) => {
+    if (!line.length || Buffer.byteLength(line, 'utf8') > MAX_LOG_LINE_BYTES) {
+      return;
+    }
+
+    let logMessage: LogMessage & Record<string, unknown>;
+    try {
+      logMessage = JSON.parse(line);
+    } catch {
+      return;
+    }
+
+    if (
+      !filter.includes(logMessage.level) ||
+      typeof logMessage.message !== 'string'
+    ) {
+      return;
+    }
+
+    if (
+      !Object.keys(logMessage).every((key) => logMessageProperties.includes(key))
+    ) {
+      Object.keys(logMessage)
+        .filter((prop) => !logMessageProperties.includes(prop))
+        .forEach((prop) => {
+          set(logMessage, `data.${prop}`, logMessage[prop]);
+        });
+    }
+
+    if (searchRegexp) {
+      if (
+        // label and data are sometimes undefined
+        !searchRegexp.test(logMessage.label ?? '') &&
+        !searchRegexp.test(logMessage.message) &&
+        !deepLogValueStrings(logMessage.data ?? {}).some((val) =>
+          searchRegexp.test(val)
+        )
+      ) {
+        return;
+      }
+    }
+
+    logs.push(redactSecrets(logMessage));
+  });
+
+  return logs;
 };
 
 settingsRoutes.use('/notifications', notificationRoutes);
@@ -1093,7 +1196,9 @@ settingsRoutes.get(
       return next({ status: 400, message: parsedFilter.error });
     }
     const search = parsedSearch.value ?? '';
-    const searchRegexp = new RegExp(escapeRegExp(search), 'i');
+    const searchRegexp = search
+      ? new RegExp(escapeRegExp(search), 'i')
+      : undefined;
 
     let filter: string[] = [];
     switch (parsedFilter.value) {
@@ -1116,75 +1221,9 @@ settingsRoutes.get(
     const logFile = process.env.CONFIG_DIRECTORY
       ? `${process.env.CONFIG_DIRECTORY}/logs/.machinelogs.json`
       : path.join(__dirname, '../../../config/logs/.machinelogs.json');
-    const logs: LogMessage[] = [];
-    const logMessageProperties = [
-      'timestamp',
-      'level',
-      'label',
-      'message',
-      'data',
-    ];
-
-    const deepValueStrings = (obj: Record<string, unknown>): string[] => {
-      const values = [];
-
-      for (const val of Object.values(obj)) {
-        if (typeof val === 'string') {
-          values.push(val);
-        } else if (typeof val === 'number') {
-          values.push(val.toString());
-        } else if (val !== null && typeof val === 'object') {
-          values.push(...deepValueStrings(val as Record<string, unknown>));
-        }
-      }
-
-      return values;
-    };
-
     try {
       const logContent = await readLogTail(logFile);
-
-      logContent.split('\n').forEach((line) => {
-        if (!line.length) return;
-
-        let logMessage: LogMessage & Record<string, unknown>;
-        try {
-          logMessage = JSON.parse(line);
-        } catch {
-          return;
-        }
-
-        if (!filter.includes(logMessage.level)) {
-          return;
-        }
-
-        if (
-          !Object.keys(logMessage).every((key) =>
-            logMessageProperties.includes(key)
-          )
-        ) {
-          Object.keys(logMessage)
-            .filter((prop) => !logMessageProperties.includes(prop))
-            .forEach((prop) => {
-              set(logMessage, `data.${prop}`, logMessage[prop]);
-            });
-        }
-
-        if (search) {
-          if (
-            // label and data are sometimes undefined
-            !searchRegexp.test(logMessage.label ?? '') &&
-            !searchRegexp.test(logMessage.message) &&
-            !deepValueStrings(logMessage.data ?? {}).some((val) =>
-              searchRegexp.test(val)
-            )
-          ) {
-            return;
-          }
-        }
-
-        logs.push(redactSecrets(logMessage));
-      });
+      const logs = parseLogMessages(logContent, filter, searchRegexp);
 
       const displayedLogs = logs.reverse().slice(skip, skip + pageSize);
 
