@@ -221,7 +221,6 @@ jobs:
             BUILD_VERSION=${{ steps.channel.outputs.CHANNEL }}
             SOURCE_DATE_EPOCH=${{ steps.ts.outputs.TIMESTAMP }}
           cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
           provenance: false
 
   publish:
@@ -291,7 +290,6 @@ jobs:
           cache-from: |
             type=gha,scope=linux/amd64
             type=gha,scope=linux/arm64
-          cache-to: type=gha,mode=max
           provenance: false
 
   deploy-main:
