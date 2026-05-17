@@ -16,6 +16,7 @@ import express from 'express';
 import session from 'express-session';
 import request from 'supertest';
 import authRoutes from './auth';
+import issueCommentRoutes from './issueComment';
 import issueRoutes from './issue';
 
 let app: Express;
@@ -33,6 +34,7 @@ function createApp() {
   app.use(checkUser);
   app.use('/auth', authRoutes);
   app.use('/issue', issueRoutes);
+  app.use('/issueComment', issueCommentRoutes);
   app.use(
     (
       err: { status?: number; message?: string },
@@ -135,6 +137,14 @@ describe('Issue route validation', () => {
     assert.match(res.body.message, /Media ID must be a valid ID/);
   });
 
+  it('rejects malformed issue create bodies before validation', async () => {
+    const agent = await login();
+    const res = await agent.post('/issue').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Issue body must be an object/);
+  });
+
   it('rejects invalid issue types before persistence', async () => {
     const agent = await login();
     const res = await agent.post('/issue').send({
@@ -174,6 +184,27 @@ describe('Issue route validation', () => {
       .send({ message: 'still broken' });
 
     assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects malformed issue comment bodies before lookup', async () => {
+    const issue = await createIssue();
+
+    const agent = await login();
+    const res = await agent.post(`/issue/${issue.id}/comment`).send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Issue body must be an object/);
+  });
+
+  it('rejects malformed issue comment edit bodies before lookup', async () => {
+    const issue = await createIssue();
+    const comment = issue.comments[0];
+
+    const agent = await login();
+    const res = await agent.put(`/issueComment/${comment.id}`).send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Issue comment body must be an object/);
   });
 
   it('rejects malformed issue status IDs before lookup', async () => {

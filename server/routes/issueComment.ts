@@ -22,6 +22,16 @@ const parseIssueCommentId = (id: unknown): number | undefined => {
   return parsed && parsed > 0 ? parsed : undefined;
 };
 
+const parseIssueCommentBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Issue comment body must be an object.' };
+  }
+
+  return { value: body as Record<string, unknown> };
+};
+
 issueCommentRoutes.get<{ commentId: string }, IssueComment>(
   '/:commentId',
   isAuthenticated(
@@ -82,7 +92,11 @@ issueCommentRoutes.put<
   }),
   async (req, res, next) => {
     const issueCommentRepository = getRepository(IssueComment);
-    const parsedMessage = parseBoundedString(req.body.message, {
+    const parsedBody = parseIssueCommentBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+    const parsedMessage = parseBoundedString(parsedBody.value.message, {
       fieldName: 'Comment message',
       maxLength: MAX_ISSUE_MESSAGE_LENGTH,
     });

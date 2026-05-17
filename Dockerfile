@@ -6,9 +6,11 @@ ENV TARGETPLATFORM=${TARGETPLATFORM:-linux/amd64}
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ENV npm_config_nodedir="/usr/local"
-RUN corepack enable
 RUN apk add --no-cache python3 py3-setuptools make g++ gcc libc6-compat bash && \
-  npm install --global node-gyp
+  npm config set fetch-retries 5 && \
+  npm config set fetch-retry-mintimeout 20000 && \
+  npm config set fetch-retry-maxtimeout 120000 && \
+  npm install --global node-gyp pnpm@10.24.0
 
 COPY . ./app
 WORKDIR /app

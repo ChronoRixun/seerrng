@@ -65,6 +65,16 @@ const parseIssueBodyType = (value: unknown) => {
     : { error: 'Issue type must be valid.' };
 };
 
+const parseIssueBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Issue body must be an object.' };
+  }
+
+  return { value: body as Record<string, unknown> };
+};
+
 issueRoutes.get<
   Record<string, string>,
   IssueResultsResponse | { status: number; message: string }
@@ -195,7 +205,12 @@ issueRoutes.post<
 
     const issueRepository = getRepository(Issue);
     const mediaRepository = getRepository(Media);
-    const parsedMessage = parseBoundedString(req.body.message, {
+    const parsedBody = parseIssueBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+    const body = parsedBody.value;
+    const parsedMessage = parseBoundedString(body.message, {
       fieldName: 'Issue message',
       maxLength: MAX_ISSUE_MESSAGE_LENGTH,
     });
@@ -203,23 +218,23 @@ issueRoutes.post<
     if ('error' in parsedMessage) {
       return next({ status: 400, message: parsedMessage.error });
     }
-    const mediaId = parseIssueBodyId(req.body.mediaId, 'Media ID');
+    const mediaId = parseIssueBodyId(body.mediaId, 'Media ID');
     if ('error' in mediaId) {
       return next({ status: 400, message: mediaId.error });
     }
-    const issueType = parseIssueBodyType(req.body.issueType);
+    const issueType = parseIssueBodyType(body.issueType);
     if ('error' in issueType) {
       return next({ status: 400, message: issueType.error });
     }
     const problemSeason = parseIssueBodyOptionalIndex(
-      req.body.problemSeason,
+      body.problemSeason,
       'Problem season'
     );
     if ('error' in problemSeason) {
       return next({ status: 400, message: problemSeason.error });
     }
     const problemEpisode = parseIssueBodyOptionalIndex(
-      req.body.problemEpisode,
+      body.problemEpisode,
       'Problem episode'
     );
     if ('error' in problemEpisode) {
@@ -395,7 +410,11 @@ issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
       return next({ status: 404, message: 'Issue not found.' });
     }
 
-    const parsedMessage = parseBoundedString(req.body.message, {
+    const parsedBody = parseIssueBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+    const parsedMessage = parseBoundedString(parsedBody.value.message, {
       fieldName: 'Comment message',
       maxLength: MAX_ISSUE_MESSAGE_LENGTH,
     });
