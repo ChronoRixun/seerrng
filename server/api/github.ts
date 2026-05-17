@@ -2,6 +2,8 @@ import cacheManager from '@server/lib/cache';
 import logger from '@server/logger';
 import ExternalAPI from './externalapi';
 
+const SEERR_REPO = '/repos/snapetech/seerrng';
+
 interface GitHubRelease {
   url: string;
   assets_url: string;
@@ -83,7 +85,7 @@ class GithubAPI extends ExternalAPI {
   } = {}): Promise<GitHubRelease[]> {
     try {
       const data = await this.get<GitHubRelease[]>(
-        '/repos/seerr-team/seerr/releases',
+        `${SEERR_REPO}/releases`,
         {
           params: {
             per_page: take,
@@ -110,7 +112,7 @@ class GithubAPI extends ExternalAPI {
   } = {}): Promise<GithubCommit[]> {
     try {
       const data = await this.get<GithubCommit[]>(
-        '/repos/seerr-team/seerr/commits',
+        `${SEERR_REPO}/commits`,
         {
           params: {
             per_page: take,

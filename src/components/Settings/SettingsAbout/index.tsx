@@ -82,8 +82,10 @@ const SettingsAbout = () => {
                 <a
                   href={
                     data.version.startsWith('develop-')
-                      ? `https://github.com/seerr-team/seerr/compare/${status.commitTag}...develop`
-                      : 'https://github.com/seerr-team/seerr/releases'
+                      ? `https://github.com/snapetech/seerrng/compare/${status.commitTag}...develop`
+                      : data.version.startsWith('main-')
+                        ? `https://github.com/snapetech/seerrng/compare/${status.commitTag}...main`
+                      : 'https://github.com/snapetech/seerrng/releases'
                   }
                   target="_blank"
                   rel="noopener noreferrer"
@@ -99,8 +101,10 @@ const SettingsAbout = () => {
                 <a
                   href={
                     data.version.startsWith('develop-')
-                      ? 'https://github.com/seerr-team/seerr/commits/develop'
-                      : 'https://github.com/seerr-team/seerr/releases'
+                      ? 'https://github.com/snapetech/seerrng/commits/develop'
+                      : data.version.startsWith('main-')
+                        ? 'https://github.com/snapetech/seerrng/commits/main'
+                      : 'https://github.com/snapetech/seerrng/releases'
                   }
                   target="_blank"
                   rel="noopener noreferrer"

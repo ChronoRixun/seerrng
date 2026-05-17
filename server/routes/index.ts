@@ -98,8 +98,12 @@ router.get<Record<string, never>, StatusResponse>(
     let updateAvailable = false;
     let commitsBehind = 0;
 
-    if (currentVersion.startsWith('develop-') && commitTag !== 'local') {
-      const commits = await githubApi.getSeerrCommits();
+    const branchMatch = currentVersion.match(/^(main|develop)-/);
+
+    if (branchMatch && commitTag !== 'local') {
+      const commits = await githubApi.getSeerrCommits({
+        branch: branchMatch[1],
+      });
 
       if (commits.length) {
         const filteredCommits = commits.filter(
