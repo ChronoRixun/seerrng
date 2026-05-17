@@ -29,6 +29,17 @@ const MAX_ISSUE_ROUTE_ID = 1_000_000_000;
 const issueSortFields = ['modified'] as const;
 const issueStatusFilters = ['open', 'resolved'] as const;
 
+const parseIssueStatusAction = (status: unknown): IssueStatus | undefined => {
+  switch (status) {
+    case 'resolved':
+      return IssueStatus.RESOLVED;
+    case 'open':
+      return IssueStatus.OPEN;
+    default:
+      return undefined;
+  }
+};
+
 const parseIssueBodyId = (value: unknown, fieldName: string) => {
   const parsed = parseOptionalNonNegativeInteger(value, MAX_ISSUE_ROUTE_ID);
   return parsed && parsed > 0
@@ -332,6 +343,13 @@ issueRoutes.get<{ issueId: string }>(
     if (!issueId) {
       return next({ status: 404, message: 'Issue not found.' });
     }
+    const newStatus = parseIssueStatusAction(req.params.status);
+    if (!newStatus) {
+      return next({
+        status: 400,
+        message: 'You must provide a valid status',
+      });
+    }
 
     // Satisfy typescript here. User is set, we assure you!
     if (!req.user) {
@@ -463,23 +481,6 @@ issueRoutes.post<{ issueId: string; status: string }, Issue>(
         return next({
           status: 401,
           message: 'You do not have permission to modify this issue.',
-        });
-      }
-
-      let newStatus: IssueStatus | undefined;
-
-      switch (req.params.status) {
-        case 'resolved':
-          newStatus = IssueStatus.RESOLVED;
-          break;
-        case 'open':
-          newStatus = IssueStatus.OPEN;
-      }
-
-      if (!newStatus) {
-        return next({
-          status: 400,
-          message: 'You must provide a valid status',
         });
       }
 
