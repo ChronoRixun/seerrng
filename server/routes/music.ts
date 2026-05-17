@@ -10,6 +10,8 @@ import MetadataArtist from '@server/entity/MetadataArtist';
 import { Watchlist } from '@server/entity/Watchlist';
 import logger from '@server/logger';
 import { mapMusicDetails } from '@server/models/Music';
+import { filterEntityResponse } from '@server/utils/entityResponse';
+import { parsePositiveInt } from '@server/utils/pagination';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
@@ -157,7 +159,7 @@ musicRoutes.get('/:id', async (req, res, next) => {
     const finalTrackArtistMetadata =
       updatedArtistMetadata || resolvedTrackArtistMetadata;
 
-    return res.status(200).json({
+    return res.status(200).json(filterEntityResponse({
       ...mappedDetails,
       posterPath: resolvedMetadataAlbum?.caaUrl ?? null,
       needsCoverArt: !resolvedMetadataAlbum?.caaUrl,
@@ -191,7 +193,7 @@ musicRoutes.get('/:id', async (req, res, next) => {
           };
         }),
       })),
-    });
+    }));
   } catch (e) {
     logger.error('Something went wrong retrieving album details', {
       label: 'Music API',
@@ -284,8 +286,8 @@ musicRoutes.get('/:id/artist-discography', async (req, res, next) => {
     const listenbrainzApi = new ListenBrainzAPI();
     const metadataAlbumRepository = getRepository(MetadataAlbum);
 
-    const page = Number(req.query.page) || 1;
-    const pageSize = Number(req.query.pageSize) || 20;
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.pageSize, 20, 50);
     const isSlider = req.query.slider === 'true';
 
     const albumData = await listenbrainzApi.getAlbum(req.params.id);
@@ -381,8 +383,8 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
     const theAudioDb = new TheAudioDb();
     const metadataArtistRepository = getRepository(MetadataArtist);
 
-    const page = Number(req.query.page) || 1;
-    const pageSize = Number(req.query.pageSize) || 20;
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.pageSize, 20, 50);
 
     const albumData = await listenbrainzApi.getAlbum(req.params.id);
     const artistData = albumData?.release_group_metadata?.artist?.artists?.[0];

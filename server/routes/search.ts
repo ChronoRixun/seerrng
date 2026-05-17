@@ -18,6 +18,7 @@ import {
 import logger from '@server/logger';
 import { mapOpenLibrarySearchDoc } from '@server/models/Book';
 import { mapSearchResults } from '@server/models/Search';
+import { parsePositiveInt } from '@server/utils/pagination';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
@@ -25,7 +26,7 @@ const searchRoutes = Router();
 
 searchRoutes.get('/', async (req, res, next) => {
   const queryString = req.query.query as string;
-  const page = Number(req.query.page) || 1;
+  const page = parsePositiveInt(req.query.page, 1, 500);
   const language = (req.query.language as string) ?? req.locale;
 
   try {
@@ -414,7 +415,7 @@ searchRoutes.get('/keyword', async (req, res, next) => {
   try {
     const results = await tmdb.searchKeyword({
       query: req.query.query as string,
-      page: Number(req.query.page),
+      page: parsePositiveInt(req.query.page, 1, 500),
     });
 
     return res.status(200).json(results);
@@ -437,7 +438,7 @@ searchRoutes.get('/company', async (req, res, next) => {
   try {
     const results = await tmdb.searchCompany({
       query: req.query.query as string,
-      page: Number(req.query.page),
+      page: parsePositiveInt(req.query.page, 1, 500),
     });
 
     return res.status(200).json(results);

@@ -3,6 +3,7 @@ import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 import { getSettings, type DVRSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { buildServiceUrl } from '@server/utils/serviceUrl';
 
 export interface SystemStatus {
   version: string;
@@ -85,9 +86,13 @@ const EXTERNAL_READ_ONLY =
 
 class ServarrBase<QueueItemAppendT> extends ExternalAPI {
   static buildUrl(settings: DVRSettings, path?: string): string {
-    return `${settings.useSsl ? 'https' : 'http'}://${settings.hostname}:${
-      settings.port
-    }${settings.baseUrl ?? ''}${path}`;
+    return buildServiceUrl({
+      useSsl: settings.useSsl,
+      hostname: settings.hostname,
+      port: settings.port,
+      urlBase: settings.baseUrl,
+      path,
+    });
   }
 
   protected apiName: string;

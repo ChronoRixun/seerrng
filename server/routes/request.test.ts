@@ -250,7 +250,7 @@ describe('GET /request/count', () => {
       { status: MediaRequestStatus.APPROVED }
     );
 
-    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
     const res = await agent.get('/request/count');
 
     assert.strictEqual(res.status, 200);
@@ -274,7 +274,7 @@ describe('DELETE /request/:requestId', () => {
   it('allows an admin to delete any pending request', async () => {
     const mediaRequest = await seedRequest();
 
-    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
     const res = await agent.delete(`/request/${mediaRequest.id}`);
 
     assert.strictEqual(res.status, 204);
@@ -565,7 +565,7 @@ describe('POST /request', () => {
     assert.strictEqual(res.body.profileId, 20);
     assert.strictEqual(res.body.metadataProfileId, 30);
     assert.strictEqual(res.body.rootFolder, '/music');
-    assert.deepStrictEqual(res.body.tags, [1, 2]);
+    assert.deepStrictEqual(res.body.tags, []);
 
     const savedMedia = await getRepository(Media).findOneOrFail({
       where: { mbId: 'release-group-id', mediaType: MediaType.MUSIC },
@@ -593,7 +593,7 @@ describe('POST /request', () => {
     );
     t.after(() => getAlbumMock.mock.restore());
 
-    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/request').send({
       mediaType: MediaType.MUSIC,
       mediaId: 'listenbrainz-release-id',
@@ -622,7 +622,7 @@ describe('POST /request', () => {
     );
     t.after(() => getAlbumMock.mock.restore());
 
-    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/request').send({
       mediaType: MediaType.MUSIC,
       mediaId: 'listenbrainz-release-id',
@@ -710,7 +710,7 @@ describe('POST /request', () => {
     assert.strictEqual(res.body.profileId, 22);
     assert.strictEqual(res.body.metadataProfileId, 33);
     assert.strictEqual(res.body.rootFolder, '/books');
-    assert.deepStrictEqual(res.body.tags, [4, 5]);
+    assert.deepStrictEqual(res.body.tags, []);
 
     const savedMedia = await getRepository(Media).findOneOrFail({
       where: { id: res.body.media.id },
@@ -801,7 +801,7 @@ describe('POST /request', () => {
       settings.readarr = [];
     });
 
-    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/request').send({
       mediaType: MediaType.BOOK,
       mediaId: '/works/OL45804W',
@@ -843,7 +843,7 @@ describe('POST /request', () => {
       getWorkEditionsMock.mock.restore();
     });
 
-    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/request').send({
       mediaType: MediaType.BOOK,
       mediaId: '/works/OL45804W',
@@ -1665,7 +1665,8 @@ describe('POST /request/:requestId/:status', () => {
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.body.status, expected);
-      assert.strictEqual(res.body.modifiedBy.email, 'admin@seerr.dev');
+      assert.strictEqual(res.body.modifiedBy.id, 1);
+      assert.strictEqual(res.body.modifiedBy.email, undefined);
 
       const persisted = await repo.findOneOrFail({
         where: { id: pending.id },
@@ -1810,7 +1811,8 @@ describe('POST /request/:requestId/retry', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, MediaRequestStatus.APPROVED);
-    assert.strictEqual(res.body.modifiedBy.email, 'admin@seerr.dev');
+    assert.strictEqual(res.body.modifiedBy.id, 1);
+    assert.strictEqual(res.body.modifiedBy.email, undefined);
 
     const persisted = await repo.findOneOrFail({
       where: { id: failed.id },

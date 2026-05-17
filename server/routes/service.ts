@@ -7,26 +7,61 @@ import type {
   ServiceCommonServer,
   ServiceCommonServerWithDetails,
 } from '@server/interfaces/api/serviceInterfaces';
+import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { Router } from 'express';
+import { isAuthenticated } from '@server/middleware/auth';
+import { Router, type Request } from 'express';
 
 const serviceRoutes = Router();
 
+const SERVICE_DETAILS_PERMISSIONS = [
+  Permission.REQUEST_ADVANCED,
+  Permission.MANAGE_REQUESTS,
+  Permission.REQUEST_VIEW,
+];
+
+const canViewOperationalServiceDetails = (req: Request) =>
+  req.user?.hasPermission(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }) ??
+  false;
+
+const filterServiceServer = (
+  server: ServiceCommonServer,
+  includeOperationalDetails: boolean
+): ServiceCommonServer => {
+  if (includeOperationalDetails) {
+    return server;
+  }
+
+  return {
+    id: server.id,
+    name: server.name,
+    is4k: server.is4k,
+    isAlt: server.isAlt,
+    isDefault: server.isDefault,
+    serviceType: server.serviceType,
+  };
+};
+
 serviceRoutes.get('/radarr', async (req, res) => {
   const settings = getSettings();
+  const includeOperationalDetails = canViewOperationalServiceDetails(req);
 
   const filteredRadarrServers: ServiceCommonServer[] = settings.radarr.map(
-    (radarr) => ({
-      id: radarr.id,
-      name: radarr.name,
-      is4k: radarr.is4k,
-      isAlt: radarr.is4k,
-      isDefault: radarr.isDefault,
-      activeDirectory: radarr.activeDirectory,
-      activeProfileId: radarr.activeProfileId,
-      activeTags: radarr.tags ?? [],
-    })
+    (radarr) =>
+      filterServiceServer(
+        {
+          id: radarr.id,
+          name: radarr.name,
+          is4k: radarr.is4k,
+          isAlt: radarr.is4k,
+          isDefault: radarr.isDefault,
+          activeDirectory: radarr.activeDirectory,
+          activeProfileId: radarr.activeProfileId,
+          activeTags: radarr.tags ?? [],
+        },
+        includeOperationalDetails
+      )
   );
 
   return res.status(200).json(filteredRadarrServers);
@@ -34,6 +69,7 @@ serviceRoutes.get('/radarr', async (req, res) => {
 
 serviceRoutes.get<{ radarrId: string }>(
   '/radarr/:radarrId',
+  isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
 
@@ -85,22 +121,27 @@ serviceRoutes.get<{ radarrId: string }>(
 
 serviceRoutes.get('/sonarr', async (req, res) => {
   const settings = getSettings();
+  const includeOperationalDetails = canViewOperationalServiceDetails(req);
 
   const filteredSonarrServers: ServiceCommonServer[] = settings.sonarr.map(
-    (sonarr) => ({
-      id: sonarr.id,
-      name: sonarr.name,
-      is4k: sonarr.is4k,
-      isAlt: sonarr.is4k,
-      isDefault: sonarr.isDefault,
-      activeDirectory: sonarr.activeDirectory,
-      activeProfileId: sonarr.activeProfileId,
-      activeAnimeProfileId: sonarr.activeAnimeProfileId,
-      activeAnimeDirectory: sonarr.activeAnimeDirectory,
-      activeLanguageProfileId: sonarr.activeLanguageProfileId,
-      activeAnimeLanguageProfileId: sonarr.activeAnimeLanguageProfileId,
-      activeTags: [],
-    })
+    (sonarr) =>
+      filterServiceServer(
+        {
+          id: sonarr.id,
+          name: sonarr.name,
+          is4k: sonarr.is4k,
+          isAlt: sonarr.is4k,
+          isDefault: sonarr.isDefault,
+          activeDirectory: sonarr.activeDirectory,
+          activeProfileId: sonarr.activeProfileId,
+          activeAnimeProfileId: sonarr.activeAnimeProfileId,
+          activeAnimeDirectory: sonarr.activeAnimeDirectory,
+          activeLanguageProfileId: sonarr.activeLanguageProfileId,
+          activeAnimeLanguageProfileId: sonarr.activeAnimeLanguageProfileId,
+          activeTags: [],
+        },
+        includeOperationalDetails
+      )
   );
 
   return res.status(200).json(filteredSonarrServers);
@@ -108,6 +149,7 @@ serviceRoutes.get('/sonarr', async (req, res) => {
 
 serviceRoutes.get<{ sonarrId: string }>(
   '/sonarr/:sonarrId',
+  isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
 
@@ -175,18 +217,23 @@ serviceRoutes.get<{ sonarrId: string }>(
 
 serviceRoutes.get('/lidarr', async (_req, res) => {
   const settings = getSettings();
+  const includeOperationalDetails = canViewOperationalServiceDetails(_req);
 
   const filteredLidarrServers: ServiceCommonServer[] = settings.lidarr.map(
-    (lidarr) => ({
-      id: lidarr.id,
-      name: lidarr.name,
-      is4k: lidarr.is4k,
-      isDefault: lidarr.isDefault,
-      activeDirectory: lidarr.activeDirectory,
-      activeProfileId: lidarr.activeProfileId,
-      activeMetadataProfileId: lidarr.activeMetadataProfileId,
-      activeTags: lidarr.tags ?? [],
-    })
+    (lidarr) =>
+      filterServiceServer(
+        {
+          id: lidarr.id,
+          name: lidarr.name,
+          is4k: lidarr.is4k,
+          isDefault: lidarr.isDefault,
+          activeDirectory: lidarr.activeDirectory,
+          activeProfileId: lidarr.activeProfileId,
+          activeMetadataProfileId: lidarr.activeMetadataProfileId,
+          activeTags: lidarr.tags ?? [],
+        },
+        includeOperationalDetails
+      )
   );
 
   return res.status(200).json(filteredLidarrServers);
@@ -194,19 +241,24 @@ serviceRoutes.get('/lidarr', async (_req, res) => {
 
 serviceRoutes.get('/readarr', async (_req, res) => {
   const settings = getSettings();
+  const includeOperationalDetails = canViewOperationalServiceDetails(_req);
 
   const filteredReadarrServers: ServiceCommonServer[] = settings.readarr.map(
-    (readarr) => ({
-      id: readarr.id,
-      name: readarr.name,
-      is4k: readarr.is4k,
-      isDefault: readarr.isDefault,
-      activeDirectory: readarr.activeDirectory,
-      activeProfileId: readarr.activeProfileId,
-      activeMetadataProfileId: readarr.activeMetadataProfileId,
-      activeTags: readarr.tags ?? [],
-      serviceType: readarr.serviceType ?? 'ebook',
-    })
+    (readarr) =>
+      filterServiceServer(
+        {
+          id: readarr.id,
+          name: readarr.name,
+          is4k: readarr.is4k,
+          isDefault: readarr.isDefault,
+          activeDirectory: readarr.activeDirectory,
+          activeProfileId: readarr.activeProfileId,
+          activeMetadataProfileId: readarr.activeMetadataProfileId,
+          activeTags: readarr.tags ?? [],
+          serviceType: readarr.serviceType ?? 'ebook',
+        },
+        includeOperationalDetails
+      )
   );
 
   return res.status(200).json(filteredReadarrServers);
@@ -214,6 +266,7 @@ serviceRoutes.get('/readarr', async (_req, res) => {
 
 serviceRoutes.get<{ readarrId: string }>(
   '/readarr/:readarrId',
+  isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
 
@@ -275,6 +328,7 @@ serviceRoutes.get<{ readarrId: string }>(
 
 serviceRoutes.get<{ lidarrId: string }>(
   '/lidarr/:lidarrId',
+  isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
 

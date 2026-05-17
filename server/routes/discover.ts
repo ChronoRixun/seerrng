@@ -9,7 +9,13 @@ import type { OpenLibrarySearchDoc } from '@server/api/openlibrary';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb, { SortOptionsIterable } from '@server/api/themoviedb';
-import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
+import type {
+  TmdbCollectionResult,
+  TmdbKeyword,
+  TmdbMovieResult,
+  TmdbPersonResult,
+  TmdbTvResult,
+} from '@server/api/themoviedb/interfaces';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import type MediaEntity from '@server/entity/Media';
@@ -43,6 +49,7 @@ import {
   mapTvResult,
 } from '@server/models/Search';
 import { mapNetwork } from '@server/models/Tv';
+import { parsePositiveInt } from '@server/utils/pagination';
 import { isCollection, isMovie, isPerson } from '@server/utils/typeHelpers';
 import type { Response } from 'express';
 import { Router } from 'express';
@@ -417,7 +424,7 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     const excludeKeywords = query.excludeKeywords;
 
     const data = await tmdb.getDiscoverMovies({
-      page: Number(query.page),
+      page: parsePositiveInt(query.page, 1, 500),
       sortBy: getValidatedTmdbSort(query.sortBy),
       language: req.locale ?? query.language,
       originalLanguage: query.language,
@@ -515,7 +522,7 @@ discoverRoutes.get<{ language: string }>(
       }
 
       const data = await tmdb.getDiscoverMovies({
-        page: Number(req.query.page),
+        page: parsePositiveInt(req.query.page, 1, 500),
         language: (req.query.language as string) ?? req.locale,
         originalLanguage: req.params.language,
       });
@@ -577,7 +584,7 @@ discoverRoutes.get<{ genreId: string }>(
       }
 
       const data = await tmdb.getDiscoverMovies({
-        page: Number(req.query.page),
+        page: parsePositiveInt(req.query.page, 1, 500),
         language: (req.query.language as string) ?? req.locale,
         genre: req.params.genreId as string,
       });
@@ -629,7 +636,7 @@ discoverRoutes.get<{ studioId: string }>(
       const studio = await tmdb.getStudio(Number(req.params.studioId));
 
       const data = await tmdb.getDiscoverMovies({
-        page: Number(req.query.page),
+        page: parsePositiveInt(req.query.page, 1, 500),
         language: (req.query.language as string) ?? req.locale,
         studio: req.params.studioId as string,
       });
@@ -683,7 +690,7 @@ discoverRoutes.get('/movies/upcoming', async (req, res, next) => {
 
   try {
     const data = await tmdb.getDiscoverMovies({
-      page: Number(req.query.page),
+      page: parsePositiveInt(req.query.page, 1, 500),
       language: (req.query.language as string) ?? req.locale,
       primaryReleaseDateGte: date,
     });
@@ -730,7 +737,7 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     const keywords = query.keywords;
     const excludeKeywords = query.excludeKeywords;
     const data = await tmdb.getDiscoverTv({
-      page: Number(query.page),
+      page: parsePositiveInt(query.page, 1, 500),
       sortBy: getValidatedTmdbSort(query.sortBy),
       language: req.locale ?? query.language,
       genre: query.genre,
@@ -828,7 +835,7 @@ discoverRoutes.get<{ language: string }>(
       }
 
       const data = await tmdb.getDiscoverTv({
-        page: Number(req.query.page),
+        page: parsePositiveInt(req.query.page, 1, 500),
         language: (req.query.language as string) ?? req.locale,
         originalLanguage: req.params.language,
       });
@@ -890,7 +897,7 @@ discoverRoutes.get<{ genreId: string }>(
       }
 
       const data = await tmdb.getDiscoverTv({
-        page: Number(req.query.page),
+        page: parsePositiveInt(req.query.page, 1, 500),
         language: (req.query.language as string) ?? req.locale,
         genre: req.params.genreId,
       });
@@ -942,7 +949,7 @@ discoverRoutes.get<{ networkId: string }>(
       const network = await tmdb.getNetwork(Number(req.params.networkId));
 
       const data = await tmdb.getDiscoverTv({
-        page: Number(req.query.page),
+        page: parsePositiveInt(req.query.page, 1, 500),
         language: (req.query.language as string) ?? req.locale,
         network: Number(req.params.networkId),
       });
@@ -996,7 +1003,7 @@ discoverRoutes.get('/tv/upcoming', async (req, res, next) => {
 
   try {
     const data = await tmdb.getDiscoverTv({
-      page: Number(req.query.page),
+      page: parsePositiveInt(req.query.page, 1, 500),
       language: (req.query.language as string) ?? req.locale,
       firstAirDateGte: date,
     });
@@ -1042,7 +1049,7 @@ discoverRoutes.get('/trending', async (req, res, next) => {
     const timeWindow =
       (req.query.timeWindow as 'day' | 'week') === 'week' ? 'week' : 'day';
     const language = (req.query.language as string) ?? req.locale;
-    const page = Number(req.query.page);
+    const page = parsePositiveInt(req.query.page, 1, 500);
 
     const trendingFetchers = {
       movie: async () => ({
@@ -1057,7 +1064,14 @@ discoverRoutes.get('/trending', async (req, res, next) => {
       }),
       all: async () => ({
         data: await tmdb.getAllTrending({ page, language, timeWindow }),
-        mapper: (result: any, media?: Media) => {
+        mapper: (
+          result:
+            | TmdbMovieResult
+            | TmdbTvResult
+            | TmdbPersonResult
+            | TmdbCollectionResult,
+          media?: Media
+        ) => {
           if (isMovie(result)) {
             return mapMovieResult(result, media);
           } else if (isPerson(result)) {
@@ -1073,6 +1087,10 @@ discoverRoutes.get('/trending', async (req, res, next) => {
     } as const;
 
     const { data, mapper, type } = await trendingFetchers[mediaType]();
+    const mapTrendingResult = mapper as (
+      result: (typeof data.results)[number],
+      media?: Media
+    ) => unknown;
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -1094,7 +1112,7 @@ discoverRoutes.get('/trending', async (req, res, next) => {
             med.tmdbId === result.id && (type ? med.mediaType === type : true)
         );
 
-        return mapper(result, selectedMedia);
+        return mapTrendingResult(result, selectedMedia);
       }),
     });
   } catch (e) {
@@ -1117,7 +1135,7 @@ discoverRoutes.get<{ keywordId: string }>(
     try {
       const data = await tmdb.getMoviesByKeyword({
         keywordId: Number(req.params.keywordId),
-        page: Number(req.query.page),
+        page: parsePositiveInt(req.query.page, 1, 500),
         language: (req.query.language as string) ?? req.locale,
       });
       const rankedResults = rankTmdbMovieResults(data.results);
@@ -1252,8 +1270,8 @@ discoverRoutes.get('/music', async (req, res) => {
   const listenBrainz = new ListenBrainzAPI();
   const musicBrainz = new MusicBrainz();
   const itemsPerPage = 20;
-  const page = req.query.page ? Number(req.query.page) : 1;
-  const days = req.query.days ? Number(req.query.days) : 14;
+  const page = parsePositiveInt(req.query.page, 1, 500);
+  const days = parsePositiveInt(req.query.days, 14, 365);
   const hasCustomDays = typeof req.query.days === 'string';
   const sortByValue = getValidatedSort(req.query.sortBy, musicSortOptions);
   const sortAscending = sortByValue === 'release_date.asc';
@@ -1652,7 +1670,7 @@ discoverRoutes.get('/music', async (req, res) => {
 discoverRoutes.get('/books', async (req, res) => {
   const openLibrary = new OpenLibraryAPI();
   const itemsPerPage = 20;
-  const page = req.query.page ? Number(req.query.page) : 1;
+  const page = parsePositiveInt(req.query.page, 1, 500);
   const sortByValue = getValidatedSort(req.query.sortBy, bookSortOptions);
   const subjectQuery =
     typeof req.query.subject === 'string' ? req.query.subject.trim() : '';
@@ -1798,7 +1816,7 @@ discoverRoutes.get<Record<string, unknown>, WatchlistResponse>(
   async (req, res) => {
     const userRepository = getRepository(User);
     const itemsPerPage = 20;
-    const page = req.query.page ? Number(req.query.page) : 1;
+    const page = parsePositiveInt(req.query.page, 1, 500);
 
     const activeUser = await userRepository.findOne({
       where: { id: req.user?.id },

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
+import type { PermissionCheckOptions } from '@server/lib/permissions';
+import { Permission } from '@server/lib/permissions';
 import type { LidarrSettings, ReadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import type { Express } from 'express';
@@ -28,9 +30,26 @@ const baseServerSettings = {
   externalUrl: '',
 };
 
-function createApp() {
+function createApp(permissions = Permission.REQUEST_ADVANCED) {
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    req.user = {
+      hasPermission: (
+        requiredPermissions: Permission | Permission[],
+        options: PermissionCheckOptions = { type: 'and' }
+      ) => {
+        const values = Array.isArray(requiredPermissions)
+          ? requiredPermissions
+          : [requiredPermissions];
+
+        return options.type === 'or'
+          ? values.some((permission) => Boolean(permissions & permission))
+          : values.every((permission) => Boolean(permissions & permission));
+      },
+    } as any;
+    next();
+  });
   app.use('/service', serviceRoutes);
   app.use('/settings/lidarr', lidarrRoutes);
   app.use('/settings/readarr', readarrRoutes);
@@ -160,6 +179,33 @@ describe('Lidarr settings routes', () => {
         activeProfileId: 11,
         activeMetadataProfileId: 22,
         activeTags: [3, 5],
+      },
+    ]);
+  });
+
+  it('hides Lidarr operational details from users without service detail permissions', async () => {
+    getSettings().lidarr = [
+      makeLidarr({
+        id: 4,
+        name: 'Music Backend',
+        activeDirectory: '/music',
+        activeProfileId: 11,
+        activeMetadataProfileId: 22,
+        tags: [3, 5],
+      }),
+    ];
+
+    const res = await request(createApp(Permission.REQUEST)).get(
+      '/service/lidarr'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.body, [
+      {
+        id: 4,
+        name: 'Music Backend',
+        is4k: false,
+        isDefault: true,
       },
     ]);
   });
@@ -314,6 +360,34 @@ describe('Bookshelf settings routes', () => {
         activeProfileId: 12,
         activeMetadataProfileId: 23,
         activeTags: [8, 13],
+        serviceType: 'ebook',
+      },
+    ]);
+  });
+
+  it('hides Bookshelf operational details from users without service detail permissions', async () => {
+    getSettings().readarr = [
+      makeReadarr({
+        id: 7,
+        name: 'Books Backend',
+        activeDirectory: '/books',
+        activeProfileId: 12,
+        activeMetadataProfileId: 23,
+        tags: [8, 13],
+      }),
+    ];
+
+    const res = await request(createApp(Permission.REQUEST)).get(
+      '/service/readarr'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.body, [
+      {
+        id: 7,
+        name: 'Books Backend',
+        is4k: false,
+        isDefault: true,
         serviceType: 'ebook',
       },
     ]);

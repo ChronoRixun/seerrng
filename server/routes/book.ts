@@ -11,6 +11,7 @@ import {
   mapOpenLibrarySearchDoc,
   mapOpenLibraryWork,
 } from '@server/models/Book';
+import { parsePositiveInt } from '@server/utils/pagination';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
@@ -48,7 +49,7 @@ const findBookMediaByOpenLibraryIds = async (
 
 bookRoutes.get('/search', async (req, res, next) => {
   const query = req.query.query?.toString();
-  const page = Number(req.query.page) || 1;
+  const page = parsePositiveInt(req.query.page, 1, 500);
 
   if (!query) {
     return next({ status: 400, message: 'Missing query parameter.' });
