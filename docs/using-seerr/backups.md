@@ -11,6 +11,10 @@ sidebar_position: 4
 All configurations from the **Settings** panel in the Seerr web UI are saved, including integrations with Radarr, Sonarr, Jellyfin, Plex, and notification settings.  
 These settings are stored in the `settings.json` file located in the Seerr data folder.
 
+:::warning
+Do not use the live Seerr data folder as `CONFIG_DIRECTORY` for Cypress or other test-seeding commands. Cypress uses a test-only `settings.cypress.json` file that does not contain live automation service settings. In source installs, `pnpm cypress:prepare` and `pnpm cypress:start` default to `cypress/runtime-config` to keep test settings separate from live `settings.json`.
+:::
+
 ## User Data  
 
 Apart from the settings, all other data—including user accounts, media requests, blocklist etc. are stored in the database (either SQLite or PostgreSQL).
