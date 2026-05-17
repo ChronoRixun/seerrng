@@ -15,6 +15,7 @@ const MAX_WEBHOOK_PAYLOAD_DEPTH = 32;
 const MAX_WEBHOOK_PAYLOAD_NODES = 2_000;
 const MAX_WEBHOOK_CUSTOM_HEADERS = 20;
 const MAX_WEBHOOK_HEADER_VALUE_LENGTH = 4096;
+export const MAX_WEBHOOK_URL_LENGTH = 4096;
 const WEBHOOK_HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 type KeyMapFunction = (
@@ -248,6 +249,15 @@ class WebhookAgent
           encodeURIComponent(variableValue)
         );
       });
+    }
+
+    if (webhookUrl.length > MAX_WEBHOOK_URL_LENGTH) {
+      logger.error('Rendered webhook notification URL is too large', {
+        label: 'Notifications',
+        type: Notification[type],
+        subject: payload.subject,
+      });
+      return false;
     }
 
     if (

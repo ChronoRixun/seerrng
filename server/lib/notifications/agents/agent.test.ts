@@ -4,7 +4,7 @@ import { afterEach, describe, it, mock } from 'node:test';
 import { Notification } from '@server/lib/notifications';
 import axios from 'axios';
 import { NOTIFICATION_HTTP_OPTIONS } from './agent';
-import WebhookAgent from './webhook';
+import WebhookAgent, { MAX_WEBHOOK_URL_LENGTH } from './webhook';
 
 afterEach(() => {
   mock.restoreAll();
@@ -20,6 +20,35 @@ describe('NOTIFICATION_HTTP_OPTIONS', () => {
 });
 
 describe('WebhookAgent', () => {
+  it('rejects oversized rendered webhook URLs before sending', async () => {
+    process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS = 'true';
+    const postMock = mock.method(axios, 'post', async () => ({ data: {} }));
+
+    const agent = new WebhookAgent({
+      enabled: true,
+      embedPoster: false,
+      types: Notification.MEDIA_AVAILABLE,
+      options: {
+        webhookUrl: 'http://127.0.0.1/webhook?subject={{subject}}',
+        jsonPayload: Buffer.from(JSON.stringify(JSON.stringify({}))).toString(
+          'base64'
+        ),
+        customHeaders: [],
+        supportVariables: true,
+      },
+    });
+
+    const sent = await agent.send(Notification.MEDIA_AVAILABLE, {
+      notifySystem: true,
+      notifyAdmin: false,
+      subject: 'x'.repeat(MAX_WEBHOOK_URL_LENGTH),
+      message: 'message',
+    });
+
+    assert.equal(sent, false);
+    assert.equal(postMock.mock.callCount(), 0);
+  });
+
   it('rejects deeply nested payload templates before sending', async () => {
     process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS = 'true';
     const postMock = mock.method(axios, 'post', async () => ({ data: {} }));
