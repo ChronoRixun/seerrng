@@ -7,14 +7,14 @@ export interface ServiceCommonServer {
   is4k: boolean;
   isAlt?: boolean;
   isDefault: boolean;
-  activeProfileId: number;
+  activeProfileId?: number;
   activeMetadataProfileId?: number;
-  activeDirectory: string;
+  activeDirectory?: string;
   activeLanguageProfileId?: number;
   activeAnimeProfileId?: number;
   activeAnimeDirectory?: string;
   activeAnimeLanguageProfileId?: number;
-  activeTags: number[];
+  activeTags?: number[];
   activeAnimeTags?: number[];
   serviceType?: 'ebook' | 'audiobook';
 }
