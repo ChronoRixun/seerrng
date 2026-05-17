@@ -7,10 +7,12 @@ import useCardTextVisibility from '@app/hooks/useCardTextVisibility';
 import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
 import useWarmImageCache from '@app/hooks/useWarmImageCache';
-import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon,
+  ArrowRightCircleIcon,
+} from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
 import { Permission } from '@server/lib/permissions';
-import { appendDiscoverQueryString } from '@server/utils/discoverQuery';
 import type {
   AlbumResult,
   ArtistResult,
@@ -19,6 +21,7 @@ import type {
   PersonResult,
   TvResult,
 } from '@server/models/Search';
+import { appendDiscoverQueryString } from '@server/utils/discoverQuery';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useInView } from 'react-intersection-observer';
@@ -78,7 +81,9 @@ const MediaSlider = ({
     triggerOnce: true,
   });
   const shouldLoad = isEditingSafe() || inView;
-  const [shuffleSeed] = useState(() => Math.random().toString(36).slice(2));
+  const [shuffleSeed, setShuffleSeed] = useState(() =>
+    Math.random().toString(36).slice(2)
+  );
   const getKey = useCallback(
     (pageIndex: number, previousPageData: MixedResult | null) => {
       if (!shouldLoad) {
@@ -106,6 +111,17 @@ const MediaSlider = ({
     dedupingInterval: 30000,
     revalidateOnFocus: false,
   });
+
+  const refreshRandomizedOrder = useCallback(() => {
+    if (!randomizeOrder) {
+      return;
+    }
+
+    setSize(1);
+    setShuffleSeed(
+      `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+    );
+  }, [randomizeOrder, setSize]);
 
   const titles = useMemo(() => {
     const filteredTitles: SliderTitle[] = [];
@@ -344,6 +360,17 @@ const MediaSlider = ({
           visibleTitles.some((item) => item.mediaType === mediaType) ? (
             <CardTextVisibilityToggle key={mediaType} mediaType={mediaType} />
           ) : null
+        )}
+        {randomizeOrder && (
+          <button
+            type="button"
+            onClick={refreshRandomizedOrder}
+            className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-700 text-gray-300 transition hover:border-indigo-500 hover:bg-indigo-600/20 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label={`Refresh ${title}`}
+            title={`Refresh ${title}`}
+          >
+            <ArrowPathIcon className="h-4 w-4" />
+          </button>
         )}
       </div>
       <Slider

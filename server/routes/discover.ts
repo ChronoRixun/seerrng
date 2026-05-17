@@ -34,6 +34,7 @@ import { getSettings } from '@server/lib/settings';
 import {
   clampNumber,
   getRecencyScore,
+  getSeededJitter,
   rankByQualityScore,
   rankTmdbMovieResults,
   rankTmdbTvResults,
@@ -482,11 +483,27 @@ export type FilterOptions = z.infer<typeof QueryFilterOptions>;
 const ApiQuerySchema = QueryFilterOptions.omit({
   certificationMode: true,
 });
-const SEEDED_DISCOVERY_JITTER_RATIO = 0.75;
-const SEEDED_DISCOVERY_JITTER_FLOOR = 50;
-const SEEDED_DISCOVERY_JITTER = {
-  jitterRatio: SEEDED_DISCOVERY_JITTER_RATIO,
-  jitterFloor: SEEDED_DISCOVERY_JITTER_FLOOR,
+const SEEDED_DISCOVERY_SHUFFLE_WINDOW = 80;
+
+const shuffleRankedWindow = <T>(
+  rankedResults: T[],
+  seed?: string,
+  windowSize = SEEDED_DISCOVERY_SHUFFLE_WINDOW
+): T[] => {
+  if (!seed) {
+    return rankedResults;
+  }
+
+  const windowedResults = rankedResults
+    .slice(0, windowSize)
+    .map((result, index) => ({
+      result,
+      rank: getSeededJitter(seed, index),
+    }))
+    .sort((a, b) => b.rank - a.rank)
+    .map(({ result }) => result);
+
+  return [...windowedResults, ...rankedResults.slice(windowSize)];
 };
 
 discoverRoutes.get('/movies', async (req, res, next) => {
@@ -545,10 +562,9 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     });
     const rankedResults = query.sortBy
       ? data.results
-      : rankTmdbMovieResults(
-          data.results,
-          parsedShuffleSeed.value,
-          parsedShuffleSeed.value ? SEEDED_DISCOVERY_JITTER : {}
+      : shuffleRankedWindow(
+          rankTmdbMovieResults(data.results),
+          parsedShuffleSeed.value
         );
 
     const media = await Media.getRelatedMedia(
@@ -917,10 +933,9 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     });
     const rankedResults = query.sortBy
       ? data.results
-      : rankTmdbTvResults(
-          data.results,
-          parsedShuffleSeed.value,
-          parsedShuffleSeed.value ? SEEDED_DISCOVERY_JITTER : {}
+      : shuffleRankedWindow(
+          rankTmdbTvResults(data.results),
+          parsedShuffleSeed.value
         );
 
     const media = await Media.getRelatedMedia(
@@ -1663,11 +1678,8 @@ discoverRoutes.get('/music', async (req, res) => {
       const albums =
         sortByValue === 'ranked'
           ? diversifyMusicAlbumsByArtist(
-              rankByQualityScore(
-                sortedAlbums,
-                scoreMusicAlbum,
-                shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
-                shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
+              shuffleRankedWindow(
+                rankByQualityScore(sortedAlbums, scoreMusicAlbum),
                 shuffleSeed
               ),
               providerWindow.sliceEnd
@@ -1820,13 +1832,13 @@ discoverRoutes.get('/music', async (req, res) => {
           });
 
         const fallbackAlbums = diversifyMusicAlbumsByArtist(
-          rankByQualityScore(
-            [...fallbackAlbumsById.values()].sort(
-              (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+          shuffleRankedWindow(
+            rankByQualityScore(
+              [...fallbackAlbumsById.values()].sort(
+                (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+              ),
+              scoreMusicAlbum
             ),
-            scoreMusicAlbum,
-            shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
-            shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
             shuffleSeed
           ),
           providerWindow.sliceEnd
@@ -1906,13 +1918,13 @@ discoverRoutes.get('/music', async (req, res) => {
       });
 
       const albums = diversifyMusicAlbumsByArtist(
-        rankByQualityScore(
-          [...albumsById.values()].sort(
-            (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+        shuffleRankedWindow(
+          rankByQualityScore(
+            [...albumsById.values()].sort(
+              (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+            ),
+            scoreMusicAlbum
           ),
-          scoreMusicAlbum,
-          shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
-          shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
           shuffleSeed
         ),
         providerWindow.sliceEnd
@@ -1996,11 +2008,11 @@ discoverRoutes.get('/music', async (req, res) => {
     const releases =
       sortByValue === 'ranked'
         ? diversifyMusicAlbumsByArtist(
-            rankByQualityScore(
-              sortedReleases.map(mapFreshReleaseAlbum),
-              scoreMusicAlbum,
-              shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
-              shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
+            shuffleRankedWindow(
+              rankByQualityScore(
+                sortedReleases.map(mapFreshReleaseAlbum),
+                scoreMusicAlbum
+              ),
               shuffleSeed
             ),
             providerWindow.sliceEnd
@@ -2170,13 +2182,13 @@ discoverRoutes.get('/books', async (req, res) => {
             ),
             start: 0,
             docs: diversifyBookDocsByAuthor(
-              rankByQualityScore(
-                [...docsByKey.values()].sort(
-                  (a, b) => scoreBookDoc(b) - scoreBookDoc(a)
+              shuffleRankedWindow(
+                rankByQualityScore(
+                  [...docsByKey.values()].sort(
+                    (a, b) => scoreBookDoc(b) - scoreBookDoc(a)
+                  ),
+                  scoreBookDoc
                 ),
-                scoreBookDoc,
-                shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
-                shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
                 shuffleSeed
               ),
               itemsPerPage
@@ -2191,11 +2203,11 @@ discoverRoutes.get('/books', async (req, res) => {
         });
     const sortedDocs =
       sortByValue === 'ranked' && !shouldBlendDefaultSubjects
-        ? rankByQualityScore(
-            [...books.docs].sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a)),
-            scoreBookDoc,
-            shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
-            shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
+        ? shuffleRankedWindow(
+            rankByQualityScore(
+              [...books.docs].sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a)),
+              scoreBookDoc
+            ),
             shuffleSeed
           )
         : books.docs;

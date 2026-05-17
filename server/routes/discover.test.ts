@@ -306,6 +306,48 @@ describe('GET /discover/movies', () => {
     assert.strictEqual(res.body.results[0].title, 'Seeded Movie');
   });
 
+  it('changes root movie order for different shuffle seeds', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/movie');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 5,
+        results: Array.from({ length: 5 }, (_, index) => ({
+          id: index + 1,
+          media_type: 'movie',
+          title: `Movie ${index}`,
+          original_title: `Movie ${index}`,
+          release_date: '2026-01-01',
+          adult: false,
+          video: false,
+          popularity: 20 - index,
+          poster_path: `/movie-${index}.jpg`,
+          backdrop_path: `/movie-${index}-backdrop.jpg`,
+          vote_count: 100,
+          vote_average: 7,
+          genre_ids: [],
+          overview: '',
+          original_language: 'en',
+        })),
+      };
+    });
+
+    const agent = await login();
+    const firstSeed = await agent.get('/discover/movies?shuffleSeed=refresh-a');
+    const secondSeed = await agent.get(
+      '/discover/movies?shuffleSeed=refresh-b'
+    );
+
+    assert.strictEqual(firstSeed.status, 200);
+    assert.strictEqual(secondSeed.status, 200);
+    assert.notDeepStrictEqual(
+      firstSeed.body.results.map((result: { title: string }) => result.title),
+      secondSeed.body.results.map((result: { title: string }) => result.title)
+    );
+  });
+
   it('accepts numeric query parser values for root movie discovery', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       assert.strictEqual(endpoint, '/discover/movie');
@@ -603,6 +645,45 @@ describe('GET /discover/tv', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.results[0].name, 'Seeded Series');
+  });
+
+  it('changes root series order for different shuffle seeds', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/tv');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 5,
+        results: Array.from({ length: 5 }, (_, index) => ({
+          id: index + 1,
+          media_type: 'tv',
+          name: `Series ${index}`,
+          original_name: `Series ${index}`,
+          origin_country: ['US'],
+          first_air_date: '2026-01-01',
+          popularity: 20 - index,
+          poster_path: `/series-${index}.jpg`,
+          backdrop_path: `/series-${index}-backdrop.jpg`,
+          vote_count: 100,
+          vote_average: 7,
+          genre_ids: [],
+          overview: '',
+          original_language: 'en',
+        })),
+      };
+    });
+
+    const agent = await login();
+    const firstSeed = await agent.get('/discover/tv?shuffleSeed=refresh-a');
+    const secondSeed = await agent.get('/discover/tv?shuffleSeed=refresh-b');
+
+    assert.strictEqual(firstSeed.status, 200);
+    assert.strictEqual(secondSeed.status, 200);
+    assert.notDeepStrictEqual(
+      firstSeed.body.results.map((result: { name: string }) => result.name),
+      secondSeed.body.results.map((result: { name: string }) => result.name)
+    );
   });
 
   it('accepts numeric query parser values for root series discovery', async () => {
@@ -1433,6 +1514,40 @@ describe('GET /discover/music', () => {
     assert.strictEqual(res.body.results[0].title, 'Charted Album');
   });
 
+  it('changes ranked music order for different shuffle seeds', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => ({
+      payload: {
+        count: 5,
+        release_groups: Array.from({ length: 5 }, (_, index) => ({
+          artist_mbids: [`artist-${index}`],
+          artist_name: `Artist ${index}`,
+          caa_release_mbid: '',
+          listen_count: 5000 - index,
+          release_group_mbid: `album-${index}`,
+          release_group_name: `Album ${index}`,
+        })),
+      },
+    }));
+    mock.method(ListenBrainzAPI.prototype, 'getFreshReleases', async () => ({
+      payload: { releases: [] },
+    }));
+
+    const agent = await login();
+    const firstSeed = await agent.get(
+      '/discover/music?sortBy=ranked&shuffleSeed=refresh-a'
+    );
+    const secondSeed = await agent.get(
+      '/discover/music?sortBy=ranked&shuffleSeed=refresh-b'
+    );
+
+    assert.strictEqual(firstSeed.status, 200);
+    assert.strictEqual(secondSeed.status, 200);
+    assert.notDeepStrictEqual(
+      firstSeed.body.results.map((result: { title: string }) => result.title),
+      secondSeed.body.results.map((result: { title: string }) => result.title)
+    );
+  });
+
   it('keeps richer metadata when ranked music sources return the same album', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getTopAlbums', async () => ({
       payload: {
@@ -2118,6 +2233,39 @@ describe('GET /discover/books', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.results.length > 0, true);
+  });
+
+  it('changes ranked book order for different shuffle seeds', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
+      numFound: 5,
+      start: 0,
+      docs: Array.from({ length: 5 }, (_, index) => ({
+        key: `/works/book-${index}`,
+        title: `Book ${index}`,
+        author_name: [`Author ${index}`],
+        author_key: [`AUTHOR${index}`],
+        cover_i: 1,
+        edition_count: 100 - index,
+        ratings_average: 4,
+        ratings_count: 100,
+        want_to_read_count: 100,
+      })),
+    }));
+
+    const agent = await login();
+    const firstSeed = await agent.get(
+      '/discover/books?sortBy=ranked&subject=fiction&shuffleSeed=refresh-a'
+    );
+    const secondSeed = await agent.get(
+      '/discover/books?sortBy=ranked&subject=fiction&shuffleSeed=refresh-b'
+    );
+
+    assert.strictEqual(firstSeed.status, 200);
+    assert.strictEqual(secondSeed.status, 200);
+    assert.notDeepStrictEqual(
+      firstSeed.body.results.map((result: { title: string }) => result.title),
+      secondSeed.body.results.map((result: { title: string }) => result.title)
+    );
   });
 
   it('diversifies the default recommended book feed by author', async () => {

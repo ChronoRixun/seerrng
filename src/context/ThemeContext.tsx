@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -430,12 +437,41 @@ type ThemeScaleName = keyof typeof themeScales;
 
 const applyScale = (
   root: HTMLElement,
-  target: 'indigo' | 'purple',
+  target: 'gray' | 'indigo' | 'purple',
   scale: readonly string[]
 ) => {
   shades.forEach((shade, index) => {
     root.style.setProperty(`--color-${target}-${shade}`, scale[index]);
   });
+};
+
+const parseRgb = (value: string): [number, number, number] =>
+  value.split(' ').map((part) => Number(part)) as [number, number, number];
+
+const mixRgb = (from: string, to: string, amount: number): string => {
+  const fromRgb = parseRgb(from);
+  const toRgb = parseRgb(to);
+
+  return fromRgb
+    .map((channel, index) =>
+      Math.round(channel * (1 - amount) + toRgb[index] * amount)
+    )
+    .join(' ');
+};
+
+const createSurfaceScale = (
+  accentScale: readonly string[],
+  mode: ThemeMode
+): string[] => {
+  const baseScale =
+    mode === 'dark' ? themeScales.slate : [...themeScales.slate].reverse();
+  const tintAmounts = [
+    0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.15, 0.17, 0.19, 0.21, 0.24,
+  ];
+
+  return baseScale.map((base, index) =>
+    mixRgb(base, accentScale[index], tintAmounts[index])
+  );
 };
 
 type ThemeContextValue = {
@@ -472,44 +508,85 @@ const getStoredPalette = (): string => {
     : themePalettes[0].id;
 };
 
+const getThemePalette = (palette: string): ThemePalette =>
+  themePalettes.find((themePalette) => themePalette.id === palette) ??
+  themePalettes[0];
+
+const applyTheme = (mode: ThemeMode, palette: string) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const activePalette = getThemePalette(palette);
+  const activePaletteId = activePalette.id;
+
+  document.documentElement.dataset.themeMode = mode;
+  document.documentElement.dataset.themePalette = activePaletteId;
+  document.documentElement.classList.toggle('dark', mode === 'dark');
+  applyScale(
+    document.documentElement,
+    'indigo',
+    themeScales[activePalette.primary]
+  );
+  applyScale(
+    document.documentElement,
+    'purple',
+    themeScales[activePalette.secondary]
+  );
+  applyScale(
+    document.documentElement,
+    'gray',
+    createSurfaceScale(themeScales[activePalette.primary], mode)
+  );
+  window.localStorage.setItem(THEME_MODE_KEY, mode);
+  window.localStorage.setItem(THEME_PALETTE_KEY, activePaletteId);
+};
+
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [mode, setModeState] = useState<ThemeMode>(() => getStoredMode());
   const [palette, setPaletteState] = useState(() => getStoredPalette());
 
   useEffect(() => {
-    const activePalette =
-      themePalettes.find((themePalette) => themePalette.id === palette) ??
-      themePalettes[0];
-
-    document.documentElement.dataset.themeMode = mode;
-    document.documentElement.dataset.themePalette = palette;
-    document.documentElement.classList.toggle('dark', mode === 'dark');
-    applyScale(
-      document.documentElement,
-      'indigo',
-      themeScales[activePalette.primary]
-    );
-    applyScale(
-      document.documentElement,
-      'purple',
-      themeScales[activePalette.secondary]
-    );
-    window.localStorage.setItem(THEME_MODE_KEY, mode);
-    window.localStorage.setItem(THEME_PALETTE_KEY, palette);
+    applyTheme(mode, palette);
   }, [mode, palette]);
+
+  const setMode = useCallback(
+    (nextMode: ThemeMode) => {
+      setModeState(nextMode);
+      applyTheme(nextMode, palette);
+    },
+    [palette]
+  );
+
+  const setPalette = useCallback(
+    (nextPalette: string) => {
+      const activePalette = getThemePalette(nextPalette);
+
+      setPaletteState(activePalette.id);
+      applyTheme(mode, activePalette.id);
+    },
+    [mode]
+  );
+
+  const toggleMode = useCallback(() => {
+    setModeState((currentMode) => {
+      const nextMode = currentMode === 'dark' ? 'light' : 'dark';
+
+      applyTheme(nextMode, palette);
+
+      return nextMode;
+    });
+  }, [palette]);
 
   const value = useMemo(
     () => ({
       mode,
       palette,
-      setMode: setModeState,
-      setPalette: setPaletteState,
-      toggleMode: () =>
-        setModeState((currentMode) =>
-          currentMode === 'dark' ? 'light' : 'dark'
-        ),
+      setMode,
+      setPalette,
+      toggleMode,
     }),
-    [mode, palette]
+    [mode, palette, setMode, setPalette, toggleMode]
   );
 
   return (

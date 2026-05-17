@@ -39,7 +39,7 @@ export const scoreTmdbResult = ({
   return popularityScore + voteCountScore + voteAverageScore + recencyScore;
 };
 
-const getSeededJitter = (seed: string, index: number): number => {
+export const getSeededJitter = (seed: string, index: number): number => {
   let hash = 2166136261;
   const value = `${seed}:${index}`;
 
