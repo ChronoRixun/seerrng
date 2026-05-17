@@ -12,19 +12,24 @@ import SlackAgent from '@server/lib/notifications/agents/slack';
 import TelegramAgent from '@server/lib/notifications/agents/telegram';
 import WebhookAgent from '@server/lib/notifications/agents/webhook';
 import WebPushAgent from '@server/lib/notifications/agents/webpush';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, type NotificationAgentWebhook } from '@server/lib/settings';
 import type { AvailableLocale } from '@server/types/languages';
 import {
   isSafeHttpUrl,
   preserveRedactedSecrets,
   redactSecrets,
 } from '@server/utils/security';
+import {
+  parseOptionalBodyBoolean,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 
 const notificationRoutes = Router();
 const MAX_WEBHOOK_PAYLOAD_BYTES = 64 * 1024;
 const MAX_WEBHOOK_CUSTOM_HEADERS = 20;
 const MAX_WEBHOOK_HEADER_VALUE_LENGTH = 4096;
+const MAX_NOTIFICATION_TYPES = 0x7fffffff;
 const WEBHOOK_HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 const messages = defineMessages('notifications.test', {
@@ -93,6 +98,101 @@ const validateWebhookHeaders = (
       return { status: 400, message: 'Invalid webhook custom header.' };
     }
   }
+};
+
+const parseWebhookBody = (body: unknown) => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: { status: 400, message: 'Webhook settings must be an object.' } };
+  }
+
+  const value = body as {
+    enabled?: unknown;
+    embedPoster?: unknown;
+    types?: unknown;
+    options?: unknown;
+  };
+  const enabled = parseOptionalBodyBoolean(value.enabled, 'Enabled');
+  if ('error' in enabled) {
+    return { error: { status: 400, message: enabled.error } };
+  }
+  const embedPoster = parseOptionalBodyBoolean(value.embedPoster, 'Embed poster');
+  if ('error' in embedPoster) {
+    return { error: { status: 400, message: embedPoster.error } };
+  }
+  const types = parseOptionalNonNegativeInteger(
+    value.types,
+    MAX_NOTIFICATION_TYPES
+  );
+  if (types === undefined) {
+    return { error: { status: 400, message: 'Notification types must be valid.' } };
+  }
+  if (!value.options || typeof value.options !== 'object' || Array.isArray(value.options)) {
+    return { error: { status: 400, message: 'Webhook options must be an object.' } };
+  }
+
+  const options = value.options as {
+    jsonPayload?: unknown;
+    webhookUrl?: unknown;
+    authHeader?: unknown;
+    customHeaders?: unknown;
+    supportVariables?: unknown;
+  };
+  const supportVariables = parseOptionalBodyBoolean(
+    options.supportVariables,
+    'Support variables'
+  );
+  if ('error' in supportVariables) {
+    return { error: { status: 400, message: supportVariables.error } };
+  }
+  if (typeof options.webhookUrl !== 'string') {
+    return { error: { status: 400, message: 'Webhook URL must be a string.' } };
+  }
+  if (
+    options.authHeader !== undefined &&
+    typeof options.authHeader !== 'string'
+  ) {
+    return { error: { status: 400, message: 'Auth header must be a string.' } };
+  }
+  let customHeaders: { key: string; value: string }[] | undefined;
+  if (options.customHeaders !== undefined) {
+    if (!Array.isArray(options.customHeaders)) {
+      return {
+        error: {
+          status: 400,
+          message: 'Webhook custom headers must be an array.',
+        },
+      };
+    }
+
+    customHeaders = [];
+    for (const header of options.customHeaders) {
+      if (!header || typeof header !== 'object') {
+        return { error: { status: 400, message: 'Invalid webhook custom header.' } };
+      }
+      const { key, value } = header as { key?: unknown; value?: unknown };
+      if (typeof key !== 'string' || typeof value !== 'string') {
+        return { error: { status: 400, message: 'Invalid webhook custom header.' } };
+      }
+      customHeaders.push({ key, value });
+    }
+  }
+
+  const parsedWebhook: NotificationAgentWebhook = {
+    enabled: enabled.value ?? false,
+    embedPoster: embedPoster.value ?? false,
+    types,
+    options: {
+      jsonPayload: options.jsonPayload as string,
+      webhookUrl: options.webhookUrl,
+      authHeader: options.authHeader,
+      customHeaders,
+      supportVariables: supportVariables.value ?? false,
+    },
+  };
+
+  return {
+    value: parsedWebhook,
+  };
 };
 
 const validateNotificationUrl = async (
@@ -442,21 +542,30 @@ notificationRoutes.get('/webhook', (_req, res) => {
 notificationRoutes.post('/webhook', async (req, res, next) => {
   const settings = getSettings();
   try {
-    const payloadError = validateWebhookPayload(req.body.options?.jsonPayload);
-    const headerError = validateWebhookHeaders(req.body.options?.customHeaders);
+    const parsedBody = parseWebhookBody(req.body);
+    if ('error' in parsedBody) {
+      return next(parsedBody.error);
+    }
+    const body = parsedBody.value;
+    const payloadError = validateWebhookPayload(body.options.jsonPayload);
+    const headerError = validateWebhookHeaders(body.options.customHeaders);
     if (payloadError) {
       return next(payloadError);
     }
     if (headerError) {
       return next(headerError);
     }
+    const customHeaders = (body.options.customHeaders ?? []) as {
+      key: string;
+      value: string;
+    }[];
 
-    const validationError = req.body.enabled
+    const validationError = body.enabled
       ? await validateNotificationUrl(
-          req.body.options?.webhookUrl,
+          body.options.webhookUrl,
           'Webhook URL',
           {
-          allowTemplates: req.body.options?.supportVariables === true,
+            allowTemplates: body.options.supportVariables,
           }
         )
       : undefined;
@@ -467,17 +576,17 @@ notificationRoutes.post('/webhook', async (req, res, next) => {
 
     settings.notifications.agents.webhook = preserveRedactedSecrets(
       {
-        enabled: req.body.enabled,
-        embedPoster: req.body.embedPoster,
-        types: req.body.types,
+        enabled: body.enabled,
+        embedPoster: body.embedPoster,
+        types: body.types,
         options: {
-          jsonPayload: Buffer.from(
-            JSON.stringify(req.body.options.jsonPayload)
-          ).toString('base64'),
-          webhookUrl: req.body.options.webhookUrl,
-          authHeader: req.body.options.authHeader,
-          customHeaders: req.body.options.customHeaders ?? [],
-          supportVariables: req.body.options.supportVariables ?? false,
+          jsonPayload: Buffer.from(JSON.stringify(body.options.jsonPayload)).toString(
+            'base64'
+          ),
+          webhookUrl: body.options.webhookUrl,
+          authHeader: body.options.authHeader,
+          customHeaders,
+          supportVariables: body.options.supportVariables,
         },
       },
       settings.notifications.agents.webhook
@@ -499,19 +608,28 @@ notificationRoutes.post('/webhook/test', async (req, res, next) => {
   }
 
   try {
-    const payloadError = validateWebhookPayload(req.body.options?.jsonPayload);
-    const headerError = validateWebhookHeaders(req.body.options?.customHeaders);
+    const parsedBody = parseWebhookBody(req.body);
+    if ('error' in parsedBody) {
+      return next(parsedBody.error);
+    }
+    const body = parsedBody.value;
+    const payloadError = validateWebhookPayload(body.options.jsonPayload);
+    const headerError = validateWebhookHeaders(body.options.customHeaders);
     if (payloadError) {
       return next(payloadError);
     }
     if (headerError) {
       return next(headerError);
     }
+    const customHeaders = (body.options.customHeaders ?? []) as {
+      key: string;
+      value: string;
+    }[];
 
     const validationError = await validateNotificationUrl(
-      req.body.options?.webhookUrl,
+      body.options.webhookUrl,
       'Webhook URL',
-      { allowTemplates: req.body.options?.supportVariables === true }
+      { allowTemplates: body.options.supportVariables }
     );
 
     if (validationError) {
@@ -519,17 +637,17 @@ notificationRoutes.post('/webhook/test', async (req, res, next) => {
     }
 
     const testBody = {
-      enabled: req.body.enabled,
-      embedPoster: req.body.embedPoster,
-      types: req.body.types,
+      enabled: body.enabled,
+      embedPoster: body.embedPoster,
+      types: body.types,
       options: {
-        jsonPayload: Buffer.from(
-          JSON.stringify(req.body.options.jsonPayload)
-        ).toString('base64'),
-        webhookUrl: req.body.options.webhookUrl,
-        authHeader: req.body.options.authHeader,
-        customHeaders: req.body.options.customHeaders ?? [],
-        supportVariables: req.body.options.supportVariables ?? false,
+        jsonPayload: Buffer.from(JSON.stringify(body.options.jsonPayload)).toString(
+          'base64'
+        ),
+        webhookUrl: body.options.webhookUrl,
+        authHeader: body.options.authHeader,
+        customHeaders,
+        supportVariables: body.options.supportVariables,
       },
     };
 
