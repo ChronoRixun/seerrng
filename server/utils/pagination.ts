@@ -17,11 +17,11 @@ export const parsePositiveInt = (
 ): number => {
   const parsed = parseScalarNumber(value);
 
-  if (!Number.isFinite(parsed) || parsed < 1) {
+  if (!Number.isInteger(parsed) || parsed < 1) {
     return fallback;
   }
 
-  return Math.min(Math.floor(parsed), max);
+  return Math.min(parsed, max);
 };
 
 export const parseNonNegativeInt = (
@@ -31,11 +31,11 @@ export const parseNonNegativeInt = (
 ): number => {
   const parsed = parseScalarNumber(value);
 
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  if (!Number.isInteger(parsed) || parsed < 0) {
     return fallback;
   }
 
-  return Math.min(Math.floor(parsed), max);
+  return Math.min(parsed, max);
 };
 
 export const parseOptionalPositiveInt = (
@@ -48,11 +48,11 @@ export const parseOptionalPositiveInt = (
 
   const parsed = parseScalarNumber(value);
 
-  if (!Number.isFinite(parsed) || parsed < 1) {
+  if (!Number.isInteger(parsed) || parsed < 1) {
     return undefined;
   }
 
-  return Math.min(Math.floor(parsed), max);
+  return Math.min(parsed, max);
 };
 
 export const parsePageParams = (
