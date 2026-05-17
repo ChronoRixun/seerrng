@@ -40,6 +40,7 @@ const LRU_MAX_ENTRIES = 512;
 const LRU_ITEM_MAX_BYTES = 1.5 * 1024 * 1024;
 const TRANSCODABLE_CONTENT_TYPE = /^image\/(jpe?g|png|webp|avif|bmp|tiff)$/i;
 const DEFAULT_IMAGE_CACHE_MAX_AGE = 86400;
+export const MAX_IMAGE_CACHE_MAX_AGE = 365 * 24 * 60 * 60;
 const resolvedBaseCacheDirectory = path.resolve(baseCacheDirectory);
 
 export const IMAGE_PROXY_HTTP_OPTIONS = {
@@ -57,9 +58,59 @@ export const parseCacheControlMaxAge = (
 
   const parsed = Number(maxAge[1]);
 
-  return Number.isFinite(parsed) && parsed > 0
-    ? parsed
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? Math.min(parsed, MAX_IMAGE_CACHE_MAX_AGE)
     : DEFAULT_IMAGE_CACHE_MAX_AGE;
+};
+
+export const parseImageCacheFileMetadata = (
+  filename: string,
+  now = Date.now()
+):
+  | {
+      maxAge: number;
+      expireAt: number;
+      etag: string;
+      extension: string;
+      lastModified: number;
+      revalidateAfter: number;
+      isStale: boolean;
+    }
+  | null => {
+  const [maxAgeSt, expireAtSt, etag, extension, ...extra] =
+    filename.split('.');
+
+  if (extra.length || !etag || !extension) {
+    return null;
+  }
+
+  const maxAge = Number(maxAgeSt);
+  const expireAt = Number(expireAtSt);
+
+  if (
+    !Number.isSafeInteger(maxAge) ||
+    maxAge <= 0 ||
+    maxAge > MAX_IMAGE_CACHE_MAX_AGE ||
+    !Number.isSafeInteger(expireAt) ||
+    expireAt <= 0
+  ) {
+    return null;
+  }
+
+  const lastModified = getImageCacheLastModified(expireAt, maxAge, now);
+  if (!Number.isFinite(lastModified)) {
+    return null;
+  }
+
+  return {
+    maxAge,
+    expireAt,
+    etag,
+    extension,
+    lastModified,
+    revalidateAfter: maxAge * 1000 + now,
+    isStale: now > expireAt,
+  };
 };
 
 export const getImageCacheLastModified = (
@@ -254,11 +305,9 @@ class ImageProxy {
           const imageFiles = await promises.readdir(filePath);
 
           for (const imageFile of imageFiles) {
-            const [, expireAtSt] = imageFile.split('.');
-            const expireAt = Number(expireAtSt);
-            const now = Date.now();
+            const metadata = parseImageCacheFileMetadata(imageFile);
 
-            if (now > expireAt) {
+            if (metadata?.isStale) {
               await promises.rm(filePath, {
                 recursive: true,
               });
@@ -484,21 +533,21 @@ class ImageProxy {
       const files = await promises.readdir(directory);
 
       for (const file of files) {
-        const [maxAgeSt, expireAtSt, etag, extension] = file.split('.');
         const filePath = assertCachePath(path.join(directory, file));
-        const expireAt = Number(expireAtSt);
-        const maxAge = Number(maxAgeSt);
-        const lastModified = getImageCacheLastModified(expireAt, maxAge, now);
+        const metadata = parseImageCacheFileMetadata(file, now);
+        if (!metadata) {
+          continue;
+        }
 
         const meta: ImageMeta = {
-          curRevalidate: maxAge,
-          revalidateAfter: maxAge * 1000 + now,
-          isStale: now > expireAt,
-          etag,
-          extension,
+          curRevalidate: metadata.maxAge,
+          revalidateAfter: metadata.revalidateAfter,
+          isStale: metadata.isStale,
+          etag: metadata.etag,
+          extension: metadata.extension,
           cacheKey,
           cacheMiss: false,
-          lastModified,
+          lastModified: metadata.lastModified,
         };
 
         const stat = await promises.lstat(filePath);
@@ -512,11 +561,11 @@ class ImageProxy {
           const buffer = await promises.readFile(filePath);
           memoryCache.set(cacheKey, {
             buffer,
-            maxAge,
-            expireAt,
-            etag,
-            extension,
-            lastModified,
+            maxAge: metadata.maxAge,
+            expireAt: metadata.expireAt,
+            etag: metadata.etag,
+            extension: metadata.extension,
+            lastModified: metadata.lastModified,
           });
           return { meta, imageBuffer: buffer };
         }

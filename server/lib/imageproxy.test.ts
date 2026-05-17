@@ -4,6 +4,8 @@ import { describe, it } from 'node:test';
 import {
   getImageCacheLastModified,
   getImageResponseContentType,
+  MAX_IMAGE_CACHE_MAX_AGE,
+  parseImageCacheFileMetadata,
   parseCacheControlMaxAge,
 } from './imageproxy';
 
@@ -24,6 +26,13 @@ describe('parseCacheControlMaxAge', () => {
     assert.equal(parseCacheControlMaxAge('no-cache'), 86400);
     assert.equal(parseCacheControlMaxAge('public, max-age=0'), 86400);
   });
+
+  it('caps absurd upstream max-age values', () => {
+    assert.equal(
+      parseCacheControlMaxAge('public, max-age=999999999999'),
+      MAX_IMAGE_CACHE_MAX_AGE
+    );
+  });
 });
 
 describe('getImageCacheLastModified', () => {
@@ -34,6 +43,34 @@ describe('getImageCacheLastModified', () => {
   it('falls back to now for invalid cache filename metadata', () => {
     assert.equal(getImageCacheLastModified(Number.NaN, 100, 12345), 12345);
     assert.equal(getImageCacheLastModified(200000, 0, 12345), 12345);
+  });
+});
+
+describe('parseImageCacheFileMetadata', () => {
+  it('parses bounded cache filename metadata', () => {
+    assert.deepEqual(parseImageCacheFileMetadata('60.120.etag.webp', 90), {
+      maxAge: 60,
+      expireAt: 120,
+      etag: 'etag',
+      extension: 'webp',
+      lastModified: -59880,
+      revalidateAfter: 60090,
+      isStale: false,
+    });
+  });
+
+  it('rejects malformed cache filename metadata', () => {
+    assert.equal(parseImageCacheFileMetadata('NaN.120.etag.webp'), null);
+    assert.equal(parseImageCacheFileMetadata('60.NaN.etag.webp'), null);
+    assert.equal(parseImageCacheFileMetadata('60.120..webp'), null);
+    assert.equal(parseImageCacheFileMetadata('60.120.etag'), null);
+    assert.equal(parseImageCacheFileMetadata('60.120.etag.webp.extra'), null);
+    assert.equal(
+      parseImageCacheFileMetadata(
+        `${MAX_IMAGE_CACHE_MAX_AGE + 1}.120.etag.webp`
+      ),
+      null
+    );
   });
 });
 
