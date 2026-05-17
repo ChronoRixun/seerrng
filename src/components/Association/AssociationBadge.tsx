@@ -2,8 +2,8 @@ import type { AssociationMediaType } from '@app/hooks/useAssociations';
 import useAssociations, {
   toAssociationMediaType,
 } from '@app/hooks/useAssociations';
+import MeshNetworkIcon from '@app/assets/mesh-network.svg';
 import defineMessages from '@app/utils/defineMessages';
-import { ShareIcon } from '@heroicons/react/20/solid';
 import { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useIntl } from 'react-intl';
@@ -87,7 +87,7 @@ const AssociationBadge = ({
           setIsOpen((open) => !open);
         }}
       >
-        <ShareIcon
+        <MeshNetworkIcon
           className={variant === 'card' ? 'h-3 w-3' : 'h-4 w-4'}
           aria-hidden="true"
         />
