@@ -7,7 +7,7 @@ export const parsePositiveRouteId = (
   maxValue = MAX_ROUTE_ID
 ): number | undefined => {
   const parsedValue =
-    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+    typeof id === 'string' && /^\d+$/.test(id) ? Number(id) : id;
   const parsed = parseOptionalNonNegativeInteger(parsedValue, maxValue);
 
   return parsed && parsed > 0 ? parsed : undefined;
