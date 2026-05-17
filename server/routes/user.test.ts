@@ -3,7 +3,7 @@ import { before, describe, it } from 'node:test';
 
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
-import { MAX_PERMISSION_VALUE } from '@server/lib/permissions';
+import { MAX_PERMISSION_VALUE, Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import { checkUser } from '@server/middleware/auth';
 import { setupTestDb } from '@server/test/db';
@@ -259,6 +259,28 @@ describe('User route input validation', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /permissions is invalid/i);
+  });
+
+  it('persists high-bit music and book request permissions', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const permissions =
+      Permission.REQUEST_MUSIC +
+      Permission.REQUEST_BOOK +
+      Permission.AUTO_APPROVE_BOOK;
+    const res = await agent
+      .post('/user/2/settings/permissions')
+      .send({ permissions });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.permissions, permissions);
+
+    const user = await getRepository(User).findOneOrFail({
+      where: { id: 2 },
+    });
+    assert.strictEqual(user.permissions, permissions);
+    assert.strictEqual(user.hasPermission(Permission.REQUEST_MUSIC), true);
+    assert.strictEqual(user.hasPermission(Permission.REQUEST_BOOK), true);
+    assert.strictEqual(user.hasPermission(Permission.AUTO_APPROVE_BOOK), true);
   });
 
   it('rejects unknown permission bits on bulk permission updates', async () => {

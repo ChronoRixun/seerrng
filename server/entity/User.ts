@@ -31,6 +31,11 @@ import SeasonRequest from './SeasonRequest';
 import { UserPushSubscription } from './UserPushSubscription';
 import { UserSettings } from './UserSettings';
 
+const permissionColumnTransformer = {
+  to: (value?: number | null): number => value ?? 0,
+  from: (value: string | number | null): number => Number(value ?? 0),
+};
+
 @Entity()
 export class User {
   public static filterMany(
@@ -101,7 +106,11 @@ export class User {
   @Column({ type: 'varchar', nullable: true, select: false })
   public plexToken?: string | null;
 
-  @Column({ type: 'integer', default: 0 })
+  @Column({
+    type: 'bigint',
+    default: 0,
+    transformer: permissionColumnTransformer,
+  })
   public permissions = 0;
 
   @Column()
@@ -362,8 +371,7 @@ export class User {
     const musicQuotaLimit = !canBypass
       ? (this.musicQuotaLimit ?? defaultQuotas.music.quotaLimit)
       : 0;
-    const musicQuotaDays =
-      this.musicQuotaDays ?? defaultQuotas.music.quotaDays;
+    const musicQuotaDays = this.musicQuotaDays ?? defaultQuotas.music.quotaDays;
 
     const musicDate = new Date();
     if (musicQuotaDays) {
