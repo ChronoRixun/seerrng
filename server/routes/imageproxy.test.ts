@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
 
 import type { ImageResponse } from '@server/lib/imageproxy';
-import ImageProxy from '@server/lib/imageproxy';
+import ImageProxy, { IMAGE_PROXY_HTTP_OPTIONS } from '@server/lib/imageproxy';
 import express from 'express';
 import request from 'supertest';
 import imageproxyRoutes from './imageproxy';
@@ -33,6 +33,10 @@ afterEach(() => {
 });
 
 describe('GET /imageproxy/:type/*path', () => {
+  it('bounds upstream image proxy waits', () => {
+    assert.equal(IMAGE_PROXY_HTTP_OPTIONS.timeout, 10_000);
+  });
+
   it('sends browser cache headers with proxied images', async () => {
     mock.method(ImageProxy.prototype, 'getImage', async () => imageResponse);
 

@@ -42,6 +42,10 @@ const TRANSCODABLE_CONTENT_TYPE = /^image\/(jpe?g|png|webp|avif|bmp|tiff)$/i;
 const DEFAULT_IMAGE_CACHE_MAX_AGE = 86400;
 const resolvedBaseCacheDirectory = path.resolve(baseCacheDirectory);
 
+export const IMAGE_PROXY_HTTP_OPTIONS = {
+  timeout: 10_000,
+} as const;
+
 export const parseCacheControlMaxAge = (
   cacheControl: string | undefined
 ): number => {
@@ -364,6 +368,7 @@ class ImageProxy {
     this.axios = axios.create({
       baseURL: baseUrl,
       headers: options.headers,
+      ...IMAGE_PROXY_HTTP_OPTIONS,
     });
     this.axios.interceptors.request.use(requestInterceptorFunction);
 
