@@ -3,6 +3,7 @@
 import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
 import { verifyAndResubscribePushSubscription } from '@app/utils/pushSubscriptionHelpers';
+import versionedAsset from '@app/utils/versionedAsset';
 import { useEffect, useMemo } from 'react';
 
 import {
@@ -29,7 +30,7 @@ const ServiceWorkerSetup = () => {
 
     const registerServiceWorker = () => {
       navigator.serviceWorker
-        .register('/sw.js')
+        .register(versionedAsset('/sw.js'))
         .then(async (registration) => {
           console.log(
             '[SW] Registration successful, scope is:',
