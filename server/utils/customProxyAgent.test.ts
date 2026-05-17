@@ -3,7 +3,10 @@ import { afterEach, describe, it, mock } from 'node:test';
 
 import type { ProxySettings } from '@server/lib/settings';
 import axios, { type InternalAxiosRequestConfig } from 'axios';
-import createCustomProxyAgent, { requestInterceptorFunction } from './customProxyAgent';
+import createCustomProxyAgent, {
+  PROXY_CONNECTIVITY_CHECK_OPTIONS,
+  requestInterceptorFunction,
+} from './customProxyAgent';
 
 const proxySettings: ProxySettings = {
   enabled: true,
@@ -21,6 +24,12 @@ afterEach(() => {
 });
 
 describe('requestInterceptorFunction', () => {
+  it('bounds the proxy connectivity probe', () => {
+    assert.equal(PROXY_CONNECTIVITY_CHECK_OPTIONS.timeout, 5_000);
+    assert.equal(PROXY_CONNECTIVITY_CHECK_OPTIONS.maxContentLength, 1024);
+    assert.equal(PROXY_CONNECTIVITY_CHECK_OPTIONS.maxBodyLength, 1024);
+  });
+
   it('is safe to register before proxy initialization', () => {
     const config = { url: 'https://example.com' } as InternalAxiosRequestConfig;
 
@@ -28,8 +37,14 @@ describe('requestInterceptorFunction', () => {
   });
 
   it('bypasses the proxy for absolute local URLs even with a base URL', async () => {
-    mock.method(axios, 'head', async () => ({ status: 200 }));
+    const head = mock.method(axios, 'head', async () => ({ status: 200 }));
     await createCustomProxyAgent(proxySettings);
+
+    assert.equal(head.mock.callCount(), 1);
+    assert.deepEqual(head.mock.calls[0].arguments, [
+      'https://www.google.com',
+      PROXY_CONNECTIVITY_CHECK_OPTIONS,
+    ]);
 
     const config = requestInterceptorFunction({
       baseURL: 'https://api.example.com/v1',

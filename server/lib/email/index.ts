@@ -5,6 +5,12 @@ import nodemailer from 'nodemailer';
 import { URL } from 'url';
 import { openpgpEncrypt } from './openpgpEncrypt';
 
+export const EMAIL_TRANSPORT_TIMEOUT_OPTIONS = {
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 30_000,
+} as const;
+
 class PreparedEmail extends Email {
   public constructor(settings: NotificationAgentEmail, pgpKey?: string) {
     const { applicationUrl } = getSettings().main;
@@ -21,6 +27,7 @@ class PreparedEmail extends Email {
             rejectUnauthorized: false,
           }
         : undefined,
+      ...EMAIL_TRANSPORT_TIMEOUT_OPTIONS,
       auth:
         settings.options.authUser && settings.options.authPass
           ? {

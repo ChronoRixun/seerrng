@@ -11,6 +11,12 @@ export let requestInterceptorFunction: (
   config: InternalAxiosRequestConfig
 ) => InternalAxiosRequestConfig = (config) => config;
 
+export const PROXY_CONNECTIVITY_CHECK_OPTIONS = {
+  timeout: 5_000,
+  maxContentLength: 1024,
+  maxBodyLength: 1024,
+} as const;
+
 const getAxiosRequestUrl = (
   config: InternalAxiosRequestConfig
 ): string | URL | undefined => {
@@ -130,7 +136,10 @@ export default async function createCustomProxyAgent(
   }
 
   try {
-    await axios.head('https://www.google.com');
+    await axios.head(
+      'https://www.google.com',
+      PROXY_CONNECTIVITY_CHECK_OPTIONS
+    );
     logger.debug('HTTP(S) proxy connected successfully', { label: 'Proxy' });
   } catch (e) {
     logger.error(
