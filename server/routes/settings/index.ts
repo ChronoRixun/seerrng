@@ -99,6 +99,16 @@ const parseSettingsBodyObject = (
   return { value: body as Record<string, unknown> };
 };
 
+const parseOptionalSettingsBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (body === undefined || body === null) {
+    return { value: {} };
+  }
+
+  return parseSettingsBodyObject(body);
+};
+
 const readLogTail = async (
   logFile: string,
   maxBytes = MAX_LOG_READ_BYTES
@@ -366,11 +376,17 @@ settingsRoutes.get('/plex/sync', (_req, res) => {
 });
 
 settingsRoutes.post('/plex/sync', (req, res) => {
-  const cancel = parseOptionalBodyBoolean(req.body.cancel, 'Cancel');
+  const parsedBody = parseOptionalSettingsBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ message: parsedBody.error });
+  }
+  const body = parsedBody.value;
+
+  const cancel = parseOptionalBodyBoolean(body.cancel, 'Cancel');
   if ('error' in cancel) {
     return res.status(400).json({ message: cancel.error });
   }
-  const start = parseOptionalBodyBoolean(req.body.start, 'Start');
+  const start = parseOptionalBodyBoolean(body.start, 'Start');
   if ('error' in start) {
     return res.status(400).json({ message: start.error });
   }
@@ -555,11 +571,17 @@ settingsRoutes.get('/jellyfin/sync', (_req, res) => {
 });
 
 settingsRoutes.post('/jellyfin/sync', (req, res) => {
-  const cancel = parseOptionalBodyBoolean(req.body.cancel, 'Cancel');
+  const parsedBody = parseOptionalSettingsBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return res.status(400).json({ message: parsedBody.error });
+  }
+  const body = parsedBody.value;
+
+  const cancel = parseOptionalBodyBoolean(body.cancel, 'Cancel');
   if ('error' in cancel) {
     return res.status(400).json({ message: cancel.error });
   }
-  const start = parseOptionalBodyBoolean(req.body.start, 'Start');
+  const start = parseOptionalBodyBoolean(body.start, 'Start');
   if ('error' in start) {
     return res.status(400).json({ message: start.error });
   }
@@ -906,14 +928,18 @@ settingsRoutes.post<{ jobId: JobId }>(
     }
 
     if (
-      typeof req.body.schedule !== 'string' ||
-      !req.body.schedule.trim() ||
-      req.body.schedule.length > MAX_JOB_SCHEDULE_LENGTH
+      !req.body ||
+      typeof req.body !== 'object' ||
+      Array.isArray(req.body) ||
+      typeof (req.body as { schedule?: unknown }).schedule !== 'string' ||
+      !(req.body as { schedule: string }).schedule.trim() ||
+      (req.body as { schedule: string }).schedule.length >
+        MAX_JOB_SCHEDULE_LENGTH
     ) {
       return next({ status: 400, message: 'Invalid job schedule.' });
     }
 
-    const schedule = req.body.schedule.trim();
+    const schedule = (req.body as { schedule: string }).schedule.trim();
     const result = rescheduleJob(scheduledJob.job, schedule);
     const settings = getSettings();
 

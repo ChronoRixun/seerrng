@@ -95,33 +95,45 @@ const parseOptionalRuleInteger = (
 };
 
 const parseOverrideRuleBody = (
-  body: OverrideRuleBody
+  body: unknown
 ): OverrideRulePatch | { error: string } => {
-  const users = parseOptionalRuleString(body.users, 'Users');
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Override rule body must be an object.' };
+  }
+
+  const bodyObject = body as Record<keyof OverrideRuleBody, unknown>;
+
+  const users = parseOptionalRuleString(bodyObject.users, 'Users');
   if (typeof users === 'object' && users && 'error' in users) return users;
-  const genre = parseOptionalRuleString(body.genre, 'Genre');
+  const genre = parseOptionalRuleString(bodyObject.genre, 'Genre');
   if (typeof genre === 'object' && genre && 'error' in genre) return genre;
-  const language = parseOptionalRuleString(body.language, 'Language');
+  const language = parseOptionalRuleString(bodyObject.language, 'Language');
   if (typeof language === 'object' && language && 'error' in language) {
     return language;
   }
-  const keywords = parseOptionalRuleString(body.keywords, 'Keywords');
+  const keywords = parseOptionalRuleString(bodyObject.keywords, 'Keywords');
   if (typeof keywords === 'object' && keywords && 'error' in keywords) {
     return keywords;
   }
-  const rootFolder = parseOptionalRuleString(body.rootFolder, 'Root folder');
+  const rootFolder = parseOptionalRuleString(
+    bodyObject.rootFolder,
+    'Root folder'
+  );
   if (typeof rootFolder === 'object' && rootFolder && 'error' in rootFolder) {
     return rootFolder;
   }
-  const tags = parseOptionalRuleString(body.tags, 'Tags');
+  const tags = parseOptionalRuleString(bodyObject.tags, 'Tags');
   if (typeof tags === 'object' && tags && 'error' in tags) return tags;
 
-  const profileId = parseOptionalRuleInteger(body.profileId, 'Profile ID');
+  const profileId = parseOptionalRuleInteger(
+    bodyObject.profileId,
+    'Profile ID'
+  );
   if (typeof profileId === 'object' && profileId && 'error' in profileId) {
     return profileId;
   }
   const radarrServiceId = parseOptionalRuleInteger(
-    body.radarrServiceId,
+    bodyObject.radarrServiceId,
     'Radarr service ID'
   );
   if (
@@ -132,7 +144,7 @@ const parseOverrideRuleBody = (
     return radarrServiceId;
   }
   const sonarrServiceId = parseOptionalRuleInteger(
-    body.sonarrServiceId,
+    bodyObject.sonarrServiceId,
     'Sonarr service ID'
   );
   if (
@@ -143,7 +155,7 @@ const parseOverrideRuleBody = (
     return sonarrServiceId;
   }
   const lidarrServiceId = parseOptionalRuleInteger(
-    body.lidarrServiceId,
+    bodyObject.lidarrServiceId,
     'Lidarr service ID'
   );
   if (

@@ -15,6 +15,7 @@ import rateLimit from 'express-rate-limit';
 const router = Router();
 const maxWarmRequestUrls = 100;
 const maxWarmUrlLength = 2048;
+const maxProxyImagePathLength = 2048;
 
 const proxyRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -133,7 +134,11 @@ router.get<{
   const imagePath =
     imagePathname + (queryIndex === -1 ? '' : req.url.slice(queryIndex));
 
-  if (imagePathname.startsWith('//') || imagePathname.includes('://')) {
+  if (
+    imagePath.length > maxProxyImagePathLength ||
+    imagePathname.startsWith('//') ||
+    imagePathname.includes('://')
+  ) {
     logger.error('Invalid URL for image proxy', { imagePath });
     return res.status(403).send('Invalid URL for image proxy');
   }

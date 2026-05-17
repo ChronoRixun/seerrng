@@ -130,6 +130,18 @@ describe('Settings route input validation', () => {
     assert.match(jellyfinRes.body.message, /Cancel must be a boolean/);
   });
 
+  it('rejects malformed scanner command bodies', async () => {
+    const plexRes = await request(app).post('/settings/plex/sync').send([]);
+    const jellyfinRes = await request(app)
+      .post('/settings/jellyfin/sync')
+      .send([]);
+
+    assert.strictEqual(plexRes.status, 400);
+    assert.match(plexRes.body.message, /Settings body must be an object/);
+    assert.strictEqual(jellyfinRes.status, 400);
+    assert.match(jellyfinRes.body.message, /Settings body must be an object/);
+  });
+
   it('rejects malformed log search values before reading logs', async () => {
     const res = await request(app).get(
       '/settings/logs?search=error&search=warn'

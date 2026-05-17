@@ -402,6 +402,17 @@ describe('POST /auth/reset-password/:guid', () => {
     );
   });
 
+  it('rejects malformed reset confirmation bodies before password validation', async () => {
+    const guid = await getResetGuid('admin@seerr.dev');
+
+    const res = await request(app)
+      .post(`/auth/reset-password/${guid}`)
+      .send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.message, 'Request body must be an object.');
+  });
+
   it('returns 500 for an expired recovery link', async () => {
     const guid = await getResetGuid('admin@seerr.dev');
 

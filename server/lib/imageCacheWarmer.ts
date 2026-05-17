@@ -4,6 +4,7 @@ import logger from '@server/logger';
 
 const warmBatchSize = 8;
 const maxWarmUrls = 80;
+const maxWarmPathLength = 2048;
 const queuedWarmUrls = new Set<string>();
 
 const tmdbImageProxy = new ImageProxy('tmdb', 'https://image.tmdb.org', {
@@ -82,6 +83,19 @@ export const getImageCacheWarmProvider = (url: URL): string | null => {
 export const getImageCacheWarmPath = (url: URL): string =>
   `${url.pathname}${url.search}`;
 
+export const isImageCacheWarmUrl = (rawUrl: string): boolean => {
+  try {
+    const url = new URL(rawUrl);
+    const path = getImageCacheWarmPath(url);
+
+    return (
+      getImageCacheWarmProvider(url) !== null && path.length <= maxWarmPathLength
+    );
+  } catch {
+    return false;
+  }
+};
+
 const getProxyForUrl = (url: URL): ImageProxy | null => {
   const provider = getImageCacheWarmProvider(url);
 
@@ -120,7 +134,7 @@ export const enqueueImageCacheWarm = (urls: string[]) => {
   }
 
   const uniqueUrls = [...new Set(urls)]
-    .filter((url) => url.startsWith('https://'))
+    .filter(isImageCacheWarmUrl)
     .slice(0, maxWarmUrls)
     .filter((url) => {
       if (queuedWarmUrls.has(url)) {

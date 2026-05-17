@@ -40,10 +40,8 @@ const MAX_USER_SETTINGS_ID_VALUE = 1_000_000_000;
 const MAX_LINKED_ACCOUNT_TOKEN_LENGTH = 4096;
 const MAX_LINKED_ACCOUNT_USERNAME_LENGTH = 512;
 const MAX_LINKED_ACCOUNT_PASSWORD_LENGTH = 512;
-const cardTextVisibilityValues = new Set<CardTextVisibility>([
-  'always',
-  'hover',
-]);
+const isCardTextVisibility = (value: unknown): value is CardTextVisibility =>
+  value === 'always' || value === 'hover';
 
 const parseUserSettingsRouteId = (id: unknown): number | undefined => {
   const parsedValue =
@@ -54,6 +52,16 @@ const parseUserSettingsRouteId = (id: unknown): number | undefined => {
   );
 
   return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const parseUserSettingsBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'User settings body must be an object.' };
+  }
+
+  return { value: body as Record<string, unknown> };
 };
 
 const serializeCardTextVisibility = (
@@ -82,18 +90,25 @@ const serializeCardTextVisibility = (
 });
 
 const parseCardTextVisibilityBody = (
-  body: UserSettingsCardTextResponse
+  body: unknown
 ): { value: UserSettingsCardTextResponse } | { error: string } => {
+  const parsedBody = parseUserSettingsBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const bodyObject = parsedBody.value;
   const value: UserSettingsCardTextResponse = {};
 
   for (const key of ['movie', 'tv', 'album', 'book'] as const) {
-    const fieldValue = body[key];
+    const fieldValue = bodyObject[key];
 
     if (fieldValue == null) {
       continue;
     }
 
-    if (!cardTextVisibilityValues.has(fieldValue)) {
+    if (!isCardTextVisibility(fieldValue)) {
       return { error: `${key} must be "always" or "hover".` };
     }
 
@@ -123,12 +138,19 @@ type NotificationStringField =
   | 'telegramMessageThreadId';
 
 const parseGeneralSettingsBody = (
-  body: UserSettingsGeneralResponse
+  body: unknown
 ):
   | {
       value: UserSettingsGeneralResponse;
     }
   | { error: string } => {
+  const parsedBody = parseUserSettingsBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const bodyObject = parsedBody.value;
   const boundedFields: [GeneralStringField, number][] = [
     ['username', USER_SETTINGS_LIMITS.username],
     ['email', USER_SETTINGS_LIMITS.email],
@@ -140,7 +162,7 @@ const parseGeneralSettingsBody = (
   ];
   const value: UserSettingsGeneralResponse = {};
 
-  const username = parseBoundedString(body.username, {
+  const username = parseBoundedString(bodyObject.username, {
     fieldName: 'username',
     maxLength: USER_SETTINGS_LIMITS.username,
   });
@@ -156,7 +178,7 @@ const parseGeneralSettingsBody = (
       continue;
     }
 
-    const parsed = parseOptionalBoundedString(body[fieldName], {
+    const parsed = parseOptionalBoundedString(bodyObject[fieldName], {
       fieldName,
       maxLength,
     });
@@ -179,19 +201,25 @@ const parseGeneralSettingsBody = (
     'bookQuotaDays',
   ] as const) {
     value[fieldName] = parseOptionalNonNegativeInteger(
-      body[fieldName],
+    bodyObject[fieldName],
       USER_SETTINGS_LIMITS.quota
     );
   }
 
-  value.watchlistSyncMovies = parseOptionalBoolean(body.watchlistSyncMovies);
-  value.watchlistSyncTv = parseOptionalBoolean(body.watchlistSyncTv);
-  value.watchlistSyncMusic = parseOptionalBoolean(body.watchlistSyncMusic);
-  value.watchlistSyncBooks = parseOptionalBoolean(body.watchlistSyncBooks);
+  value.watchlistSyncMovies = parseOptionalBoolean(
+    bodyObject.watchlistSyncMovies
+  );
+  value.watchlistSyncTv = parseOptionalBoolean(bodyObject.watchlistSyncTv);
+  value.watchlistSyncMusic = parseOptionalBoolean(
+    bodyObject.watchlistSyncMusic
+  );
+  value.watchlistSyncBooks = parseOptionalBoolean(
+    bodyObject.watchlistSyncBooks
+  );
 
-  if (body.cardTextVisibility) {
+  if (bodyObject.cardTextVisibility) {
     const parsedCardTextVisibility = parseCardTextVisibilityBody(
-      body.cardTextVisibility
+      bodyObject.cardTextVisibility
     );
 
     if ('error' in parsedCardTextVisibility) {
@@ -238,12 +266,19 @@ const parseNotificationTypes = (
 };
 
 const parseNotificationsBody = (
-  body: UserSettingsNotificationsResponse
+  body: unknown
 ):
   | {
       value: UserSettingsNotificationsResponse;
     }
   | { error: string } => {
+  const parsedBodyObject = parseUserSettingsBodyObject(body);
+
+  if ('error' in parsedBodyObject) {
+    return parsedBodyObject;
+  }
+
+  const bodyObject = parsedBodyObject.value;
   const boundedFields: [NotificationStringField, number][] = [
     ['pgpKey', USER_SETTINGS_LIMITS.pgpKey],
     ['discordId', USER_SETTINGS_LIMITS.discordId],
@@ -255,11 +290,11 @@ const parseNotificationsBody = (
     ['telegramMessageThreadId', USER_SETTINGS_LIMITS.telegramMessageThreadId],
   ];
   const parsedBody: UserSettingsNotificationsResponse = {
-    notificationTypes: parseNotificationTypes(body.notificationTypes),
+    notificationTypes: parseNotificationTypes(bodyObject.notificationTypes),
   };
 
   for (const [fieldName, maxLength] of boundedFields) {
-    const parsed = parseOptionalBoundedString(body[fieldName], {
+    const parsed = parseOptionalBoundedString(bodyObject[fieldName], {
       fieldName,
       maxLength,
     });
@@ -272,19 +307,24 @@ const parseNotificationsBody = (
   }
 
   parsedBody.telegramSendSilently = parseOptionalBoolean(
-    body.telegramSendSilently
+    bodyObject.telegramSendSilently
   );
 
   return { value: parsedBody };
 };
 
-const parsePasswordBody = (body: {
-  currentPassword?: unknown;
-  newPassword?: unknown;
-}):
+const parsePasswordBody = (
+  body: unknown
+):
   | { value: { currentPassword?: string; newPassword: string } }
   | { error: string } => {
-  const newPassword = parseBoundedString(body.newPassword, {
+  const parsedBody = parseUserSettingsBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const newPassword = parseBoundedString(parsedBody.value.newPassword, {
     fieldName: 'newPassword',
     maxLength: USER_SETTINGS_LIMITS.password,
   });
@@ -297,10 +337,13 @@ const parsePasswordBody = (body: {
     return { error: 'Password must be at least 8 characters.' };
   }
 
-  const currentPassword = parseOptionalBoundedString(body.currentPassword, {
-    fieldName: 'currentPassword',
-    maxLength: USER_SETTINGS_LIMITS.password,
-  });
+  const currentPassword = parseOptionalBoundedString(
+    parsedBody.value.currentPassword,
+    {
+      fieldName: 'currentPassword',
+      maxLength: USER_SETTINGS_LIMITS.password,
+    }
+  );
 
   if ('error' in currentPassword) {
     return currentPassword;
@@ -314,10 +357,16 @@ const parsePasswordBody = (body: {
   };
 };
 
-const parsePlexLinkBody = (body: {
-  authToken?: unknown;
-}): { value: { authToken: string } } | { error: string } => {
-  const authToken = parseBoundedString(body.authToken, {
+const parsePlexLinkBody = (
+  body: unknown
+): { value: { authToken: string } } | { error: string } => {
+  const parsedBody = parseUserSettingsBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const authToken = parseBoundedString(parsedBody.value.authToken, {
     fieldName: 'authToken',
     maxLength: MAX_LINKED_ACCOUNT_TOKEN_LENGTH,
   });
@@ -329,11 +378,16 @@ const parsePlexLinkBody = (body: {
   return { value: { authToken: authToken.value } };
 };
 
-const parseJellyfinLinkBody = (body: {
-  username?: unknown;
-  password?: unknown;
-}): { value: { username: string; password: string } } | { error: string } => {
-  const username = parseBoundedString(body.username, {
+const parseJellyfinLinkBody = (
+  body: unknown
+): { value: { username: string; password: string } } | { error: string } => {
+  const parsedBody = parseUserSettingsBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const username = parseBoundedString(parsedBody.value.username, {
     fieldName: 'username',
     maxLength: MAX_LINKED_ACCOUNT_USERNAME_LENGTH,
   });
@@ -342,7 +396,7 @@ const parseJellyfinLinkBody = (body: {
     return username;
   }
 
-  const password = parseBoundedString(body.password, {
+  const password = parseBoundedString(parsedBody.value.password, {
     fieldName: 'password',
     maxLength: MAX_LINKED_ACCOUNT_PASSWORD_LENGTH,
   });
@@ -1191,8 +1245,13 @@ userSettingsRoutes.post<
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
     const userRepository = getRepository(User);
+    const parsedBody = parseUserSettingsBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+    const body = parsedBody.value;
     const parsedPermissions = parseOptionalNonNegativeInteger(
-      req.body.permissions,
+      body.permissions,
       MAX_PERMISSION_VALUE
     );
 

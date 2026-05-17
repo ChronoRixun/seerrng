@@ -189,6 +189,28 @@ describe('POST /media/:id/:status', () => {
     assert.match(res.body.message, /seasonNumber must be an integer/i);
   });
 
+  it('rejects malformed media status update bodies', async () => {
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 4,
+        mediaType: MediaType.MOVIE,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post(`/media/${media.id}/available`).send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Media status body must be an object/);
+
+    const persisted = await getRepository(Media).findOneOrFail({
+      where: { id: media.id },
+    });
+    assert.strictEqual(persisted.status, MediaStatus.PENDING);
+  });
+
   it('rejects string is4k status update bodies', async () => {
     const media = await getRepository(Media).save(
       new Media({

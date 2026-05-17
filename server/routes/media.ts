@@ -109,6 +109,20 @@ const parseSeasonStatusUpdates = (
   return { seasons: parsedSeasons };
 };
 
+const parseOptionalMediaStatusBody = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (body === undefined || body === null) {
+    return { value: {} };
+  }
+
+  if (typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'Media status body must be an object.' };
+  }
+
+  return { value: body as Record<string, unknown> };
+};
+
 mediaRoutes.get('/', async (req, res, next) => {
   const mediaRepository = getRepository(Media);
 
@@ -231,7 +245,13 @@ mediaRoutes.post<
       return next({ status: 404, message: 'Media does not exist.' });
     }
 
-    const parsedIs4k = parseOptionalBodyBoolean(req.body.is4k, 'is4k');
+    const parsedBody = parseOptionalMediaStatusBody(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+    const body = parsedBody.value;
+
+    const parsedIs4k = parseOptionalBodyBoolean(body.is4k, 'is4k');
     if ('error' in parsedIs4k) {
       return next({ status: 400, message: parsedIs4k.error });
     }
@@ -242,7 +262,7 @@ mediaRoutes.post<
         media[is4k ? 'status4k' : 'status'] = MediaStatus.AVAILABLE;
 
         if (media.mediaType === MediaType.TV) {
-          const expectedSeasons = parseSeasonStatusUpdates(req.body.seasons);
+          const expectedSeasons = parseSeasonStatusUpdates(body.seasons);
           if ('error' in expectedSeasons) {
             return next({ status: 400, message: expectedSeasons.error });
           }

@@ -113,10 +113,76 @@ describe('User route input validation', () => {
 
   it('rejects malformed password update bodies', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/1/settings/password').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User settings body must be an object/i);
+  });
+
+  it('rejects invalid password update bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/user/1/settings/password').send({});
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /newPassword/i);
+  });
+
+  it('rejects malformed main settings bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/1/settings/main').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User settings body must be an object/i);
+  });
+
+  it('rejects malformed notification settings bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/1/settings/notifications').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User settings body must be an object/i);
+  });
+
+  it('rejects malformed push subscription bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/registerPushSubscription').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User body must be an object/i);
+  });
+
+  it('rejects malformed local user create bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User body must be an object/i);
+  });
+
+  it('rejects malformed user update bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put('/user/2').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User body must be an object/i);
+  });
+
+  it('rejects malformed Plex linked account bodies before provider calls', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/1/settings/linked-accounts/plex').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User settings body must be an object/i);
+  });
+
+  it('rejects malformed Jellyfin linked account bodies before provider calls', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent
+      .post('/user/1/settings/linked-accounts/jellyfin')
+      .send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User settings body must be an object/i);
   });
 
   it('rejects invalid settings permission payloads', async () => {
@@ -127,6 +193,14 @@ describe('User route input validation', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /permissions is invalid/i);
+  });
+
+  it('rejects malformed settings permission bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/2/settings/permissions').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User settings body must be an object/i);
   });
 
   it('rejects unknown permission bits on settings permission updates', async () => {
@@ -148,6 +222,30 @@ describe('User route input validation', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /permissions is invalid/i);
+  });
+
+  it('rejects malformed bulk permission bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put('/user').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User body must be an object/i);
+  });
+
+  it('rejects malformed Plex import bodies before provider calls', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/import-from-plex').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User body must be an object/i);
+  });
+
+  it('rejects malformed Jellyfin import bodies before provider calls', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/import-from-jellyfin').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User body must be an object/i);
   });
 
   it('saves card text visibility settings per user', async () => {
@@ -218,5 +316,13 @@ describe('User route input validation', () => {
 
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /album must be "always" or "hover"/i);
+  });
+
+  it('rejects malformed card text visibility bodies', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/1/settings/card-text').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /User settings body must be an object/i);
   });
 });

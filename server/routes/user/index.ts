@@ -158,17 +158,43 @@ const parseOptionalIncludeUserIds = (
   });
 };
 
+const parseUserBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { error: 'User body must be an object.' };
+  }
+
+  return { value: body as Record<string, unknown> };
+};
+
+const parseOptionalUserBodyObject = (
+  body: unknown
+): { value: Record<string, unknown> } | { error: string } => {
+  if (body === undefined || body === null) {
+    return { value: {} };
+  }
+
+  return parseUserBodyObject(body);
+};
+
 const parsePushSubscriptionBody = (
-  body: Partial<UserPushSubscription>
+  body: unknown
 ):
   | {
-	      value: Pick<
-	        UserPushSubscription,
-	        'auth' | 'endpoint' | 'p256dh' | 'userAgent'
-	      >;
+      value: Pick<
+        UserPushSubscription,
+        'auth' | 'endpoint' | 'p256dh' | 'userAgent'
+      >;
     }
   | { error: string } => {
-  const endpoint = parseBoundedString(body.endpoint, {
+  const parsedBody = parseUserBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const endpoint = parseBoundedString(parsedBody.value.endpoint, {
     fieldName: 'endpoint',
     maxLength: MAX_PUSH_ENDPOINT_LENGTH,
   });
@@ -187,7 +213,7 @@ const parsePushSubscriptionBody = (
     return { error: 'endpoint must be a valid URL.' };
   }
 
-  const auth = parseBoundedString(body.auth, {
+  const auth = parseBoundedString(parsedBody.value.auth, {
     fieldName: 'auth',
     maxLength: MAX_PUSH_KEY_LENGTH,
   });
@@ -196,7 +222,7 @@ const parsePushSubscriptionBody = (
     return auth;
   }
 
-  const p256dh = parseBoundedString(body.p256dh, {
+  const p256dh = parseBoundedString(parsedBody.value.p256dh, {
     fieldName: 'p256dh',
     maxLength: MAX_PUSH_KEY_LENGTH,
   });
@@ -205,7 +231,7 @@ const parsePushSubscriptionBody = (
     return p256dh;
   }
 
-  const userAgent = parseOptionalBoundedString(body.userAgent, {
+  const userAgent = parseOptionalBoundedString(parsedBody.value.userAgent, {
     fieldName: 'userAgent',
     maxLength: MAX_USER_AGENT_LENGTH,
   });
@@ -219,13 +245,13 @@ const parsePushSubscriptionBody = (
       auth: auth.value,
       endpoint: endpoint.value,
       p256dh: p256dh.value,
-	      userAgent: userAgent.value ?? '',
+      userAgent: userAgent.value ?? '',
     },
   };
 };
 
 const parseLocalUserBody = (
-  body: LocalUserBody
+  body: unknown
 ):
   | {
       value: {
@@ -236,7 +262,13 @@ const parseLocalUserBody = (
       };
     }
   | { error: string } => {
-  const username = parseBoundedString(body.username, {
+  const parsedBody = parseUserBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const username = parseBoundedString(parsedBody.value.username, {
     fieldName: 'username',
     maxLength: USER_SETTINGS_LIMITS.username,
   });
@@ -245,7 +277,7 @@ const parseLocalUserBody = (
     return username;
   }
 
-  const email = parseOptionalBoundedString(body.email, {
+  const email = parseOptionalBoundedString(parsedBody.value.email, {
     fieldName: 'email',
     maxLength: USER_SETTINGS_LIMITS.email,
   });
@@ -254,7 +286,7 @@ const parseLocalUserBody = (
     return email;
   }
 
-  const password = parseOptionalBoundedString(body.password, {
+  const password = parseOptionalBoundedString(parsedBody.value.password, {
     fieldName: 'password',
     maxLength: USER_SETTINGS_LIMITS.password,
   });
@@ -267,7 +299,7 @@ const parseLocalUserBody = (
     return { error: 'password must be at least 8 characters long.' };
   }
 
-  const avatar = parseOptionalBoundedString(body.avatar, {
+  const avatar = parseOptionalBoundedString(parsedBody.value.avatar, {
     fieldName: 'avatar',
     maxLength: USER_SETTINGS_LIMITS.avatar,
   });
@@ -287,7 +319,7 @@ const parseLocalUserBody = (
 };
 
 const parseUserUpdateBody = (
-  body: LocalUserBody
+  body: unknown
 ):
   | {
       value: {
@@ -296,7 +328,13 @@ const parseUserUpdateBody = (
       };
     }
   | { error: string } => {
-  const username = parseBoundedString(body.username, {
+  const parsedBody = parseUserBodyObject(body);
+
+  if ('error' in parsedBody) {
+    return parsedBody;
+  }
+
+  const username = parseBoundedString(parsedBody.value.username, {
     fieldName: 'username',
     maxLength: USER_SETTINGS_LIMITS.username,
   });
@@ -306,7 +344,7 @@ const parseUserUpdateBody = (
   }
 
   const permissions = parseOptionalNonNegativeInteger(
-    body.permissions,
+    parsedBody.value.permissions,
     MAX_PERMISSION_VALUE
   );
 
@@ -876,7 +914,13 @@ router.put<
   Partial<User>[],
   { ids: string[]; permissions: number }
 >('/', isAuthenticated(Permission.MANAGE_USERS), async (req, res, next) => {
-  const parsedIds = parsePositiveIntegerArray(req.body.ids, {
+  const parsedBody = parseUserBodyObject(req.body);
+  if ('error' in parsedBody) {
+    return next({ status: 400, message: parsedBody.error });
+  }
+  const body = parsedBody.value;
+
+  const parsedIds = parsePositiveIntegerArray(body.ids, {
     fieldName: 'ids',
     maxItems: MAX_BULK_USER_IDS,
   });
@@ -886,7 +930,7 @@ router.put<
   }
 
   const parsedPermissions = parseOptionalNonNegativeInteger(
-    req.body.permissions,
+    body.permissions,
     MAX_PERMISSION_VALUE
   );
 
@@ -1055,7 +1099,12 @@ router.post(
   '/import-from-plex',
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
-    const parsedPlexIds = parseStringArray(req.body?.plexIds, {
+    const parsedBody = parseOptionalUserBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+
+    const parsedPlexIds = parseStringArray(parsedBody.value.plexIds, {
       fieldName: 'plexIds',
       maxItems: MAX_PROVIDER_IMPORT_IDS,
       maxItemLength: 32,
@@ -1133,11 +1182,19 @@ router.post(
   '/import-from-jellyfin',
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
-    const parsedJellyfinUserIds = parseStringArray(req.body?.jellyfinUserIds, {
-      fieldName: 'jellyfinUserIds',
-      maxItems: MAX_PROVIDER_IMPORT_IDS,
-      maxItemLength: 128,
-    });
+    const parsedBody = parseOptionalUserBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+
+    const parsedJellyfinUserIds = parseStringArray(
+      parsedBody.value.jellyfinUserIds,
+      {
+        fieldName: 'jellyfinUserIds',
+        maxItems: MAX_PROVIDER_IMPORT_IDS,
+        maxItemLength: 128,
+      }
+    );
 
     if ('error' in parsedJellyfinUserIds) {
       return next({ status: 400, message: parsedJellyfinUserIds.error });

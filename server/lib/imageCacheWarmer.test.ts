@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   getImageCacheWarmPath,
   getImageCacheWarmProvider,
+  isImageCacheWarmUrl,
 } from './imageCacheWarmer';
 
 describe('getImageCacheWarmProvider', () => {
@@ -61,6 +62,28 @@ describe('getImageCacheWarmPath', () => {
         new URL('https://image.tmdb.org/t/p/w300/poster.jpg?version=2&lang=en')
       ),
       '/t/p/w300/poster.jpg?version=2&lang=en'
+    );
+  });
+});
+
+describe('isImageCacheWarmUrl', () => {
+  it('accepts supported image provider URLs', () => {
+    assert.equal(
+      isImageCacheWarmUrl('https://image.tmdb.org/t/p/w300/poster.jpg'),
+      true
+    );
+  });
+
+  it('rejects malformed or unsupported warm URLs before queueing', () => {
+    assert.equal(isImageCacheWarmUrl('not-a-url'), false);
+    assert.equal(isImageCacheWarmUrl('http://image.tmdb.org/poster.jpg'), false);
+    assert.equal(isImageCacheWarmUrl('https://example.com/poster.jpg'), false);
+  });
+
+  it('rejects oversized warm URL paths before queueing', () => {
+    assert.equal(
+      isImageCacheWarmUrl(`https://image.tmdb.org/${'x'.repeat(2049)}`),
+      false
     );
   });
 });

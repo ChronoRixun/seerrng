@@ -72,6 +72,17 @@ async function login() {
 }
 
 describe('Override rule route validation', () => {
+  it('rejects malformed create bodies before persistence', async () => {
+    const agent = await login();
+    const beforeCount = await getRepository(OverrideRule).count();
+
+    const res = await agent.post('/overrideRule').send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Override rule body must be an object/i);
+    assert.strictEqual(await getRepository(OverrideRule).count(), beforeCount);
+  });
+
   it('rejects oversized rule strings before persistence', async () => {
     const agent = await login();
     const beforeCount = await getRepository(OverrideRule).count();
@@ -106,6 +117,20 @@ describe('Override rule route validation', () => {
       .send({ users: 'admin@seerr.dev' });
 
     assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects malformed update bodies before persistence', async () => {
+    const rule = await getRepository(OverrideRule).save(
+      new OverrideRule({
+        users: 'admin@seerr.dev',
+      })
+    );
+    const agent = await login();
+
+    const res = await agent.put(`/overrideRule/${rule.id}`).send([]);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Override rule body must be an object/i);
   });
 
   it('rejects malformed rule IDs before lookup on delete', async () => {

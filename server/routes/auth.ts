@@ -944,7 +944,11 @@ authRoutes.post(
   async (req, res, next) => {
     const userRepository = getRepository(User);
     const guid = parseResetGuid(req.params.guid);
-    const password = parsePassword(req.body.password);
+    const parsedBody = parseRequestBodyObject(req.body);
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+    const password = parsePassword(parsedBody.value.password);
 
     if ('error' in password || !password.value || password.value.length < 8) {
       logger.warn('Failed password reset attempt using invalid new password', {

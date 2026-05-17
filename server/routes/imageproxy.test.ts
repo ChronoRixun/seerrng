@@ -105,6 +105,22 @@ describe('GET /imageproxy/:type/*path', () => {
     );
   });
 
+  it('rejects oversized proxied image paths before cache lookup', async () => {
+    const getImage = mock.method(
+      ImageProxy.prototype,
+      'getImage',
+      async () => imageResponse
+    );
+
+    const res = await request(createApp()).get(
+      `/imageproxy/tmdb/t/p/w300/${'x'.repeat(2048)}.jpg`
+    );
+
+    assert.equal(res.status, 403);
+    assert.match(res.text, /Invalid URL for image proxy/);
+    assert.equal(getImage.mock.callCount(), 0);
+  });
+
   it('supports HEAD requests with browser cache headers and no body', async () => {
     mock.method(ImageProxy.prototype, 'getImage', async () => imageResponse);
 
