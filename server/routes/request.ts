@@ -94,6 +94,21 @@ const getRequestLogBody = (body: Partial<MediaRequestBody> | undefined) => ({
   userId: body?.userId,
 });
 
+const logRequestServiceProfileFailure = (
+  serviceType: string,
+  serviceId: number,
+  serviceName: string | undefined,
+  error: unknown
+) => {
+  logger.warn('Failed to load request service profiles', {
+    label: 'Request',
+    serviceType,
+    serviceId,
+    serviceName,
+    ...getErrorLogFields(error),
+  });
+};
+
 const parseRequestStatusAction = (
   status: unknown
 ): MediaRequestStatus | undefined => {
@@ -913,58 +928,138 @@ requestRoutes.get<
     // get all quality profiles for every configured sonarr server
     const sonarrServers = await Promise.all(
       settings.sonarr.map(async (sonarrSetting) => {
-        const sonarr = new SonarrAPI({
-          apiKey: sonarrSetting.apiKey,
-          url: SonarrAPI.buildUrl(sonarrSetting, '/api/v3'),
-        });
+        try {
+          const sonarr = new SonarrAPI({
+            apiKey: sonarrSetting.apiKey,
+            url: SonarrAPI.buildUrl(sonarrSetting, '/api/v3'),
+          });
 
-        return {
-          id: sonarrSetting.id,
-          profiles: await sonarr.getProfiles().catch(() => undefined),
-        };
+          return {
+            id: sonarrSetting.id,
+            profiles: await sonarr.getProfiles().catch((error) => {
+              logRequestServiceProfileFailure(
+                'sonarr',
+                sonarrSetting.id,
+                sonarrSetting.name,
+                error
+              );
+
+              return undefined;
+            }),
+          };
+        } catch (error) {
+          logRequestServiceProfileFailure(
+            'sonarr',
+            sonarrSetting.id,
+            sonarrSetting.name,
+            error
+          );
+
+          return { id: sonarrSetting.id, profiles: undefined };
+        }
       })
     );
 
     // get all quality profiles for every configured radarr server
     const radarrServers = await Promise.all(
       settings.radarr.map(async (radarrSetting) => {
-        const radarr = new RadarrAPI({
-          apiKey: radarrSetting.apiKey,
-          url: RadarrAPI.buildUrl(radarrSetting, '/api/v3'),
-        });
+        try {
+          const radarr = new RadarrAPI({
+            apiKey: radarrSetting.apiKey,
+            url: RadarrAPI.buildUrl(radarrSetting, '/api/v3'),
+          });
 
-        return {
-          id: radarrSetting.id,
-          profiles: await radarr.getProfiles().catch(() => undefined),
-        };
+          return {
+            id: radarrSetting.id,
+            profiles: await radarr.getProfiles().catch((error) => {
+              logRequestServiceProfileFailure(
+                'radarr',
+                radarrSetting.id,
+                radarrSetting.name,
+                error
+              );
+
+              return undefined;
+            }),
+          };
+        } catch (error) {
+          logRequestServiceProfileFailure(
+            'radarr',
+            radarrSetting.id,
+            radarrSetting.name,
+            error
+          );
+
+          return { id: radarrSetting.id, profiles: undefined };
+        }
       })
     );
 
     const lidarrServers = await Promise.all(
       settings.lidarr.map(async (lidarrSetting) => {
-        const lidarr = new LidarrAPI({
-          apiKey: lidarrSetting.apiKey,
-          url: LidarrAPI.buildUrl(lidarrSetting, '/api/v1'),
-        });
+        try {
+          const lidarr = new LidarrAPI({
+            apiKey: lidarrSetting.apiKey,
+            url: LidarrAPI.buildUrl(lidarrSetting, '/api/v1'),
+          });
 
-        return {
-          id: lidarrSetting.id,
-          profiles: await lidarr.getProfiles().catch(() => undefined),
-        };
+          return {
+            id: lidarrSetting.id,
+            profiles: await lidarr.getProfiles().catch((error) => {
+              logRequestServiceProfileFailure(
+                'lidarr',
+                lidarrSetting.id,
+                lidarrSetting.name,
+                error
+              );
+
+              return undefined;
+            }),
+          };
+        } catch (error) {
+          logRequestServiceProfileFailure(
+            'lidarr',
+            lidarrSetting.id,
+            lidarrSetting.name,
+            error
+          );
+
+          return { id: lidarrSetting.id, profiles: undefined };
+        }
       })
     );
 
     const readarrServers = await Promise.all(
       settings.readarr.map(async (readarrSetting) => {
-        const readarr = new ReadarrAPI({
-          apiKey: readarrSetting.apiKey,
-          url: ReadarrAPI.buildUrl(readarrSetting, '/api/v1'),
-        });
+        try {
+          const readarr = new ReadarrAPI({
+            apiKey: readarrSetting.apiKey,
+            url: ReadarrAPI.buildUrl(readarrSetting, '/api/v1'),
+          });
 
-        return {
-          id: readarrSetting.id,
-          profiles: await readarr.getProfiles().catch(() => undefined),
-        };
+          return {
+            id: readarrSetting.id,
+            profiles: await readarr.getProfiles().catch((error) => {
+              logRequestServiceProfileFailure(
+                'readarr',
+                readarrSetting.id,
+                readarrSetting.name,
+                error
+              );
+
+              return undefined;
+            }),
+          };
+        } catch (error) {
+          logRequestServiceProfileFailure(
+            'readarr',
+            readarrSetting.id,
+            readarrSetting.name,
+            error
+          );
+
+          return { id: readarrSetting.id, profiles: undefined };
+        }
       })
     );
 
