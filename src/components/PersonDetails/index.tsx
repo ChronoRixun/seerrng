@@ -39,14 +39,16 @@ const PersonDetails = () => {
   const intl = useIntl();
   const router = useRouter();
   const [currentMediaType, setCurrentMediaType] = useState<string>('all');
+  const personId =
+    typeof router.query.personId === 'string' ? router.query.personId : '';
   const { data, error } = useSWR<PersonDetailsType>(
-    `/api/v1/person/${router.query.personId}`
+    personId ? `/api/v1/person/${personId}` : null
   );
   const [showBio, setShowBio] = useState(false);
 
   const { data: combinedCredits, error: errorCombinedCredits } =
     useSWR<PersonCombinedCreditsResponse>(
-      `/api/v1/person/${router.query.personId}/combined_credits`
+      personId ? `/api/v1/person/${personId}/combined_credits` : null
     );
 
   const sortedCast = useMemo(() => {

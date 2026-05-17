@@ -27,7 +27,11 @@ export const filterQueryString = (
   const cleanedFilters: ParsedUrlQuery = {};
 
   Object.keys(filters).forEach((key) => {
-    if (!router.pathname.match(new RegExp(`${key}`))) {
+    if (
+      !router.pathname.includes(`[${key}]`) &&
+      !router.pathname.includes(`[...${key}]`) &&
+      !router.pathname.includes(`[[...${key}]]`)
+    ) {
       cleanedFilters[key] = filters[key];
     }
   });
@@ -68,25 +72,30 @@ export const mergeQueryString = (
   query: ParsedUrlQuery
 ): MergedQueryString => {
   const cleanedQuery = filterQueryString(router, router.query);
-
   const mergedQuery = Object.assign({}, cleanedQuery, query);
+  const queryParams = new URLSearchParams();
 
-  const queryArray: string[] = [];
-
-  Object.keys(mergedQuery).map((key) => {
-    if (mergedQuery[key]) {
-      queryArray.push(`${key}=${mergedQuery[key]}`);
+  Object.entries(mergedQuery).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item) {
+          queryParams.append(key, item);
+        }
+      });
+    } else if (value) {
+      queryParams.set(key, value);
     }
   });
+  const queryString = queryParams.toString();
 
   const pathWithoutQuery = router.asPath.match(/(.*)\?.*/);
   const asPath = pathWithoutQuery ? pathWithoutQuery[1] : router.asPath;
 
   const pathname = `${router.pathname}${
-    queryArray.length > 0 ? `?${queryArray.join('&')}` : ''
+    queryString.length > 0 ? `?${queryString}` : ''
   }`;
   const path = `${asPath}${
-    queryArray.length > 0 ? `?${queryArray.join('&')}` : ''
+    queryString.length > 0 ? `?${queryString}` : ''
   }`;
 
   return { pathname, path };

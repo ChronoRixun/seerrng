@@ -17,8 +17,10 @@ const messages = defineMessages('components.MovieDetails.MovieCrew', {
 const MovieCrew = () => {
   const router = useRouter();
   const intl = useIntl();
+  const movieId =
+    typeof router.query.movieId === 'string' ? router.query.movieId : '';
   const { data, error } = useSWR<MovieDetails>(
-    `/api/v1/movie/${router.query.movieId}`
+    movieId ? `/api/v1/movie/${movieId}` : null
   );
 
   if (!data && !error) {

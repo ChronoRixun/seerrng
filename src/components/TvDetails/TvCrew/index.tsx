@@ -17,7 +17,10 @@ const messages = defineMessages('components.TvDetails.TvCrew', {
 const TvCrew = () => {
   const router = useRouter();
   const intl = useIntl();
-  const { data, error } = useSWR<TvDetails>(`/api/v1/tv/${router.query.tvId}`);
+  const tvId = typeof router.query.tvId === 'string' ? router.query.tvId : '';
+  const { data, error } = useSWR<TvDetails>(
+    tvId ? `/api/v1/tv/${tvId}` : null
+  );
 
   if (!data && !error) {
     return <LoadingSpinner />;

@@ -141,12 +141,18 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
     useState<boolean>(false);
   const [showBlocklistModal, setShowBlocklistModal] = useState(false);
   const { addToast } = useToasts();
+  const movieId =
+    typeof router.query.movieId === 'string'
+      ? router.query.movieId
+      : movie?.id
+        ? movie.id.toString()
+        : '';
 
   const {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<MovieDetailsType>(`/api/v1/movie/${router.query.movieId}`, {
+  } = useSWR<MovieDetailsType>(movieId ? `/api/v1/movie/${movieId}` : null, {
     fallbackData: movie,
     refreshInterval: refreshIntervalHelper(
       {
@@ -158,7 +164,7 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
   });
 
   const { data: ratingData } = useSWR<RatingResponse>(
-    `/api/v1/movie/${router.query.movieId}/ratingscombined`
+    movieId ? `/api/v1/movie/${movieId}/ratingscombined` : null
   );
 
   const sortedCrew = useMemo(
@@ -1160,14 +1166,14 @@ const MovieDetails = ({ movie }: MovieDetailsProps) => {
       <MediaSlider
         sliderKey="recommendations"
         title={intl.formatMessage(messages.recommendations)}
-        url={`/api/v1/movie/${router.query.movieId}/recommendations`}
+        url={`/api/v1/movie/${movieId}/recommendations`}
         linkUrl={`/movie/${data.id}/recommendations`}
         hideWhenEmpty
       />
       <MediaSlider
         sliderKey="similar"
         title={intl.formatMessage(messages.similar)}
-        url={`/api/v1/movie/${router.query.movieId}/similar`}
+        url={`/api/v1/movie/${movieId}/similar`}
         linkUrl={`/movie/${data.id}/similar`}
         hideWhenEmpty
       />

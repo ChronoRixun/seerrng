@@ -109,8 +109,10 @@ const IssueDetails = () => {
   const intl = useIntl();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { user: currentUser, hasPermission } = useUser();
+  const issueId =
+    typeof router.query.issueId === 'string' ? router.query.issueId : '';
   const { data: issueData, mutate: revalidateIssue } = useSWR<Issue>(
-    `/api/v1/issue/${router.query.issueId}`
+    issueId ? `/api/v1/issue/${issueId}` : null
   );
   const bookId = issueData?.media.identifiers?.find(
     (identifier) => identifier.provider === 'openlibrary'

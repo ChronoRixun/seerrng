@@ -59,6 +59,12 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
   const [showBlocklistModal, setShowBlocklistModal] = useState(false);
   const [isBlocklistUpdating, setIsBlocklistUpdating] = useState(false);
   const { addToast } = useToasts();
+  const collectionId =
+    typeof router.query.collectionId === 'string'
+      ? router.query.collectionId
+      : collection?.id
+        ? collection.id.toString()
+        : '';
 
   const returnCollectionDownloadItems = (data: Collection | undefined) => {
     const [downloadStatus, downloadStatus4k] = [
@@ -77,14 +83,17 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<Collection>(`/api/v1/collection/${router.query.collectionId}`, {
-    fallbackData: collection,
-    revalidateOnMount: true,
-    refreshInterval: refreshIntervalHelper(
-      returnCollectionDownloadItems(collection),
-      15000
-    ),
-  });
+  } = useSWR<Collection>(
+    collectionId ? `/api/v1/collection/${collectionId}` : null,
+    {
+      fallbackData: collection,
+      revalidateOnMount: true,
+      refreshInterval: refreshIntervalHelper(
+        returnCollectionDownloadItems(collection),
+        15000
+      ),
+    }
+  );
 
   const { data: genres } =
     useSWR<{ id: number; name: string }[]>(`/api/v1/genres/movie`);

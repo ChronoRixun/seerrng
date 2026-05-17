@@ -140,12 +140,18 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
     useState<boolean>(false);
   const [showBlocklistModal, setShowBlocklistModal] = useState(false);
   const { addToast } = useToasts();
+  const tvId =
+    typeof router.query.tvId === 'string'
+      ? router.query.tvId
+      : tv?.id
+        ? tv.id.toString()
+        : '';
 
   const {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<TvDetailsType>(`/api/v1/tv/${router.query.tvId}`, {
+  } = useSWR<TvDetailsType>(tvId ? `/api/v1/tv/${tvId}` : null, {
     fallbackData: tv,
     refreshInterval: refreshIntervalHelper(
       {
@@ -157,7 +163,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
   });
 
   const { data: ratingData } = useSWR<RTRating>(
-    `/api/v1/tv/${router.query.tvId}/ratings`
+    tvId ? `/api/v1/tv/${tvId}/ratings` : null
   );
 
   const sortedCrew = useMemo(
@@ -1376,14 +1382,14 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
       <MediaSlider
         sliderKey="recommendations"
         title={intl.formatMessage(messages.recommendations)}
-        url={`/api/v1/tv/${router.query.tvId}/recommendations`}
+        url={`/api/v1/tv/${tvId}/recommendations`}
         linkUrl={`/tv/${data.id}/recommendations`}
         hideWhenEmpty
       />
       <MediaSlider
         sliderKey="similar"
         title={intl.formatMessage(messages.similar)}
-        url={`/api/v1/tv/${router.query.tvId}/similar`}
+        url={`/api/v1/tv/${tvId}/similar`}
         linkUrl={`/tv/${data.id}/similar`}
         hideWhenEmpty
       />
