@@ -6,6 +6,8 @@ ENV TARGETPLATFORM=${TARGETPLATFORM:-linux/amd64}
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
+RUN apk add --no-cache python3 make g++ gcc libc6-compat bash && \
+  npm install --global node-gyp
 
 COPY . ./app
 WORKDIR /app
@@ -36,15 +38,6 @@ ARG COMMIT_TAG
 ARG BUILD_VERSION=develop
 ENV COMMIT_TAG=${COMMIT_TAG}
 ENV BUILD_VERSION=${BUILD_VERSION}
-
-RUN \
-  case "${TARGETPLATFORM}" in \
-  'linux/arm64' | 'linux/arm/v7') \
-  apk update && \
-  apk add --no-cache python3 make g++ gcc libc6-compat bash && \
-  npm install --global node-gyp \
-  ;; \
-  esac
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile
 
