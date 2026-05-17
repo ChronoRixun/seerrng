@@ -6564,17 +6564,43 @@ paths:
             type: number
             enum:
               - 7
+              - 14
               - 30
               - 90
-            default: 7
+            default: 14
         - in: query
           name: sortBy
           schema:
             type: string
             enum:
+              - ranked
+              - popular.week
+              - popular.month
+              - popular.year
+              - listen_count.desc
               - release_date.desc
               - release_date.asc
-            default: release_date.desc
+            default: ranked
+        - in: query
+          name: genre
+          schema:
+            type: string
+            example: jazz
+        - in: query
+          name: releaseType
+          schema:
+            type: string
+            example: Album
+        - in: query
+          name: primaryReleaseDateGte
+          schema:
+            type: string
+            example: '2024-01-01'
+        - in: query
+          name: primaryReleaseDateLte
+          schema:
+            type: string
+            example: '2024-12-31'
         - in: query
           name: query
           schema:
@@ -6626,6 +6652,18 @@ paths:
             type: string
             example: fiction
             default: fiction
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum:
+              - ranked
+              - newest
+              - oldest
+              - random
+              - rating
+              - editions
+            default: ranked
       responses:
         '200':
           description: Book discovery results
