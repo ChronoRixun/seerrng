@@ -24,6 +24,12 @@ export interface NotificationPayload {
   isAdmin?: boolean;
 }
 
+export const NOTIFICATION_HTTP_OPTIONS = {
+  timeout: 10_000,
+  maxBodyLength: 128 * 1024,
+  maxContentLength: 128 * 1024,
+};
+
 const isSafeRelativeNotificationPath = (value: string): boolean =>
   value.startsWith('/') &&
   !value.startsWith('//') &&

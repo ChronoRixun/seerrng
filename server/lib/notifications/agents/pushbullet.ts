@@ -16,7 +16,7 @@ import {
   shouldSendAdminNotification,
 } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, NOTIFICATION_HTTP_OPTIONS } from './agent';
 
 interface PushbulletPayload {
   type: string;
@@ -136,6 +136,7 @@ class PushbulletAgent
           endpoint,
           { ...notificationPayload, channel_tag: settings.options.channelTag },
           {
+            ...NOTIFICATION_HTTP_OPTIONS,
             headers: {
               'Access-Token': settings.options.accessToken,
             },
@@ -179,6 +180,7 @@ class PushbulletAgent
           );
 
           await axios.post(endpoint, notificationPayload, {
+            ...NOTIFICATION_HTTP_OPTIONS,
             headers: {
               'Access-Token': payload.notifyUser.settings.pushbulletAccessToken,
             },
@@ -233,6 +235,7 @@ class PushbulletAgent
                 );
 
                 await axios.post(endpoint, notificationPayload, {
+                  ...NOTIFICATION_HTTP_OPTIONS,
                   headers: {
                     'Access-Token': user.settings.pushbulletAccessToken,
                   },

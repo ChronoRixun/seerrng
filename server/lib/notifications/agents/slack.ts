@@ -8,7 +8,11 @@ import { isSafeHttpUrl } from '@server/utils/security';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent, getNotificationActionUrl } from './agent';
+import {
+  BaseAgent,
+  NOTIFICATION_HTTP_OPTIONS,
+  getNotificationActionUrl,
+} from './agent';
 
 interface EmbedField {
   type: 'plain_text' | 'mrkdwn';
@@ -261,7 +265,8 @@ class SlackAgent
     try {
       await axios.post(
         settings.options.webhookUrl,
-        this.buildEmbed(type, payload)
+        this.buildEmbed(type, payload),
+        NOTIFICATION_HTTP_OPTIONS
       );
 
       return true;

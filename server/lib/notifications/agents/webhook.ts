@@ -8,7 +8,7 @@ import axios from 'axios';
 import { get } from 'lodash';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent } from './agent';
+import { BaseAgent, NOTIFICATION_HTTP_OPTIONS } from './agent';
 
 const MAX_WEBHOOK_PAYLOAD_BYTES = 64 * 1024;
 const MAX_WEBHOOK_CUSTOM_HEADERS = 20;
@@ -283,7 +283,9 @@ class WebhookAgent
       await axios.post(
         webhookUrl,
         this.buildPayload(type, payload),
-        Object.keys(headers).length > 0 ? { headers } : undefined
+        Object.keys(headers).length > 0
+          ? { ...NOTIFICATION_HTTP_OPTIONS, headers }
+          : NOTIFICATION_HTTP_OPTIONS
       );
 
       return true;

@@ -9,7 +9,11 @@ import { isSafeHttpUrl } from '@server/utils/security';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent, getNotificationActionUrl } from './agent';
+import {
+  BaseAgent,
+  NOTIFICATION_HTTP_OPTIONS,
+  getNotificationActionUrl,
+} from './agent';
 
 class NtfyAgent
   extends BaseAgent<NotificationAgentNtfy>
@@ -174,11 +178,12 @@ class NtfyAgent
         this.buildPayload(type, payload),
         authHeader
           ? {
+              ...NOTIFICATION_HTTP_OPTIONS,
               headers: {
                 Authorization: authHeader,
               },
             }
-          : undefined
+          : NOTIFICATION_HTTP_OPTIONS
       );
 
       return true;

@@ -15,7 +15,11 @@ import {
   shouldSendAdminNotification,
 } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent, getNotificationActionUrl } from './agent';
+import {
+  BaseAgent,
+  NOTIFICATION_HTTP_OPTIONS,
+  getNotificationActionUrl,
+} from './agent';
 
 enum EmbedColors {
   DEFAULT = 0,
@@ -324,14 +328,18 @@ class DiscordAgent
         ? (payload.notifyUser?.settings?.locale as AvailableLocale)
         : (settings.options.locale as AvailableLocale);
 
-      await axios.post(settings.options.webhookUrl, {
-        username: settings.options.botUsername
-          ? settings.options.botUsername
-          : getSettings().main.applicationTitle,
-        avatar_url: settings.options.botAvatarUrl,
-        embeds: [this.buildEmbed(type, payload, locale)],
-        content: userMentions.join(' '),
-      } as DiscordWebhookPayload);
+      await axios.post(
+        settings.options.webhookUrl,
+        {
+          username: settings.options.botUsername
+            ? settings.options.botUsername
+            : getSettings().main.applicationTitle,
+          avatar_url: settings.options.botAvatarUrl,
+          embeds: [this.buildEmbed(type, payload, locale)],
+          content: userMentions.join(' '),
+        } as DiscordWebhookPayload,
+        NOTIFICATION_HTTP_OPTIONS
+      );
 
       return true;
     } catch (e) {

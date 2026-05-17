@@ -8,7 +8,11 @@ import { isSafeHttpUrl } from '@server/utils/security';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent, getNotificationActionUrl } from './agent';
+import {
+  BaseAgent,
+  NOTIFICATION_HTTP_OPTIONS,
+  getNotificationActionUrl,
+} from './agent';
 
 interface GotifyPayload {
   title: string;
@@ -160,7 +164,7 @@ class GotifyAgent
       const endpoint = `${settings.options.url}/message?token=${settings.options.token}`;
       const notificationPayload = this.getNotificationPayload(type, payload);
 
-      await axios.post(endpoint, notificationPayload);
+      await axios.post(endpoint, notificationPayload, NOTIFICATION_HTTP_OPTIONS);
 
       return true;
     } catch (e) {

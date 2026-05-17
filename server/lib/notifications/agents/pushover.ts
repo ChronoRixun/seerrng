@@ -16,7 +16,11 @@ import {
   shouldSendAdminNotification,
 } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
-import { BaseAgent, getNotificationActionUrl } from './agent';
+import {
+  BaseAgent,
+  NOTIFICATION_HTTP_OPTIONS,
+  getNotificationActionUrl,
+} from './agent';
 
 interface PushoverImagePayload {
   attachment_base64: string;
@@ -229,12 +233,16 @@ class PushoverAgent
           payload
         );
 
-        await axios.post(endpoint, {
-          ...notificationPayload,
-          token: settings.options.accessToken,
-          user: settings.options.userToken,
-          sound: settings.options.sound,
-        } as PushoverPayload);
+        await axios.post(
+          endpoint,
+          {
+            ...notificationPayload,
+            token: settings.options.accessToken,
+            user: settings.options.userToken,
+            sound: settings.options.sound,
+          } as PushoverPayload,
+          NOTIFICATION_HTTP_OPTIONS
+        );
       } catch (e) {
         logger.error('Error sending Pushover notification', {
           label: 'Notifications',
@@ -275,12 +283,16 @@ class PushoverAgent
             payload.notifyUser.settings?.locale as AvailableLocale
           );
 
-          await axios.post(endpoint, {
-            ...notificationPayload,
-            token: payload.notifyUser.settings.pushoverApplicationToken,
-            user: payload.notifyUser.settings.pushoverUserKey,
-            sound: payload.notifyUser.settings.pushoverSound,
-          } as PushoverPayload);
+          await axios.post(
+            endpoint,
+            {
+              ...notificationPayload,
+              token: payload.notifyUser.settings.pushoverApplicationToken,
+              user: payload.notifyUser.settings.pushoverUserKey,
+              sound: payload.notifyUser.settings.pushoverSound,
+            } as PushoverPayload,
+            NOTIFICATION_HTTP_OPTIONS
+          );
         } catch (e) {
           logger.error('Error sending Pushover notification', {
             label: 'Notifications',
@@ -331,11 +343,15 @@ class PushoverAgent
                   user.settings?.locale as AvailableLocale
                 );
 
-                await axios.post(endpoint, {
-                  ...notificationPayload,
-                  token: user.settings.pushoverApplicationToken,
-                  user: user.settings.pushoverUserKey,
-                } as PushoverPayload);
+                await axios.post(
+                  endpoint,
+                  {
+                    ...notificationPayload,
+                    token: user.settings.pushoverApplicationToken,
+                    user: user.settings.pushoverUserKey,
+                  } as PushoverPayload,
+                  NOTIFICATION_HTTP_OPTIONS
+                );
               } catch (e) {
                 logger.error('Error sending Pushover notification', {
                   label: 'Notifications',
