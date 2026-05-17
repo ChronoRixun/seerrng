@@ -156,6 +156,18 @@ const tvResults = [
 ];
 
 describe('TMDB related media recommendations', () => {
+  it('rejects malformed movie IDs before provider calls', async () => {
+    const getMock = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('Provider should not be called');
+    }) as ReturnType<typeof mock.method>;
+
+    const agent = await login();
+    const res = await agent.get('/movie/not-a-number/recommendations');
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getMock.mock.callCount(), 0);
+  });
+
   it('ranks movie recommendations by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       assert.strictEqual(endpoint, '/movie/10/recommendations');
@@ -178,6 +190,108 @@ describe('TMDB related media recommendations', () => {
     );
   });
 
+  it('rejects oversized movie recommendation shuffle seeds before provider calls', async () => {
+    const getMock = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('Provider should not be called');
+    }) as ReturnType<typeof mock.method>;
+
+    const agent = await login();
+    const res = await agent
+      .get('/movie/10/recommendations')
+      .query({ shuffleSeed: 'x'.repeat(129) });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /shuffle seed must be 128 characters/i);
+    assert.strictEqual(getMock.mock.callCount(), 0);
+  });
+
+  it('uses seeded jitter for movie recommendations when a shuffle seed is provided', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/movie/10/recommendations');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: movieResults,
+      };
+    });
+
+    const agent = await login();
+    mock.method(Math, 'random', () => {
+      throw new Error('Seeded ranking should not call Math.random');
+    });
+
+    const res = await agent
+      .get('/movie/10/recommendations')
+      .query({ shuffleSeed: 'refresh-a' });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results.length, 2);
+  });
+
+  it('ranks series recommendations by quality signals within the TMDB page', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/tv/20/recommendations');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: tvResults,
+      };
+    });
+
+    const agent = await login();
+    const res = await agent.get('/tv/20/recommendations');
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((result: { name: string }) => result.name),
+      ['Proven Recommended Series', 'Thin Recommended Series']
+    );
+  });
+
+  it('rejects oversized series recommendation shuffle seeds before provider calls', async () => {
+    const getMock = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('Provider should not be called');
+    }) as ReturnType<typeof mock.method>;
+
+    const agent = await login();
+    const res = await agent
+      .get('/tv/20/recommendations')
+      .query({ shuffleSeed: 'x'.repeat(129) });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /shuffle seed must be 128 characters/i);
+    assert.strictEqual(getMock.mock.callCount(), 0);
+  });
+
+  it('uses seeded jitter for series recommendations when a shuffle seed is provided', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/tv/20/recommendations');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 2,
+        results: tvResults,
+      };
+    });
+
+    const agent = await login();
+    mock.method(Math, 'random', () => {
+      throw new Error('Seeded ranking should not call Math.random');
+    });
+
+    const res = await agent
+      .get('/tv/20/recommendations')
+      .query({ shuffleSeed: 'refresh-a' });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results.length, 2);
+  });
+
   it('ranks similar series by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       assert.strictEqual(endpoint, '/tv/20/similar');
@@ -198,5 +312,17 @@ describe('TMDB related media recommendations', () => {
       res.body.results.map((result: { name: string }) => result.name),
       ['Proven Recommended Series', 'Thin Recommended Series']
     );
+  });
+
+  it('rejects malformed series IDs before provider calls', async () => {
+    const getMock = mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('Provider should not be called');
+    }) as ReturnType<typeof mock.method>;
+
+    const agent = await login();
+    const res = await agent.get('/tv/not-a-number/similar');
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getMock.mock.callCount(), 0);
   });
 });

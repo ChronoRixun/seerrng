@@ -11,7 +11,11 @@ import type {
   TmdbGenre,
   TmdbKeywordSearchResponse,
 } from '@server/api/themoviedb/interfaces';
-import { DiscoverSliderType } from '@server/constants/discover';
+import {
+  DiscoverSliderType,
+  MAX_DISCOVER_SLIDER_DATA_LENGTH,
+  MAX_DISCOVER_SLIDER_TITLE_LENGTH,
+} from '@server/constants/discover';
 import type DiscoverSlider from '@server/entity/DiscoverSlider';
 import type { GenreSliderItem } from '@server/interfaces/api/discoverInterfaces';
 import type { Keyword, ProductionCompany } from '@server/models/common';
@@ -41,6 +45,10 @@ const messages = defineMessages('components.Discover.CreateSlider', {
   needresults: 'You need to have at least 1 result.',
   validationDatarequired: 'You must provide a data value.',
   validationTitlerequired: 'You must provide a title.',
+  validationDataLength:
+    'Data must be {maxLength, number} characters or fewer.',
+  validationTitleLength:
+    'Title must be {maxLength, number} characters or fewer.',
   addcustomslider: 'Create Custom Slider',
   searchKeywords: 'Search keywords…',
   searchGenres: 'Search genres…',
@@ -178,12 +186,22 @@ const CreateSlider = ({ onCreate, slider }: CreateSliderProps) => {
   }, [slider]);
 
   const CreateSliderSchema = Yup.object().shape({
-    title: Yup.string().required(
-      intl.formatMessage(messages.validationTitlerequired)
-    ),
-    data: Yup.string().required(
-      intl.formatMessage(messages.validationDatarequired)
-    ),
+    title: Yup.string()
+      .max(
+        MAX_DISCOVER_SLIDER_TITLE_LENGTH,
+        intl.formatMessage(messages.validationTitleLength, {
+          maxLength: MAX_DISCOVER_SLIDER_TITLE_LENGTH,
+        })
+      )
+      .required(intl.formatMessage(messages.validationTitlerequired)),
+    data: Yup.string()
+      .max(
+        MAX_DISCOVER_SLIDER_DATA_LENGTH,
+        intl.formatMessage(messages.validationDataLength, {
+          maxLength: MAX_DISCOVER_SLIDER_DATA_LENGTH,
+        })
+      )
+      .required(intl.formatMessage(messages.validationDatarequired)),
   });
 
   const updateResultCount = useCallback(

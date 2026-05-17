@@ -4,6 +4,7 @@ import TautulliAPI from '@server/api/tautulli';
 import { MediaType } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
+import { USER_SETTINGS_LIMITS } from '@server/constants/userSettings';
 import dataSource, { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { MediaRequest } from '@server/entity/MediaRequest';
@@ -22,8 +23,19 @@ import { getCombinedWatchlist } from '@server/lib/watchlist';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { getHostname } from '@server/utils/getHostname';
+import { filterEntityResponse } from '@server/utils/entityResponse';
 import { normalizeJellyfinGuid } from '@server/utils/jellyfin';
+import {
+  parseNonNegativeInt,
+  parsePageParams,
+  parsePositiveInt,
+} from '@server/utils/pagination';
 import { isOwnProfileOrAdmin } from '@server/utils/profileMiddleware';
+import {
+  parseBoundedString,
+  parseOptionalBoundedString,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 import gravatarUrl from 'gravatar-url';
 import { findIndex, sortBy } from 'lodash';
@@ -32,23 +44,324 @@ import { In, Not } from 'typeorm';
 import userSettingsRoutes from './usersettings';
 
 const router = Router();
+const MAX_USER_SEARCH_QUERY_LENGTH = 200;
+const MAX_USER_SORT_LENGTH = 40;
 
-router.get('/', async (req, res, next) => {
+const parseOptionalUserQueryString = (
+  value: unknown,
+  fieldName: string,
+  maxLength: number
+) =>
+  parseOptionalBoundedString(value, {
+    fieldName,
+    maxLength,
+  });
+const MAX_BULK_USER_IDS = 250;
+const MAX_PROVIDER_IMPORT_IDS = 250;
+const MAX_PUSH_ENDPOINT_LENGTH = 2048;
+const MAX_PUSH_KEY_LENGTH = 512;
+const MAX_USER_AGENT_LENGTH = 512;
+const MAX_USER_ID_VALUE = 1_000_000_000;
+
+type LocalUserBody = {
+  avatar?: string | null;
+  email?: string;
+  password?: string | null;
+  permissions?: number;
+  username?: string;
+};
+
+const parseStringArray = (
+  value: unknown,
+  options: {
+    fieldName: string;
+    maxItems: number;
+    maxItemLength: number;
+    required?: boolean;
+  }
+): { value: string[] } | { error: string } => {
+  if (value === undefined && options.required === false) {
+    return { value: [] };
+  }
+
+  if (!Array.isArray(value) || value.length > options.maxItems) {
+    return { error: `${options.fieldName} is invalid.` };
+  }
+
+  const parsedValues = new Set<string>();
+
+  for (const item of value) {
+    const parsed = parseBoundedString(item, {
+      fieldName: options.fieldName,
+      maxLength: options.maxItemLength,
+    });
+
+    if ('error' in parsed) {
+      return parsed;
+    }
+
+    parsedValues.add(parsed.value);
+  }
+
+  return { value: [...parsedValues] };
+};
+
+const parsePositiveIntegerArray = (
+  value: unknown,
+  options: { fieldName: string; maxItems: number }
+): { value: number[] } | { error: string } => {
+  if (!Array.isArray(value) || value.length > options.maxItems) {
+    return { error: `${options.fieldName} is invalid.` };
+  }
+
+  const parsedValues = new Set<number>();
+
+  for (const item of value) {
+    const parsed = parseOptionalNonNegativeInteger(Number(item));
+
+    if (!parsed || parsed < 1) {
+      return { error: `${options.fieldName} contains an invalid id.` };
+    }
+
+    parsedValues.add(parsed);
+  }
+
+  return { value: [...parsedValues] };
+};
+
+const parseUserRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, MAX_USER_ID_VALUE);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const parseOptionalIncludeUserIds = (
+  value: unknown
+): { value: number[] } | { error: string } => {
+  if (value === undefined || value === null || value === '') {
+    return { value: [] };
+  }
+
+  const values = Array.isArray(value)
+    ? value.flatMap((item) => String(item).split(','))
+    : String(value).split(',');
+
+  return parsePositiveIntegerArray(values, {
+    fieldName: 'includeIds',
+    maxItems: MAX_BULK_USER_IDS,
+  });
+};
+
+const parsePushSubscriptionBody = (
+  body: Partial<UserPushSubscription>
+):
+  | {
+	      value: Pick<
+	        UserPushSubscription,
+	        'auth' | 'endpoint' | 'p256dh' | 'userAgent'
+	      >;
+    }
+  | { error: string } => {
+  const endpoint = parseBoundedString(body.endpoint, {
+    fieldName: 'endpoint',
+    maxLength: MAX_PUSH_ENDPOINT_LENGTH,
+  });
+
+  if ('error' in endpoint) {
+    return endpoint;
+  }
+
   try {
-    const includeIds = [
-      ...new Set(
-        req.query.includeIds ? req.query.includeIds.toString().split(',') : []
-      ),
-    ];
-    const pageSize = req.query.take
-      ? Number(req.query.take)
-      : Math.max(10, includeIds.length);
-    const skip = req.query.skip ? Number(req.query.skip) : 0;
-    const q = req.query.q ? req.query.q.toString().toLowerCase() : '';
-    const sortParam = req.query.sort ? req.query.sort.toString() : undefined;
-    const sortDirectionQuery = req.query.sortDirection
-      ? req.query.sortDirection.toString().toLowerCase()
-      : undefined;
+    const parsedEndpoint = new URL(endpoint.value);
+
+    if (parsedEndpoint.protocol !== 'https:') {
+      return { error: 'endpoint must be an HTTPS URL.' };
+    }
+  } catch {
+    return { error: 'endpoint must be a valid URL.' };
+  }
+
+  const auth = parseBoundedString(body.auth, {
+    fieldName: 'auth',
+    maxLength: MAX_PUSH_KEY_LENGTH,
+  });
+
+  if ('error' in auth) {
+    return auth;
+  }
+
+  const p256dh = parseBoundedString(body.p256dh, {
+    fieldName: 'p256dh',
+    maxLength: MAX_PUSH_KEY_LENGTH,
+  });
+
+  if ('error' in p256dh) {
+    return p256dh;
+  }
+
+  const userAgent = parseOptionalBoundedString(body.userAgent, {
+    fieldName: 'userAgent',
+    maxLength: MAX_USER_AGENT_LENGTH,
+  });
+
+  if ('error' in userAgent) {
+    return userAgent;
+  }
+
+  return {
+    value: {
+      auth: auth.value,
+      endpoint: endpoint.value,
+      p256dh: p256dh.value,
+	      userAgent: userAgent.value ?? '',
+    },
+  };
+};
+
+const parseLocalUserBody = (
+  body: LocalUserBody
+):
+  | {
+      value: {
+        avatar?: string;
+        email: string;
+        password?: string;
+        username: string;
+      };
+    }
+  | { error: string } => {
+  const username = parseBoundedString(body.username, {
+    fieldName: 'username',
+    maxLength: USER_SETTINGS_LIMITS.username,
+  });
+
+  if ('error' in username) {
+    return username;
+  }
+
+  const email = parseOptionalBoundedString(body.email, {
+    fieldName: 'email',
+    maxLength: USER_SETTINGS_LIMITS.email,
+  });
+
+  if ('error' in email) {
+    return email;
+  }
+
+  const password = parseOptionalBoundedString(body.password, {
+    fieldName: 'password',
+    maxLength: USER_SETTINGS_LIMITS.password,
+  });
+
+  if ('error' in password) {
+    return password;
+  }
+
+  if (password.value !== undefined && password.value.length < 8) {
+    return { error: 'password must be at least 8 characters long.' };
+  }
+
+  const avatar = parseOptionalBoundedString(body.avatar, {
+    fieldName: 'avatar',
+    maxLength: USER_SETTINGS_LIMITS.avatar,
+  });
+
+  if ('error' in avatar) {
+    return avatar;
+  }
+
+  return {
+    value: {
+      avatar: avatar.value,
+      email: email.value ?? username.value,
+      password: password.value,
+      username: username.value,
+    },
+  };
+};
+
+const parseUserUpdateBody = (
+  body: LocalUserBody
+):
+  | {
+      value: {
+        permissions: number;
+        username: string;
+      };
+    }
+  | { error: string } => {
+  const username = parseBoundedString(body.username, {
+    fieldName: 'username',
+    maxLength: USER_SETTINGS_LIMITS.username,
+  });
+
+  if ('error' in username) {
+    return username;
+  }
+
+  const permissions = parseOptionalNonNegativeInteger(body.permissions);
+
+  if (permissions === undefined) {
+    return { error: 'permissions is invalid.' };
+  }
+
+  return { value: { permissions, username: username.value } };
+};
+
+const filterPushSubscription = (subscription: UserPushSubscription) => ({
+  endpoint: subscription.endpoint,
+  userAgent: subscription.userAgent,
+  createdAt: subscription.createdAt,
+});
+
+router.get(
+  '/',
+  isAuthenticated([Permission.MANAGE_USERS, Permission.MANAGE_REQUESTS], {
+    type: 'or',
+  }),
+  async (req, res, next) => {
+  try {
+    const parsedIncludeIds = parseOptionalIncludeUserIds(req.query.includeIds);
+    if ('error' in parsedIncludeIds) {
+      return next({ status: 400, message: parsedIncludeIds.error });
+    }
+    const includeIds = parsedIncludeIds.value;
+    const pageSize = parsePositiveInt(
+      req.query.take,
+      Math.max(10, includeIds.length),
+      100
+    );
+    const skip = parseNonNegativeInt(req.query.skip);
+    const parsedQ = parseOptionalUserQueryString(
+      req.query.q,
+      'Search query',
+      MAX_USER_SEARCH_QUERY_LENGTH
+    );
+    if ('error' in parsedQ) {
+      return next({ status: 400, message: parsedQ.error });
+    }
+    const parsedSort = parseOptionalUserQueryString(
+      req.query.sort,
+      'Sort field',
+      MAX_USER_SORT_LENGTH
+    );
+    if ('error' in parsedSort) {
+      return next({ status: 400, message: parsedSort.error });
+    }
+    const parsedSortDirection = parseOptionalUserQueryString(
+      req.query.sortDirection,
+      'Sort direction',
+      MAX_USER_SORT_LENGTH
+    );
+    if ('error' in parsedSortDirection) {
+      return next({ status: 400, message: parsedSortDirection.error });
+    }
+
+    const q = parsedQ.value?.toLowerCase() ?? '';
+    const sortParam = parsedSort.value;
+    const sortDirectionQuery = parsedSortDirection.value?.toLowerCase();
 
     let sortDirection: 'ASC' | 'DESC';
     if (sortDirectionQuery === 'asc') {
@@ -165,17 +478,25 @@ router.get('/', async (req, res, next) => {
   } catch (e) {
     next({ status: 500, message: e.message });
   }
-});
+  }
+);
 
 router.post(
   '/',
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
+    const parsedBody = parseLocalUserBody(req.body);
+
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+
+    const body = parsedBody.value;
+
     try {
       const settings = getSettings();
 
-      const body = req.body;
-      const email = body.email || body.username;
+      const email = body.email;
       const userRepository = getRepository(User);
 
       const existingUser = await userRepository
@@ -193,7 +514,7 @@ router.post(
         });
       }
 
-      const passedExplicitPassword = body.password && body.password.length > 0;
+      const passedExplicitPassword = !!body.password;
       const avatar = gravatarUrl(email, { default: 'mm', size: 200 });
 
       if (
@@ -214,7 +535,7 @@ router.post(
       });
 
       if (passedExplicitPassword) {
-        await user?.setPassword(body.password);
+        await user?.setPassword(body.password ?? '');
       } else {
         await user?.generatePassword();
       }
@@ -237,6 +558,14 @@ router.post<
     userAgent: string;
   }
 >('/registerPushSubscription', async (req, res, next) => {
+  const parsedBody = parsePushSubscriptionBody(req.body);
+
+  if ('error' in parsedBody) {
+    return next({ status: 400, message: parsedBody.error });
+  }
+
+  const body = parsedBody.value;
+
   try {
     // This prevents race conditions where two requests both pass the checks
     await dataSource.transaction(
@@ -248,20 +577,20 @@ router.post<
         const existingSubscription = await transactionalRepo.findOne({
           relations: { user: true },
           where: [
-            { auth: req.body.auth, user: { id: req.user?.id } },
-            { endpoint: req.body.endpoint, user: { id: req.user?.id } },
+            { auth: body.auth, user: { id: req.user?.id } },
+            { endpoint: body.endpoint, user: { id: req.user?.id } },
           ],
         });
 
         if (existingSubscription) {
           // If endpoint matches but auth is different, update with new keys (iOS refresh case)
           if (
-            existingSubscription.endpoint === req.body.endpoint &&
-            existingSubscription.auth !== req.body.auth
+            existingSubscription.endpoint === body.endpoint &&
+            existingSubscription.auth !== body.auth
           ) {
-            existingSubscription.auth = req.body.auth;
-            existingSubscription.p256dh = req.body.p256dh;
-            existingSubscription.userAgent = req.body.userAgent;
+            existingSubscription.auth = body.auth;
+            existingSubscription.p256dh = body.p256dh;
+            existingSubscription.userAgent = body.userAgent;
 
             await transactionalRepo.save(existingSubscription);
 
@@ -282,15 +611,15 @@ router.post<
         // Clean up old subscriptions from the same device (userAgent) for this user
         // iOS can silently refresh endpoints, leaving stale subscriptions in the database
         // Only clean up if we're creating a new subscription (not updating an existing one)
-        if (req.body.userAgent) {
+        if (body.userAgent) {
           const staleSubscriptions = await transactionalRepo.find({
             relations: { user: true },
             where: {
-              userAgent: req.body.userAgent,
+              userAgent: body.userAgent,
               user: { id: req.user?.id },
               // Only remove subscriptions with different endpoints (stale ones)
               // Keep subscriptions that might be from different browsers/tabs
-              endpoint: Not(req.body.endpoint),
+              endpoint: Not(body.endpoint),
             },
           });
 
@@ -304,10 +633,10 @@ router.post<
         }
 
         const userPushSubscription = new UserPushSubscription({
-          auth: req.body.auth,
-          endpoint: req.body.endpoint,
-          p256dh: req.body.p256dh,
-          userAgent: req.body.userAgent,
+          auth: body.auth,
+          endpoint: body.endpoint,
+          p256dh: body.p256dh,
+          userAgent: body.userAgent,
           user: req.user,
         });
 
@@ -330,13 +659,17 @@ router.get<{ id: string }>(
   async (req, res, next) => {
     try {
       const userPushSubRepository = getRepository(UserPushSubscription);
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User subscriptions not found.' });
+      }
 
       const userPushSubs = await userPushSubRepository.find({
         relations: { user: true },
-        where: { user: { id: Number(req.params.id) } },
+        where: { user: { id: userId } },
       });
 
-      return res.status(200).json(userPushSubs);
+      return res.status(200).json(userPushSubs.map(filterPushSubscription));
     } catch {
       next({ status: 404, message: 'User subscriptions not found.' });
     }
@@ -349,18 +682,22 @@ router.get<{ id: string; endpoint: string }>(
   async (req, res, next) => {
     try {
       const userPushSubRepository = getRepository(UserPushSubscription);
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User subscription not found.' });
+      }
 
       const userPushSub = await userPushSubRepository.findOneOrFail({
         relations: {
           user: true,
         },
         where: {
-          user: { id: Number(req.params.id) },
+          user: { id: userId },
           endpoint: req.params.endpoint,
         },
       });
 
-      return res.status(200).json(userPushSub);
+      return res.status(200).json(filterPushSubscription(userPushSub));
     } catch {
       next({ status: 404, message: 'User subscription not found.' });
     }
@@ -373,11 +710,15 @@ router.delete<{ id: string; endpoint: string }>(
   async (req, res, next) => {
     try {
       const userPushSubRepository = getRepository(UserPushSubscription);
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return res.status(204).send();
+      }
 
       const userPushSub = await userPushSubRepository.findOne({
         relations: { user: true },
         where: {
-          user: { id: Number(req.params.id) },
+          user: { id: userId },
           endpoint: req.params.endpoint,
         },
       });
@@ -407,8 +748,13 @@ router.delete<{ id: string; endpoint: string }>(
 router.get<{ id: string }>('/:id', async (req, res, next) => {
   try {
     const userRepository = getRepository(User);
+    const userId = parseUserRouteId(req.params.id);
+    if (!userId) {
+      return next({ status: 404, message: 'User not found.' });
+    }
+
     const user = await userRepository.findOneOrFail({
-      where: { id: Number(req.params.id) },
+      where: { id: userId },
     });
 
     const isOwnProfile = req.user?.id === user.id;
@@ -422,6 +768,7 @@ router.get<{ id: string }>('/:id', async (req, res, next) => {
 
 router.get<{ jellyfinUserId: string }>(
   '/jellyfin/:jellyfinUserId',
+  isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
     try {
       const userRepository = getRepository(User);
@@ -449,12 +796,19 @@ router.use('/:id/settings', userSettingsRoutes);
 router.get<{ id: string }, UserRequestsResponse>(
   '/:id/requests',
   async (req, res, next) => {
-    const pageSize = req.query.take ? Number(req.query.take) : 20;
-    const skip = req.query.skip ? Number(req.query.skip) : 0;
+    const { pageSize, skip } = parsePageParams(req.query, {
+      take: 20,
+      maxTake: 100,
+    });
 
     try {
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await getRepository(User).findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       if (!user) {
@@ -495,7 +849,7 @@ router.get<{ id: string }, UserRequestsResponse>(
           results: requestCount,
           page: Math.ceil(skip / pageSize) + 1,
         },
-        results: requests,
+        results: filterEntityResponse(requests),
       });
     } catch (e) {
       next({ status: 500, message: e.message });
@@ -515,10 +869,27 @@ router.put<
   Partial<User>[],
   { ids: string[]; permissions: number }
 >('/', isAuthenticated(Permission.MANAGE_USERS), async (req, res, next) => {
+  const parsedIds = parsePositiveIntegerArray(req.body.ids, {
+    fieldName: 'ids',
+    maxItems: MAX_BULK_USER_IDS,
+  });
+
+  if ('error' in parsedIds) {
+    return next({ status: 400, message: parsedIds.error });
+  }
+
+  const parsedPermissions = parseOptionalNonNegativeInteger(
+    req.body.permissions
+  );
+
+  if (parsedPermissions === undefined) {
+    return next({ status: 400, message: 'permissions is invalid.' });
+  }
+
   try {
     const isOwner = req.user?.id === 1;
 
-    if (!canMakePermissionsChange(req.body.permissions, req.user)) {
+    if (!canMakePermissionsChange(parsedPermissions, req.user)) {
       return next({
         status: 403,
         message: 'You do not have permission to grant this level of access',
@@ -530,7 +901,7 @@ router.put<
     const users: User[] = await userRepository.find({
       where: {
         id: In(
-          isOwner ? req.body.ids : req.body.ids.filter((id) => Number(id) !== 1)
+          isOwner ? parsedIds.value : parsedIds.value.filter((id) => id !== 1)
         ),
       },
     });
@@ -539,12 +910,14 @@ router.put<
       users.map(async (user) => {
         return userRepository.save(<User>{
           ...user,
-          ...{ permissions: req.body.permissions },
+          ...{ permissions: parsedPermissions },
         });
       })
     );
 
-    return res.status(200).json(updatedUsers);
+    return res
+      .status(200)
+      .json(User.filterMany(updatedUsers, req.user?.id === 1));
   } catch (e) {
     next({ status: 500, message: e.message });
   }
@@ -554,11 +927,23 @@ router.put<{ id: string }>(
   '/:id',
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
+    const parsedBody = parseUserUpdateBody(req.body);
+
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+
+    const body = parsedBody.value;
+
     try {
       const userRepository = getRepository(User);
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
 
       const user = await userRepository.findOneOrFail({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       // Only let the owner user modify themselves
@@ -569,7 +954,7 @@ router.put<{ id: string }>(
         });
       }
 
-      if (!canMakePermissionsChange(req.body.permissions, req.user)) {
+      if (!canMakePermissionsChange(body.permissions, req.user)) {
         return next({
           status: 403,
           message: 'You do not have permission to grant this level of access',
@@ -577,8 +962,8 @@ router.put<{ id: string }>(
       }
 
       Object.assign(user, {
-        username: req.body.username,
-        permissions: req.body.permissions,
+        username: body.username,
+        permissions: body.permissions,
       });
 
       await userRepository.save(user);
@@ -596,9 +981,13 @@ router.delete<{ id: string }>(
   async (req, res, next) => {
     try {
       const userRepository = getRepository(User);
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
 
       const user = await userRepository.findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
         relations: { requests: true },
       });
 
@@ -658,10 +1047,21 @@ router.post(
   '/import-from-plex',
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
+    const parsedPlexIds = parseStringArray(req.body?.plexIds, {
+      fieldName: 'plexIds',
+      maxItems: MAX_PROVIDER_IMPORT_IDS,
+      maxItemLength: 32,
+      required: false,
+    });
+
+    if ('error' in parsedPlexIds) {
+      return next({ status: 400, message: parsedPlexIds.error });
+    }
+
     try {
       const settings = getSettings();
       const userRepository = getRepository(User);
-      const body = req.body as { plexIds: string[] } | undefined;
+      const plexIds = parsedPlexIds.value;
 
       // taken from auth.ts
       const mainUser = await userRepository.findOneOrFail({
@@ -696,7 +1096,7 @@ router.post(
               user.plexId = parseInt(account.id);
             }
             await userRepository.save(user);
-          } else if (!body || body.plexIds.includes(account.id)) {
+          } else if (!plexIds.length || plexIds.includes(account.id)) {
             if (await mainPlexTv.checkUserAccess(parseInt(account.id))) {
               const newUser = new User({
                 plexUsername: account.username,
@@ -725,10 +1125,19 @@ router.post(
   '/import-from-jellyfin',
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
+    const parsedJellyfinUserIds = parseStringArray(req.body?.jellyfinUserIds, {
+      fieldName: 'jellyfinUserIds',
+      maxItems: MAX_PROVIDER_IMPORT_IDS,
+      maxItemLength: 128,
+    });
+
+    if ('error' in parsedJellyfinUserIds) {
+      return next({ status: 400, message: parsedJellyfinUserIds.error });
+    }
+
     try {
       const settings = getSettings();
       const userRepository = getRepository(User);
-      const body = req.body as { jellyfinUserIds: string[] };
 
       // taken from auth.ts
       const admin = await userRepository.findOneOrFail({
@@ -758,7 +1167,7 @@ router.post(
         ])
       );
 
-      for (const rawJellyfinUserId of body.jellyfinUserIds) {
+      for (const rawJellyfinUserId of parsedJellyfinUserIds.value) {
         const jellyfinUserId = normalizeJellyfinGuid(rawJellyfinUserId);
         if (!jellyfinUserId) {
           continue;
@@ -803,9 +1212,13 @@ router.get<{ id: string }, QuotaResponse>(
   async (req, res, next) => {
     try {
       const userRepository = getRepository(User);
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
 
       if (
-        Number(req.params.id) !== req.user?.id &&
+        userId !== req.user?.id &&
         !req.user?.hasPermission(
           [Permission.MANAGE_USERS, Permission.MANAGE_REQUESTS],
           { type: 'and' }
@@ -819,7 +1232,7 @@ router.get<{ id: string }, QuotaResponse>(
       }
 
       const user = await userRepository.findOneOrFail({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       const quotas = await user.getQuota();
@@ -845,8 +1258,13 @@ router.get<{ id: string }, UserWatchDataResponse>(
     }
 
     try {
+      const userId = parseUserRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await getRepository(User).findOneOrFail({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
         select: { id: true, plexId: true },
       });
 
@@ -932,8 +1350,13 @@ router.get<{ id: string }, UserWatchDataResponse>(
 router.get<{ id: string }, WatchlistResponse>(
   '/:id/watchlist',
   async (req, res, next) => {
+    const userId = parseUserRouteId(req.params.id);
+    if (!userId) {
+      return next({ status: 404, message: 'User not found.' });
+    }
+
     if (
-      Number(req.params.id) !== req.user?.id &&
+      userId !== req.user?.id &&
       !req.user?.hasPermission(
         [Permission.MANAGE_REQUESTS, Permission.WATCHLIST_VIEW],
         {
@@ -948,10 +1371,10 @@ router.get<{ id: string }, WatchlistResponse>(
     }
 
     const itemsPerPage = 20;
-    const page = req.query.page ? Number(req.query.page) : 1;
+    const page = parsePositiveInt(req.query.page, 1);
 
     const user = await getRepository(User).findOneOrFail({
-      where: { id: Number(req.params.id) },
+      where: { id: userId },
       select: ['id', 'plexToken'],
     });
 

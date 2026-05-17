@@ -1,7 +1,7 @@
 import useToasts from '@app/hooks/useToasts';
 import globalMessages from '@app/i18n/globalMessages';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWRInfinite from 'swr/infinite';
 import useSettings from './useSettings';
@@ -128,12 +128,13 @@ const useDiscover = <
 >(
   endpoint: string,
   options?: O,
-  { hideAvailable = true, hideBlocklisted = true } = {}
+  { hideAvailable = true, hideBlocklisted = true, randomizeOrder = false } = {}
 ): DiscoverResult<T, S> => {
   const settings = useSettings();
   const { hasPermission } = useUser();
   const { addToast } = useToasts();
   const intl = useIntl();
+  const [shuffleSeed] = useState(() => Math.random().toString(36).slice(2));
   const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite<
     BaseSearchResult<T> & S
   >(
@@ -146,6 +147,10 @@ const useDiscover = <
         page: pageIndex + 1,
         ...options,
       };
+
+      if (randomizeOrder) {
+        params.shuffleSeed = shuffleSeed;
+      }
 
       const finalQueryString = Object.keys(params)
         .map(

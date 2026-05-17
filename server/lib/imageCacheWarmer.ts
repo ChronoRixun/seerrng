@@ -4,6 +4,7 @@ import logger from '@server/logger';
 
 const warmBatchSize = 8;
 const maxWarmUrls = 80;
+const queuedWarmUrls = new Set<string>();
 
 const tmdbImageProxy = new ImageProxy('tmdb', 'https://image.tmdb.org', {
   rateLimitOptions: {
@@ -120,7 +121,15 @@ export const enqueueImageCacheWarm = (urls: string[]) => {
 
   const uniqueUrls = [...new Set(urls)]
     .filter((url) => url.startsWith('https://'))
-    .slice(0, maxWarmUrls);
+    .slice(0, maxWarmUrls)
+    .filter((url) => {
+      if (queuedWarmUrls.has(url)) {
+        return false;
+      }
+
+      queuedWarmUrls.add(url);
+      return true;
+    });
 
   if (!uniqueUrls.length) {
     return;
@@ -131,6 +140,10 @@ export const enqueueImageCacheWarm = (urls: string[]) => {
       const batch = uniqueUrls.slice(i, i + warmBatchSize);
 
       await Promise.allSettled(batch.map((url) => warmUrl(url)));
+
+      for (const url of batch) {
+        queuedWarmUrls.delete(url);
+      }
     }
 
     logger.debug(`Queued ${uniqueUrls.length} image(s) for cache warming`, {

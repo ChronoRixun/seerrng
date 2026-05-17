@@ -1,6 +1,6 @@
 image:
   registry: ghcr.io
-  repository: seerr-team/seerr
+  repository: snapetech/seerrng
   pullPolicy: IfNotPresent
   # -- Overrides the image tag whose default is the chart appVersion.
   tag: ''
@@ -40,7 +40,7 @@ serviceAccount:
   # -- Specifies whether a service account should be created
   create: true
   # -- Automatically mount a ServiceAccount's API credentials?
-  automount: true
+  automount: false
   # -- Annotations to add to the service account
   annotations: {}
   # -- The name of the service account to use.

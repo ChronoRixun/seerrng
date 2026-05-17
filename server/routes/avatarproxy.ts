@@ -16,6 +16,7 @@ import logger from '@server/logger';
 import { getAppVersion } from '@server/utils/appVersion';
 import { getHostname } from '@server/utils/getHostname';
 import { getRateLimitKey } from '@server/utils/security';
+import { parseOptionalBoundedString } from '@server/utils/validation';
 import axios from 'axios';
 import { Router, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -23,6 +24,7 @@ import gravatarUrl from 'gravatar-url';
 import { createHash } from 'node:crypto';
 
 const router = Router();
+const MAX_AVATAR_VERSION_LENGTH = 128;
 
 const avatarProxyRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -235,7 +237,13 @@ router.get('/:jellyfinUserId', avatarProxyRateLimit, async (req, res) => {
 
     const userEtag = req.headers['if-none-match'];
 
-    const versionParam = req.query.v;
+    const versionParam = parseOptionalBoundedString(req.query.v, {
+      fieldName: 'Avatar version',
+      maxLength: MAX_AVATAR_VERSION_LENGTH,
+    });
+    if ('error' in versionParam) {
+      return res.status(400).json({ error: versionParam.error });
+    }
 
     const user = await getRepository(User).findOne({
       where: { jellyfinUserId },
@@ -265,9 +273,9 @@ router.get('/:jellyfinUserId', avatarProxyRateLimit, async (req, res) => {
       imageData,
       ifModifiedSince: req.headers['if-modified-since'],
       ifNoneMatch: userEtag,
-      immutable: Boolean(versionParam),
+      immutable: Boolean(versionParam.value),
       res,
-      skipNotModified: Boolean(versionParam),
+      skipNotModified: Boolean(versionParam.value),
     });
   } catch (e) {
     logger.error('Failed to proxy avatar image', {

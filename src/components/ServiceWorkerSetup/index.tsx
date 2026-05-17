@@ -5,6 +5,11 @@ import { useUser } from '@app/hooks/useUser';
 import { verifyAndResubscribePushSubscription } from '@app/utils/pushSubscriptionHelpers';
 import { useEffect, useMemo } from 'react';
 
+import {
+  canRegisterServiceWorker,
+  shouldVerifyPushSubscription,
+} from './registration';
+
 const ServiceWorkerSetup = () => {
   const { user } = useUser();
   const { currentSettings } = useSettings();
@@ -18,7 +23,7 @@ const ServiceWorkerSetup = () => {
   );
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !userId) {
+    if (!canRegisterServiceWorker(navigator)) {
       return;
     }
 
@@ -36,6 +41,7 @@ const ServiceWorkerSetup = () => {
 
           // Reset the notifications flag if permissions were revoked
           if (
+            'Notification' in window &&
             Notification.permission !== 'granted' &&
             pushNotificationsEnabled
           ) {
@@ -48,7 +54,12 @@ const ServiceWorkerSetup = () => {
           }
 
           // Bypass resubscribing if we have manually disabled push notifications
-          if (!pushNotificationsEnabled) {
+          if (
+            !shouldVerifyPushSubscription({
+              pushNotificationsEnabled,
+              userId,
+            })
+          ) {
             return;
           }
 

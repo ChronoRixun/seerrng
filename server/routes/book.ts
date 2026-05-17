@@ -13,10 +13,25 @@ import {
 } from '@server/models/Book';
 import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePositiveInt } from '@server/utils/pagination';
+import { parseBoundedString } from '@server/utils/validation';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
 const bookRoutes = Router();
+const MAX_BOOK_SEARCH_QUERY_LENGTH = 256;
+const MAX_OPENLIBRARY_WORK_ID_LENGTH = 128;
+
+const parseBookSearchQuery = (value: unknown) =>
+  parseBoundedString(value, {
+    fieldName: 'Query',
+    maxLength: MAX_BOOK_SEARCH_QUERY_LENGTH,
+  });
+
+const parseOpenLibraryWorkId = (value: unknown) =>
+  parseBoundedString(value, {
+    fieldName: 'Book ID',
+    maxLength: MAX_OPENLIBRARY_WORK_ID_LENGTH,
+  });
 
 const findBookMediaByOpenLibraryIds = async (
   ids: string[],
@@ -49,12 +64,14 @@ const findBookMediaByOpenLibraryIds = async (
 };
 
 bookRoutes.get('/search', async (req, res, next) => {
-  const query = req.query.query?.toString();
+  const parsedQuery = parseBookSearchQuery(req.query.query);
   const page = parsePositiveInt(req.query.page, 1, 500);
 
-  if (!query) {
-    return next({ status: 400, message: 'Missing query parameter.' });
+  if ('error' in parsedQuery) {
+    return res.status(400).json({ status: 400, message: parsedQuery.error });
   }
+
+  const query = parsedQuery.value;
 
   try {
     const openLibrary = new OpenLibraryAPI();
@@ -91,18 +108,25 @@ bookRoutes.get('/search', async (req, res, next) => {
 });
 
 bookRoutes.get('/:id', async (req, res, next) => {
+  const parsedBookId = parseOpenLibraryWorkId(req.params.id);
+  if ('error' in parsedBookId) {
+    return res.status(404).json({ status: 404, message: 'Book not found' });
+  }
+
+  const bookId = parsedBookId.value;
+
   try {
     const openLibrary = new OpenLibraryAPI();
     const [work, editions, identifiers, onUserWatchlist] = await Promise.all([
-      openLibrary.getWork(req.params.id),
-      openLibrary.getWorkEditions(req.params.id).catch(() => ({
+      openLibrary.getWork(bookId),
+      openLibrary.getWorkEditions(bookId).catch(() => ({
         size: 0,
         entries: [],
       })),
       getRepository(MediaIdentifier).find({
         where: {
           provider: MediaIdentifierProvider.OPENLIBRARY,
-          value: req.params.id,
+          value: bookId,
         },
         relations: {
           media: {
@@ -122,7 +146,7 @@ bookRoutes.get('/:id', async (req, res, next) => {
       }),
       getRepository(Watchlist).exist({
         where: {
-          externalId: req.params.id,
+          externalId: bookId,
           mediaType: MediaType.BOOK,
           requestedBy: { id: req.user?.id },
         },
@@ -150,7 +174,7 @@ bookRoutes.get('/:id', async (req, res, next) => {
     logger.error('Failed to retrieve book details', {
       label: 'Book',
       errorMessage: e instanceof Error ? e.message : 'Unknown error',
-      bookId: req.params.id,
+      bookId,
     });
     return next({ status: 500, message: 'Unable to retrieve book details.' });
   }

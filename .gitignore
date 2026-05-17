@@ -72,6 +72,9 @@ cypress.env.json
 cypress/videos
 cypress/screenshots
 
+# Local artifacts
+artifacts/
+
 # ESLint
 .eslintcache
 

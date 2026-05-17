@@ -17,17 +17,86 @@ import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
+import { filterEntityResponse } from '@server/utils/entityResponse';
+import { parsePageParams } from '@server/utils/pagination';
+import {
+  parseOptionalBodyBoolean,
+  parseOptionalNonNegativeInteger,
+  parseOptionalQueryBoolean,
+} from '@server/utils/validation';
 import { Router } from 'express';
 import type { FindOneOptions } from 'typeorm';
 import { In, IsNull, Not } from 'typeorm';
 
 const mediaRoutes = Router();
+const maxMediaId = 1_000_000_000;
+const maxSeasonCount = 500;
+const maxSeasonNumber = 10_000;
+
+const parseMediaRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxMediaId);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const mediaStatusActions = [
+  'available',
+  'partial',
+  'processing',
+  'pending',
+  'unknown',
+] as const;
+
+const parseSeasonStatusUpdates = (
+  seasons: unknown
+): { seasons: { seasonNumber: number }[] } | { error: string } => {
+  if (seasons === undefined || seasons === null) {
+    return { seasons: [] };
+  }
+
+  if (!Array.isArray(seasons)) {
+    return { error: 'seasons must be an array.' };
+  }
+
+  if (seasons.length > maxSeasonCount) {
+    return { error: `seasons are limited to ${maxSeasonCount} values.` };
+  }
+
+  const parsedSeasons: { seasonNumber: number }[] = [];
+
+  for (const season of seasons) {
+    if (season === null || typeof season !== 'object') {
+      return { error: 'seasons must contain season objects.' };
+    }
+
+    const seasonNumber = parseOptionalNonNegativeInteger(
+      (season as { seasonNumber?: unknown }).seasonNumber,
+      maxSeasonNumber
+    );
+
+    if (seasonNumber === undefined) {
+      return {
+        error: `seasonNumber must be an integer no greater than ${maxSeasonNumber}.`,
+      };
+    }
+
+    if (!parsedSeasons.some((s) => s.seasonNumber === seasonNumber)) {
+      parsedSeasons.push({ seasonNumber });
+    }
+  }
+
+  return { seasons: parsedSeasons };
+};
 
 mediaRoutes.get('/', async (req, res, next) => {
   const mediaRepository = getRepository(Media);
 
-  const pageSize = req.query.take ? Number(req.query.take) : 20;
-  const skip = req.query.skip ? Number(req.query.skip) : 0;
+  const { pageSize, skip } = parsePageParams(req.query, {
+    take: 20,
+    maxTake: 100,
+  });
 
   let statusFilter = undefined;
 
@@ -90,7 +159,7 @@ mediaRoutes.get('/', async (req, res, next) => {
         results: mediaCount,
         page: Math.ceil(skip / pageSize) + 1,
       },
-      results: media,
+      results: filterEntityResponse(media),
     } as MediaResultsResponse);
   } catch (e) {
     next({ status: 500, message: e.message });
@@ -109,33 +178,51 @@ mediaRoutes.post<
   async (req, res, next) => {
     const mediaRepository = getRepository(Media);
     const seasonRepository = getRepository(Season);
+    const mediaId = parseMediaRouteId(req.params.id);
+    if (!mediaId) {
+      return next({ status: 404, message: 'Media does not exist.' });
+    }
+    if (
+      !mediaStatusActions.includes(
+        req.params.status as (typeof mediaStatusActions)[number]
+      )
+    ) {
+      return next({ status: 404, message: 'Media status does not exist.' });
+    }
 
     const media = await mediaRepository.findOne({
-      where: { id: Number(req.params.id) },
+      where: { id: mediaId },
     });
 
     if (!media) {
       return next({ status: 404, message: 'Media does not exist.' });
     }
 
-    const is4k = String(req.body.is4k) === 'true';
+    const parsedIs4k = parseOptionalBodyBoolean(req.body.is4k, 'is4k');
+    if ('error' in parsedIs4k) {
+      return next({ status: 400, message: parsedIs4k.error });
+    }
+    const is4k = parsedIs4k.value ?? false;
 
     switch (req.params.status) {
       case 'available':
         media[is4k ? 'status4k' : 'status'] = MediaStatus.AVAILABLE;
 
         if (media.mediaType === MediaType.TV) {
-          const expectedSeasons = req.body.seasons ?? [];
+          const expectedSeasons = parseSeasonStatusUpdates(req.body.seasons);
+          if ('error' in expectedSeasons) {
+            return next({ status: 400, message: expectedSeasons.error });
+          }
 
-          for (const expectedSeason of expectedSeasons) {
+          for (const expectedSeason of expectedSeasons.seasons) {
             let season = media.seasons.find(
-              (s) => s.seasonNumber === expectedSeason?.seasonNumber
+              (s) => s.seasonNumber === expectedSeason.seasonNumber
             );
 
             if (!season) {
               // Create the season if it doesn't exist
               season = seasonRepository.create({
-                seasonNumber: expectedSeason?.seasonNumber,
+                seasonNumber: expectedSeason.seasonNumber,
               });
               media.seasons.push(season);
             }
@@ -161,11 +248,14 @@ mediaRoutes.post<
         break;
       case 'unknown':
         media[is4k ? 'status4k' : 'status'] = MediaStatus.UNKNOWN;
+        break;
+      default:
+        return next({ status: 404, message: 'Media status does not exist.' });
     }
 
     await mediaRepository.save(media);
 
-    return res.status(200).json(media);
+    return res.status(200).json(filterEntityResponse(media));
   }
 );
 
@@ -175,9 +265,13 @@ mediaRoutes.delete(
   async (req, res, next) => {
     try {
       const mediaRepository = getRepository(Media);
+      const mediaId = parseMediaRouteId(req.params.id);
+      if (!mediaId) {
+        return next({ status: 404, message: 'Media not found' });
+      }
 
       const media = await mediaRepository.findOneOrFail({
-        where: { id: Number(req.params.id) },
+        where: { id: mediaId },
       });
 
       if (media.status === MediaStatus.BLOCKLISTED) {
@@ -205,11 +299,19 @@ mediaRoutes.delete(
     try {
       const settings = getSettings();
       const mediaRepository = getRepository(Media);
+      const mediaId = parseMediaRouteId(req.params.id);
+      if (!mediaId) {
+        return next({ status: 404, message: 'Media not found' });
+      }
       const media = await mediaRepository.findOneOrFail({
-        where: { id: Number(req.params.id) },
+        where: { id: mediaId },
       });
 
-      const is4k = String(req.query.is4k) === 'true';
+      const parsedIs4k = parseOptionalQueryBoolean(req.query.is4k, 'is4k');
+      if ('error' in parsedIs4k) {
+        return next({ status: 400, message: parsedIs4k.error });
+      }
+      const is4k = parsedIs4k.value ?? false;
       const isMovie = media.mediaType === MediaType.MOVIE;
       const isMusic = media.mediaType === MediaType.MUSIC;
       const isBook = media.mediaType === MediaType.BOOK;
@@ -438,9 +540,12 @@ mediaRoutes.get<{ id: string }, MediaWatchDataResponse>(
       });
     }
 
-    const media = await getRepository(Media).findOne({
-      where: { id: Number(req.params.id) },
-    });
+    const mediaId = parseMediaRouteId(req.params.id);
+    if (!mediaId) {
+      return next({ status: 404, message: 'Media does not exist.' });
+    }
+
+    const media = await getRepository(Media).findOne({ where: { id: mediaId } });
 
     if (!media) {
       return next({ status: 404, message: 'Media does not exist.' });

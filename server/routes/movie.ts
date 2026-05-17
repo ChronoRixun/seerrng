@@ -10,24 +10,50 @@ import { rankTmdbMovieResults } from '@server/lib/tmdbRank';
 import logger from '@server/logger';
 import { mapMovieDetails } from '@server/models/Movie';
 import { mapMovieResult } from '@server/models/Search';
+import { filterEntityResponse } from '@server/utils/entityResponse';
+import { parsePositiveInt } from '@server/utils/pagination';
+import {
+  parseOptionalBoundedString,
+  parseOptionalLanguage,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 
 const movieRoutes = Router();
+const maxTmdbId = 1_000_000_000;
+const maxShuffleSeedLength = 128;
+
+const parseTmdbRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxTmdbId);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
 
 movieRoutes.get('/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const movieId = parseTmdbRouteId(req.params.id);
+  if (!movieId) {
+    return next({ status: 404, message: 'Movie not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const tmdbMovie = await tmdb.getMovie({
-      movieId: Number(req.params.id),
-      language: (req.query.language as string) ?? req.locale,
+      movieId,
+      language,
     });
 
     const media = await Media.getMedia(tmdbMovie.id, MediaType.MOVIE);
 
     const onUserWatchlist = await getRepository(Watchlist).exist({
       where: {
-        tmdbId: Number(req.params.id),
+        tmdbId: movieId,
         mediaType: MediaType.MOVIE,
         requestedBy: {
           id: req.user?.id,
@@ -39,11 +65,11 @@ movieRoutes.get('/:id', async (req, res, next) => {
 
     // TMDB issue where it doesnt fallback to English when no overview is available in requested locale.
     if (!data.overview) {
-      const tvEnglish = await tmdb.getMovie({ movieId: Number(req.params.id) });
+      const tvEnglish = await tmdb.getMovie({ movieId });
       data.overview = tvEnglish.overview;
     }
 
-    return res.status(200).json(data);
+    return res.status(200).json(filterEntityResponse(data));
   } catch (e) {
     logger.debug('Something went wrong retrieving movie', {
       label: 'API',
@@ -59,14 +85,35 @@ movieRoutes.get('/:id', async (req, res, next) => {
 
 movieRoutes.get('/:id/recommendations', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const movieId = parseTmdbRouteId(req.params.id);
+  if (!movieId) {
+    return next({ status: 404, message: 'Movie not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const parsedShuffleSeed = parseOptionalBoundedString(req.query.shuffleSeed, {
+    fieldName: 'Shuffle seed',
+    maxLength: maxShuffleSeedLength,
+  });
+  if ('error' in parsedShuffleSeed) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedShuffleSeed.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const results = await tmdb.getMovieRecommendations({
-      movieId: Number(req.params.id),
-      page: Number(req.query.page),
-      language: (req.query.language as string) ?? req.locale,
+      movieId,
+      page: parsePositiveInt(req.query.page, 1, 500),
+      language,
     });
-    const rankedResults = rankTmdbMovieResults(results.results);
+    const rankedResults = rankTmdbMovieResults(
+      results.results,
+      parsedShuffleSeed.value
+    );
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -105,14 +152,35 @@ movieRoutes.get('/:id/recommendations', async (req, res, next) => {
 
 movieRoutes.get('/:id/similar', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const movieId = parseTmdbRouteId(req.params.id);
+  if (!movieId) {
+    return next({ status: 404, message: 'Movie not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const parsedShuffleSeed = parseOptionalBoundedString(req.query.shuffleSeed, {
+    fieldName: 'Shuffle seed',
+    maxLength: maxShuffleSeedLength,
+  });
+  if ('error' in parsedShuffleSeed) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedShuffleSeed.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const results = await tmdb.getMovieSimilar({
-      movieId: Number(req.params.id),
-      page: Number(req.query.page),
-      language: (req.query.language as string) ?? req.locale,
+      movieId,
+      page: parsePositiveInt(req.query.page, 1, 500),
+      language,
     });
-    const rankedResults = rankTmdbMovieResults(results.results);
+    const rankedResults = rankTmdbMovieResults(
+      results.results,
+      parsedShuffleSeed.value
+    );
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -155,10 +223,14 @@ movieRoutes.get('/:id/similar', async (req, res, next) => {
 movieRoutes.get('/:id/ratings', async (req, res, next) => {
   const tmdb = new TheMovieDb();
   const rtapi = new RottenTomatoes();
+  const movieId = parseTmdbRouteId(req.params.id);
+  if (!movieId) {
+    return next({ status: 404, message: 'Movie not found.' });
+  }
 
   try {
     const movie = await tmdb.getMovie({
-      movieId: Number(req.params.id),
+      movieId,
     });
 
     const rtratings = await rtapi.getMovieRatings(
@@ -194,10 +266,14 @@ movieRoutes.get('/:id/ratingscombined', async (req, res, next) => {
   const tmdb = new TheMovieDb();
   const rtapi = new RottenTomatoes();
   const imdbApi = new IMDBRadarrProxy();
+  const movieId = parseTmdbRouteId(req.params.id);
+  if (!movieId) {
+    return next({ status: 404, message: 'Movie not found.' });
+  }
 
   try {
     const movie = await tmdb.getMovie({
-      movieId: Number(req.params.id),
+      movieId,
     });
 
     const rtratings = await rtapi.getMovieRatings(

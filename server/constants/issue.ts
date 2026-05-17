@@ -10,6 +10,8 @@ export enum IssueStatus {
   RESOLVED = 2,
 }
 
+export const MAX_ISSUE_MESSAGE_LENGTH = 10_000;
+
 export const IssueTypeName = {
   [IssueType.AUDIO]: 'Audio',
   [IssueType.VIDEO]: 'Video',

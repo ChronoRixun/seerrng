@@ -7,6 +7,8 @@ export interface RequestResultsResponse extends PaginatedResponse {
     profileName?: string;
     canRemove?: boolean;
   })[];
+  status?: number;
+  message?: string;
   serviceErrors: {
     radarr: { id: number; name: string }[];
     sonarr: { id: number; name: string }[];

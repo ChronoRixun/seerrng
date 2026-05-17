@@ -83,7 +83,7 @@ const LocalLogin = ({ revalidate }: LocalLoginProps) => {
           <>
             <Form data-form-type="login">
               <div>
-                <h2 className="-mt-1 mb-6 text-center text-lg font-bold text-neutral-200">
+                <h2 className="-mt-1 mb-6 text-center text-lg font-bold text-gray-200">
                   {intl.formatMessage(messages.loginwithapp, {
                     appName: settings.currentSettings.applicationTitle,
                   })}

@@ -1,5 +1,8 @@
-import type { NotificationAgentTypes } from '@server/interfaces/api/userSettingsInterfaces';
-import { hasNotificationType, Notification } from '@server/lib/notifications';
+import type {
+  CardTextVisibility,
+  NotificationAgentTypes,
+} from '@server/interfaces/api/userSettingsInterfaces';
+import { Notification, hasNotificationType } from '@server/lib/notifications';
 import { NotificationAgentKey } from '@server/lib/settings';
 import {
   Column,
@@ -77,6 +80,18 @@ export class UserSettings {
 
   @Column({ nullable: true })
   public watchlistSyncBooks?: boolean;
+
+  @Column({ nullable: true })
+  public cardTextVisibilityMovie?: CardTextVisibility;
+
+  @Column({ nullable: true })
+  public cardTextVisibilityTv?: CardTextVisibility;
+
+  @Column({ nullable: true })
+  public cardTextVisibilityAlbum?: CardTextVisibility;
+
+  @Column({ nullable: true })
+  public cardTextVisibilityBook?: CardTextVisibility;
 
   @Column({
     type: 'text',

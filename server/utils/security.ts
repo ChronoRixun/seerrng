@@ -1,5 +1,6 @@
 import type { Request } from 'express';
 import { ipKeyGenerator } from 'express-rate-limit';
+import { timingSafeEqual } from 'node:crypto';
 import net from 'net';
 import dns from 'node:dns/promises';
 
@@ -80,6 +81,21 @@ export const getRateLimitKey = (req: Request): string => {
     .toLowerCase();
 
   return net.isIP(ip) ? ipKeyGenerator(ip) : ip;
+};
+
+export const safeStringEqual = (left: unknown, right: unknown): boolean => {
+  if (typeof left !== 'string' || typeof right !== 'string') {
+    return false;
+  }
+
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
 };
 
 const isPrivateIPv4 = (ip: string): boolean => {

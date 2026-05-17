@@ -3,11 +3,17 @@ import { MediaStatus } from '@server/constants/media';
 import type { NotificationAgentWebhook } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { isSafeHttpUrl } from '@server/utils/security';
 import axios from 'axios';
 import { get } from 'lodash';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
 import { BaseAgent } from './agent';
+
+const MAX_WEBHOOK_PAYLOAD_BYTES = 64 * 1024;
+const MAX_WEBHOOK_CUSTOM_HEADERS = 20;
+const MAX_WEBHOOK_HEADER_VALUE_LENGTH = 4096;
+const WEBHOOK_HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 type KeyMapFunction = (
   payload: NotificationPayload,
@@ -144,7 +150,7 @@ class WebhookAgent
       if (typeof finalPayload[key] === 'string') {
         Object.keys(KeyMap).forEach((keymapKey) => {
           const keymapValue = KeyMap[keymapKey as keyof typeof KeyMap];
-          finalPayload[key] = (finalPayload[key] as string).replace(
+          finalPayload[key] = (finalPayload[key] as string).replaceAll(
             `{{${keymapKey}}}`,
             typeof keymapValue === 'function'
               ? keymapValue(payload, type)
@@ -168,6 +174,10 @@ class WebhookAgent
       this.getSettings().options.jsonPayload,
       'base64'
     ).toString('utf8');
+
+    if (Buffer.byteLength(payloadString, 'utf8') > MAX_WEBHOOK_PAYLOAD_BYTES) {
+      throw new Error('Webhook payload exceeds maximum size.');
+    }
 
     const parsedJSON = JSON.parse(JSON.parse(payloadString));
 
@@ -221,6 +231,20 @@ class WebhookAgent
       });
     }
 
+    if (
+      !(await isSafeHttpUrl(webhookUrl, {
+        allowPrivateAddresses:
+          process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS === 'true',
+      }))
+    ) {
+      logger.error('Invalid webhook notification URL', {
+        label: 'Notifications',
+        type: Notification[type],
+        subject: payload.subject,
+      });
+      return false;
+    }
+
     try {
       const headers: Record<string, string> = {};
 
@@ -232,11 +256,19 @@ class WebhookAgent
         settings.options.customHeaders &&
         settings.options.customHeaders.length > 0
       ) {
-        settings.options.customHeaders.forEach((header) => {
+        settings.options.customHeaders
+          .slice(0, MAX_WEBHOOK_CUSTOM_HEADERS)
+          .forEach((header) => {
           const key = header.key?.trim();
           const value = header.value?.trim();
 
-          if (key && value) {
+          if (
+            key &&
+            value &&
+            WEBHOOK_HEADER_NAME.test(key) &&
+            !/[\r\n]/.test(value) &&
+            value.length <= MAX_WEBHOOK_HEADER_VALUE_LENGTH
+          ) {
             // Don't override Authorization header if it's already set via authHeader
             if (
               key.toLowerCase() !== 'authorization' ||

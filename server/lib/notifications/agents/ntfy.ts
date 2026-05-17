@@ -5,6 +5,7 @@ import type { NotificationAgentNtfy } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import type { AvailableLocale } from '@server/types/languages';
+import { isSafeHttpUrl } from '@server/utils/security';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
@@ -137,6 +138,20 @@ class NtfyAgent
       type: Notification[type],
       subject: payload.subject,
     });
+
+    if (
+      !(await isSafeHttpUrl(settings.options.url, {
+        allowPrivateAddresses:
+          process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS === 'true',
+      }))
+    ) {
+      logger.error('Invalid ntfy URL', {
+        label: 'Notifications',
+        type: Notification[type],
+        subject: payload.subject,
+      });
+      return false;
+    }
 
     try {
       let authHeader;

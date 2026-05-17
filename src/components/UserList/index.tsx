@@ -30,7 +30,7 @@ import {
   UserPlusIcon,
 } from '@heroicons/react/24/solid';
 import { MediaServerType } from '@server/constants/server';
-import type { UserResultsResponse } from '@server/interfaces/api/userInterfaces';
+import type { PaginatedResponse } from '@server/interfaces/api/common';
 import { hasPermission } from '@server/lib/permissions';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
@@ -104,6 +104,10 @@ type Sort =
   | 'role';
 type SortDirection = 'asc' | 'desc';
 
+type ClientUserResultsResponse = PaginatedResponse & {
+  results: User[];
+};
+
 const UserList = () => {
   const intl = useIntl();
   const router = useRouter();
@@ -128,7 +132,7 @@ const UserList = () => {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<UserResultsResponse>(
+  } = useSWR<ClientUserResultsResponse>(
     `/api/v1/user?take=${currentPageSize}&skip=${
       pageIndex * currentPageSize
     }&sort=${currentSort}&sortDirection=${sortDirection}`

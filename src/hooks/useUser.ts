@@ -1,4 +1,8 @@
 import { UserType } from '@server/constants/user';
+import type {
+  CardTextVisibility,
+  UserSettingsCardTextResponse,
+} from '@server/interfaces/api/userSettingsInterfaces';
 import type { PermissionCheckOptions } from '@server/lib/permissions';
 import { hasPermission, Permission } from '@server/lib/permissions';
 import type { NotificationAgentKey } from '@server/lib/settings';
@@ -39,6 +43,11 @@ export interface UserSettings {
   watchlistSyncTv?: boolean;
   watchlistSyncMusic?: boolean;
   watchlistSyncBooks?: boolean;
+  cardTextVisibilityMovie?: CardTextVisibility;
+  cardTextVisibilityTv?: CardTextVisibility;
+  cardTextVisibilityAlbum?: CardTextVisibility;
+  cardTextVisibilityBook?: CardTextVisibility;
+  cardTextVisibility?: UserSettingsCardTextResponse;
 }
 
 interface UserHookResponse {

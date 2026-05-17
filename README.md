@@ -17,6 +17,12 @@
 
 SeerrNG is built on the work of the Seerr, Jellyseerr, and Overseerr projects. Upstream Seerr remains the base project and is credited for the original application, architecture, and ongoing video-first media request manager.
 
+See [NOTICE.md](./NOTICE.md) for fork attribution and ownership guidance. In
+short: inherited material remains credited to upstream contributors, modified
+inherited material is co-attributed, and fresh SeerrNG-specific work is
+attributed to snapetech and SeerrNG contributors unless another source is
+stated.
+
 The current inherited Seerr application is a free and open source software application for managing requests for your media library. It integrates with the media server of your choice: [Jellyfin](https://jellyfin.org), [Plex](https://plex.tv), and [Emby](https://emby.media/). In addition, it integrates with your existing services, such as **[Sonarr](https://sonarr.tv/)**, **[Radarr](https://radarr.video/)**.
 
 ## Fork Direction

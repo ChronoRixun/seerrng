@@ -3,9 +3,24 @@ import IssueComment from '@server/entity/IssueComment';
 import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
+import { MAX_ISSUE_MESSAGE_LENGTH } from '@server/constants/issue';
+import { filterEntityResponse } from '@server/utils/entityResponse';
+import {
+  parseBoundedString,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 
 const issueCommentRoutes = Router();
+const maxIssueCommentId = 1_000_000_000;
+
+const parseIssueCommentId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxIssueCommentId);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
 
 issueCommentRoutes.get<{ commentId: string }, IssueComment>(
   '/:commentId',
@@ -23,8 +38,13 @@ issueCommentRoutes.get<{ commentId: string }, IssueComment>(
     const issueCommentRepository = getRepository(IssueComment);
 
     try {
+      const commentId = parseIssueCommentId(req.params.commentId);
+      if (!commentId) {
+        return next({ status: 404, message: 'Issue comment not found.' });
+      }
+
       const comment = await issueCommentRepository.findOneOrFail({
-        where: { id: Number(req.params.commentId) },
+        where: { id: commentId },
       });
 
       if (
@@ -40,7 +60,7 @@ issueCommentRoutes.get<{ commentId: string }, IssueComment>(
         });
       }
 
-      return res.status(200).json(comment);
+      return res.status(200).json(filterEntityResponse(comment));
     } catch (e) {
       logger.debug('Request for unknown issue comment failed', {
         label: 'API',
@@ -62,10 +82,23 @@ issueCommentRoutes.put<
   }),
   async (req, res, next) => {
     const issueCommentRepository = getRepository(IssueComment);
+    const parsedMessage = parseBoundedString(req.body.message, {
+      fieldName: 'Comment message',
+      maxLength: MAX_ISSUE_MESSAGE_LENGTH,
+    });
+
+    if ('error' in parsedMessage) {
+      return next({ status: 400, message: parsedMessage.error });
+    }
 
     try {
+      const commentId = parseIssueCommentId(req.params.commentId);
+      if (!commentId) {
+        return next({ status: 404, message: 'Issue comment not found.' });
+      }
+
       const comment = await issueCommentRepository.findOneOrFail({
-        where: { id: Number(req.params.commentId) },
+        where: { id: commentId },
       });
 
       if (comment.user.id !== req.user?.id) {
@@ -75,11 +108,11 @@ issueCommentRoutes.put<
         });
       }
 
-      comment.message = req.body.message;
+      comment.message = parsedMessage.value;
 
       await issueCommentRepository.save(comment);
 
-      return res.status(200).json(comment);
+      return res.status(200).json(filterEntityResponse(comment));
     } catch (e) {
       logger.debug('Put request for issue comment failed', {
         label: 'API',
@@ -99,8 +132,13 @@ issueCommentRoutes.delete<{ commentId: string }, IssueComment>(
     const issueCommentRepository = getRepository(IssueComment);
 
     try {
+      const commentId = parseIssueCommentId(req.params.commentId);
+      if (!commentId) {
+        return next({ status: 404, message: 'Issue comment not found.' });
+      }
+
       const comment = await issueCommentRepository.findOneOrFail({
-        where: { id: Number(req.params.commentId) },
+        where: { id: commentId },
       });
 
       if (

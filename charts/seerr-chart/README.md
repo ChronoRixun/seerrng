@@ -2,19 +2,19 @@
 
 ![Version: 3.6.0](https://img.shields.io/badge/Version-3.6.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v3.2.0](https://img.shields.io/badge/AppVersion-v3.2.0-informational?style=flat-square)
 
-Seerr helm chart for Kubernetes
+SeerrNG Helm chart for Kubernetes
 
-**Homepage:** <https://github.com/seerr-team/seerr>
+**Homepage:** <https://github.com/snapetech/seerrng>
 
 ## Maintainers
 
 | Name | Email | Url |
 | ---- | ------ | --- |
-| Seerr Team |  | <https://github.com/orgs/seerr-team/people> |
+| Snapetech |  | <https://github.com/snapetech> |
 
 ## Source Code
 
-* <https://github.com/seerr-team/seerr/tree/main/charts/seerr-chart>
+* <https://github.com/snapetech/seerrng/tree/main/charts/seerr-chart>
 
 ## Requirements
 
@@ -22,13 +22,13 @@ Kubernetes: `>=1.23.0-0`
 
 ## Installation
 
-Refer to [Seerr kubernetes documentation](https://docs.seerr.dev/getting-started/kubernetes)
+Refer to the SeerrNG Kubernetes documentation in this repository.
 
 ## Update Notes
 
 ### Updating to 3.0.0
 
-Nothing has changed; we just rebranded the `jellyseerr` Helm chart to `seerr` 🥳 refer to our [Migration guide](https://docs.seerr.dev/migration-guide).
+Nothing has changed; the upstream chart was rebranded from `jellyseerr` to `seerr`. SeerrNG keeps that inherited chart structure and changes the default image and metadata for this fork.
 
 ### Updating to 2.7.0
 
@@ -58,7 +58,7 @@ If `replicaCount` value was used - remove it. Helm update should work fine after
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.registry | string | `"ghcr.io"` |  |
-| image.repository | string | `"seerr-team/seerr"` |  |
+| image.repository | string | `"snapetech/seerrng"` |  |
 | image.sha | string | `""` |  |
 | image.tag | string | `""` | Overrides the image tag whose default is the chart appVersion. |
 | imagePullSecrets | list | `[]` |  |
@@ -103,7 +103,7 @@ If `replicaCount` value was used - remove it. Helm update should work fine after
 | service.type | string | `"ClusterIP"` |  |
 | service.annotations | object | {} |  |
 | serviceAccount.annotations | object | `{}` | Annotations to add to the service account |
-| serviceAccount.automount | bool | `true` | Automatically mount a ServiceAccount's API credentials? |
+| serviceAccount.automount | bool | `false` | Automatically mount a ServiceAccount's API credentials? |
 | serviceAccount.create | bool | `true` | Specifies whether a service account should be created |
 | serviceAccount.name | string | `""` | If not set and create is true, a name is generated using the fullname template |
 | tolerations | list | `[]` |  |

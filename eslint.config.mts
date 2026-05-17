@@ -88,6 +88,15 @@ export default defineConfig(
   },
   prettier,
   {
+    files: [
+      'src/components/UserProfile/UserSettings/UserGeneralSettings/index.tsx',
+    ],
+    rules: {
+      // jsx-a11y 6.10.2 crashes on this form's custom selector labels under ESLint 9.
+      'jsx-a11y/label-has-associated-control': 'off',
+    },
+  },
+  {
     linterOptions: {
       reportUnusedDisableDirectives: true,
     },

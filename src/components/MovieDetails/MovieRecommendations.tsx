@@ -30,7 +30,9 @@ const MovieRecommendations = () => {
     fetchMore,
     error,
   } = useDiscover<MovieResult>(
-    `/api/v1/movie/${router.query.movieId}/recommendations`
+    `/api/v1/movie/${router.query.movieId}/recommendations`,
+    undefined,
+    { randomizeOrder: true }
   );
 
   if (error) {

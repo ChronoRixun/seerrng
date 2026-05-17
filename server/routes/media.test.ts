@@ -123,7 +123,95 @@ async function loginAs(email: string, password: string) {
   }
 }
 
+describe('POST /media/:id/:status', () => {
+  it('rejects malformed media IDs before lookup', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/media/not-a-number/available').send();
+
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects unknown media status transitions', async () => {
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 1,
+        mediaType: MediaType.MOVIE,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post(`/media/${media.id}/not-a-status`).send();
+
+    assert.strictEqual(res.status, 404);
+
+    const persisted = await getRepository(Media).findOneOrFail({
+      where: { id: media.id },
+    });
+    assert.strictEqual(persisted.status, MediaStatus.PENDING);
+  });
+
+  it('rejects malformed season status update bodies', async () => {
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 2,
+        mediaType: MediaType.TV,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post(`/media/${media.id}/available`).send({
+      seasons: [{ seasonNumber: 'not-a-number' }],
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /seasonNumber must be an integer/i);
+  });
+
+  it('rejects string is4k status update bodies', async () => {
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 3,
+        mediaType: MediaType.MOVIE,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent
+      .post(`/media/${media.id}/available`)
+      .send({ is4k: 'true' });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /is4k must be a boolean/i);
+  });
+});
+
 describe('DELETE /media/:id/file', () => {
+  it('rejects malformed is4k file deletion query values', async () => {
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+        serviceId: 10,
+        externalServiceId: 100,
+        externalServiceSlug: 'ebook-slug',
+      })
+    );
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.delete(`/media/${media.id}/file?is4k=yes`);
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /is4k must be valid/i);
+    assert.strictEqual(removeBookMock.mock.callCount(), 0);
+  });
+
   it('removes only the ebook link when an audiobook link remains', async () => {
     const media = await getRepository(Media).save(
       new Media({

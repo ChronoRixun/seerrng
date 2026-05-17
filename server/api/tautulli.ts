@@ -2,6 +2,7 @@ import type { User } from '@server/entity/User';
 import type { TautulliSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { requestInterceptorFunction } from '@server/utils/customProxyAgent';
+import { buildServiceUrl } from '@server/utils/serviceUrl';
 import type { AxiosInstance } from 'axios';
 import axios from 'axios';
 import { uniqWith } from 'lodash';
@@ -119,9 +120,12 @@ class TautulliAPI {
 
   constructor(settings: TautulliSettings) {
     this.axios = axios.create({
-      baseURL: `${settings.useSsl ? 'https' : 'http'}://${settings.hostname}:${
-        settings.port
-      }${settings.urlBase ?? ''}`,
+      baseURL: buildServiceUrl({
+        useSsl: settings.useSsl,
+        hostname: settings.hostname,
+        port: settings.port,
+        urlBase: settings.urlBase,
+      }),
       params: { apikey: settings.apiKey },
     });
     this.axios.interceptors.request.use(requestInterceptorFunction);

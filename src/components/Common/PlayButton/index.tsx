@@ -27,6 +27,7 @@ const PlayButton = ({ links }: PlayButtonProps) => {
       }
       href={links[0].url}
       target="_blank"
+      rel="noopener noreferrer"
     >
       {links.length > 1 &&
         links.slice(1).map((link, i) => {
@@ -36,6 +37,7 @@ const PlayButton = ({ links }: PlayButtonProps) => {
               buttonType="ghost"
               href={link.url}
               target="_blank"
+              rel="noopener noreferrer"
             >
               {link.svg}
               <span>{link.text}</span>

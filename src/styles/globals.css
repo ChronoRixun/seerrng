@@ -266,6 +266,31 @@
     --color-purple-950: 69 26 3;
   }
 
+  [data-theme-palette='sietch-neon'] {
+    --color-indigo-50: 250 246 255;
+    --color-indigo-100: 240 232 255;
+    --color-indigo-200: 222 207 255;
+    --color-indigo-300: 199 171 255;
+    --color-indigo-400: 174 128 255;
+    --color-indigo-500: 143 92 255;
+    --color-indigo-600: 124 58 237;
+    --color-indigo-700: 104 39 196;
+    --color-indigo-800: 79 30 142;
+    --color-indigo-900: 55 25 94;
+    --color-indigo-950: 31 18 46;
+    --color-purple-50: 251 247 239;
+    --color-purple-100: 242 232 217;
+    --color-purple-200: 222 203 178;
+    --color-purple-300: 198 166 128;
+    --color-purple-400: 170 128 83;
+    --color-purple-500: 142 96 54;
+    --color-purple-600: 116 75 43;
+    --color-purple-700: 91 62 45;
+    --color-purple-800: 67 53 46;
+    --color-purple-900: 49 43 41;
+    --color-purple-950: 29 26 25;
+  }
+
   html {
     min-height: calc(100% + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) env(safe-area-inset-right)

@@ -26,7 +26,7 @@ class ListenBrainzAPI extends ExternalAPI {
   public async getAlbum(mbid: string): Promise<LbAlbumDetails> {
     try {
       return await this.post<LbAlbumDetails>(
-        `/album/${mbid}`,
+        `/album/${mbid}/`,
         {},
         {
           baseURL: 'https://listenbrainz.org',
@@ -45,7 +45,7 @@ class ListenBrainzAPI extends ExternalAPI {
   public async getArtist(mbid: string): Promise<LbArtistDetails> {
     try {
       return await this.post<LbArtistDetails>(
-        `/artist/${mbid}`,
+        `/artist/${mbid}/`,
         {},
         {
           baseURL: 'https://listenbrainz.org',

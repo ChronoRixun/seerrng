@@ -64,22 +64,45 @@ const getImageUrls = (item: ImageWarmableResult): string[] => {
   return urls.filter((url): url is string => !!url);
 };
 
-const useWarmImageCache = (items?: ImageWarmableResult[]) => {
+const useWarmImageCache = (
+  items?: ImageWarmableResult[],
+  options: { enabled?: boolean; maxUrls?: number } = {}
+) => {
   const { currentSettings } = useSettings();
+  const { enabled = true, maxUrls } = options;
   const imageUrls = useMemo(
-    () => [...new Set((items ?? []).flatMap(getImageUrls))],
-    [items]
+    () => [...new Set((items ?? []).flatMap(getImageUrls))].slice(0, maxUrls),
+    [items, maxUrls]
   );
 
   useEffect(() => {
-    if (!currentSettings.cacheImages || imageUrls.length === 0) {
+    if (
+      !enabled ||
+      !currentSettings.cacheImages ||
+      imageUrls.length === 0 ||
+      document.visibilityState === 'hidden'
+    ) {
       return;
     }
 
-    axios.post('/imageproxy/warm', { urls: imageUrls }).catch(() => {
-      // Cache warming is opportunistic and should never affect the UI.
-    });
-  }, [currentSettings.cacheImages, imageUrls]);
+    const warm = () => {
+      axios.post('/imageproxy/warm', { urls: imageUrls }).catch(() => {
+        // Cache warming is opportunistic and should never affect the UI.
+      });
+    };
+
+    if ('requestIdleCallback' in window) {
+      const idleCallbackId = window.requestIdleCallback(warm, {
+        timeout: 3000,
+      });
+
+      return () => window.cancelIdleCallback(idleCallbackId);
+    }
+
+    const timeoutId = globalThis.setTimeout(warm, 250);
+
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [currentSettings.cacheImages, enabled, imageUrls]);
 };
 
 export default useWarmImageCache;

@@ -2,6 +2,7 @@ import ExternalAPI from '@server/api/externalapi';
 import type { Library, PlexSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { buildServiceUrl } from '@server/utils/serviceUrl';
 
 interface PlexStatusResponse {
   MediaContainer: {
@@ -104,8 +105,11 @@ class PlexAPI extends ExternalAPI {
     const settings = getSettings();
     const settingsPlex = plexSettings ?? settings.plex;
 
-    const protocol = settingsPlex.useSsl ? 'https' : 'http';
-    const baseUrl = `${protocol}://${settingsPlex.ip}:${settingsPlex.port}`;
+    const baseUrl = buildServiceUrl({
+      useSsl: settingsPlex.useSsl,
+      hostname: settingsPlex.ip,
+      port: settingsPlex.port,
+    });
 
     super(
       baseUrl,

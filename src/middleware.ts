@@ -1,6 +1,21 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+const isPathPrefix = (pathname: string, prefix: string): boolean =>
+  pathname === prefix || pathname.startsWith(`${prefix}/`);
+
+const isSetupPath = (pathname: string): boolean =>
+  isPathPrefix(pathname, '/setup');
+
+const isLoginPath = (pathname: string): boolean =>
+  isPathPrefix(pathname, '/login');
+
+const isPlexLoginPath = (pathname: string): boolean =>
+  isPathPrefix(pathname, '/login/plex');
+
+const isResetPasswordPath = (pathname: string): boolean =>
+  isPathPrefix(pathname, '/resetpassword');
+
 /**
  * Replaces the server-side auth/redirect logic that previously lived in
  * `_app`'s getInitialProps. Moving it here lets pages be statically
@@ -30,7 +45,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!settings.initialized) {
-    if (!/(setup|login\/plex)/.test(pathname)) {
+    if (!isSetupPath(pathname) && !isPlexLoginPath(pathname)) {
       return NextResponse.redirect(new URL('/setup', req.url));
     }
     return NextResponse.next();
@@ -48,10 +63,14 @@ export async function middleware(req: NextRequest) {
   }
 
   if (authed) {
-    if (/(setup|login)/.test(pathname)) {
+    if (isSetupPath(pathname) || isLoginPath(pathname)) {
       return NextResponse.redirect(new URL('/', req.url));
     }
-  } else if (!/(login|setup|resetpassword)/.test(pathname)) {
+  } else if (
+    !isLoginPath(pathname) &&
+    !isSetupPath(pathname) &&
+    !isResetPasswordPath(pathname)
+  ) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 

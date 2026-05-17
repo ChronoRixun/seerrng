@@ -111,6 +111,18 @@ async function loginAs(email: string, password: string) {
 }
 
 describe('POST /watchlist', () => {
+  it('rejects malformed watchlist create payloads before persistence', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/watchlist').send({
+      mediaType: MediaType.MOVIE,
+      tmdbId: 'not-a-number',
+      title: 'Bad Movie',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(await getRepository(Watchlist).count(), 0);
+  });
+
   it('auto-requests music watchlist items when music watchlist sync is enabled', async () => {
     const userRepository = getRepository(User);
     const admin = await userRepository.findOneOrFail({
@@ -250,6 +262,24 @@ describe('POST /watchlist', () => {
 });
 
 describe('DELETE /watchlist/:mediaId', () => {
+  it('rejects malformed numeric watchlist IDs', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.delete('/watchlist/not-a-number?mediaType=movie');
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /invalid mediaId/i);
+  });
+
+  it('rejects oversized external watchlist IDs', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent
+      .delete(`/watchlist/${'x'.repeat(513)}`)
+      .query({ mediaType: MediaType.MUSIC });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /invalid mediaId/i);
+  });
+
   it('deletes music watchlist items by MusicBrainz ID', async () => {
     const userRepository = getRepository(User);
     const admin = await userRepository.findOneOrFail({

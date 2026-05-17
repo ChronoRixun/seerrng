@@ -34,6 +34,7 @@ import { getSettings } from '@server/lib/settings';
 import {
   clampNumber,
   getRecencyScore,
+  rankByQualityScore,
   rankTmdbMovieResults,
   rankTmdbTvResults,
 } from '@server/lib/tmdbRank';
@@ -50,7 +51,13 @@ import {
 } from '@server/models/Search';
 import { mapNetwork } from '@server/models/Tv';
 import { parsePositiveInt } from '@server/utils/pagination';
+import { parsePositiveRouteId } from '@server/utils/routeId';
 import { isCollection, isMovie, isPerson } from '@server/utils/typeHelpers';
+import {
+  parseOptionalAllowedString,
+  parseOptionalBoundedString,
+  parseOptionalLanguage,
+} from '@server/utils/validation';
 import type { Response } from 'express';
 import { Router } from 'express';
 import { sortBy } from 'lodash';
@@ -90,6 +97,43 @@ export const createTmdbWithBlocklistSettings = (): TheMovieDb => {
 };
 
 const discoverRoutes = Router();
+const MAX_DISCOVER_QUERY_LENGTH = 256;
+const MAX_DISCOVER_FILTER_LENGTH = 512;
+const trendingMediaTypes = ['all', 'movie', 'tv'] as const;
+const trendingTimeWindows = ['day', 'week'] as const;
+
+const parseOptionalDiscoverString = (
+  value: unknown,
+  fieldName: string,
+  maxLength = MAX_DISCOVER_QUERY_LENGTH
+) =>
+  parseOptionalBoundedString(value, {
+    fieldName,
+    maxLength,
+  });
+
+const parseOptionalDateFilter = (value: unknown, fieldName: string) => {
+  const parsed = parseOptionalDiscoverString(value, fieldName, 10);
+  if ('error' in parsed || parsed.value === undefined) {
+    return parsed;
+  }
+
+  return /^\d{4}-\d{2}-\d{2}$/.test(parsed.value)
+    ? parsed
+    : { error: `${fieldName} must use YYYY-MM-DD format.` };
+};
+
+const parseDiscoverLanguage = (
+  value: unknown,
+  fallbackLanguage: string | undefined
+) => {
+  const parsed = parseOptionalLanguage(value);
+  if ('error' in parsed) {
+    return parsed;
+  }
+
+  return { value: parsed.value ?? fallbackLanguage };
+};
 
 discoverRoutes.use((_req, res, next) => {
   const json = res.json.bind(res);
@@ -408,6 +452,7 @@ const QueryFilterOptions = z.object({
   certificationLte: z.coerce.string().optional(),
   certificationCountry: z.coerce.string().optional(),
   certificationMode: z.enum(['exact', 'range']).optional(),
+  shuffleSeed: z.coerce.string().optional(),
 });
 
 export type FilterOptions = z.infer<typeof QueryFilterOptions>;
@@ -422,6 +467,17 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     const query = ApiQuerySchema.parse(req.query);
     const keywords = query.keywords;
     const excludeKeywords = query.excludeKeywords;
+    const parsedShuffleSeed = parseOptionalDiscoverString(
+      query.shuffleSeed,
+      'Shuffle seed',
+      128
+    );
+
+    if ('error' in parsedShuffleSeed) {
+      return res
+        .status(400)
+        .json({ status: 400, message: parsedShuffleSeed.error });
+    }
 
     const data = await tmdb.getDiscoverMovies({
       page: parsePositiveInt(query.page, 1, 500),
@@ -453,7 +509,7 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     });
     const rankedResults = query.sortBy
       ? data.results
-      : rankTmdbMovieResults(data.results);
+      : rankTmdbMovieResults(data.results, parsedShuffleSeed.value);
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -511,6 +567,13 @@ discoverRoutes.get<{ language: string }>(
     const tmdb = createTmdbWithRegionLanguage(req.user);
 
     try {
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return next({ status: 400, message: parsedLanguage.error });
+      }
       const languages = await tmdb.getLanguages();
 
       const language = languages.find(
@@ -523,7 +586,7 @@ discoverRoutes.get<{ language: string }>(
 
       const data = await tmdb.getDiscoverMovies({
         page: parsePositiveInt(req.query.page, 1, 500),
-        language: (req.query.language as string) ?? req.locale,
+        language: parsedLanguage.value,
         originalLanguage: req.params.language,
       });
       const rankedResults = rankTmdbMovieResults(data.results);
@@ -569,15 +632,24 @@ discoverRoutes.get<{ genreId: string }>(
   '/movies/genre/:genreId',
   async (req, res, next) => {
     const tmdb = createTmdbWithRegionLanguage(req.user);
+    const genreId = parsePositiveRouteId(req.params.genreId);
+    if (!genreId) {
+      return next({ status: 404, message: 'Genre not found.' });
+    }
 
     try {
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return next({ status: 400, message: parsedLanguage.error });
+      }
       const genres = await tmdb.getMovieGenres({
-        language: (req.query.language as string) ?? req.locale,
+        language: parsedLanguage.value,
       });
 
-      const genre = genres.find(
-        (genre) => genre.id === Number(req.params.genreId)
-      );
+      const genre = genres.find((genre) => genre.id === genreId);
 
       if (!genre) {
         return next({ status: 404, message: 'Genre not found.' });
@@ -585,8 +657,8 @@ discoverRoutes.get<{ genreId: string }>(
 
       const data = await tmdb.getDiscoverMovies({
         page: parsePositiveInt(req.query.page, 1, 500),
-        language: (req.query.language as string) ?? req.locale,
-        genre: req.params.genreId as string,
+        language: parsedLanguage.value,
+        genre: genreId.toString(),
       });
       const rankedResults = rankTmdbMovieResults(data.results);
 
@@ -617,7 +689,7 @@ discoverRoutes.get<{ genreId: string }>(
       logger.debug('Something went wrong retrieving movies by genre', {
         label: 'API',
         errorMessage: e.message,
-        genreId: req.params.genreId,
+        genreId,
       });
       return next({
         status: 500,
@@ -631,14 +703,25 @@ discoverRoutes.get<{ studioId: string }>(
   '/movies/studio/:studioId',
   async (req, res, next) => {
     const tmdb = new TheMovieDb();
+    const studioId = parsePositiveRouteId(req.params.studioId);
+    if (!studioId) {
+      return next({ status: 404, message: 'Studio not found.' });
+    }
 
     try {
-      const studio = await tmdb.getStudio(Number(req.params.studioId));
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return next({ status: 400, message: parsedLanguage.error });
+      }
+      const studio = await tmdb.getStudio(studioId);
 
       const data = await tmdb.getDiscoverMovies({
         page: parsePositiveInt(req.query.page, 1, 500),
-        language: (req.query.language as string) ?? req.locale,
-        studio: req.params.studioId as string,
+        language: parsedLanguage.value,
+        studio: studioId.toString(),
       });
       const rankedResults = rankTmdbMovieResults(data.results);
 
@@ -669,7 +752,7 @@ discoverRoutes.get<{ studioId: string }>(
       logger.debug('Something went wrong retrieving movies by studio', {
         label: 'API',
         errorMessage: e.message,
-        studioId: req.params.studioId,
+        studioId,
       });
       return next({
         status: 500,
@@ -689,9 +772,15 @@ discoverRoutes.get('/movies/upcoming', async (req, res, next) => {
     .split('T')[0];
 
   try {
+    const parsedLanguage = parseDiscoverLanguage(req.query.language, req.locale);
+    if ('error' in parsedLanguage) {
+      return res
+        .status(400)
+        .json({ status: 400, message: parsedLanguage.error });
+    }
     const data = await tmdb.getDiscoverMovies({
       page: parsePositiveInt(req.query.page, 1, 500),
-      language: (req.query.language as string) ?? req.locale,
+      language: parsedLanguage.value,
       primaryReleaseDateGte: date,
     });
 
@@ -736,6 +825,17 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     const query = ApiQuerySchema.parse(req.query);
     const keywords = query.keywords;
     const excludeKeywords = query.excludeKeywords;
+    const parsedShuffleSeed = parseOptionalDiscoverString(
+      query.shuffleSeed,
+      'Shuffle seed',
+      128
+    );
+
+    if ('error' in parsedShuffleSeed) {
+      return res
+        .status(400)
+        .json({ status: 400, message: parsedShuffleSeed.error });
+    }
     const data = await tmdb.getDiscoverTv({
       page: parsePositiveInt(query.page, 1, 500),
       sortBy: getValidatedTmdbSort(query.sortBy),
@@ -767,7 +867,7 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     });
     const rankedResults = query.sortBy
       ? data.results
-      : rankTmdbTvResults(data.results);
+      : rankTmdbTvResults(data.results, parsedShuffleSeed.value);
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -824,6 +924,13 @@ discoverRoutes.get<{ language: string }>(
     const tmdb = createTmdbWithRegionLanguage(req.user);
 
     try {
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return next({ status: 400, message: parsedLanguage.error });
+      }
       const languages = await tmdb.getLanguages();
 
       const language = languages.find(
@@ -836,7 +943,7 @@ discoverRoutes.get<{ language: string }>(
 
       const data = await tmdb.getDiscoverTv({
         page: parsePositiveInt(req.query.page, 1, 500),
-        language: (req.query.language as string) ?? req.locale,
+        language: parsedLanguage.value,
         originalLanguage: req.params.language,
       });
       const rankedResults = rankTmdbTvResults(data.results);
@@ -882,15 +989,26 @@ discoverRoutes.get<{ genreId: string }>(
   '/tv/genre/:genreId',
   async (req, res, next) => {
     const tmdb = createTmdbWithRegionLanguage(req.user);
+    const genreId = parsePositiveRouteId(req.params.genreId);
+    if (!genreId) {
+      return next({ status: 404, message: 'Genre not found.' });
+    }
 
     try {
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return res
+          .status(400)
+          .json({ status: 400, message: parsedLanguage.error });
+      }
       const genres = await tmdb.getTvGenres({
-        language: (req.query.language as string) ?? req.locale,
+        language: parsedLanguage.value,
       });
 
-      const genre = genres.find(
-        (genre) => genre.id === Number(req.params.genreId)
-      );
+      const genre = genres.find((genre) => genre.id === genreId);
 
       if (!genre) {
         return next({ status: 404, message: 'Genre not found.' });
@@ -898,8 +1016,8 @@ discoverRoutes.get<{ genreId: string }>(
 
       const data = await tmdb.getDiscoverTv({
         page: parsePositiveInt(req.query.page, 1, 500),
-        language: (req.query.language as string) ?? req.locale,
-        genre: req.params.genreId,
+        language: parsedLanguage.value,
+        genre: genreId.toString(),
       });
       const rankedResults = rankTmdbTvResults(data.results);
 
@@ -930,7 +1048,7 @@ discoverRoutes.get<{ genreId: string }>(
       logger.debug('Something went wrong retrieving series by genre', {
         label: 'API',
         errorMessage: e.message,
-        genreId: req.params.genreId,
+        genreId,
       });
       return next({
         status: 500,
@@ -944,14 +1062,27 @@ discoverRoutes.get<{ networkId: string }>(
   '/tv/network/:networkId',
   async (req, res, next) => {
     const tmdb = new TheMovieDb();
+    const networkId = parsePositiveRouteId(req.params.networkId);
+    if (!networkId) {
+      return next({ status: 404, message: 'Network not found.' });
+    }
 
     try {
-      const network = await tmdb.getNetwork(Number(req.params.networkId));
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return res
+          .status(400)
+          .json({ status: 400, message: parsedLanguage.error });
+      }
+      const network = await tmdb.getNetwork(networkId);
 
       const data = await tmdb.getDiscoverTv({
         page: parsePositiveInt(req.query.page, 1, 500),
-        language: (req.query.language as string) ?? req.locale,
-        network: Number(req.params.networkId),
+        language: parsedLanguage.value,
+        network: networkId,
       });
       const rankedResults = rankTmdbTvResults(data.results);
 
@@ -982,7 +1113,7 @@ discoverRoutes.get<{ networkId: string }>(
       logger.debug('Something went wrong retrieving series by network', {
         label: 'API',
         errorMessage: e.message,
-        networkId: req.params.networkId,
+        networkId,
       });
       return next({
         status: 500,
@@ -1002,9 +1133,15 @@ discoverRoutes.get('/tv/upcoming', async (req, res, next) => {
     .split('T')[0];
 
   try {
+    const parsedLanguage = parseDiscoverLanguage(req.query.language, req.locale);
+    if ('error' in parsedLanguage) {
+      return res
+        .status(400)
+        .json({ status: 400, message: parsedLanguage.error });
+    }
     const data = await tmdb.getDiscoverTv({
       page: parsePositiveInt(req.query.page, 1, 500),
-      language: (req.query.language as string) ?? req.locale,
+      language: parsedLanguage.value,
       firstAirDateGte: date,
     });
 
@@ -1045,10 +1182,35 @@ discoverRoutes.get('/trending', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage(req.user);
 
   try {
-    const mediaType = (req.query.mediaType as 'all' | 'movie' | 'tv') ?? 'all';
-    const timeWindow =
-      (req.query.timeWindow as 'day' | 'week') === 'week' ? 'week' : 'day';
-    const language = (req.query.language as string) ?? req.locale;
+    const parsedMediaType = parseOptionalAllowedString(req.query.mediaType, {
+      fieldName: 'Media type',
+      allowedValues: trendingMediaTypes,
+      maxLength: 16,
+    });
+    if ('error' in parsedMediaType) {
+      return res
+        .status(400)
+        .json({ status: 400, message: parsedMediaType.error });
+    }
+    const parsedTimeWindow = parseOptionalAllowedString(req.query.timeWindow, {
+      fieldName: 'Time window',
+      allowedValues: trendingTimeWindows,
+      maxLength: 8,
+    });
+    if ('error' in parsedTimeWindow) {
+      return res
+        .status(400)
+        .json({ status: 400, message: parsedTimeWindow.error });
+    }
+    const parsedLanguage = parseDiscoverLanguage(req.query.language, req.locale);
+    if ('error' in parsedLanguage) {
+      return res
+        .status(400)
+        .json({ status: 400, message: parsedLanguage.error });
+    }
+    const mediaType = parsedMediaType.value ?? 'all';
+    const timeWindow = parsedTimeWindow.value ?? 'day';
+    const language = parsedLanguage.value;
     const page = parsePositiveInt(req.query.page, 1, 500);
 
     const trendingFetchers = {
@@ -1131,12 +1293,25 @@ discoverRoutes.get<{ keywordId: string }>(
   '/keyword/:keywordId/movies',
   async (req, res, next) => {
     const tmdb = new TheMovieDb();
+    const keywordId = parsePositiveRouteId(req.params.keywordId);
+    if (!keywordId) {
+      return next({ status: 404, message: 'Keyword not found.' });
+    }
 
     try {
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return res
+          .status(400)
+          .json({ status: 400, message: parsedLanguage.error });
+      }
       const data = await tmdb.getMoviesByKeyword({
-        keywordId: Number(req.params.keywordId),
+        keywordId,
         page: parsePositiveInt(req.query.page, 1, 500),
-        language: (req.query.language as string) ?? req.locale,
+        language: parsedLanguage.value,
       });
       const rankedResults = rankTmdbMovieResults(data.results);
 
@@ -1166,7 +1341,7 @@ discoverRoutes.get<{ keywordId: string }>(
       logger.debug('Something went wrong retrieving movies by keyword', {
         label: 'API',
         errorMessage: e.message,
-        keywordId: req.params.keywordId,
+        keywordId,
       });
       return next({
         status: 500,
@@ -1183,9 +1358,16 @@ discoverRoutes.get<{ language: string }, GenreSliderItem[]>(
 
     try {
       const mappedGenres: GenreSliderItem[] = [];
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return next({ status: 400, message: parsedLanguage.error });
+      }
 
       const genres = await tmdb.getMovieGenres({
-        language: (req.query.language as string) ?? req.locale,
+        language: parsedLanguage.value,
       });
 
       await Promise.all(
@@ -1228,9 +1410,16 @@ discoverRoutes.get<{ language: string }, GenreSliderItem[]>(
 
     try {
       const mappedGenres: GenreSliderItem[] = [];
+      const parsedLanguage = parseDiscoverLanguage(
+        req.query.language,
+        req.locale
+      );
+      if ('error' in parsedLanguage) {
+        return next({ status: 400, message: parsedLanguage.error });
+      }
 
       const genres = await tmdb.getTvGenres({
-        language: (req.query.language as string) ?? req.locale,
+        language: parsedLanguage.value,
       });
 
       await Promise.all(
@@ -1275,24 +1464,74 @@ discoverRoutes.get('/music', async (req, res) => {
   const hasCustomDays = typeof req.query.days === 'string';
   const sortByValue = getValidatedSort(req.query.sortBy, musicSortOptions);
   const sortAscending = sortByValue === 'release_date.asc';
-  const genreFilter =
-    typeof req.query.genre === 'string' && req.query.genre.trim()
-      ? req.query.genre
-          .split(',')
-          .map((genre) => genre.trim())
-          .filter(Boolean)
-      : [];
-  const releaseTypeFilter =
-    typeof req.query.releaseType === 'string' && req.query.releaseType.trim()
-      ? req.query.releaseType
-          .split(',')
-          .map((type) => type.trim())
-          .filter(Boolean)
-      : [];
-  const query =
-    typeof req.query.query === 'string' && req.query.query.trim()
-      ? req.query.query.trim()
-      : '';
+  const parsedGenre = parseOptionalDiscoverString(
+    req.query.genre,
+    'Genre',
+    MAX_DISCOVER_FILTER_LENGTH
+  );
+  const parsedReleaseType = parseOptionalDiscoverString(
+    req.query.releaseType,
+    'Release type',
+    MAX_DISCOVER_FILTER_LENGTH
+  );
+  const parsedQuery = parseOptionalDiscoverString(req.query.query, 'Query');
+  const parsedShuffleSeed = parseOptionalDiscoverString(
+    req.query.shuffleSeed,
+    'Shuffle seed',
+    128
+  );
+  const parsedReleaseDateGte = parseOptionalDateFilter(
+    req.query.primaryReleaseDateGte,
+    'Primary release date start'
+  );
+  const parsedReleaseDateLte = parseOptionalDateFilter(
+    req.query.primaryReleaseDateLte,
+    'Primary release date end'
+  );
+
+  if ('error' in parsedGenre) {
+    return res.status(400).json({ status: 400, message: parsedGenre.error });
+  }
+  if ('error' in parsedReleaseType) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedReleaseType.error });
+  }
+  if ('error' in parsedQuery) {
+    return res.status(400).json({ status: 400, message: parsedQuery.error });
+  }
+  if ('error' in parsedShuffleSeed) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedShuffleSeed.error });
+  }
+  if ('error' in parsedReleaseDateGte) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedReleaseDateGte.error });
+  }
+  if ('error' in parsedReleaseDateLte) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedReleaseDateLte.error });
+  }
+
+  const genreFilter = parsedGenre.value
+    ? parsedGenre.value
+        .split(',')
+        .map((genre) => genre.trim())
+        .filter(Boolean)
+    : [];
+  const releaseTypeFilter = parsedReleaseType.value
+    ? parsedReleaseType.value
+        .split(',')
+        .map((type) => type.trim())
+        .filter(Boolean)
+    : [];
+  const query = parsedQuery.value ?? '';
+  const shuffleSeed = parsedShuffleSeed.value;
+  const releaseDateGte = parsedReleaseDateGte.value;
+  const releaseDateLte = parsedReleaseDateLte.value;
 
   try {
     if (query) {
@@ -1335,12 +1574,6 @@ discoverRoutes.get('/music', async (req, res) => {
 
     if (genreFilter.length) {
       const providerWindow = getProviderWindow(page, itemsPerPage);
-      const releaseDateGte = req.query.primaryReleaseDateGte
-        ? String(req.query.primaryReleaseDateGte)
-        : undefined;
-      const releaseDateLte = req.query.primaryReleaseDateLte
-        ? String(req.query.primaryReleaseDateLte)
-        : undefined;
       const { releaseGroups, totalCount } =
         await musicBrainz.searchReleaseGroupsByTag({
           tags: genreFilter,
@@ -1370,7 +1603,13 @@ discoverRoutes.get('/music', async (req, res) => {
       const albums =
         sortByValue === 'ranked'
           ? diversifyMusicAlbumsByArtist(
-              sortedAlbums,
+              rankByQualityScore(
+                sortedAlbums,
+                scoreMusicAlbum,
+                undefined,
+                undefined,
+                shuffleSeed
+              ),
               providerWindow.sliceEnd
             ).slice(providerWindow.sliceStart, providerWindow.sliceEnd)
           : sortedAlbums.slice(
@@ -1405,9 +1644,7 @@ discoverRoutes.get('/music', async (req, res) => {
     }
 
     const providerWindow = getProviderWindow(page, itemsPerPage);
-    const hasReleaseDateFilter =
-      typeof req.query.primaryReleaseDateGte === 'string' ||
-      typeof req.query.primaryReleaseDateLte === 'string';
+    const hasReleaseDateFilter = Boolean(releaseDateGte || releaseDateLte);
 
     if (!genreFilter.length && sortByValue.startsWith('popular')) {
       const range =
@@ -1526,8 +1763,14 @@ discoverRoutes.get('/music', async (req, res) => {
       });
 
       const albums = diversifyMusicAlbumsByArtist(
-        [...albumsById.values()].sort(
-          (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+        rankByQualityScore(
+          [...albumsById.values()].sort(
+            (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
+          ),
+          scoreMusicAlbum,
+          undefined,
+          undefined,
+          shuffleSeed
         ),
         providerWindow.sliceEnd
       ).slice(providerWindow.sliceStart, providerWindow.sliceEnd);
@@ -1610,7 +1853,13 @@ discoverRoutes.get('/music', async (req, res) => {
     const releases =
       sortByValue === 'ranked'
         ? diversifyMusicAlbumsByArtist(
-            sortedReleases.map(mapFreshReleaseAlbum),
+            rankByQualityScore(
+              sortedReleases.map(mapFreshReleaseAlbum),
+              scoreMusicAlbum,
+              undefined,
+              undefined,
+              shuffleSeed
+            ),
             providerWindow.sliceEnd
           )
             .slice(providerWindow.sliceStart, providerWindow.sliceEnd)
@@ -1672,12 +1921,40 @@ discoverRoutes.get('/books', async (req, res) => {
   const itemsPerPage = 20;
   const page = parsePositiveInt(req.query.page, 1, 500);
   const sortByValue = getValidatedSort(req.query.sortBy, bookSortOptions);
-  const subjectQuery =
-    typeof req.query.subject === 'string' ? req.query.subject.trim() : '';
+  const parsedSubject = parseOptionalDiscoverString(
+    req.query.subject,
+    'Subject',
+    MAX_DISCOVER_FILTER_LENGTH
+  );
+  const parsedSearchQuery = parseOptionalDiscoverString(
+    req.query.query,
+    'Query'
+  );
+  const parsedShuffleSeed = parseOptionalDiscoverString(
+    req.query.shuffleSeed,
+    'Shuffle seed',
+    128
+  );
+
+  if ('error' in parsedSubject) {
+    return res.status(400).json({ status: 400, message: parsedSubject.error });
+  }
+  if ('error' in parsedSearchQuery) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedSearchQuery.error });
+  }
+  if ('error' in parsedShuffleSeed) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedShuffleSeed.error });
+  }
+
+  const subjectQuery = parsedSubject.value ?? '';
   const hasSubjectFilter = !!subjectQuery;
   const subject = hasSubjectFilter ? subjectQuery : 'fiction';
-  const searchQuery =
-    typeof req.query.query === 'string' ? req.query.query.trim() : '';
+  const searchQuery = parsedSearchQuery.value ?? '';
+  const shuffleSeed = parsedShuffleSeed.value;
   const hasSearchQuery = !!searchQuery;
   const query = hasSearchQuery ? searchQuery : `subject:${subject}`;
 
@@ -1750,8 +2027,14 @@ discoverRoutes.get('/books', async (req, res) => {
             ),
             start: 0,
             docs: diversifyBookDocsByAuthor(
-              [...docsByKey.values()].sort(
-                (a, b) => scoreBookDoc(b) - scoreBookDoc(a)
+              rankByQualityScore(
+                [...docsByKey.values()].sort(
+                  (a, b) => scoreBookDoc(b) - scoreBookDoc(a)
+                ),
+                scoreBookDoc,
+                undefined,
+                undefined,
+                shuffleSeed
               ),
               itemsPerPage
             ),
@@ -1765,7 +2048,13 @@ discoverRoutes.get('/books', async (req, res) => {
         });
     const sortedDocs =
       sortByValue === 'ranked' && !shouldBlendDefaultSubjects
-        ? [...books.docs].sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a))
+        ? rankByQualityScore(
+            [...books.docs].sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a)),
+            scoreBookDoc,
+            undefined,
+            undefined,
+            shuffleSeed
+          )
         : books.docs;
     const ids = sortedDocs.map((doc) => doc.key.replace('/works/', ''));
     const identifiers = ids.length

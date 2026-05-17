@@ -2,6 +2,9 @@ import RadarrAPI from '@server/api/servarr/radarr';
 import type { RadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { parsePositiveRouteId } from '@server/utils/routeId';
+import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
+import { parseRadarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
 
 const radarrRoutes = Router();
@@ -9,13 +12,21 @@ const radarrRoutes = Router();
 radarrRoutes.get('/', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.radarr);
+  res.status(200).json(redactSecrets(settings.radarr));
 });
 
 radarrRoutes.post('/', async (req, res) => {
   const settings = getSettings();
 
-  const newRadarr = req.body as RadarrSettings;
+  const parsedRadarr = parseRadarrSettings(
+    preserveRedactedSecrets(req.body, undefined) as Partial<RadarrSettings>
+  );
+
+  if ('error' in parsedRadarr) {
+    return res.status(400).json({ message: parsedRadarr.error });
+  }
+
+  const newRadarr = parsedRadarr.value;
   const lastItem = settings.radarr[settings.radarr.length - 1];
   newRadarr.id = lastItem ? lastItem.id + 1 : 0;
 
@@ -33,7 +44,7 @@ radarrRoutes.post('/', async (req, res) => {
   settings.radarr = [...settings.radarr, newRadarr];
   await settings.save();
 
-  return res.status(201).json(newRadarr);
+  return res.status(201).json(redactSecrets(newRadarr));
 });
 
 radarrRoutes.post<
@@ -42,15 +53,21 @@ radarrRoutes.post<
   RadarrSettings & { tagLabel?: string }
 >('/test', async (req, res, next) => {
   try {
+    const parsedRadarr = parseRadarrSettings(req.body);
+
+    if ('error' in parsedRadarr) {
+      return res.status(400).json({ message: parsedRadarr.error });
+    }
+
     const radarr = new RadarrAPI({
-      apiKey: req.body.apiKey,
-      url: RadarrAPI.buildUrl(req.body, '/api/v3'),
+      apiKey: parsedRadarr.value.apiKey,
+      url: RadarrAPI.buildUrl(parsedRadarr.value, '/api/v3'),
     });
 
     const urlBase = await radarr
       .getSystemStatus()
       .then((value) => value.urlBase)
-      .catch(() => req.body.baseUrl);
+      .catch(() => parsedRadarr.value.baseUrl);
     const profiles = await radarr.getProfiles();
     const folders = await radarr.getRootFolders();
     const tags = await radarr.getTags();
@@ -78,9 +95,13 @@ radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
   '/:id',
   async (req, res, next) => {
     const settings = getSettings();
+    const radarrId = parsePositiveRouteId(req.params.id);
+    if (!radarrId) {
+      return next({ status: '404', message: 'Settings instance not found' });
+    }
 
     const radarrIndex = settings.radarr.findIndex(
-      (r) => r.id === Number(req.params.id)
+      (r) => r.id === radarrId
     );
 
     if (radarrIndex === -1) {
@@ -90,29 +111,42 @@ radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
     // If we are setting this as the default, clear any previous defaults for the same type first
     // ex: if is4k is true, it will only remove defaults for other servers that have is4k set to true
     // and are the default
-    if (req.body.isDefault) {
+    const parsedRadarr = parseRadarrSettings(
+      preserveRedactedSecrets(req.body, settings.radarr[radarrIndex]) as Partial<RadarrSettings>,
+      settings.radarr[radarrIndex]
+    );
+
+    if ('error' in parsedRadarr) {
+      return next({ status: 400, message: parsedRadarr.error });
+    }
+
+    if (parsedRadarr.value.isDefault) {
       settings.radarr
-        .filter((radarrInstance) => radarrInstance.is4k === req.body.is4k)
+        .filter((radarrInstance) => radarrInstance.is4k === parsedRadarr.value.is4k)
         .forEach((radarrInstance) => {
           radarrInstance.isDefault = false;
         });
     }
 
     settings.radarr[radarrIndex] = {
-      ...req.body,
-      id: Number(req.params.id),
+      ...parsedRadarr.value,
+      id: radarrId,
     } as RadarrSettings;
     await settings.save();
 
-    return res.status(200).json(settings.radarr[radarrIndex]);
+    return res.status(200).json(redactSecrets(settings.radarr[radarrIndex]));
   }
 );
 
 radarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
   const settings = getSettings();
+  const radarrId = parsePositiveRouteId(req.params.id);
+  if (!radarrId) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
 
   const radarrSettings = settings.radarr.find(
-    (r) => r.id === Number(req.params.id)
+    (r) => r.id === radarrId
   );
 
   if (!radarrSettings) {
@@ -136,9 +170,13 @@ radarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
 
 radarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   const settings = getSettings();
+  const radarrId = parsePositiveRouteId(req.params.id);
+  if (!radarrId) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
 
   const radarrIndex = settings.radarr.findIndex(
-    (r) => r.id === Number(req.params.id)
+    (r) => r.id === radarrId
   );
 
   if (radarrIndex === -1) {
@@ -148,7 +186,7 @@ radarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   const removed = settings.radarr.splice(radarrIndex, 1);
   await settings.save();
 
-  return res.status(200).json(removed[0]);
+  return res.status(200).json(redactSecrets(removed[0]));
 });
 
 export default radarrRoutes;

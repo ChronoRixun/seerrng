@@ -39,20 +39,61 @@ export const scoreTmdbResult = ({
   return popularityScore + voteCountScore + voteAverageScore + recencyScore;
 };
 
+const getSeededJitter = (seed: string, index: number): number => {
+  let hash = 2166136261;
+  const value = `${seed}:${index}`;
+
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0) / 4294967296;
+};
+
+export const rankByQualityScore = <T>(
+  results: T[],
+  getScore: (result: T) => number,
+  jitterRatio = 0.08,
+  jitterFloor = 4,
+  seed?: string
+): T[] =>
+  [...results]
+    .map((result, index) => {
+      const score = getScore(result);
+      const jitter = seed ? getSeededJitter(seed, index) : Math.random();
+
+      return {
+        result,
+        rank:
+          score + jitter * Math.max(Math.abs(score) * jitterRatio, jitterFloor),
+      };
+    })
+    .sort((a, b) => b.rank - a.rank)
+    .map(({ result }) => result);
+
 export const rankTmdbMovieResults = (
-  results: TmdbMovieResult[]
+  results: TmdbMovieResult[],
+  seed?: string
 ): TmdbMovieResult[] =>
-  [...results].sort(
-    (a, b) =>
-      scoreTmdbResult({ ...b, date: b.release_date }) -
-      scoreTmdbResult({ ...a, date: a.release_date })
+  rankByQualityScore(
+    results,
+    (result) => scoreTmdbResult({ ...result, date: result.release_date }),
+    undefined,
+    undefined,
+    seed
   );
 
-export const rankTmdbTvResults = (results: TmdbTvResult[]): TmdbTvResult[] =>
-  [...results].sort(
-    (a, b) =>
-      scoreTmdbResult({ ...b, date: b.first_air_date }) -
-      scoreTmdbResult({ ...a, date: a.first_air_date })
+export const rankTmdbTvResults = (
+  results: TmdbTvResult[],
+  seed?: string
+): TmdbTvResult[] =>
+  rankByQualityScore(
+    results,
+    (result) => scoreTmdbResult({ ...result, date: result.first_air_date }),
+    undefined,
+    undefined,
+    seed
   );
 
 const getPersonCreditDate = (

@@ -8,6 +8,7 @@ import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { RadioGroup } from '@headlessui/react';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/solid';
+import { MAX_ISSUE_MESSAGE_LENGTH } from '@server/constants/issue';
 import { MediaStatus } from '@server/constants/media';
 import type Issue from '@server/entity/Issue';
 import type { BookDetails } from '@server/models/Book';
@@ -23,6 +24,8 @@ import * as Yup from 'yup';
 
 const messages = defineMessages('components.IssueModal.CreateIssueModal', {
   validationMessageRequired: 'You must provide a description',
+  validationMessageLength:
+    'Description must be {maxLength, number} characters or fewer',
   whatswrong: "What's wrong?",
   providedetail:
     'Please provide a detailed explanation of the issue you encountered.',
@@ -121,9 +124,14 @@ const CreateIssueModal = ({
     .map((season) => season.seasonNumber);
 
   const CreateIssueModalSchema = Yup.object().shape({
-    message: Yup.string().required(
-      intl.formatMessage(messages.validationMessageRequired)
-    ),
+    message: Yup.string()
+      .max(
+        MAX_ISSUE_MESSAGE_LENGTH,
+        intl.formatMessage(messages.validationMessageLength, {
+          maxLength: MAX_ISSUE_MESSAGE_LENGTH,
+        })
+      )
+      .required(intl.formatMessage(messages.validationMessageRequired)),
   });
 
   return (

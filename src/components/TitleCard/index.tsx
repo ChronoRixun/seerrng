@@ -54,6 +54,7 @@ interface TitleCardProps {
   isAddedToWatchlist?: number | boolean;
   needsCoverArt?: boolean;
   mutateParent?: () => void;
+  showText?: boolean;
 }
 
 const messages = defineMessages('components.TitleCard', {
@@ -80,6 +81,7 @@ const TitleCard = ({
   canRequestAdditionalFormat = false,
   canExpand = false,
   mutateParent,
+  showText = false,
 }: TitleCardProps) => {
   const isTouch = useIsTouch();
   const intl = useIntl();
@@ -409,6 +411,8 @@ const TitleCard = ({
       currentStatus === MediaStatus.UNKNOWN ||
       currentStatus === MediaStatus.DELETED ||
       canRequestAdditionalFormat);
+  const showTextOverlay = showText || !image || showDetail || showRequestModal;
+  const showFullDetailOverlay = !image || showDetail || showRequestModal;
 
   return (
     <div
@@ -628,7 +632,7 @@ const TitleCard = ({
 
           <Transition
             as={Fragment}
-            show={!image || showDetail || showRequestModal}
+            show={showTextOverlay}
             enter="transition-opacity"
             enterFrom="opacity-0"
             enterTo="opacity-100"
@@ -642,14 +646,17 @@ const TitleCard = ({
                 prefetch={false}
                 className="absolute inset-0 h-full w-full cursor-pointer overflow-hidden text-left"
                 style={{
-                  background:
-                    'linear-gradient(180deg, rgba(45, 55, 72, 0.4) 0%, rgba(45, 55, 72, 0.9) 100%)',
+                  background: showFullDetailOverlay
+                    ? 'linear-gradient(180deg, rgba(45, 55, 72, 0.4) 0%, rgba(45, 55, 72, 0.9) 100%)'
+                    : 'linear-gradient(180deg, rgba(17, 24, 39, 0) 35%, rgba(17, 24, 39, 0.88) 100%)',
                 }}
               >
                 <div className="flex h-full w-full items-end">
                   <div
                     className={`px-2 text-white ${
-                      canShowRequestButton ? 'pb-11' : 'pb-2'
+                      canShowRequestButton && showFullDetailOverlay
+                        ? 'pb-11'
+                        : 'pb-2'
                     }`}
                   >
                     {year && <div className="text-sm font-medium">{year}</div>}
@@ -657,7 +664,7 @@ const TitleCard = ({
                     <h1
                       className="whitespace-normal text-xl font-bold leading-tight"
                       style={{
-                        WebkitLineClamp: 3,
+                        WebkitLineClamp: showFullDetailOverlay ? 3 : 2,
                         display: '-webkit-box',
                         overflow: 'hidden',
                         WebkitBoxOrient: 'vertical',
@@ -672,24 +679,26 @@ const TitleCard = ({
                         {artist}
                       </div>
                     )}
-                    <div
-                      className="whitespace-normal text-xs"
-                      style={{
-                        WebkitLineClamp: canShowRequestButton ? 3 : 5,
-                        display: '-webkit-box',
-                        overflow: 'hidden',
-                        WebkitBoxOrient: 'vertical',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {summary}
-                    </div>
+                    {showFullDetailOverlay && (
+                      <div
+                        className="whitespace-normal text-xs"
+                        style={{
+                          WebkitLineClamp: canShowRequestButton ? 3 : 5,
+                          display: '-webkit-box',
+                          overflow: 'hidden',
+                          WebkitBoxOrient: 'vertical',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {summary}
+                      </div>
+                    )}
                   </div>
                 </div>
               </Link>
 
               <div className="absolute bottom-0 left-0 right-0 flex justify-between px-2 py-2">
-                {canShowRequestButton && (
+                {canShowRequestButton && showFullDetailOverlay && (
                   <Button
                     buttonType="primary"
                     buttonSize="sm"

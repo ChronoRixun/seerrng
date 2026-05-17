@@ -19,15 +19,35 @@ import logger from '@server/logger';
 import { mapOpenLibrarySearchDoc } from '@server/models/Book';
 import { mapSearchResults } from '@server/models/Search';
 import { parsePositiveInt } from '@server/utils/pagination';
+import {
+  parseBoundedString,
+  parseOptionalLanguage,
+} from '@server/utils/validation';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
 const searchRoutes = Router();
+const MAX_SEARCH_QUERY_LENGTH = 256;
+
+const parseSearchQuery = (value: unknown) =>
+  parseBoundedString(value, {
+    fieldName: 'Query',
+    maxLength: MAX_SEARCH_QUERY_LENGTH,
+  });
 
 searchRoutes.get('/', async (req, res, next) => {
-  const queryString = req.query.query as string;
+  const parsedQuery = parseSearchQuery(req.query.query);
+  if ('error' in parsedQuery) {
+    return res.status(400).json({ status: 400, message: parsedQuery.error });
+  }
+
+  const queryString = parsedQuery.value;
   const page = parsePositiveInt(req.query.page, 1, 500);
-  const language = (req.query.language as string) ?? req.locale;
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const searchProvider = findSearchProvider(queryString.toLowerCase());
@@ -410,11 +430,16 @@ searchRoutes.get('/', async (req, res, next) => {
 });
 
 searchRoutes.get('/keyword', async (req, res, next) => {
+  const parsedQuery = parseSearchQuery(req.query.query);
+  if ('error' in parsedQuery) {
+    return res.status(400).json({ status: 400, message: parsedQuery.error });
+  }
+
   const tmdb = new TheMovieDb();
 
   try {
     const results = await tmdb.searchKeyword({
-      query: req.query.query as string,
+      query: parsedQuery.value,
       page: parsePositiveInt(req.query.page, 1, 500),
     });
 
@@ -423,7 +448,7 @@ searchRoutes.get('/keyword', async (req, res, next) => {
     logger.debug('Something went wrong retrieving keyword search results', {
       label: 'API',
       errorMessage: e.message,
-      query: req.query.query,
+      query: parsedQuery.value,
     });
     return next({
       status: 500,
@@ -433,11 +458,16 @@ searchRoutes.get('/keyword', async (req, res, next) => {
 });
 
 searchRoutes.get('/company', async (req, res, next) => {
+  const parsedQuery = parseSearchQuery(req.query.query);
+  if ('error' in parsedQuery) {
+    return res.status(400).json({ status: 400, message: parsedQuery.error });
+  }
+
   const tmdb = new TheMovieDb();
 
   try {
     const results = await tmdb.searchCompany({
-      query: req.query.query as string,
+      query: parsedQuery.value,
       page: parsePositiveInt(req.query.page, 1, 500),
     });
 
@@ -446,7 +476,7 @@ searchRoutes.get('/company', async (req, res, next) => {
     logger.debug('Something went wrong retrieving company search results', {
       label: 'API',
       errorMessage: e.message,
-      query: req.query.query,
+      query: parsedQuery.value,
     });
     return next({
       status: 500,

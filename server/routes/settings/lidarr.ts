@@ -2,6 +2,9 @@ import LidarrAPI from '@server/api/servarr/lidarr';
 import type { LidarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { parsePositiveRouteId } from '@server/utils/routeId';
+import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
+import { parseLidarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
 
 const lidarrRoutes = Router();
@@ -9,13 +12,21 @@ const lidarrRoutes = Router();
 lidarrRoutes.get('/', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.lidarr);
+  res.status(200).json(redactSecrets(settings.lidarr));
 });
 
-lidarrRoutes.post('/', (req, res) => {
+lidarrRoutes.post('/', async (req, res) => {
   const settings = getSettings();
 
-  const newLidarr = req.body as LidarrSettings;
+  const parsedLidarr = parseLidarrSettings(
+    preserveRedactedSecrets(req.body, undefined) as Partial<LidarrSettings>
+  );
+
+  if ('error' in parsedLidarr) {
+    return res.status(400).json({ message: parsedLidarr.error });
+  }
+
+  const newLidarr = parsedLidarr.value;
   const lastItem = settings.lidarr[settings.lidarr.length - 1];
   newLidarr.id = lastItem ? lastItem.id + 1 : 0;
 
@@ -27,9 +38,9 @@ lidarrRoutes.post('/', (req, res) => {
   }
 
   settings.lidarr = [...settings.lidarr, newLidarr];
-  settings.save();
+  await settings.save();
 
-  return res.status(201).json(newLidarr);
+  return res.status(201).json(redactSecrets(newLidarr));
 });
 
 lidarrRoutes.post<
@@ -38,15 +49,21 @@ lidarrRoutes.post<
   LidarrSettings & { tagLabel?: string }
 >('/test', async (req, res, next) => {
   try {
+    const parsedLidarr = parseLidarrSettings(req.body);
+
+    if ('error' in parsedLidarr) {
+      return res.status(400).json({ message: parsedLidarr.error });
+    }
+
     const lidarr = new LidarrAPI({
-      apiKey: req.body.apiKey,
-      url: LidarrAPI.buildUrl(req.body, '/api/v1'),
+      apiKey: parsedLidarr.value.apiKey,
+      url: LidarrAPI.buildUrl(parsedLidarr.value, '/api/v1'),
     });
 
     const urlBase = await lidarr
       .getSystemStatus()
       .then((value) => value.urlBase)
-      .catch(() => req.body.baseUrl);
+      .catch(() => parsedLidarr.value.baseUrl);
     const profiles = await lidarr.getProfiles();
     const metadataProfiles = await lidarr.getMetadataProfiles();
     const folders = await lidarr.getRootFolders();
@@ -73,39 +90,59 @@ lidarrRoutes.post<
 
 lidarrRoutes.put<{ id: string }, LidarrSettings, LidarrSettings>(
   '/:id',
-  (req, res, next) => {
+  async (req, res, next) => {
     const settings = getSettings();
+    const lidarrId = parsePositiveRouteId(req.params.id);
+    if (!lidarrId) {
+      return next({ status: '404', message: 'Settings instance not found' });
+    }
 
     const lidarrIndex = settings.lidarr.findIndex(
-      (r) => r.id === Number(req.params.id)
+      (r) => r.id === lidarrId
     );
 
     if (lidarrIndex === -1) {
       return next({ status: '404', message: 'Settings instance not found' });
     }
 
-    if (req.body.isDefault) {
+    const parsedLidarr = parseLidarrSettings(
+      preserveRedactedSecrets(
+        req.body,
+        settings.lidarr[lidarrIndex]
+      ) as Partial<LidarrSettings>,
+      settings.lidarr[lidarrIndex]
+    );
+
+    if ('error' in parsedLidarr) {
+      return next({ status: 400, message: parsedLidarr.error });
+    }
+
+    if (parsedLidarr.value.isDefault) {
       settings.lidarr = settings.lidarr.map((lidarr) => ({
         ...lidarr,
-        isDefault: lidarr.id === Number(req.params.id),
+        isDefault: lidarr.id === lidarrId,
       }));
     }
 
     settings.lidarr[lidarrIndex] = {
-      ...req.body,
-      id: Number(req.params.id),
+      ...parsedLidarr.value,
+      id: lidarrId,
     } as LidarrSettings;
-    settings.save();
+    await settings.save();
 
-    return res.status(200).json(settings.lidarr[lidarrIndex]);
+    return res.status(200).json(redactSecrets(settings.lidarr[lidarrIndex]));
   }
 );
 
 lidarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
   const settings = getSettings();
+  const lidarrId = parsePositiveRouteId(req.params.id);
+  if (!lidarrId) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
 
   const lidarrSettings = settings.lidarr.find(
-    (r) => r.id === Number(req.params.id)
+    (r) => r.id === lidarrId
   );
 
   if (!lidarrSettings) {
@@ -127,11 +164,15 @@ lidarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
   );
 });
 
-lidarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
+lidarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   const settings = getSettings();
+  const lidarrId = parsePositiveRouteId(req.params.id);
+  if (!lidarrId) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
 
   const lidarrIndex = settings.lidarr.findIndex(
-    (r) => r.id === Number(req.params.id)
+    (r) => r.id === lidarrId
   );
 
   if (lidarrIndex === -1) {
@@ -144,9 +185,9 @@ lidarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
     settings.lidarr[0].isDefault = true;
   }
 
-  settings.save();
+  await settings.save();
 
-  return res.status(200).json(removed);
+  return res.status(200).json(redactSecrets(removed));
 });
 
 export default lidarrRoutes;

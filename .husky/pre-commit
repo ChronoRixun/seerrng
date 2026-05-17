@@ -1,1 +1,2 @@
+[ -n "$HUSKY_BYPASS" ] || pnpm attribution:check
 npx lint-staged

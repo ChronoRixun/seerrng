@@ -29,7 +29,11 @@ const MovieSimilar = () => {
     titles,
     fetchMore,
     error,
-  } = useDiscover<MovieResult>(`/api/v1/movie/${router.query.movieId}/similar`);
+  } = useDiscover<MovieResult>(
+    `/api/v1/movie/${router.query.movieId}/similar`,
+    undefined,
+    { randomizeOrder: true }
+  );
 
   if (error) {
     return <ErrorPage statusCode={500} />;

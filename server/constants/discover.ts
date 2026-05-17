@@ -30,6 +30,10 @@ export enum DiscoverSliderType {
   ASSOCIATIONS,
 }
 
+export const MAX_DISCOVER_SLIDERS = 100;
+export const MAX_DISCOVER_SLIDER_TITLE_LENGTH = 100;
+export const MAX_DISCOVER_SLIDER_DATA_LENGTH = 500;
+
 export const defaultSliders: Partial<DiscoverSlider>[] = [
   {
     type: DiscoverSliderType.RECENTLY_ADDED,

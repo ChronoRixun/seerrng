@@ -4,13 +4,38 @@ import {
   Watchlist,
 } from '@server/entity/Watchlist';
 import logger from '@server/logger';
+import { filterEntityResponse } from '@server/utils/entityResponse';
+import { parseOptionalNonNegativeInteger } from '@server/utils/validation';
 import { Router } from 'express';
 import { QueryFailedError } from 'typeorm';
+import { z } from 'zod';
 
 import { MediaType } from '@server/constants/media';
 import { watchlistCreate } from '@server/interfaces/api/watchlistCreate';
 
 const watchlistRoutes = Router();
+const maxWatchlistId = 1_000_000_000;
+const maxWatchlistExternalIdLength = 512;
+
+const parseWatchlistNumericId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxWatchlistId);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const parseWatchlistExternalId = (id: unknown): string | undefined => {
+  if (typeof id !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = id.trim();
+
+  return trimmed.length > 0 && trimmed.length <= maxWatchlistExternalIdLength
+    ? trimmed
+    : undefined;
+};
 
 watchlistRoutes.post<never, Watchlist, Watchlist>(
   '/',
@@ -28,11 +53,16 @@ watchlistRoutes.post<never, Watchlist, Watchlist>(
         watchlistRequest: values,
         user: req.user,
       });
-      return res.status(201).json(request);
+      return res.status(201).json(filterEntityResponse(request));
     } catch (error) {
       if (!(error instanceof Error)) {
         return;
       }
+
+      if (error instanceof z.ZodError) {
+        return next({ status: 400, message: 'Invalid watchlist payload.' });
+      }
+
       switch (error.constructor) {
         case QueryFailedError:
           logger.warn('Something wrong with data watchlist', {
@@ -71,15 +101,16 @@ watchlistRoutes.delete('/:mediaId', async (req, res, next) => {
       });
     }
 
-    await Watchlist.deleteWatchlist(
-      mediaType === MediaType.MUSIC
-        ? req.params.mediaId
-        : mediaType === MediaType.BOOK
-          ? req.params.mediaId
-          : Number(req.params.mediaId),
-      mediaType,
-      req.user
-    );
+    const mediaId =
+      mediaType === MediaType.MUSIC || mediaType === MediaType.BOOK
+        ? parseWatchlistExternalId(req.params.mediaId)
+        : parseWatchlistNumericId(req.params.mediaId);
+
+    if (mediaId === undefined) {
+      return next({ status: 400, message: 'Invalid mediaId parameter.' });
+    }
+
+    await Watchlist.deleteWatchlist(mediaId, mediaType, req.user);
     return res.status(204).send();
   } catch (e) {
     if (e instanceof NotFoundError) {

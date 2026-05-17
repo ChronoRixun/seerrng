@@ -20,6 +20,7 @@ describe('Books and Music discover parity', () => {
     'flame',
     'violet',
     'ocean',
+    'sietch-neon',
   ];
 
   const unrestrictedQuota = {

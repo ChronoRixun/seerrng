@@ -7,17 +7,39 @@ import {
   mapCrewCredits,
   mapPersonDetails,
 } from '@server/models/Person';
+import {
+  parseOptionalLanguage,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 
 const personRoutes = Router();
+const maxTmdbPersonId = 1_000_000_000;
+
+const parsePersonRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxTmdbPersonId);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
 
 personRoutes.get('/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const personId = parsePersonRouteId(req.params.id);
+  if (!personId) {
+    return next({ status: 404, message: 'Person not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const person = await tmdb.getPerson({
-      personId: Number(req.params.id),
-      language: (req.query.language as string) ?? req.locale,
+      personId,
+      language,
     });
     return res.status(200).json(mapPersonDetails(person));
   } catch (e) {
@@ -35,11 +57,20 @@ personRoutes.get('/:id', async (req, res, next) => {
 
 personRoutes.get('/:id/combined_credits', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const personId = parsePersonRouteId(req.params.id);
+  if (!personId) {
+    return next({ status: 404, message: 'Person not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const combinedCredits = await tmdb.getPersonCombinedCredits({
-      personId: Number(req.params.id),
-      language: (req.query.language as string) ?? req.locale,
+      personId,
+      language,
     });
     const rankedCast = rankTmdbPersonCredits(combinedCredits.cast);
     const rankedCrew = rankTmdbPersonCredits(combinedCredits.crew);

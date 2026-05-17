@@ -15,10 +15,8 @@ interface DeviceItemProps {
   deletePushSubscriptionFromBackend: (endpoint: string) => void;
   device: {
     endpoint: string;
-    p256dh: string;
-    auth: string;
-    userAgent: string;
-    createdAt: Date;
+    userAgent: string | null;
+    createdAt: string;
   };
   subEndpoint: string | null;
 }
@@ -41,7 +39,7 @@ const DeviceItem = ({
   subEndpoint,
 }: DeviceItemProps) => {
   const intl = useIntl();
-  const parsedUserAgent = UAParser(device.userAgent);
+  const parsedUserAgent = UAParser(device.userAgent ?? undefined);
 
   return (
     <div className="relative flex w-full flex-col justify-between overflow-hidden rounded-xl bg-gray-800 py-4 text-gray-400 shadow-md ring-1 ring-gray-700 xl:h-28 xl:flex-row">

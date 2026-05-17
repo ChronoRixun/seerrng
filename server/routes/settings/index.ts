@@ -30,6 +30,14 @@ import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
 import { dnsCache } from '@server/utils/dnsCache';
 import { getHostname } from '@server/utils/getHostname';
+import { parsePageParams } from '@server/utils/pagination';
+import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
+import {
+  parseBoundedString,
+  parseOptionalBodyBoolean,
+  parseOptionalBoundedString,
+  parseOptionalQueryBoolean,
+} from '@server/utils/validation';
 import type { DnsEntries, DnsStats } from 'dns-caching';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -39,14 +47,70 @@ import { rescheduleJob } from 'node-schedule';
 import path from 'path';
 import semver from 'semver';
 import { URL } from 'url';
+import lidarrRoutes from './lidarr';
 import metadataRoutes from './metadata';
 import notificationRoutes from './notifications';
-import lidarrRoutes from './lidarr';
 import radarrRoutes from './radarr';
 import readarrRoutes from './readarr';
 import sonarrRoutes from './sonarr';
 
 const settingsRoutes = Router();
+const MAX_LOG_READ_BYTES = 2 * 1024 * 1024;
+const MAX_LOG_SEARCH_LENGTH = 200;
+const MAX_JOB_SCHEDULE_LENGTH = 100;
+const MAX_LIBRARY_ENABLE_QUERY_LENGTH = 4096;
+const MAX_SETTINGS_PATH_ID_LENGTH = 128;
+
+const parseEnableList = (value: unknown) => {
+  const parsed = parseOptionalBoundedString(value, {
+    fieldName: 'Enabled libraries',
+    maxLength: MAX_LIBRARY_ENABLE_QUERY_LENGTH,
+  });
+
+  if ('error' in parsed) {
+    return parsed;
+  }
+
+  return {
+    value: parsed.value
+      ? parsed.value
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : [],
+  };
+};
+
+const parseSettingsPathId = (value: unknown, fieldName: string) =>
+  parseBoundedString(value, {
+    fieldName,
+    maxLength: MAX_SETTINGS_PATH_ID_LENGTH,
+  });
+
+const readLogTail = async (
+  logFile: string,
+  maxBytes = MAX_LOG_READ_BYTES
+): Promise<string> => {
+  const stat = await fs.promises.stat(logFile);
+  const start = Math.max(stat.size - maxBytes, 0);
+  const length = stat.size - start;
+
+  const handle = await fs.promises.open(logFile, 'r');
+  try {
+    const buffer = Buffer.alloc(length);
+    await handle.read(buffer, 0, length, start);
+    const content = buffer.toString('utf-8');
+
+    if (start === 0) {
+      return content;
+    }
+
+    const firstNewline = content.indexOf('\n');
+    return firstNewline === -1 ? '' : content.slice(firstNewline + 1);
+  } finally {
+    await handle.close();
+  }
+};
 
 settingsRoutes.use('/notifications', notificationRoutes);
 settingsRoutes.use('/radarr', radarrRoutes);
@@ -64,7 +128,7 @@ const filteredMainSettings = (
     return omit(main, 'apiKey');
   }
 
-  return main;
+  return redactSecrets(main);
 };
 
 settingsRoutes.get('/main', (req, res, next) => {
@@ -80,25 +144,31 @@ settingsRoutes.get('/main', (req, res, next) => {
 settingsRoutes.post('/main', async (req, res) => {
   const settings = getSettings();
 
-  settings.main = merge(settings.main, req.body);
+  settings.main = merge(
+    settings.main,
+    preserveRedactedSecrets(req.body, settings.main)
+  );
   await settings.save();
 
-  return res.status(200).json(settings.main);
+  return res.status(200).json(filteredMainSettings(req.user!, settings.main));
 });
 
 settingsRoutes.get('/network', (req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.network);
+  res.status(200).json(redactSecrets(settings.network));
 });
 
 settingsRoutes.post('/network', async (req, res) => {
   const settings = getSettings();
 
-  settings.network = merge(settings.network, req.body);
+  settings.network = merge(
+    settings.network,
+    preserveRedactedSecrets(req.body, settings.network)
+  );
   await settings.save();
 
-  return res.status(200).json(settings.network);
+  return res.status(200).json(redactSecrets(settings.network));
 });
 
 settingsRoutes.post('/main/regenerate', async (req, res, next) => {
@@ -116,7 +186,7 @@ settingsRoutes.post('/main/regenerate', async (req, res, next) => {
 settingsRoutes.get('/plex', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.plex);
+  res.status(200).json(redactSecrets(settings.plex));
 });
 
 settingsRoutes.post('/plex', async (req, res, next) => {
@@ -128,7 +198,10 @@ settingsRoutes.post('/plex', async (req, res, next) => {
       where: { id: 1 },
     });
 
-    Object.assign(settings.plex, req.body);
+    Object.assign(
+      settings.plex,
+      preserveRedactedSecrets(req.body, settings.plex)
+    );
 
     const plexClient = new PlexAPI({ plexToken: admin.plexToken });
 
@@ -153,7 +226,7 @@ settingsRoutes.post('/plex', async (req, res, next) => {
     });
   }
 
-  return res.status(200).json(settings.plex);
+  return res.status(200).json(redactSecrets(settings.plex));
 });
 
 settingsRoutes.get('/plex/devices/servers', async (req, res, next) => {
@@ -235,8 +308,12 @@ settingsRoutes.get('/plex/devices/servers', async (req, res, next) => {
 
 settingsRoutes.get('/plex/library', async (req, res) => {
   const settings = getSettings();
+  const sync = parseOptionalQueryBoolean(req.query.sync, 'Sync');
+  if ('error' in sync) {
+    return res.status(400).json({ message: sync.error });
+  }
 
-  if (req.query.sync) {
+  if (sync.value) {
     const userRepository = getRepository(User);
     const admin = await userRepository.findOneOrFail({
       select: { id: true, plexToken: true },
@@ -247,12 +324,14 @@ settingsRoutes.get('/plex/library', async (req, res) => {
     await plexapi.syncLibraries();
   }
 
-  const enabledLibraries = req.query.enable
-    ? (req.query.enable as string).split(',')
-    : [];
+  const enabledLibraries = parseEnableList(req.query.enable);
+  if ('error' in enabledLibraries) {
+    return res.status(400).json({ message: enabledLibraries.error });
+  }
+
   settings.plex.libraries = settings.plex.libraries.map((library) => ({
     ...library,
-    enabled: enabledLibraries.includes(library.id),
+    enabled: enabledLibraries.value.includes(library.id),
   }));
   await settings.save();
   return res.status(200).json(settings.plex.libraries);
@@ -263,9 +342,18 @@ settingsRoutes.get('/plex/sync', (_req, res) => {
 });
 
 settingsRoutes.post('/plex/sync', (req, res) => {
-  if (req.body.cancel) {
+  const cancel = parseOptionalBodyBoolean(req.body.cancel, 'Cancel');
+  if ('error' in cancel) {
+    return res.status(400).json({ message: cancel.error });
+  }
+  const start = parseOptionalBodyBoolean(req.body.start, 'Start');
+  if ('error' in start) {
+    return res.status(400).json({ message: start.error });
+  }
+
+  if (cancel.value) {
     plexFullScanner.cancel();
-  } else if (req.body.start) {
+  } else if (start.value) {
     plexFullScanner.run();
   }
   return res.status(200).json(plexFullScanner.status());
@@ -274,7 +362,7 @@ settingsRoutes.post('/plex/sync', (req, res) => {
 settingsRoutes.get('/jellyfin', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.jellyfin);
+  res.status(200).json(redactSecrets(settings.jellyfin));
 });
 
 settingsRoutes.post('/jellyfin', async (req, res, next) => {
@@ -288,7 +376,8 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
       order: { id: 'ASC' },
     });
 
-    const tempJellyfinSettings = { ...settings.jellyfin, ...req.body };
+    const sanitizedBody = preserveRedactedSecrets(req.body, settings.jellyfin);
+    const tempJellyfinSettings = { ...settings.jellyfin, ...sanitizedBody };
 
     const jellyfinClient = new JellyfinAPI(
       getHostname(tempJellyfinSettings),
@@ -302,7 +391,7 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
       throw new ApiError(result?.status, ApiErrorCode.InvalidUrl);
     }
 
-    Object.assign(settings.jellyfin, req.body);
+    Object.assign(settings.jellyfin, sanitizedBody);
     settings.jellyfin.serverId = result.Id;
     settings.jellyfin.name = result.ServerName;
     await settings.save();
@@ -331,13 +420,17 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
     }
   }
 
-  return res.status(200).json(settings.jellyfin);
+  return res.status(200).json(redactSecrets(settings.jellyfin));
 });
 
 settingsRoutes.get('/jellyfin/library', async (req, res, next) => {
   const settings = getSettings();
+  const sync = parseOptionalQueryBoolean(req.query.sync, 'Sync');
+  if ('error' in sync) {
+    return res.status(400).json({ message: sync.error });
+  }
 
-  if (req.query.sync) {
+  if (sync.value) {
     const userRepository = getRepository(User);
     const admin = await userRepository.findOneOrFail({
       select: ['id', 'jellyfinDeviceId', 'jellyfinUserId'],
@@ -386,12 +479,14 @@ settingsRoutes.get('/jellyfin/library', async (req, res, next) => {
     settings.jellyfin.libraries = newLibraries;
   }
 
-  const enabledLibraries = req.query.enable
-    ? (req.query.enable as string).split(',')
-    : [];
+  const enabledLibraries = parseEnableList(req.query.enable);
+  if ('error' in enabledLibraries) {
+    return res.status(400).json({ message: enabledLibraries.error });
+  }
+
   settings.jellyfin.libraries = settings.jellyfin.libraries.map((library) => ({
     ...library,
-    enabled: enabledLibraries.includes(library.id),
+    enabled: enabledLibraries.value.includes(library.id),
   }));
   await settings.save();
   return res.status(200).json(settings.jellyfin.libraries);
@@ -414,14 +509,14 @@ settingsRoutes.get('/jellyfin/users', async (req, res) => {
 
   jellyfinClient.setUserId(admin.jellyfinUserId ?? '');
   const resp = await jellyfinClient.getUsers();
-  const users = resp.users.map((user) => ({
+  const jellyfinUsers = resp.users.map((user) => ({
     username: user.Name,
     id: user.Id,
     thumb: `/avatarproxy/${user.Id}`,
     email: user.Name,
   }));
 
-  return res.status(200).json(users);
+  return res.status(200).json(jellyfinUsers);
 });
 
 settingsRoutes.get('/jellyfin/sync', (_req, res) => {
@@ -429,9 +524,18 @@ settingsRoutes.get('/jellyfin/sync', (_req, res) => {
 });
 
 settingsRoutes.post('/jellyfin/sync', (req, res) => {
-  if (req.body.cancel) {
+  const cancel = parseOptionalBodyBoolean(req.body.cancel, 'Cancel');
+  if ('error' in cancel) {
+    return res.status(400).json({ message: cancel.error });
+  }
+  const start = parseOptionalBodyBoolean(req.body.start, 'Start');
+  if ('error' in start) {
+    return res.status(400).json({ message: start.error });
+  }
+
+  if (cancel.value) {
     jellyfinFullScanner.cancel();
-  } else if (req.body.start) {
+  } else if (start.value) {
     jellyfinFullScanner.run();
   }
   return res.status(200).json(jellyfinFullScanner.status());
@@ -439,13 +543,16 @@ settingsRoutes.post('/jellyfin/sync', (req, res) => {
 settingsRoutes.get('/tautulli', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.tautulli);
+  res.status(200).json(redactSecrets(settings.tautulli));
 });
 
 settingsRoutes.post('/tautulli', async (req, res, next) => {
   const settings = getSettings();
 
-  Object.assign(settings.tautulli, req.body);
+  Object.assign(
+    settings.tautulli,
+    preserveRedactedSecrets(req.body, settings.tautulli)
+  );
 
   if (settings.tautulli.hostname) {
     try {
@@ -470,7 +577,7 @@ settingsRoutes.post('/tautulli', async (req, res, next) => {
     }
   }
 
-  return res.status(200).json(settings.tautulli);
+  return res.status(200).json(redactSecrets(settings.tautulli));
 });
 
 settingsRoutes.get(
@@ -542,10 +649,15 @@ settingsRoutes.get(
 settingsRoutes.get(
   '/logs',
   rateLimit({ windowMs: 60 * 1000, max: 50 }),
-  (req, res, next) => {
-    const pageSize = req.query.take ? Number(req.query.take) : 25;
-    const skip = req.query.skip ? Number(req.query.skip) : 0;
-    const search = (req.query.search as string) ?? '';
+  async (req, res, next) => {
+    const { pageSize, skip } = parsePageParams(req.query, {
+      take: 25,
+      maxTake: 100,
+    });
+    const search =
+      typeof req.query.search === 'string'
+        ? req.query.search.slice(0, MAX_LOG_SEARCH_LENGTH)
+        : '';
     const searchRegexp = new RegExp(escapeRegExp(search), 'i');
 
     let filter: string[] = [];
@@ -595,12 +707,19 @@ settingsRoutes.get(
     };
 
     try {
-      fs.readFileSync(logFile, 'utf-8')
+      const logContent = await readLogTail(logFile);
+
+      logContent
         .split('\n')
         .forEach((line) => {
           if (!line.length) return;
 
-          const logMessage = JSON.parse(line);
+          let logMessage: LogMessage & Record<string, unknown>;
+          try {
+            logMessage = JSON.parse(line);
+          } catch {
+            return;
+          }
 
           if (!filter.includes(logMessage.level)) {
             return;
@@ -631,7 +750,7 @@ settingsRoutes.get(
             }
           }
 
-          logs.push(logMessage);
+          logs.push(redactSecrets(logMessage));
         });
 
       const displayedLogs = logs.reverse().slice(skip, skip + pageSize);
@@ -673,7 +792,12 @@ settingsRoutes.get('/jobs', (_req, res) => {
 });
 
 settingsRoutes.post<{ jobId: string }>('/jobs/:jobId/run', (req, res, next) => {
-  const scheduledJob = scheduledJobs.find((job) => job.id === req.params.jobId);
+  const jobId = parseSettingsPathId(req.params.jobId, 'Job ID');
+  if ('error' in jobId) {
+    return next({ status: 404, message: 'Job not found.' });
+  }
+
+  const scheduledJob = scheduledJobs.find((job) => job.id === jobId.value);
 
   if (!scheduledJob) {
     return next({ status: 404, message: 'Job not found.' });
@@ -695,9 +819,12 @@ settingsRoutes.post<{ jobId: string }>('/jobs/:jobId/run', (req, res, next) => {
 settingsRoutes.post<{ jobId: JobId }>(
   '/jobs/:jobId/cancel',
   (req, res, next) => {
-    const scheduledJob = scheduledJobs.find(
-      (job) => job.id === req.params.jobId
-    );
+    const jobId = parseSettingsPathId(req.params.jobId, 'Job ID');
+    if ('error' in jobId) {
+      return next({ status: 404, message: 'Job not found.' });
+    }
+
+    const scheduledJob = scheduledJobs.find((job) => job.id === jobId.value);
 
     if (!scheduledJob) {
       return next({ status: 404, message: 'Job not found.' });
@@ -722,22 +849,34 @@ settingsRoutes.post<{ jobId: JobId }>(
 settingsRoutes.post<{ jobId: JobId }>(
   '/jobs/:jobId/schedule',
   async (req, res, next) => {
-    const scheduledJob = scheduledJobs.find(
-      (job) => job.id === req.params.jobId
-    );
+    const jobId = parseSettingsPathId(req.params.jobId, 'Job ID');
+    if ('error' in jobId) {
+      return next({ status: 404, message: 'Job not found.' });
+    }
+
+    const scheduledJob = scheduledJobs.find((job) => job.id === jobId.value);
 
     if (!scheduledJob) {
       return next({ status: 404, message: 'Job not found.' });
     }
 
-    const result = rescheduleJob(scheduledJob.job, req.body.schedule);
+    if (
+      typeof req.body.schedule !== 'string' ||
+      !req.body.schedule.trim() ||
+      req.body.schedule.length > MAX_JOB_SCHEDULE_LENGTH
+    ) {
+      return next({ status: 400, message: 'Invalid job schedule.' });
+    }
+
+    const schedule = req.body.schedule.trim();
+    const result = rescheduleJob(scheduledJob.job, schedule);
     const settings = getSettings();
 
     if (result) {
-      settings.jobs[scheduledJob.id].schedule = req.body.schedule;
+      settings.jobs[scheduledJob.id].schedule = schedule;
       await settings.save();
 
-      scheduledJob.cronSchedule = req.body.schedule;
+      scheduledJob.cronSchedule = schedule;
 
       return res.status(200).json({
         id: scheduledJob.id,
@@ -785,7 +924,12 @@ settingsRoutes.get('/cache', async (_req, res) => {
 settingsRoutes.post<{ cacheId: AvailableCacheIds }>(
   '/cache/:cacheId/flush',
   (req, res, next) => {
-    const cache = cacheManager.getCache(req.params.cacheId);
+    const cacheId = parseSettingsPathId(req.params.cacheId, 'Cache ID');
+    if ('error' in cacheId) {
+      return next({ status: 404, message: 'Cache not found.' });
+    }
+
+    const cache = cacheManager.getCache(cacheId.value as AvailableCacheIds);
 
     if (cache) {
       cache.flush();
@@ -799,10 +943,13 @@ settingsRoutes.post<{ cacheId: AvailableCacheIds }>(
 settingsRoutes.post<{ dnsEntry: string }>(
   '/cache/dns/:dnsEntry/flush',
   (req, res, next) => {
-    const dnsEntry = req.params.dnsEntry;
+    const dnsEntry = parseSettingsPathId(req.params.dnsEntry, 'DNS cache entry');
+    if ('error' in dnsEntry) {
+      return next({ status: 404, message: 'Cache not found.' });
+    }
 
     if (dnsCache) {
-      dnsCache.clear(dnsEntry);
+      dnsCache.clear(dnsEntry.value);
       return res.status(204).send();
     }
 

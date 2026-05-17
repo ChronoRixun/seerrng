@@ -32,6 +32,7 @@ const messages = defineMessages('components.RequestModal.BulkRequestModal', {
   requestadmin: 'This request will be approved automatically.',
   largeBatch:
     'You selected {count} items. Confirm once more before submitting this batch.',
+  quotaexceeded: 'Not enough request quota remaining.',
   summary: '{created} created, {skipped} skipped, {failed} failed.',
   faileditems: 'Failed Items',
   close: 'Close',
@@ -106,6 +107,7 @@ interface BulkRequestModalProps {
 }
 
 const releaseTypeOptions = [
+  'All',
   'Album',
   'EP',
   'Single',
@@ -118,11 +120,33 @@ const releaseTypeOptions = [
   'Other',
 ];
 const EMPTY_BULK_ITEMS: BulkItem[] = [];
+const BULK_REQUEST_CHUNK_SIZE = 100;
+const mapBookWorkToBulkItem = (work: BookResult): BulkItem => ({
+  id: work.id,
+  title: work.title,
+  year: work.firstPublishYear,
+  image: work.posterPath,
+  artist: work.author,
+  isbn13: work.isbn13,
+  editionId: work.editionId,
+  authorId: work.authorId,
+  mediaInfo: work.mediaInfo,
+});
 
 const isActiveRequest = (requestStatus?: MediaRequestStatus) =>
   requestStatus !== undefined &&
   requestStatus !== MediaRequestStatus.DECLINED &&
   requestStatus !== MediaRequestStatus.COMPLETED;
+
+const chunkItems = <T,>(sourceItems: T[], chunkSize: number): T[][] => {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < sourceItems.length; index += chunkSize) {
+    chunks.push(sourceItems.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+};
 
 const hasBookFormat = (
   media: Media | undefined,
@@ -220,11 +244,12 @@ const BulkRequestModal = ({
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [format, setFormat] = useState<BulkBookFormat>('ebook');
-  const [releaseType, setReleaseType] = useState('Album');
+  const [releaseType, setReleaseType] = useState('All');
   const [items, setItems] = useState<BulkItem[]>(initialItems);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [confirmLargeBatch, setConfirmLargeBatch] = useState(false);
   const [summary, setSummary] = useState<BulkMediaRequestResponse>();
@@ -247,44 +272,131 @@ const BulkRequestModal = ({
   }, [initialItems, initialTotalItems]);
 
   useEffect(() => {
-    const loadArtistType = async () => {
-      if (mediaType !== 'music' || !artistId) {
+    let canceled = false;
+
+    const loadInitialAuthorWorks = async () => {
+      if (!show || mediaType !== 'book' || !authorId) {
         return;
       }
 
-      const releaseGroups: ArtistResponse['releaseGroups'] = [];
-      let page = 1;
-      let totalPages = 1;
+      setIsLoadingItems(true);
 
-      do {
-        const response = await axios.get<ArtistResponse>(
-          `/api/v1/artist/${artistId}`,
-          {
-            params: { albumType: releaseType, page, pageSize: 50 },
-          }
+      try {
+        const works: BookResult[] = [];
+        const limit = 100;
+        let offset = 0;
+        let totalItems = 0;
+        let lastPageCount = 0;
+
+        do {
+          const response = await axios.get<AuthorWorksResponse>(
+            `/api/v1/author/${authorId}/works`,
+            { params: { limit, offset } }
+          );
+
+          lastPageCount = response.data.works.length;
+          works.push(...response.data.works);
+          totalItems = response.data.pagination.totalItems;
+          offset += lastPageCount;
+        } while (offset < totalItems && lastPageCount > 0);
+
+        const worksById = new Map<string, BookResult>();
+        works.forEach((work) => worksById.set(work.id, work));
+
+        if (canceled) {
+          return;
+        }
+
+        setAuthorOffset(totalItems);
+        setAuthorTotal(totalItems);
+        setItems([...worksById.values()].map(mapBookWorkToBulkItem));
+      } catch {
+        if (!canceled) {
+          setItems(initialItems);
+        }
+      } finally {
+        if (!canceled) {
+          setIsLoadingItems(false);
+        }
+      }
+    };
+
+    loadInitialAuthorWorks();
+
+    return () => {
+      canceled = true;
+    };
+  }, [authorId, initialItems, initialTotalItems, mediaType, show]);
+
+  useEffect(() => {
+    let canceled = false;
+
+    const loadArtistType = async () => {
+      if (!show || mediaType !== 'music' || !artistId) {
+        return;
+      }
+
+      setIsLoadingItems(true);
+
+      try {
+        const releaseGroups: ArtistResponse['releaseGroups'] = [];
+        let page = 1;
+        let totalPages = 1;
+
+        do {
+          const response = await axios.get<ArtistResponse>(
+            `/api/v1/artist/${artistId}`,
+            {
+              params: { albumType: releaseType, page, pageSize: 50 },
+            }
+          );
+
+          releaseGroups.push(...response.data.releaseGroups);
+          totalPages = response.data.pagination?.totalPages ?? 1;
+          page += 1;
+        } while (page <= totalPages);
+
+        const releaseGroupsById = new Map<
+          string,
+          ArtistResponse['releaseGroups'][number]
+        >();
+        releaseGroups.forEach((album) =>
+          releaseGroupsById.set(album.id, album)
         );
 
-        releaseGroups.push(...response.data.releaseGroups);
-        totalPages = response.data.pagination?.totalPages ?? 1;
-        page += 1;
-      } while (page <= totalPages);
+        if (canceled) {
+          return;
+        }
 
-      setItems(
-        releaseGroups.map((album) => ({
-          id: album.id,
-          title: album.title ?? 'Unknown Album',
-          year: album['first-release-date']?.slice(0, 4),
-          image: album.posterPath,
-          artist: album['artist-credit']?.[0]?.name,
-          mediaInfo: album.mediaInfo,
-          releaseType:
-            album.secondary_types?.[0] ?? album['primary-type'] ?? 'Other',
-        }))
-      );
+        setItems(
+          [...releaseGroupsById.values()].map((album) => ({
+            id: album.id,
+            title: album.title ?? 'Unknown Album',
+            year: album['first-release-date']?.slice(0, 4),
+            image: album.posterPath,
+            artist: album['artist-credit']?.[0]?.name,
+            mediaInfo: album.mediaInfo,
+            releaseType:
+              album.secondary_types?.[0] ?? album['primary-type'] ?? 'Other',
+          }))
+        );
+      } catch {
+        if (!canceled) {
+          setItems(initialItems);
+        }
+      } finally {
+        if (!canceled) {
+          setIsLoadingItems(false);
+        }
+      }
     };
 
     loadArtistType();
-  }, [artistId, mediaType, releaseType]);
+
+    return () => {
+      canceled = true;
+    };
+  }, [artistId, initialItems, mediaType, releaseType, show]);
 
   const getIneligibleReason = useCallback(
     (item: BulkItem): string | undefined =>
@@ -309,6 +421,8 @@ const BulkRequestModal = ({
     currentQuota?.remaining !== undefined
       ? currentQuota.remaining - selectedIds.length
       : undefined;
+  const selectedExceedsQuota =
+    !!currentQuota?.limit && remaining !== undefined && remaining < 0;
   const hasAutoApprove = hasPermission(
     [
       Permission.MANAGE_REQUESTS,
@@ -341,7 +455,7 @@ const BulkRequestModal = ({
   };
 
   const loadMoreAuthorWorks = async () => {
-    if (!authorId) {
+    if (!authorId || isLoadingItems) {
       return;
     }
 
@@ -353,20 +467,16 @@ const BulkRequestModal = ({
     const nextOffset = authorOffset + response.data.works.length;
     setAuthorOffset(nextOffset);
     setAuthorTotal(response.data.pagination.totalItems);
-    setItems((current) => [
-      ...current,
-      ...response.data.works.map((work) => ({
-        id: work.id,
-        title: work.title,
-        year: work.firstPublishYear,
-        image: work.posterPath,
-        artist: work.author,
-        isbn13: work.isbn13,
-        editionId: work.editionId,
-        authorId: work.authorId,
-        mediaInfo: work.mediaInfo,
-      })),
-    ]);
+    setItems((current) => {
+      const existingIds = new Set(current.map((item) => item.id));
+
+      return [
+        ...current,
+        ...response.data.works
+          .filter((work) => !existingIds.has(work.id))
+          .map(mapBookWorkToBulkItem),
+      ];
+    });
   };
 
   const hasMoreAuthorWorks =
@@ -375,6 +485,14 @@ const BulkRequestModal = ({
     (authorTotal === undefined || authorOffset < authorTotal);
 
   const submit = async () => {
+    if (selectedExceedsQuota) {
+      addToast(intl.formatMessage(messages.quotaexceeded), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+      return;
+    }
+
     if (selectedIds.length > 50 && !confirmLargeBatch) {
       setConfirmLargeBatch(true);
       return;
@@ -383,37 +501,57 @@ const BulkRequestModal = ({
     setIsUpdating(true);
 
     try {
-      const response = await axios.post<BulkMediaRequestResponse>(
-        '/api/v1/request/bulk',
+      const requestItems = selectedItems.map((item) => ({
+        mediaId: item.id,
+        title: item.title,
+        isbn13: item.isbn13,
+        editionId: item.editionId,
+        authorId: item.authorId,
+      }));
+      const responses: BulkMediaRequestResponse[] = [];
+
+      for (const chunk of chunkItems(requestItems, BULK_REQUEST_CHUNK_SIZE)) {
+        const response = await axios.post<BulkMediaRequestResponse>(
+          '/api/v1/request/bulk',
+          {
+            mediaType,
+            format: mediaType === 'book' ? format : undefined,
+            items: chunk,
+            serverId: requestOverrides?.server,
+            profileId: requestOverrides?.profile,
+            metadataProfileId: requestOverrides?.metadataProfile,
+            rootFolder: requestOverrides?.folder,
+            userId: requestOverrides?.user?.id,
+            tags: requestOverrides?.tags,
+          }
+        );
+
+        responses.push(response.data);
+      }
+
+      const nextSummary = responses.reduce<BulkMediaRequestResponse>(
+        (summary, response) => ({
+          created: [...summary.created, ...response.created],
+          skipped: [...summary.skipped, ...response.skipped],
+          failed: [...summary.failed, ...response.failed],
+        }),
         {
-          mediaType,
-          format: mediaType === 'book' ? format : undefined,
-          items: selectedItems.map((item) => ({
-            mediaId: item.id,
-            title: item.title,
-            isbn13: item.isbn13,
-            editionId: item.editionId,
-            authorId: item.authorId,
-          })),
-          serverId: requestOverrides?.server,
-          profileId: requestOverrides?.profile,
-          metadataProfileId: requestOverrides?.metadataProfile,
-          rootFolder: requestOverrides?.folder,
-          userId: requestOverrides?.user?.id,
-          tags: requestOverrides?.tags,
+          created: [],
+          skipped: [],
+          failed: [],
         }
       );
 
-      setSummary(response.data);
+      setSummary(nextSummary);
       mutate('/api/v1/request/count');
       onComplete?.();
       addToast(
         intl.formatMessage(messages.summary, {
-          created: response.data.created.length,
-          skipped: response.data.skipped.length,
-          failed: response.data.failed.length,
+          created: nextSummary.created.length,
+          skipped: nextSummary.skipped.length,
+          failed: nextSummary.failed.length,
         }),
-        { appearance: response.data.failed.length ? 'warning' : 'success' }
+        { appearance: nextSummary.failed.length ? 'warning' : 'success' }
       );
     } catch {
       addToast(intl.formatMessage(globalMessages.error), {
@@ -453,7 +591,7 @@ const BulkRequestModal = ({
       show={show}
     >
       <Modal
-        loading={!quota}
+        loading={!quota || isLoadingItems}
         title={intl.formatMessage(
           mediaType === 'book'
             ? messages.requestbibliography
@@ -473,7 +611,9 @@ const BulkRequestModal = ({
                     count: selectedIds.length,
                   })
         }
-        okDisabled={!summary && selectedIds.length === 0}
+        okDisabled={
+          !summary && (selectedIds.length === 0 || selectedExceedsQuota)
+        }
         dialogClass="sm:max-w-5xl"
       >
         {summary ? (
@@ -511,6 +651,14 @@ const BulkRequestModal = ({
                   title={intl.formatMessage(messages.largeBatch, {
                     count: selectedIds.length,
                   })}
+                  type="warning"
+                />
+              </div>
+            )}
+            {selectedExceedsQuota && (
+              <div className="mt-6">
+                <Alert
+                  title={intl.formatMessage(messages.quotaexceeded)}
                   type="warning"
                 />
               </div>

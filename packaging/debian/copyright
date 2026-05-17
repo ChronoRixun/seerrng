@@ -3,5 +3,8 @@ Upstream-Name: seerrng
 Source: https://github.com/snapetech/seerrng
 
 Files: *
-Copyright: snapetech and contributors
+Copyright:
+ 2020 sct
+ Seerr contributors
+ 2026 snapetech and SeerrNG contributors
 License: MIT

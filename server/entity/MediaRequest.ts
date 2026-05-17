@@ -50,6 +50,11 @@ type MediaRequestOptions = {
   isAutoRequest?: boolean;
 };
 
+const canUseAdvancedRequestOptions = (user: User): boolean =>
+  user.hasPermission([Permission.REQUEST_ADVANCED, Permission.MANAGE_REQUESTS], {
+    type: 'or',
+  });
+
 @Entity()
 export class MediaRequest {
   public static async request(
@@ -229,18 +234,20 @@ export class MediaRequest {
         );
       }
 
-      const useOverrides = !user.hasPermission([Permission.MANAGE_REQUESTS], {
-        type: 'or',
-      });
+      const useAdvancedOptions = canUseAdvancedRequestOptions(user);
+      const useOverrides = !useAdvancedOptions;
 
       const defaultLidarr = settings.lidarr.find((lidarr) => lidarr.isDefault);
+      const requestedServerId = useAdvancedOptions
+        ? requestBody.serverId
+        : undefined;
       const requestedLidarr = settings.lidarr.find(
-        (lidarr) => lidarr.id === requestBody.serverId
+        (lidarr) => lidarr.id === requestedServerId
       );
 
       if (
-        requestBody.serverId !== undefined &&
-        requestBody.serverId !== null &&
+        requestedServerId !== undefined &&
+        requestedServerId !== null &&
         !requestedLidarr
       ) {
         throw new ServiceConfigurationError(
@@ -248,18 +255,27 @@ export class MediaRequest {
         );
       }
 
-      if (!defaultLidarr && !requestBody.serverId) {
+      if (!defaultLidarr && !requestedServerId) {
         throw new ServiceConfigurationError(
           'No default Lidarr server configured.'
         );
       }
 
-      const serverId = requestBody.serverId ?? defaultLidarr?.id;
-      let rootFolder = requestBody.rootFolder ?? defaultLidarr?.activeDirectory;
-      let profileId = requestBody.profileId ?? defaultLidarr?.activeProfileId;
+      const selectedLidarr = requestedLidarr ?? defaultLidarr;
+      const serverId = selectedLidarr?.id;
+      let rootFolder = useAdvancedOptions
+        ? (requestBody.rootFolder ?? selectedLidarr?.activeDirectory)
+        : selectedLidarr?.activeDirectory;
+      let profileId = useAdvancedOptions
+        ? (requestBody.profileId ?? selectedLidarr?.activeProfileId)
+        : selectedLidarr?.activeProfileId;
       const metadataProfileId =
-        requestBody.metadataProfileId ?? defaultLidarr?.activeMetadataProfileId;
-      let tags = requestBody.tags ?? defaultLidarr?.tags;
+        useAdvancedOptions && requestBody.metadataProfileId !== undefined
+          ? requestBody.metadataProfileId
+          : selectedLidarr?.activeMetadataProfileId;
+      let tags = useAdvancedOptions
+        ? (requestBody.tags ?? selectedLidarr?.tags)
+        : selectedLidarr?.tags;
 
       if (useOverrides) {
         const overrideRules = await getRepository(OverrideRule).find({
@@ -519,13 +535,17 @@ export class MediaRequest {
 
       const requestedServiceType =
         requestedBookFormat === 'audiobook' ? 'audiobook' : 'ebook';
+      const useAdvancedOptions = canUseAdvancedRequestOptions(user);
+      const requestedServerId = useAdvancedOptions
+        ? requestBody.serverId
+        : undefined;
       const requestedServer = settings.readarr.find(
-        (readarr) => readarr.id === requestBody.serverId
+        (readarr) => readarr.id === requestedServerId
       );
 
       if (
-        requestBody.serverId !== undefined &&
-        requestBody.serverId !== null &&
+        requestedServerId !== undefined &&
+        requestedServerId !== null &&
         !requestedServer
       ) {
         throw new ServiceConfigurationError(
@@ -534,8 +554,8 @@ export class MediaRequest {
       }
 
       if (
-        requestBody.serverId !== undefined &&
-        requestBody.serverId !== null &&
+        requestedServerId !== undefined &&
+        requestedServerId !== null &&
         requestedServer &&
         requestedBookFormat !== 'both' &&
         (requestedServer.serviceType ?? 'ebook') !== requestedServiceType
@@ -564,11 +584,13 @@ export class MediaRequest {
             'Both book formats require default ebook and audiobook Bookshelf servers.'
           );
         }
-      } else if (!defaultReadarr && !requestBody.serverId) {
+      } else if (!defaultReadarr && !requestedServerId) {
         throw new ServiceConfigurationError(
           `No default Bookshelf server configured for ${requestedServiceType}.`
         );
       }
+
+      const selectedReadarr = requestedServer ?? defaultReadarr;
 
       const autoApproved = user.hasPermission(
         [
@@ -588,13 +610,20 @@ export class MediaRequest {
           : MediaRequestStatus.PENDING,
         modifiedBy: autoApproved ? user : undefined,
         is4k: false,
-        serverId: requestBody.serverId ?? defaultReadarr?.id,
-        profileId: requestBody.profileId ?? defaultReadarr?.activeProfileId,
+        serverId: selectedReadarr?.id,
+        profileId: useAdvancedOptions
+          ? (requestBody.profileId ?? selectedReadarr?.activeProfileId)
+          : selectedReadarr?.activeProfileId,
         metadataProfileId:
-          requestBody.metadataProfileId ??
-          defaultReadarr?.activeMetadataProfileId,
-        rootFolder: requestBody.rootFolder ?? defaultReadarr?.activeDirectory,
-        tags: requestBody.tags ?? defaultReadarr?.tags,
+          useAdvancedOptions && requestBody.metadataProfileId !== undefined
+            ? requestBody.metadataProfileId
+            : selectedReadarr?.activeMetadataProfileId,
+        rootFolder: useAdvancedOptions
+          ? (requestBody.rootFolder ?? selectedReadarr?.activeDirectory)
+          : selectedReadarr?.activeDirectory,
+        tags: useAdvancedOptions
+          ? (requestBody.tags ?? selectedReadarr?.tags)
+          : selectedReadarr?.tags,
         bookFormat: requestedBookFormat,
         isAutoRequest: options.isAutoRequest ?? false,
       });
@@ -687,28 +716,44 @@ export class MediaRequest {
       }
     }
 
-    // Apply overrides if the user is not an admin or has the "advanced request" permission
-    const useOverrides = !user.hasPermission([Permission.MANAGE_REQUESTS], {
-      type: 'or',
-    });
+    const useAdvancedOptions = canUseAdvancedRequestOptions(user);
+    const useOverrides = !useAdvancedOptions;
+    const defaultRadarr = requestBody.is4k
+      ? settings.radarr.find((r) => r.is4k && r.isDefault)
+      : settings.radarr.find((r) => !r.is4k && r.isDefault);
+    const defaultSonarr = requestBody.is4k
+      ? settings.sonarr.find((s) => s.is4k && s.isDefault)
+      : settings.sonarr.find((s) => !s.is4k && s.isDefault);
+    const defaultServer =
+      requestBody.mediaType === MediaType.MOVIE ? defaultRadarr : defaultSonarr;
+    const serverId = useAdvancedOptions
+      ? (requestBody.serverId ?? defaultServer?.id)
+      : defaultServer?.id;
 
-    let rootFolder = requestBody.rootFolder;
-    let profileId = requestBody.profileId;
-    let tags = requestBody.tags;
+    let rootFolder = useAdvancedOptions
+      ? (requestBody.rootFolder ?? defaultServer?.activeDirectory)
+      : defaultServer?.activeDirectory;
+    let profileId = useAdvancedOptions
+      ? (requestBody.profileId ?? defaultServer?.activeProfileId)
+      : defaultServer?.activeProfileId;
+    let tags = useAdvancedOptions
+      ? (requestBody.tags ?? defaultServer?.tags)
+      : defaultServer?.tags;
+    let languageProfileId =
+      requestBody.mediaType === MediaType.TV
+        ? useAdvancedOptions
+          ? (requestBody.languageProfileId ??
+            defaultSonarr?.activeLanguageProfileId)
+          : defaultSonarr?.activeLanguageProfileId
+        : undefined;
 
     if (useOverrides) {
-      const defaultRadarrId = requestBody.is4k
-        ? settings.radarr.findIndex((r) => r.is4k && r.isDefault)
-        : settings.radarr.findIndex((r) => !r.is4k && r.isDefault);
-      const defaultSonarrId = requestBody.is4k
-        ? settings.sonarr.findIndex((s) => s.is4k && s.isDefault)
-        : settings.sonarr.findIndex((s) => !s.is4k && s.isDefault);
       const overrideRuleRepository = getRepository(OverrideRule);
       const overrideRules = await overrideRuleRepository.find({
         where:
           requestBody.mediaType === MediaType.MOVIE
-            ? { radarrServiceId: defaultRadarrId }
-            : { sonarrServiceId: defaultSonarrId },
+            ? { radarrServiceId: defaultRadarr?.id }
+            : { sonarrServiceId: defaultSonarr?.id },
       });
 
       const appliedOverrideRules = overrideRules.filter((rule) => {
@@ -851,7 +896,7 @@ export class MediaRequest {
           ? user
           : undefined,
         is4k: requestBody.is4k,
-        serverId: requestBody.serverId,
+        serverId,
         profileId: profileId,
         rootFolder: rootFolder,
         tags: tags,
@@ -961,10 +1006,10 @@ export class MediaRequest {
           ? user
           : undefined,
         is4k: requestBody.is4k,
-        serverId: requestBody.serverId,
+        serverId,
         profileId: profileId,
         rootFolder: rootFolder,
-        languageProfileId: requestBody.languageProfileId,
+        languageProfileId,
         tags: tags,
         seasons: finalSeasons.map(
           (sn) =>

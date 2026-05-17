@@ -3,6 +3,7 @@ import PersonCard from '@app/components/PersonCard';
 import TitleCard from '@app/components/TitleCard';
 import LibraryTitleCard from '@app/components/TitleCard/LibraryTitleCard';
 import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
+import useCardTextVisibility from '@app/hooks/useCardTextVisibility';
 import { Permission, useUser } from '@app/hooks/useUser';
 import useVerticalScroll from '@app/hooks/useVerticalScroll';
 import globalMessages from '@app/i18n/globalMessages';
@@ -53,6 +54,7 @@ const ListView = ({
 }: ListViewProps) => {
   const intl = useIntl();
   const { hasPermission } = useUser();
+  const { visibility } = useCardTextVisibility();
   useVerticalScroll(onScrollBottom, !isLoading && !isEmpty && !isReachingEnd);
 
   const blocklistVisibility = hasPermission(
@@ -128,6 +130,7 @@ const ListView = ({
                     (title.mediaInfo?.downloadStatus ?? []).length > 0
                   }
                   canExpand
+                  showText={visibility.movie === 'always'}
                 />
               );
               break;
@@ -148,6 +151,7 @@ const ListView = ({
                     (title.mediaInfo?.downloadStatus ?? []).length > 0
                   }
                   canExpand
+                  showText={visibility.tv === 'always'}
                 />
               );
               break;
@@ -194,6 +198,7 @@ const ListView = ({
                   }
                   needsCoverArt={title.needsCoverArt}
                   canExpand
+                  showText={visibility.album === 'always'}
                 />
               );
               break;
@@ -235,6 +240,7 @@ const ListView = ({
                     title
                   )}
                   canExpand
+                  showText={visibility.book === 'always'}
                 />
               );
               break;
@@ -242,7 +248,14 @@ const ListView = ({
 
           return <li key={`${title.id}-${index}`}>{titleCard}</li>;
         }),
-    [blocklistVisibility, items]
+    [
+      blocklistVisibility,
+      items,
+      visibility.album,
+      visibility.book,
+      visibility.movie,
+      visibility.tv,
+    ]
   );
   const placeholderCards = useMemo(
     () =>

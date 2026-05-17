@@ -87,6 +87,21 @@ async function login() {
 }
 
 describe('GET /author/:id', () => {
+  it('rejects malformed author IDs before calling OpenLibrary', async () => {
+    const getAuthor = mock.method(OpenLibraryAPI.prototype, 'getAuthor');
+    const getAuthorWorks = mock.method(
+      OpenLibraryAPI.prototype,
+      'getAuthorWorks'
+    );
+
+    const agent = await login();
+    const res = await agent.get(`/author/${'x'.repeat(129)}`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getAuthor.mock.callCount(), 0);
+    assert.strictEqual(getAuthorWorks.mock.callCount(), 0);
+  });
+
   it('returns author works with pagination and existing media state', async () => {
     mock.method(OpenLibraryAPI.prototype, 'getAuthor', async () => ({
       key: '/authors/OL1A',
@@ -170,6 +185,21 @@ describe('GET /author/:id', () => {
 });
 
 describe('GET /author/:id/works', () => {
+  it('rejects malformed author work IDs before calling OpenLibrary', async () => {
+    const getAuthor = mock.method(OpenLibraryAPI.prototype, 'getAuthor');
+    const getAuthorWorks = mock.method(
+      OpenLibraryAPI.prototype,
+      'getAuthorWorks'
+    );
+
+    const agent = await login();
+    const res = await agent.get(`/author/${'x'.repeat(129)}/works`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getAuthor.mock.callCount(), 0);
+    assert.strictEqual(getAuthorWorks.mock.callCount(), 0);
+  });
+
   it('loads a later page of bibliography works', async () => {
     mock.method(OpenLibraryAPI.prototype, 'getAuthor', async () => ({
       key: '/authors/OL1A',

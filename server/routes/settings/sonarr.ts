@@ -2,6 +2,9 @@ import SonarrAPI from '@server/api/servarr/sonarr';
 import type { SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { parsePositiveRouteId } from '@server/utils/routeId';
+import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
+import { parseSonarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
 
 const sonarrRoutes = Router();
@@ -9,13 +12,21 @@ const sonarrRoutes = Router();
 sonarrRoutes.get('/', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.sonarr);
+  res.status(200).json(redactSecrets(settings.sonarr));
 });
 
 sonarrRoutes.post('/', async (req, res) => {
   const settings = getSettings();
 
-  const newSonarr = req.body as SonarrSettings;
+  const parsedSonarr = parseSonarrSettings(
+    preserveRedactedSecrets(req.body, undefined) as Partial<SonarrSettings>
+  );
+
+  if ('error' in parsedSonarr) {
+    return res.status(400).json({ message: parsedSonarr.error });
+  }
+
+  const newSonarr = parsedSonarr.value;
   const lastItem = settings.sonarr[settings.sonarr.length - 1];
   newSonarr.id = lastItem ? lastItem.id + 1 : 0;
 
@@ -33,14 +44,20 @@ sonarrRoutes.post('/', async (req, res) => {
   settings.sonarr = [...settings.sonarr, newSonarr];
   await settings.save();
 
-  return res.status(201).json(newSonarr);
+  return res.status(201).json(redactSecrets(newSonarr));
 });
 
 sonarrRoutes.post('/test', async (req, res, next) => {
   try {
+    const parsedSonarr = parseSonarrSettings(req.body);
+
+    if ('error' in parsedSonarr) {
+      return res.status(400).json({ message: parsedSonarr.error });
+    }
+
     const sonarr = new SonarrAPI({
-      apiKey: req.body.apiKey,
-      url: SonarrAPI.buildUrl(req.body, '/api/v3'),
+      apiKey: parsedSonarr.value.apiKey,
+      url: SonarrAPI.buildUrl(parsedSonarr.value, '/api/v3'),
     });
 
     const systemStatus = await sonarr.getSystemStatus();
@@ -75,9 +92,15 @@ sonarrRoutes.post('/test', async (req, res, next) => {
 
 sonarrRoutes.put<{ id: string }>('/:id', async (req, res) => {
   const settings = getSettings();
+  const sonarrId = parsePositiveRouteId(req.params.id);
+  if (!sonarrId) {
+    return res
+      .status(404)
+      .json({ status: '404', message: 'Settings instance not found' });
+  }
 
   const sonarrIndex = settings.sonarr.findIndex(
-    (r) => r.id === Number(req.params.id)
+    (r) => r.id === sonarrId
   );
 
   if (sonarrIndex === -1) {
@@ -89,28 +112,48 @@ sonarrRoutes.put<{ id: string }>('/:id', async (req, res) => {
   // If we are setting this as the default, clear any previous defaults for the same type first
   // ex: if is4k is true, it will only remove defaults for other servers that have is4k set to true
   // and are the default
-  if (req.body.isDefault) {
+  const parsedSonarr = parseSonarrSettings(
+    preserveRedactedSecrets(
+      req.body,
+      settings.sonarr[sonarrIndex]
+    ) as Partial<SonarrSettings>,
+    settings.sonarr[sonarrIndex]
+  );
+
+  if ('error' in parsedSonarr) {
+    return res.status(400).json({ message: parsedSonarr.error });
+  }
+
+  if (parsedSonarr.value.isDefault) {
     settings.sonarr
-      .filter((sonarrInstance) => sonarrInstance.is4k === req.body.is4k)
+      .filter(
+        (sonarrInstance) => sonarrInstance.is4k === parsedSonarr.value.is4k
+      )
       .forEach((sonarrInstance) => {
         sonarrInstance.isDefault = false;
       });
   }
 
   settings.sonarr[sonarrIndex] = {
-    ...req.body,
-    id: Number(req.params.id),
+    ...parsedSonarr.value,
+    id: sonarrId,
   } as SonarrSettings;
   await settings.save();
 
-  return res.status(200).json(settings.sonarr[sonarrIndex]);
+  return res.status(200).json(redactSecrets(settings.sonarr[sonarrIndex]));
 });
 
 sonarrRoutes.delete<{ id: string }>('/:id', async (req, res) => {
   const settings = getSettings();
+  const sonarrId = parsePositiveRouteId(req.params.id);
+  if (!sonarrId) {
+    return res
+      .status(404)
+      .json({ status: '404', message: 'Settings instance not found' });
+  }
 
   const sonarrIndex = settings.sonarr.findIndex(
-    (r) => r.id === Number(req.params.id)
+    (r) => r.id === sonarrId
   );
 
   if (sonarrIndex === -1) {
@@ -122,7 +165,7 @@ sonarrRoutes.delete<{ id: string }>('/:id', async (req, res) => {
   const removed = settings.sonarr.splice(sonarrIndex, 1);
   await settings.save();
 
-  return res.status(200).json(removed[0]);
+  return res.status(200).json(redactSecrets(removed[0]));
 });
 
 export default sonarrRoutes;

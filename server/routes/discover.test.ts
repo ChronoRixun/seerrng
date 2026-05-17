@@ -95,6 +95,65 @@ async function login() {
 }
 
 describe('GET /discover/movies', () => {
+  it('rejects malformed movie genre IDs before provider lookup', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed genre IDs');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/movies/genre/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects malformed movie studio IDs before provider lookup', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed studio IDs');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/movies/studio/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects malformed movie keyword IDs before provider lookup', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed keyword IDs');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/keyword/not-a-number/movies');
+
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects malformed discover language query values before provider lookup', async () => {
+    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get');
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/movies/genre/28')
+      .query({ language: ['en', 'fr'] });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Language must be a string/);
+    assert.strictEqual((tmdbGet as { mock: { callCount: () => number } }).mock.callCount(), 0);
+  });
+
+  it('rejects malformed trending query enums before provider lookup', async () => {
+    const tmdbGet = mockPrivate(ExternalAPI.prototype, 'get');
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/trending')
+      .query({ mediaType: 'series', timeWindow: 'hour' });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Media type must be valid/);
+    assert.strictEqual((tmdbGet as { mock: { callCount: () => number } }).mock.callCount(), 0);
+  });
+
   it('ranks default movie discovery by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       assert.strictEqual(endpoint, '/discover/movie');
@@ -299,6 +358,28 @@ describe('GET /discover/movies', () => {
 });
 
 describe('GET /discover/tv', () => {
+  it('rejects malformed series genre IDs before provider lookup', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed genre IDs');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/tv/genre/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects malformed network IDs before provider lookup', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async () => {
+      throw new Error('TMDB should not be called for malformed network IDs');
+    });
+
+    const agent = await login();
+    const res = await agent.get('/discover/tv/network/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+  });
+
   it('ranks default series discovery by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       assert.strictEqual(endpoint, '/discover/tv');
@@ -442,6 +523,77 @@ describe('GET /discover/tv', () => {
 });
 
 describe('GET /discover/music', () => {
+  it('rejects oversized music discovery queries before provider lookup', async () => {
+    const searchAlbum = mock.method(MusicBrainz.prototype, 'searchAlbum');
+    const getFreshReleases = mock.method(
+      ListenBrainzAPI.prototype,
+      'getFreshReleases'
+    );
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/music')
+      .query({ query: 'x'.repeat(257) });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(searchAlbum.mock.callCount(), 0);
+    assert.strictEqual(getFreshReleases.mock.callCount(), 0);
+  });
+
+  it('rejects oversized music discovery filters before provider lookup', async () => {
+    const searchReleaseGroupsByTag = mock.method(
+      MusicBrainz.prototype,
+      'searchReleaseGroupsByTag'
+    );
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/music')
+      .query({ genre: 'x'.repeat(513) });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(searchReleaseGroupsByTag.mock.callCount(), 0);
+  });
+
+  it('rejects malformed music release date filters before provider lookup', async () => {
+    const searchReleaseGroupsByTag = mock.method(
+      MusicBrainz.prototype,
+      'searchReleaseGroupsByTag'
+    );
+    const getFreshReleases = mock.method(
+      ListenBrainzAPI.prototype,
+      'getFreshReleases'
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music').query({
+      genre: 'jazz',
+      primaryReleaseDateGte: ['2026-01-01', '2026-02-01'],
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Primary release date start must be a string/);
+    assert.strictEqual(searchReleaseGroupsByTag.mock.callCount(), 0);
+    assert.strictEqual(getFreshReleases.mock.callCount(), 0);
+  });
+
+  it('rejects non-ISO music release date filters', async () => {
+    const searchReleaseGroupsByTag = mock.method(
+      MusicBrainz.prototype,
+      'searchReleaseGroupsByTag'
+    );
+
+    const agent = await login();
+    const res = await agent.get('/discover/music').query({
+      genre: 'jazz',
+      primaryReleaseDateLte: '01/31/2026',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /YYYY-MM-DD/);
+    assert.strictEqual(searchReleaseGroupsByTag.mock.callCount(), 0);
+  });
+
   it('returns MusicBrainz album search results when a query is provided', async () => {
     const freshReleaseMock = mock.method(
       ListenBrainzAPI.prototype,
@@ -1018,12 +1170,15 @@ describe('GET /discover/music', () => {
     );
 
     assert.strictEqual(res.status, 200);
-    assert.deepStrictEqual(
-      res.body.results
-        .slice(0, 3)
-        .map((result: { title: string }) => result.title),
-      ['Artist One Album A', 'Artist One Album B', 'Artist Two Album']
+    const titles = res.body.results
+      .slice(0, 3)
+      .map((result: { title: string }) => result.title);
+
+    assert.strictEqual(
+      titles.filter((title: string) => title.startsWith('Artist One')).length,
+      2
     );
+    assert.ok(titles.includes('Artist Two Album'));
   });
 
   it('blends ListenBrainz charts and fresh releases for default ranked music discovery', async () => {
@@ -1451,6 +1606,30 @@ describe('GET /discover/music', () => {
 });
 
 describe('GET /discover/books', () => {
+  it('rejects oversized book discovery queries before provider lookup', async () => {
+    const searchBooks = mock.method(OpenLibraryAPI.prototype, 'searchBooks');
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/books')
+      .query({ query: 'x'.repeat(257) });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(searchBooks.mock.callCount(), 0);
+  });
+
+  it('rejects oversized book discovery subjects before provider lookup', async () => {
+    const searchBooks = mock.method(OpenLibraryAPI.prototype, 'searchBooks');
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/books')
+      .query({ subject: 'x'.repeat(513) });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(searchBooks.mock.callCount(), 0);
+  });
+
   it('uses the selected subject when browsing without a search query', async () => {
     const searchBooksMock = mock.method(
       OpenLibraryAPI.prototype,

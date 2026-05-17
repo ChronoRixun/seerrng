@@ -338,6 +338,22 @@ describe('GET /association/:mediaType/:id', () => {
     assert.strictEqual(tvRes.status, 400);
   });
 
+  it('rejects non-positive and decimal movie and tv ids', async () => {
+    const agent = await login();
+    const negativeRes = await agent.get('/association/movie/-1');
+    const decimalRes = await agent.get('/association/tv/1.5');
+
+    assert.strictEqual(negativeRes.status, 400);
+    assert.strictEqual(decimalRes.status, 400);
+  });
+
+  it('rejects oversized external association ids', async () => {
+    const agent = await login();
+    const res = await agent.get(`/association/book/${'x'.repeat(129)}`);
+
+    assert.strictEqual(res.status, 400);
+  });
+
   it('returns same-medium similar and recommended edges for a movie', async () => {
     mockTmdb();
     const agent = await login();

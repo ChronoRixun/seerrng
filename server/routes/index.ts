@@ -26,9 +26,17 @@ import {
   appDataStatus,
 } from '@server/utils/appDataVolume';
 import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
+import { parsePositiveRouteId } from '@server/utils/routeId';
+import {
+  parseBoundedString,
+  parseOptionalBoundedString,
+  parseOptionalLanguage,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import artistRoutes from './artist';
 import associationRoutes from './association';
 import authRoutes from './auth';
@@ -50,65 +58,104 @@ import tvRoutes from './tv';
 import user from './user';
 
 const router = Router();
+const maxTmdbId = 1_000_000_000;
+const MAX_PUSHOVER_TOKEN_LENGTH = 256;
+const MAX_WATCH_REGION_LENGTH = 16;
+
+const parseTmdbRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxTmdbId);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const publicStatusRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
+const parsePushoverToken = (value: unknown) =>
+  parseBoundedString(value, {
+    fieldName: 'Pushover application token',
+    maxLength: MAX_PUSHOVER_TOKEN_LENGTH,
+  });
+
+const parseWatchRegion = (value: unknown) =>
+  parseOptionalBoundedString(value, {
+    fieldName: 'Watch region',
+    maxLength: MAX_WATCH_REGION_LENGTH,
+  });
 
 router.use(checkUser);
 router.use(apiResponseCache);
 
-router.get<unknown, StatusResponse>('/status', async (req, res) => {
-  const githubApi = new GithubAPI();
+router.get<Record<string, never>, StatusResponse>(
+  '/status',
+  publicStatusRateLimit,
+  async (req, res) => {
+    const githubApi = new GithubAPI();
 
-  const currentVersion = getAppVersion();
-  const commitTag = getCommitTag();
-  let updateAvailable = false;
-  let commitsBehind = 0;
+    const currentVersion = getAppVersion();
+    const commitTag = getCommitTag();
+    let updateAvailable = false;
+    let commitsBehind = 0;
 
-  if (currentVersion.startsWith('develop-') && commitTag !== 'local') {
-    const commits = await githubApi.getSeerrCommits();
+    if (currentVersion.startsWith('develop-') && commitTag !== 'local') {
+      const commits = await githubApi.getSeerrCommits();
 
-    if (commits.length) {
-      const filteredCommits = commits.filter(
-        (commit) => !commit.commit.message.includes('[skip ci]')
-      );
-      if (filteredCommits[0].sha !== commitTag) {
-        updateAvailable = true;
+      if (commits.length) {
+        const filteredCommits = commits.filter(
+          (commit) => !commit.commit.message.includes('[skip ci]')
+        );
+        if (filteredCommits[0].sha !== commitTag) {
+          updateAvailable = true;
+        }
+
+        const commitIndex = filteredCommits.findIndex(
+          (commit) => commit.sha === commitTag
+        );
+
+        if (updateAvailable) {
+          commitsBehind = commitIndex;
+        }
       }
+    } else if (commitTag !== 'local') {
+      const releases = await githubApi.getSeerrReleases();
 
-      const commitIndex = filteredCommits.findIndex(
-        (commit) => commit.sha === commitTag
-      );
+      if (releases.length) {
+        const latestVersion = releases[0];
 
-      if (updateAvailable) {
-        commitsBehind = commitIndex;
+        if (!latestVersion.name.includes(currentVersion)) {
+          updateAvailable = true;
+        }
       }
     }
-  } else if (commitTag !== 'local') {
-    const releases = await githubApi.getSeerrReleases();
 
-    if (releases.length) {
-      const latestVersion = releases[0];
-
-      if (!latestVersion.name.includes(currentVersion)) {
-        updateAvailable = true;
-      }
-    }
+    return res.status(200).json({
+      version: getAppVersion(),
+      commitTag: getCommitTag(),
+      updateAvailable,
+      commitsBehind,
+      restartRequired: restartFlag.isSet(),
+    });
   }
+);
 
-  return res.status(200).json({
-    version: getAppVersion(),
-    commitTag: getCommitTag(),
-    updateAvailable,
-    commitsBehind,
-    restartRequired: restartFlag.isSet(),
-  });
-});
-
-router.get('/status/appdata', (_req, res) => {
-  return res.status(200).json({
-    appData: appDataStatus(),
-    appDataPath: appDataPath(),
-    appDataPermissions: appDataPermissions(),
-  });
-});
+router.get(
+  '/status/appdata',
+  isAuthenticated(Permission.ADMIN),
+  (_req, res) => {
+    return res.status(200).json({
+      appData: appDataStatus(),
+      appDataPath: appDataPath(),
+      appDataPermissions: appDataPermissions(),
+    });
+  }
+);
 
 router.use('/user', isAuthenticated(), user);
 router.get('/settings/public', async (req, res) => {
@@ -134,13 +181,13 @@ router.get(
   isAuthenticated(),
   async (req, res, next) => {
     const pushoverApi = new PushoverAPI();
+    const token = parsePushoverToken(req.query.token);
+    if ('error' in token) {
+      return next({ status: 400, message: token.error });
+    }
 
     try {
-      if (!req.query.token) {
-        throw new Error('Pushover application token missing from request');
-      }
-
-      const sounds = await pushoverApi.getSounds(req.query.token as string);
+      const sounds = await pushoverApi.getSounds(token.value);
       res.status(200).json(sounds);
     } catch (e) {
       logger.debug('Something went wrong retrieving Pushover sounds', {
@@ -228,52 +275,73 @@ router.get('/languages', isAuthenticated(), async (req, res, next) => {
   }
 });
 
-router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+router.get<{ id: string }>(
+  '/studio/:id',
+  isAuthenticated(),
+  async (req, res, next) => {
+    const tmdb = new TheMovieDb();
+    const studioId = parseTmdbRouteId(req.params.id);
+    if (!studioId) {
+      return next({ status: 404, message: 'Studio not found.' });
+    }
 
-  try {
-    const studio = await tmdb.getStudio(Number(req.params.id));
+    try {
+      const studio = await tmdb.getStudio(studioId);
 
-    return res.status(200).json(mapProductionCompany(studio));
-  } catch (e) {
-    logger.debug('Something went wrong retrieving studio', {
-      label: 'API',
-      errorMessage: e.message,
-      studioId: req.params.id,
-    });
-    return next({
-      status: 500,
-      message: 'Unable to retrieve studio.',
-    });
+      return res.status(200).json(mapProductionCompany(studio));
+    } catch (e) {
+      logger.debug('Something went wrong retrieving studio', {
+        label: 'API',
+        errorMessage: e.message,
+        studioId,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to retrieve studio.',
+      });
+    }
   }
-});
+);
 
-router.get<{ id: string }>('/network/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+router.get<{ id: string }>(
+  '/network/:id',
+  isAuthenticated(),
+  async (req, res, next) => {
+    const tmdb = new TheMovieDb();
+    const networkId = parseTmdbRouteId(req.params.id);
+    if (!networkId) {
+      return next({ status: 404, message: 'Network not found.' });
+    }
 
-  try {
-    const network = await tmdb.getNetwork(Number(req.params.id));
+    try {
+      const network = await tmdb.getNetwork(networkId);
 
-    return res.status(200).json(mapNetwork(network));
-  } catch (e) {
-    logger.debug('Something went wrong retrieving network', {
-      label: 'API',
-      errorMessage: e.message,
-      networkId: req.params.id,
-    });
-    return next({
-      status: 500,
-      message: 'Unable to retrieve network.',
-    });
+      return res.status(200).json(mapNetwork(network));
+    } catch (e) {
+      logger.debug('Something went wrong retrieving network', {
+        label: 'API',
+        errorMessage: e.message,
+        networkId,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to retrieve network.',
+      });
+    }
   }
-});
+);
 
 router.get('/genres/movie', isAuthenticated(), async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const genres = await tmdb.getMovieGenres({
-      language: (req.query.language as string) ?? req.locale,
+      language,
     });
 
     return res.status(200).json(genres);
@@ -291,10 +359,15 @@ router.get('/genres/movie', isAuthenticated(), async (req, res, next) => {
 
 router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const genres = await tmdb.getTvGenres({
-      language: (req.query.language as string) ?? req.locale,
+      language,
     });
 
     return res.status(200).json(genres);
@@ -310,7 +383,7 @@ router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
   }
 });
 
-router.get('/backdrops', async (req, res, next) => {
+router.get('/backdrops', isAuthenticated(), async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage();
 
   try {
@@ -342,12 +415,16 @@ router.get('/backdrops', async (req, res, next) => {
   }
 });
 
-router.get('/keyword/:keywordId', async (req, res, next) => {
+router.get('/keyword/:keywordId', isAuthenticated(), async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage();
+  const keywordId = parsePositiveRouteId(req.params.keywordId);
+  if (!keywordId) {
+    return next({ status: 404, message: 'Keyword not found.' });
+  }
 
   try {
     const result = await tmdb.getKeywordDetails({
-      keywordId: Number(req.params.keywordId),
+      keywordId,
     });
 
     return res.status(200).json(result);
@@ -363,51 +440,67 @@ router.get('/keyword/:keywordId', async (req, res, next) => {
   }
 });
 
-router.get('/watchproviders/regions', async (req, res, next) => {
-  const tmdb = createTmdbWithRegionLanguage();
+router.get(
+  '/watchproviders/regions',
+  isAuthenticated(),
+  async (req, res, next) => {
+    const tmdb = createTmdbWithRegionLanguage();
 
-  try {
-    const result = await tmdb.getAvailableWatchProviderRegions({});
-    return res.status(200).json(result);
-  } catch (e) {
-    logger.debug('Something went wrong retrieving watch provider regions', {
-      label: 'API',
-      errorMessage: e.message,
-    });
-    return next({
-      status: 500,
-      message: 'Unable to retrieve watch provider regions.',
-    });
+    try {
+      const result = await tmdb.getAvailableWatchProviderRegions({});
+      return res.status(200).json(result);
+    } catch (e) {
+      logger.debug('Something went wrong retrieving watch provider regions', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to retrieve watch provider regions.',
+      });
+    }
   }
-});
+);
 
-router.get('/watchproviders/movies', async (req, res, next) => {
-  const tmdb = createTmdbWithRegionLanguage();
+router.get(
+  '/watchproviders/movies',
+  isAuthenticated(),
+  async (req, res, next) => {
+    const tmdb = createTmdbWithRegionLanguage();
+    const watchRegion = parseWatchRegion(req.query.watchRegion);
+    if ('error' in watchRegion) {
+      return next({ status: 400, message: watchRegion.error });
+    }
 
-  try {
-    const result = await tmdb.getMovieWatchProviders({
-      watchRegion: req.query.watchRegion as string,
-    });
+    try {
+      const result = await tmdb.getMovieWatchProviders({
+        watchRegion: watchRegion.value ?? '',
+      });
 
-    return res.status(200).json(mapWatchProviderDetails(result));
-  } catch (e) {
-    logger.debug('Something went wrong retrieving movie watch providers', {
-      label: 'API',
-      errorMessage: e.message,
-    });
-    return next({
-      status: 500,
-      message: 'Unable to retrieve movie watch providers.',
-    });
+      return res.status(200).json(mapWatchProviderDetails(result));
+    } catch (e) {
+      logger.debug('Something went wrong retrieving movie watch providers', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to retrieve movie watch providers.',
+      });
+    }
   }
-});
+);
 
-router.get('/watchproviders/tv', async (req, res, next) => {
+router.get('/watchproviders/tv', isAuthenticated(), async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage();
+  const watchRegion = parseWatchRegion(req.query.watchRegion);
+  if ('error' in watchRegion) {
+    return next({ status: 400, message: watchRegion.error });
+  }
 
   try {
     const result = await tmdb.getTvWatchProviders({
-      watchRegion: req.query.watchRegion as string,
+      watchRegion: watchRegion.value ?? '',
     });
 
     return res.status(200).json(mapWatchProviderDetails(result));

@@ -7,6 +7,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import Tooltip from '@app/components/Common/Tooltip';
 import IssueBlock from '@app/components/IssueBlock';
 import MediaSlider from '@app/components/MediaSlider';
+import BulkRequestModal from '@app/components/RequestModal/BulkRequestModal';
 import StatusBadge from '@app/components/StatusBadge';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
@@ -74,6 +75,7 @@ const messages = defineMessages('components.MusicDetails', {
   addtowatchlist: 'Add To Watchlist',
   viewrequest: 'View Request',
   similarartists: 'Similar Artists',
+  requestdiscography: 'Request Discography',
 });
 
 const MusicDetails = () => {
@@ -82,6 +84,7 @@ const MusicDetails = () => {
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [showBulkRequestModal, setShowBulkRequestModal] = useState(false);
   const [editRequest, setEditRequest] =
     useState<NonFunctionProperties<MediaRequest>>();
   const [showIssueModal, setShowIssueModal] = useState(false);
@@ -318,6 +321,16 @@ const MusicDetails = () => {
           }}
         />
       )}
+      {showBulkRequestModal && data.artist.id && (
+        <BulkRequestModal
+          show={showBulkRequestModal}
+          mediaType="music"
+          artistId={data.artist.id}
+          title={data.artist.name}
+          onCancel={() => setShowBulkRequestModal(false)}
+          onComplete={() => revalidate()}
+        />
+      )}
       <div className="relative z-10 mt-4 flex flex-col gap-6 lg:flex-row">
         <div className="w-full max-w-xs flex-shrink-0">
           <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-800 ring-1 ring-gray-700">
@@ -424,6 +437,15 @@ const MusicDetails = () => {
                 >
                   <ArrowDownTrayIcon />
                   <span>{intl.formatMessage(globalMessages.request)}</span>
+                </Button>
+              )}
+              {canRequest && data.artist.id && (
+                <Button
+                  buttonType="default"
+                  onClick={() => setShowBulkRequestModal(true)}
+                >
+                  <ArrowDownTrayIcon />
+                  <span>{intl.formatMessage(messages.requestdiscography)}</span>
                 </Button>
               )}
               {activeMusicRequest && (

@@ -8,6 +8,7 @@ import type { NotificationAgentPushover } from '@server/lib/settings';
 import { NotificationAgentKey, getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import type { AvailableLocale } from '@server/types/languages';
+import { isSafeHttpUrl, redactSecrets } from '@server/utils/security';
 import axios from 'axios';
 import {
   Notification,
@@ -32,6 +33,8 @@ interface PushoverPayload extends PushoverImagePayload {
   priority: number;
   html: number;
 }
+
+const maxPushoverAttachmentBytes = 5 * 1024 * 1024;
 
 class PushoverAgent
   extends BaseAgent<NotificationAgentPushover>
@@ -65,8 +68,18 @@ class PushoverAgent
     imageUrl: string
   ): Promise<Partial<PushoverImagePayload>> {
     try {
+      if (!(await isSafeHttpUrl(imageUrl))) {
+        logger.error('Invalid Pushover image URL', {
+          label: 'Notifications',
+        });
+        return {};
+      }
+
       const response = await axios.get(imageUrl, {
+        maxContentLength: maxPushoverAttachmentBytes,
+        maxRedirects: 3,
         responseType: 'arraybuffer',
+        timeout: 10_000,
       });
       const base64 = Buffer.from(response.data, 'binary').toString('base64');
       const contentType = (
@@ -81,7 +94,7 @@ class PushoverAgent
       logger.error('Error getting image payload', {
         label: 'Notifications',
         errorMessage: e.message,
-        response: e.response?.data,
+        response: redactSecrets(e.response?.data),
       });
       return {};
     }
@@ -228,7 +241,7 @@ class PushoverAgent
           type: Notification[type],
           subject: payload.subject,
           errorMessage: e.message,
-          response: e.response?.data,
+          response: redactSecrets(e.response?.data),
         });
 
         return false;
@@ -275,7 +288,7 @@ class PushoverAgent
             type: Notification[type],
             subject: payload.subject,
             errorMessage: e.message,
-            response: e.response?.data,
+            response: redactSecrets(e.response?.data),
           });
 
           return false;
@@ -330,7 +343,7 @@ class PushoverAgent
                   type: Notification[type],
                   subject: payload.subject,
                   errorMessage: e.message,
-                  response: e.response?.data,
+                  response: redactSecrets(e.response?.data),
                 });
 
                 return false;

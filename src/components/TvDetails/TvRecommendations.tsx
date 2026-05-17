@@ -27,7 +27,11 @@ const TvRecommendations = () => {
     titles,
     fetchMore,
     error,
-  } = useDiscover<TvResult>(`/api/v1/tv/${router.query.tvId}/recommendations`);
+  } = useDiscover<TvResult>(
+    `/api/v1/tv/${router.query.tvId}/recommendations`,
+    undefined,
+    { randomizeOrder: true }
+  );
 
   if (error) {
     return <ErrorPage statusCode={500} />;

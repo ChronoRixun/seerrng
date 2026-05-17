@@ -27,7 +27,11 @@ const TvSimilar = () => {
     titles,
     fetchMore,
     error,
-  } = useDiscover<TvResult>(`/api/v1/tv/${router.query.tvId}/similar`);
+  } = useDiscover<TvResult>(
+    `/api/v1/tv/${router.query.tvId}/similar`,
+    undefined,
+    { randomizeOrder: true }
+  );
 
   if (error) {
     return <ErrorPage statusCode={500} />;

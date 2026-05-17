@@ -11,16 +11,51 @@ import { rankTmdbTvResults } from '@server/lib/tmdbRank';
 import logger from '@server/logger';
 import { mapTvResult } from '@server/models/Search';
 import { mapSeasonWithEpisodes, mapTvDetails } from '@server/models/Tv';
+import { filterEntityResponse } from '@server/utils/entityResponse';
+import { parsePositiveInt } from '@server/utils/pagination';
+import {
+  parseOptionalBoundedString,
+  parseOptionalLanguage,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 
 const tvRoutes = Router();
+const maxTmdbTvId = 1_000_000_000;
+const maxTvSeasonNumber = 10_000;
+const maxShuffleSeedLength = 128;
+
+const parseTvRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxTmdbTvId);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const parseSeasonRouteNumber = (seasonNumber: unknown): number | undefined => {
+  const parsedValue =
+    typeof seasonNumber === 'string' && seasonNumber.trim() !== ''
+      ? Number(seasonNumber)
+      : seasonNumber;
+  return parseOptionalNonNegativeInteger(parsedValue, maxTvSeasonNumber);
+};
 
 tvRoutes.get('/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const tvId = parseTvRouteId(req.params.id);
+  if (!tvId) {
+    return next({ status: 404, message: 'Series not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const tmdbTv = await tmdb.getTvShow({
-      tvId: Number(req.params.id),
+      tvId,
     });
     const metadataProvider = tmdbTv.keywords.results.some(
       (keyword: TmdbKeyword) => keyword.id === ANIME_KEYWORD_ID
@@ -28,14 +63,14 @@ tvRoutes.get('/:id', async (req, res, next) => {
       ? await getMetadataProvider('anime')
       : await getMetadataProvider('tv');
     const tv = await metadataProvider.getTvShow({
-      tvId: Number(req.params.id),
-      language: (req.query.language as string) ?? req.locale,
+      tvId,
+      language,
     });
     const media = await Media.getMedia(tv.id, MediaType.TV);
 
     const onUserWatchlist = await getRepository(Watchlist).exist({
       where: {
-        tmdbId: Number(req.params.id),
+        tmdbId: tvId,
         mediaType: MediaType.TV,
         requestedBy: {
           id: req.user?.id,
@@ -48,12 +83,12 @@ tvRoutes.get('/:id', async (req, res, next) => {
     // TMDB issue where it doesnt fallback to English when no overview is available in requested locale.
     if (!data.overview) {
       const tvEnglish = await metadataProvider.getTvShow({
-        tvId: Number(req.params.id),
+        tvId,
       });
       data.overview = tvEnglish.overview;
     }
 
-    return res.status(200).json(data);
+    return res.status(200).json(filterEntityResponse(data));
   } catch (e) {
     logger.debug('Something went wrong retrieving series', {
       label: 'API',
@@ -68,10 +103,21 @@ tvRoutes.get('/:id', async (req, res, next) => {
 });
 
 tvRoutes.get('/:id/season/:seasonNumber', async (req, res, next) => {
+  const tvId = parseTvRouteId(req.params.id);
+  const seasonNumber = parseSeasonRouteNumber(req.params.seasonNumber);
+  if (!tvId || seasonNumber === undefined) {
+    return next({ status: 404, message: 'Season not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
+
   try {
     const tmdb = new TheMovieDb();
     const tmdbTv = await tmdb.getTvShow({
-      tvId: Number(req.params.id),
+      tvId,
     });
     const metadataProvider = tmdbTv.keywords.results.some(
       (keyword: TmdbKeyword) => keyword.id === ANIME_KEYWORD_ID
@@ -80,9 +126,9 @@ tvRoutes.get('/:id/season/:seasonNumber', async (req, res, next) => {
       : await getMetadataProvider('tv');
 
     const season = await metadataProvider.getTvSeason({
-      tvId: Number(req.params.id),
-      seasonNumber: Number(req.params.seasonNumber),
-      language: (req.query.language as string) ?? req.locale,
+      tvId,
+      seasonNumber,
+      language,
     });
 
     return res.status(200).json(mapSeasonWithEpisodes(season));
@@ -102,14 +148,35 @@ tvRoutes.get('/:id/season/:seasonNumber', async (req, res, next) => {
 
 tvRoutes.get('/:id/recommendations', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const tvId = parseTvRouteId(req.params.id);
+  if (!tvId) {
+    return next({ status: 404, message: 'Series not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const parsedShuffleSeed = parseOptionalBoundedString(req.query.shuffleSeed, {
+    fieldName: 'Shuffle seed',
+    maxLength: maxShuffleSeedLength,
+  });
+  if ('error' in parsedShuffleSeed) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedShuffleSeed.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const results = await tmdb.getTvRecommendations({
-      tvId: Number(req.params.id),
-      page: Number(req.query.page),
-      language: (req.query.language as string) ?? req.locale,
+      tvId,
+      page: parsePositiveInt(req.query.page, 1, 500),
+      language,
     });
-    const rankedResults = rankTmdbTvResults(results.results);
+    const rankedResults = rankTmdbTvResults(
+      results.results,
+      parsedShuffleSeed.value
+    );
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -147,14 +214,35 @@ tvRoutes.get('/:id/recommendations', async (req, res, next) => {
 
 tvRoutes.get('/:id/similar', async (req, res, next) => {
   const tmdb = new TheMovieDb();
+  const tvId = parseTvRouteId(req.params.id);
+  if (!tvId) {
+    return next({ status: 404, message: 'Series not found.' });
+  }
+  const parsedLanguage = parseOptionalLanguage(req.query.language);
+  if ('error' in parsedLanguage) {
+    return res.status(400).json({ status: 400, message: parsedLanguage.error });
+  }
+  const parsedShuffleSeed = parseOptionalBoundedString(req.query.shuffleSeed, {
+    fieldName: 'Shuffle seed',
+    maxLength: maxShuffleSeedLength,
+  });
+  if ('error' in parsedShuffleSeed) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedShuffleSeed.error });
+  }
+  const language = parsedLanguage.value ?? req.locale;
 
   try {
     const results = await tmdb.getTvSimilar({
-      tvId: Number(req.params.id),
-      page: Number(req.query.page),
-      language: (req.query.language as string) ?? req.locale,
+      tvId,
+      page: parsePositiveInt(req.query.page, 1, 500),
+      language,
     });
-    const rankedResults = rankTmdbTvResults(results.results);
+    const rankedResults = rankTmdbTvResults(
+      results.results,
+      parsedShuffleSeed.value
+    );
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -193,10 +281,14 @@ tvRoutes.get('/:id/similar', async (req, res, next) => {
 tvRoutes.get('/:id/ratings', async (req, res, next) => {
   const tmdb = new TheMovieDb();
   const rtapi = new RottenTomatoes();
+  const tvId = parseTvRouteId(req.params.id);
+  if (!tvId) {
+    return next({ status: 404, message: 'Series not found.' });
+  }
 
   try {
     const tv = await tmdb.getTvShow({
-      tvId: Number(req.params.id),
+      tvId,
     });
 
     const rtratings = await rtapi.getTVRatings(

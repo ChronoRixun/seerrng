@@ -3,4 +3,6 @@ import type { PaginatedResponse } from './common';
 
 export interface IssueResultsResponse extends PaginatedResponse {
   results: Issue[];
+  status?: number;
+  message?: string;
 }

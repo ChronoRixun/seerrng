@@ -1,5 +1,6 @@
 import type { ProxySettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { isLocalOrPrivateAddress } from '@server/utils/security';
 import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import { HttpsProxyAgent } from 'https-proxy-agent';
@@ -21,10 +22,17 @@ export default async function createCustomProxyAgent(
   });
 
   const skipUrl = (url: string | URL) => {
-    const hostname =
-      typeof url === 'string' ? new URL(url).hostname : url.hostname;
+    let hostname: string;
+    try {
+      hostname = typeof url === 'string' ? new URL(url).hostname : url.hostname;
+    } catch {
+      return false;
+    }
 
-    if (proxySettings.bypassLocalAddresses && isLocalAddress(hostname)) {
+    if (
+      proxySettings.bypassLocalAddresses &&
+      isLocalOrPrivateAddress(hostname)
+    ) {
       return true;
     }
 
@@ -36,7 +44,7 @@ export default async function createCustomProxyAgent(
 
       if (trimmedAddress.startsWith('*')) {
         const domain = trimmedAddress.slice(1);
-        if (hostname.endsWith(domain)) {
+        if (hostname === domain || hostname.endsWith(`.${domain}`)) {
           return true;
         }
       } else if (hostname === trimmedAddress) {
@@ -119,25 +127,4 @@ export default async function createCustomProxyAgent(
     );
     setGlobalDispatcher(defaultAgent);
   }
-}
-
-function isLocalAddress(hostname: string) {
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '::1'
-  ) {
-    return true;
-  }
-
-  const privateIpRanges = [
-    /^10\./, // 10.x.x.x
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./, // 172.16.x.x - 172.31.x.x
-    /^192\.168\./, // 192.168.x.x
-  ];
-  if (privateIpRanges.some((regex) => regex.test(hostname))) {
-    return true;
-  }
-
-  return false;
 }

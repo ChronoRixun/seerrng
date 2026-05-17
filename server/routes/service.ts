@@ -11,9 +11,11 @@ import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
+import { parseOptionalNonNegativeInteger } from '@server/utils/validation';
 import { Router, type Request } from 'express';
 
 const serviceRoutes = Router();
+const maxServiceRouteId = 1_000_000_000;
 
 const SERVICE_DETAILS_PERMISSIONS = [
   Permission.REQUEST_ADVANCED,
@@ -24,6 +26,20 @@ const SERVICE_DETAILS_PERMISSIONS = [
 const canViewOperationalServiceDetails = (req: Request) =>
   req.user?.hasPermission(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }) ??
   false;
+
+const parseServiceRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(parsedValue, maxServiceRouteId);
+
+  return parsed;
+};
+
+const parsePositiveServiceRouteId = (id: unknown): number | undefined => {
+  const parsed = parseServiceRouteId(id);
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
 
 const filterServiceServer = (
   server: ServiceCommonServer,
@@ -72,9 +88,10 @@ serviceRoutes.get<{ radarrId: string }>(
   isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
+    const radarrId = parseServiceRouteId(req.params.radarrId);
 
     const radarrSettings = settings.radarr.find(
-      (radarr) => radarr.id === Number(req.params.radarrId)
+      (radarr) => radarr.id === radarrId
     );
 
     if (!radarrSettings) {
@@ -152,9 +169,10 @@ serviceRoutes.get<{ sonarrId: string }>(
   isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
+    const sonarrId = parseServiceRouteId(req.params.sonarrId);
 
     const sonarrSettings = settings.sonarr.find(
-      (sonarr) => sonarr.id === Number(req.params.sonarrId)
+      (sonarr) => sonarr.id === sonarrId
     );
 
     if (!sonarrSettings) {
@@ -269,9 +287,10 @@ serviceRoutes.get<{ readarrId: string }>(
   isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
+    const readarrId = parseServiceRouteId(req.params.readarrId);
 
     const readarrSettings = settings.readarr.find(
-      (readarr) => readarr.id === Number(req.params.readarrId)
+      (readarr) => readarr.id === readarrId
     );
 
     if (!readarrSettings) {
@@ -331,9 +350,10 @@ serviceRoutes.get<{ lidarrId: string }>(
   isAuthenticated(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }),
   async (req, res, next) => {
     const settings = getSettings();
+    const lidarrId = parseServiceRouteId(req.params.lidarrId);
 
     const lidarrSettings = settings.lidarr.find(
-      (lidarr) => lidarr.id === Number(req.params.lidarrId)
+      (lidarr) => lidarr.id === lidarrId
     );
 
     if (!lidarrSettings) {
@@ -392,6 +412,10 @@ serviceRoutes.get<{ tmdbId: string }>(
   async (req, res, next) => {
     const settings = getSettings();
     const tmdb = new TheMovieDb();
+    const tmdbId = parsePositiveServiceRouteId(req.params.tmdbId);
+    if (!tmdbId) {
+      return next({ status: 404, message: 'Series not found.' });
+    }
 
     const sonarrSettings = settings.sonarr[0];
 
@@ -412,7 +436,7 @@ serviceRoutes.get<{ tmdbId: string }>(
 
     try {
       const tv = await tmdb.getTvShow({
-        tvId: Number(req.params.tmdbId),
+        tvId: tmdbId,
         language: 'en',
       });
 

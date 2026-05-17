@@ -2,6 +2,9 @@ import ReadarrAPI from '@server/api/servarr/readarr';
 import type { ReadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { parsePositiveRouteId } from '@server/utils/routeId';
+import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
+import { parseReadarrSettings } from '@server/utils/servarrSettings';
 import { Router } from 'express';
 
 const readarrRoutes = Router();
@@ -9,13 +12,21 @@ const readarrRoutes = Router();
 readarrRoutes.get('/', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.readarr);
+  res.status(200).json(redactSecrets(settings.readarr));
 });
 
-readarrRoutes.post('/', (req, res) => {
+readarrRoutes.post('/', async (req, res) => {
   const settings = getSettings();
 
-  const newReadarr = req.body as ReadarrSettings;
+  const parsedReadarr = parseReadarrSettings(
+    preserveRedactedSecrets(req.body, undefined) as Partial<ReadarrSettings>
+  );
+
+  if ('error' in parsedReadarr) {
+    return res.status(400).json({ message: parsedReadarr.error });
+  }
+
+  const newReadarr = parsedReadarr.value;
   const lastItem = settings.readarr[settings.readarr.length - 1];
   newReadarr.id = lastItem ? lastItem.id + 1 : 0;
 
@@ -31,9 +42,9 @@ readarrRoutes.post('/', (req, res) => {
   }
 
   settings.readarr = [...settings.readarr, newReadarr];
-  settings.save();
+  await settings.save();
 
-  return res.status(201).json(newReadarr);
+  return res.status(201).json(redactSecrets(newReadarr));
 });
 
 readarrRoutes.post<
@@ -42,15 +53,21 @@ readarrRoutes.post<
   ReadarrSettings & { tagLabel?: string }
 >('/test', async (req, res, next) => {
   try {
+    const parsedReadarr = parseReadarrSettings(req.body);
+
+    if ('error' in parsedReadarr) {
+      return res.status(400).json({ message: parsedReadarr.error });
+    }
+
     const readarr = new ReadarrAPI({
-      apiKey: req.body.apiKey,
-      url: ReadarrAPI.buildUrl(req.body, '/api/v1'),
+      apiKey: parsedReadarr.value.apiKey,
+      url: ReadarrAPI.buildUrl(parsedReadarr.value, '/api/v1'),
     });
 
     const urlBase = await readarr
       .getSystemStatus()
       .then((value) => value.urlBase)
-      .catch(() => req.body.baseUrl);
+      .catch(() => parsedReadarr.value.baseUrl);
     const profiles = await readarr.getProfiles();
     const metadataProfiles = await readarr.getMetadataProfiles();
     const folders = await readarr.getRootFolders();
@@ -77,43 +94,63 @@ readarrRoutes.post<
 
 readarrRoutes.put<{ id: string }, ReadarrSettings, ReadarrSettings>(
   '/:id',
-  (req, res, next) => {
+  async (req, res, next) => {
     const settings = getSettings();
+    const readarrId = parsePositiveRouteId(req.params.id);
+    if (!readarrId) {
+      return next({ status: '404', message: 'Settings instance not found' });
+    }
 
     const readarrIndex = settings.readarr.findIndex(
-      (r) => r.id === Number(req.params.id)
+      (r) => r.id === readarrId
     );
 
     if (readarrIndex === -1) {
       return next({ status: '404', message: 'Settings instance not found' });
     }
 
-    if (req.body.isDefault) {
-      const serviceType = req.body.serviceType ?? 'ebook';
+    const parsedReadarr = parseReadarrSettings(
+      preserveRedactedSecrets(
+        req.body,
+        settings.readarr[readarrIndex]
+      ) as Partial<ReadarrSettings>,
+      settings.readarr[readarrIndex]
+    );
+
+    if ('error' in parsedReadarr) {
+      return next({ status: 400, message: parsedReadarr.error });
+    }
+
+    if (parsedReadarr.value.isDefault) {
+      const serviceType = parsedReadarr.value.serviceType ?? 'ebook';
       settings.readarr = settings.readarr.map((readarr) => ({
         ...readarr,
         isDefault:
           (readarr.serviceType ?? 'ebook') === serviceType
-            ? readarr.id === Number(req.params.id)
+            ? readarr.id === readarrId
             : readarr.isDefault,
       }));
     }
 
     settings.readarr[readarrIndex] = {
-      ...req.body,
-      id: Number(req.params.id),
+      ...parsedReadarr.value,
+      id: readarrId,
     } as ReadarrSettings;
-    settings.save();
+    await settings.save();
 
-    return res.status(200).json(settings.readarr[readarrIndex]);
+    return res.status(200).json(redactSecrets(settings.readarr[readarrIndex]));
   }
 );
 
-readarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
+readarrRoutes.delete<{ id: string }>('/:id', async (req, res, next) => {
   const settings = getSettings();
+  const readarrId = parsePositiveRouteId(req.params.id);
+  if (!readarrId) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
 
   const readarrIndex = settings.readarr.findIndex(
-    (r) => r.id === Number(req.params.id)
+    (r) => r.id === readarrId
   );
 
   if (readarrIndex === -1) {
@@ -133,9 +170,9 @@ readarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
     }
   }
 
-  settings.save();
+  await settings.save();
 
-  return res.status(200).json(removed);
+  return res.status(200).json(redactSecrets(removed));
 });
 
 export default readarrRoutes;

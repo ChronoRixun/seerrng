@@ -1,5 +1,14 @@
 import type { NotificationAgentKey } from '@server/lib/settings';
 
+export type CardTextVisibility = 'always' | 'hover';
+
+export interface UserSettingsCardTextResponse {
+  movie?: CardTextVisibility;
+  tv?: CardTextVisibility;
+  album?: CardTextVisibility;
+  book?: CardTextVisibility;
+}
+
 export interface UserSettingsGeneralResponse {
   username?: string;
   email?: string;
@@ -28,6 +37,7 @@ export interface UserSettingsGeneralResponse {
   watchlistSyncTv?: boolean;
   watchlistSyncMusic?: boolean;
   watchlistSyncBooks?: boolean;
+  cardTextVisibility?: UserSettingsCardTextResponse;
 }
 
 export type NotificationAgentTypes = Record<NotificationAgentKey, number>;

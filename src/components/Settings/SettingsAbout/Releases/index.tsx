@@ -31,6 +31,19 @@ const messages = defineMessages('components.Settings.SettingsAbout.Releases', {
 const REPO_RELEASE_API =
   'https://api.github.com/repos/seerr-team/seerr/releases?per_page=20';
 
+const safeMarkdownUrl = (value: string): string => {
+  if (value.startsWith('#') || value.startsWith('/')) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? value : '';
+  } catch {
+    return '';
+  }
+};
+
 interface GitHubRelease {
   url: string;
   assets_url: string;
@@ -80,11 +93,13 @@ const Release = ({ currentVersion, release, isLatest }: ReleaseProps) => {
           cancelText={intl.formatMessage(globalMessages.close)}
           okText={intl.formatMessage(messages.viewongithub)}
           onOk={() => {
-            window.open(release.html_url, '_blank');
+            window.open(release.html_url, '_blank', 'noopener,noreferrer');
           }}
         >
           <div className="prose">
-            <ReactMarkdown>{release.body}</ReactMarkdown>
+            <ReactMarkdown skipHtml urlTransform={safeMarkdownUrl}>
+              {release.body}
+            </ReactMarkdown>
           </div>
         </Modal>
       </Transition>

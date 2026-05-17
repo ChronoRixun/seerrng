@@ -263,4 +263,13 @@ DB_TYPE="postgres" DB_USER=postgres DB_PASS=postgres pnpm migration:generate ser
 
 ## Attribution
 
+SeerrNG is a fork of Seerr. Preserve upstream attribution for inherited files
+and behavior. New SeerrNG-specific files, packaging, workflows, and repo
+metadata should be attributed to snapetech and SeerrNG contributors unless they
+explicitly derive from another source.
+
+See [NOTICE.md](./NOTICE.md) for the project attribution policy. The pre-commit
+attribution check catches common mistakes, especially fresh files or repository
+metadata that still present SeerrNG work as upstream Seerr output.
+
 This contribution guide was inspired by the [Next.js](https://github.com/vercel/next.js), [Radarr](https://github.com/Radarr/Radarr), and [Ghostty](https://github.com/ghostty-org/ghostty) contribution guides. In addition, our AI policy draws from [Jellyfin's LLM policies](https://jellyfin.org/docs/general/contributing/llm-policies/).

@@ -332,6 +332,15 @@ describe('POST /auth/reset-password/:guid', () => {
     assert.strictEqual(res.body.message, 'Invalid password reset link.');
   });
 
+  it('rejects oversized reset guids before lookup', async () => {
+    const res = await request(app)
+      .post(`/auth/reset-password/${'x'.repeat(65)}`)
+      .send({ password: 'newpassword123' });
+
+    assert.strictEqual(res.status, 500);
+    assert.strictEqual(res.body.message, 'Invalid password reset link.');
+  });
+
   it('returns 500 when password is too short', async () => {
     const guid = await getResetGuid('admin@seerr.dev');
 

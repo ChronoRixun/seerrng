@@ -29,6 +29,9 @@ const StatusChecker = dynamic(() => import('@app/components/StatusChecker'), {
   ssr: false,
 });
 
+const isPathPrefix = (pathname: string, prefix: string): boolean =>
+  pathname === prefix || pathname.startsWith(`${prefix}/`);
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const loadLocaleData = (locale: AvailableLocale): Promise<any> => {
   switch (locale) {
@@ -147,7 +150,11 @@ const CoreApp = ({ Component, pageProps, router }: AppProps) => {
     });
   }, [currentLocale]);
 
-  if (router.pathname.match(/(login|setup|resetpassword)/)) {
+  if (
+    isPathPrefix(router.pathname, '/login') ||
+    isPathPrefix(router.pathname, '/setup') ||
+    isPathPrefix(router.pathname, '/resetpassword')
+  ) {
     component = <Component {...pageProps} />;
   } else {
     component = (

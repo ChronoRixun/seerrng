@@ -220,6 +220,49 @@ components:
           nullable: true
           description: 'Enable watchlist sync for TV'
           example: false
+        watchlistSyncMusic:
+          type: boolean
+          nullable: true
+          description: 'Enable watchlist sync for music'
+          example: true
+        watchlistSyncBooks:
+          type: boolean
+          nullable: true
+          description: 'Enable watchlist sync for books'
+          example: true
+        cardTextVisibility:
+          $ref: '#/components/schemas/CardTextVisibilitySettings'
+    CardTextVisibilitySettings:
+      type: object
+      properties:
+        movie:
+          type: string
+          nullable: true
+          enum:
+            - always
+            - hover
+          example: hover
+        tv:
+          type: string
+          nullable: true
+          enum:
+            - always
+            - hover
+          example: hover
+        album:
+          type: string
+          nullable: true
+          enum:
+            - always
+            - hover
+          example: always
+        book:
+          type: string
+          nullable: true
+          enum:
+            - always
+            - hover
+          example: always
     MainSettings:
       type: object
       properties:
@@ -5424,6 +5467,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserSettings'
+  /user/{userId}/settings/card-text:
+    get:
+      summary: Get card text visibility settings for a user
+      description: Returns per-media card title visibility preferences for a specific user. Requires `MANAGE_USERS` permission if viewing other users.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Card text visibility settings returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardTextVisibilitySettings'
+    post:
+      summary: Update card text visibility settings for a user
+      description: Updates and returns per-media card title visibility preferences for a specific user. Requires `MANAGE_USERS` permission if editing other users.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CardTextVisibilitySettings'
+      responses:
+        '200':
+          description: Updated card text visibility settings returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardTextVisibilitySettings'
   /user/{userId}/settings/password:
     get:
       summary: Get password page informatiom

@@ -1,4 +1,5 @@
 import Button from '@app/components/Common/Button';
+import CardTextVisibilityToggle from '@app/components/Common/CardTextVisibilityToggle';
 import Header from '@app/components/Common/Header';
 import ListView from '@app/components/Common/ListView';
 import PageTitle from '@app/components/Common/PageTitle';
@@ -65,7 +66,8 @@ const DiscoverMusic = () => {
     error,
   } = useDiscover<AlbumResult>(
     '/api/v1/discover/music',
-    query ? { query } : { days, sortBy, genre, releaseType }
+    query ? { query } : { days, sortBy, genre, releaseType },
+    { randomizeOrder: !query && sortBy === 'ranked' }
   );
 
   if (error) {
@@ -78,6 +80,9 @@ const DiscoverMusic = () => {
       <div className="mb-4 flex flex-col justify-between lg:flex-row lg:items-end">
         <Header>{title}</Header>
         <div className="mt-2 flex flex-grow flex-col gap-2 sm:flex-row lg:flex-grow-0">
+          <div className="mb-2 flex flex-grow sm:mb-0 sm:flex-grow-0">
+            <CardTextVisibilityToggle mediaType="album" />
+          </div>
           <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 lg:flex-grow-0">
             <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">
               <BarsArrowDownIcon className="h-6 w-6" />

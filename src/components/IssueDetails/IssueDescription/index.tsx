@@ -4,15 +4,20 @@ import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { Menu, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/24/solid';
+import { MAX_ISSUE_MESSAGE_LENGTH } from '@server/constants/issue';
 import { Field, Form, Formik } from 'formik';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
 import ReactMarkdown from 'react-markdown';
+import * as Yup from 'yup';
 
 const messages = defineMessages('components.IssueDetails.IssueDescription', {
   description: 'Description',
   edit: 'Edit Description',
   deleteissue: 'Delete Issue',
+  validationDescription: 'You must enter a description',
+  validationDescriptionLength:
+    'Description must be {maxLength, number} characters or fewer',
 });
 
 interface IssueDescriptionProps {
@@ -33,6 +38,16 @@ const IssueDescription = ({
   const intl = useIntl();
   const { hasPermission } = useUser();
   const [isEditing, setIsEditing] = useState(false);
+  const EditDescriptionSchema = Yup.object().shape({
+    newMessage: Yup.string()
+      .max(
+        MAX_ISSUE_MESSAGE_LENGTH,
+        intl.formatMessage(messages.validationDescriptionLength, {
+          maxLength: MAX_ISSUE_MESSAGE_LENGTH,
+        })
+      )
+      .required(intl.formatMessage(messages.validationDescription)),
+  });
 
   return (
     <div className="relative">
@@ -117,8 +132,9 @@ const IssueDescription = ({
             onEdit(values.newMessage);
             setIsEditing(false);
           }}
+          validationSchema={EditDescriptionSchema}
         >
-          {() => {
+          {({ errors, touched }) => {
             return (
               <Form className="mt-4">
                 <Field
@@ -127,6 +143,11 @@ const IssueDescription = ({
                   as="textarea"
                   className="h-40"
                 />
+                {errors.newMessage &&
+                  touched.newMessage &&
+                  typeof errors.newMessage === 'string' && (
+                    <div className="error">{errors.newMessage}</div>
+                  )}
                 <div className="mt-2 flex justify-end">
                   <Button
                     buttonType="default"

@@ -1,7 +1,9 @@
+import CardTextVisibilityToggle from '@app/components/Common/CardTextVisibilityToggle';
 import ShowMoreCard from '@app/components/MediaSlider/ShowMoreCard';
 import PersonCard from '@app/components/PersonCard';
 import Slider from '@app/components/Slider';
 import TitleCard from '@app/components/TitleCard';
+import useCardTextVisibility from '@app/hooks/useCardTextVisibility';
 import useSettings from '@app/hooks/useSettings';
 import { useUser } from '@app/hooks/useUser';
 import useWarmImageCache from '@app/hooks/useWarmImageCache';
@@ -66,6 +68,7 @@ const MediaSlider = ({
   onNewTitles,
 }: MediaSliderProps) => {
   const settings = useSettings();
+  const { visibility } = useCardTextVisibility();
   const { hasPermission } = useUser();
   const { ref, inView } = useInView({
     rootMargin: '450px 0px',
@@ -138,8 +141,6 @@ const MediaSlider = ({
     settings.currentSettings.hideAvailable,
     settings.currentSettings.hideBlocklisted,
   ]);
-  useWarmImageCache(titles);
-
   const shouldLoadMore =
     titles.length < 24 &&
     size < 5 &&
@@ -178,6 +179,7 @@ const MediaSlider = ({
       }),
     [blocklistVisibility, titles]
   );
+  useWarmImageCache(visibleTitles, { enabled: shouldLoad, maxUrls: 20 });
 
   const showMorePosters = useMemo(
     () =>
@@ -208,6 +210,7 @@ const MediaSlider = ({
               year={title.releaseDate}
               mediaType={title.mediaType}
               inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              showText={visibility.movie === 'always'}
             />
           );
         case 'tv':
@@ -224,6 +227,7 @@ const MediaSlider = ({
               year={title.firstAirDate}
               mediaType={title.mediaType}
               inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
+              showText={visibility.tv === 'always'}
             />
           );
         case 'person':
@@ -252,6 +256,7 @@ const MediaSlider = ({
               mediaType={title.mediaType}
               inProgress={(title.mediaInfo?.downloadStatus ?? []).length > 0}
               needsCoverArt={title.needsCoverArt}
+              showText={visibility.album === 'always'}
             />
           );
         case 'book':
@@ -266,6 +271,7 @@ const MediaSlider = ({
               artist={title.author}
               year={title.firstPublishYear?.toString()}
               mediaType={title.mediaType}
+              showText={visibility.book === 'always'}
             />
           );
         case 'artist':
@@ -288,7 +294,16 @@ const MediaSlider = ({
     }
 
     return cardTitles;
-  }, [linkUrl, showMorePosters, titles.length, visibleTitles]);
+  }, [
+    linkUrl,
+    showMorePosters,
+    titles.length,
+    visibleTitles,
+    visibility.album,
+    visibility.book,
+    visibility.movie,
+    visibility.tv,
+  ]);
 
   if (hideWhenEmpty && data && (data[0]?.results ?? []).length === 0) {
     return null;
@@ -306,6 +321,11 @@ const MediaSlider = ({
           <div className="slider-title">
             <span>{title}</span>
           </div>
+        )}
+        {(['movie', 'tv', 'album', 'book'] as const).map((mediaType) =>
+          visibleTitles.some((item) => item.mediaType === mediaType) ? (
+            <CardTextVisibilityToggle key={mediaType} mediaType={mediaType} />
+          ) : null
         )}
       </div>
       <Slider

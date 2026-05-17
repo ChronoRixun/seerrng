@@ -632,7 +632,7 @@ class Settings {
         },
       },
       network: {
-        csrfProtection: false,
+        csrfProtection: true,
         forceIpv4First: false,
         trustProxy: false,
         proxy: {

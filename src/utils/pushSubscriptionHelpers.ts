@@ -1,4 +1,3 @@
-import type { UserPushSubscription } from '@server/entity/UserPushSubscription';
 import type { PublicSettingsResponse } from '@server/interfaces/api/settingsInterfaces';
 import axios from 'axios';
 
@@ -6,6 +5,12 @@ type PushSettings = Pick<
   PublicSettingsResponse,
   'enablePushRegistration' | 'vapidPublic'
 >;
+
+type PushSubscriptionResponse = {
+  endpoint: string;
+  userAgent: string | null;
+  createdAt: string;
+};
 
 // Taken from https://www.npmjs.com/package/web-push
 function urlBase64ToUint8Array(base64String: string) {
@@ -60,7 +65,7 @@ export const verifyPushSubscription = async (
 
     const endpoint = subscription.endpoint;
 
-    const { data } = await axios.get<UserPushSubscription>(
+    const { data } = await axios.get<PushSubscriptionResponse>(
       `/api/v1/user/${userId}/pushSubscription/${encodeURIComponent(endpoint)}`
     );
 

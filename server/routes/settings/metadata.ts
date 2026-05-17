@@ -16,6 +16,25 @@ function getTestResultString(testValue: number): string {
 
 const metadataRoutes = Router();
 
+const isMetadataProviderType = (value: unknown): value is MetadataProviderType =>
+  value === MetadataProviderType.TMDB || value === MetadataProviderType.TVDB;
+
+const parseMetadataSettings = (
+  value: unknown
+): { value: MetadataSettings } | { error: string } => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { error: 'Invalid metadata settings.' };
+  }
+
+  const body = value as Partial<MetadataSettings>;
+
+  if (!isMetadataProviderType(body.tv) || !isMetadataProviderType(body.anime)) {
+    return { error: 'Invalid metadata provider.' };
+  }
+
+  return { value: { tv: body.tv, anime: body.anime } };
+};
+
 metadataRoutes.get('/', (_req, res) => {
   const settings = getSettings();
   res.status(200).json({
@@ -26,7 +45,13 @@ metadataRoutes.get('/', (_req, res) => {
 
 metadataRoutes.put('/', async (req, res) => {
   const settings = getSettings();
-  const body = req.body as MetadataSettings;
+  const parsedBody = parseMetadataSettings(req.body);
+
+  if ('error' in parsedBody) {
+    return res.status(400).json({ success: false, error: parsedBody.error });
+  }
+
+  const body = parsedBody.value;
 
   let tvdbTest = -1;
   let tmdbTest = -1;
@@ -98,10 +123,13 @@ metadataRoutes.post('/test', async (req, res) => {
   let tmdbTest = -1;
 
   try {
-    const body = req.body as { tmdb: boolean; tvdb: boolean };
+    const body =
+      req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+        ? (req.body as { tmdb?: unknown; tvdb?: unknown })
+        : {};
 
     try {
-      if (body.tmdb) {
+      if (body.tmdb === true) {
         tmdbTest = 0;
         const tmdb = new TheMovieDb();
         await tmdb.getTvShow({ tvId: 1054 });
@@ -115,7 +143,7 @@ metadataRoutes.post('/test', async (req, res) => {
     }
 
     try {
-      if (body.tvdb) {
+      if (body.tvdb === true) {
         tvdbTest = 0;
         const tvdb = await Tvdb.getInstance();
         await tvdb.test();

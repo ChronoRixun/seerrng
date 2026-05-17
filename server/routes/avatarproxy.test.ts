@@ -125,6 +125,17 @@ describe('GET /avatarproxy/remote', () => {
 });
 
 describe('GET /avatarproxy/:jellyfinUserId', () => {
+  it('rejects oversized avatar version parameters', async () => {
+    mockAvatarDependencies();
+
+    const res = await request(createApp())
+      .get('/avatarproxy/0123456789abcdef0123456789abcdef')
+      .query({ v: 'x'.repeat(129) });
+
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /Avatar version must be 128 characters/);
+  });
+
   it('uses immutable browser caching for versioned avatar URLs', async () => {
     mockAvatarDependencies();
 

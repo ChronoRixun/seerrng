@@ -3,6 +3,9 @@ import type { AssociationMediaType } from '@server/lib/associations/types';
 import { extractImageCacheUrls } from '@server/lib/imageCacheUrls';
 import { enqueueImageCacheWarm } from '@server/lib/imageCacheWarmer';
 import logger from '@server/logger';
+import { parsePositiveInt } from '@server/utils/pagination';
+import { parsePositiveRouteId } from '@server/utils/routeId';
+import { parseBoundedString } from '@server/utils/validation';
 import type { Response } from 'express';
 import { Router } from 'express';
 
@@ -27,6 +30,23 @@ const VALID_MEDIA_TYPES = new Set<AssociationMediaType>([
   'artist',
   'book',
 ]);
+const MAX_ASSOCIATION_EXTERNAL_ID_LENGTH = 128;
+
+const parseAssociationId = (
+  mediaType: AssociationMediaType,
+  id: unknown
+): string | undefined => {
+  if (mediaType === 'movie' || mediaType === 'tv') {
+    return parsePositiveRouteId(id)?.toString();
+  }
+
+  const parsed = parseBoundedString(id, {
+    fieldName: 'Association media ID',
+    maxLength: MAX_ASSOCIATION_EXTERNAL_ID_LENGTH,
+  });
+
+  return 'error' in parsed ? undefined : parsed.value;
+};
 
 associationRoutes.get('/:mediaType/:id', async (req, res, next) => {
   const mediaType = req.params.mediaType as AssociationMediaType;
@@ -38,24 +58,21 @@ associationRoutes.get('/:mediaType/:id', async (req, res, next) => {
     });
   }
 
-  if (
-    (mediaType === 'movie' || mediaType === 'tv') &&
-    !Number.isFinite(Number(req.params.id))
-  ) {
+  const associationId = parseAssociationId(mediaType, req.params.id);
+  if (!associationId) {
     return next({
       status: 400,
       message: 'Invalid association media id.',
     });
   }
 
-  const limitParam = Number(req.query.limit);
   const limit =
-    Number.isFinite(limitParam) && limitParam > 0
-      ? Math.min(Math.floor(limitParam), 60)
-      : undefined;
+    req.query.limit === undefined
+      ? undefined
+      : parsePositiveInt(req.query.limit, 60, 60);
 
   try {
-    const graph = await getAssociations(mediaType, req.params.id, req.user, {
+    const graph = await getAssociations(mediaType, associationId, req.user, {
       includeWeak: req.query.includeWeak === 'true',
       limit,
     });
@@ -66,7 +83,7 @@ associationRoutes.get('/:mediaType/:id', async (req, res, next) => {
       label: 'API',
       errorMessage: e instanceof Error ? e.message : 'Unknown error',
       mediaType,
-      id: req.params.id,
+      id: associationId,
     });
     return next({
       status: 500,

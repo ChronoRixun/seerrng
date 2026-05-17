@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import MusicBrainz from '@server/api/musicbrainz';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
@@ -87,8 +88,32 @@ const albumDetails = {
 };
 
 describe('GET /music/:id artist lists', () => {
+  it('rejects malformed album IDs before artist discography provider lookup', async () => {
+    const getAlbum = mock.method(ListenBrainzAPI.prototype, 'getAlbum');
+
+    const agent = await login();
+    const res = await agent.get(`/music/${'x'.repeat(129)}/artist-discography`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getAlbum.mock.callCount(), 0);
+  });
+
+  it('rejects malformed album IDs before similar artist provider lookup', async () => {
+    const getAlbum = mock.method(ListenBrainzAPI.prototype, 'getAlbum');
+
+    const agent = await login();
+    const res = await agent.get(`/music/${'x'.repeat(129)}/artist-similar`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getAlbum.mock.callCount(), 0);
+  });
+
   it('normalizes empty artist discography pagination', async () => {
-    mock.method(ListenBrainzAPI.prototype, 'getAlbum', async () => albumDetails);
+    mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () => albumDetails
+    );
     mock.method(ListenBrainzAPI.prototype, 'getArtist', async () => ({
       releaseGroups: [],
     }));
@@ -103,7 +128,11 @@ describe('GET /music/:id artist lists', () => {
   });
 
   it('normalizes empty similar artist pagination', async () => {
-    mock.method(ListenBrainzAPI.prototype, 'getAlbum', async () => albumDetails);
+    mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () => albumDetails
+    );
     mock.method(ListenBrainzAPI.prototype, 'getArtist', async () => ({
       similarArtists: {
         artists: [],
@@ -121,6 +150,26 @@ describe('GET /music/:id artist lists', () => {
 });
 
 describe('GET /music/:id', () => {
+  it('rejects malformed album detail IDs before provider lookup', async () => {
+    const getAlbum = mock.method(ListenBrainzAPI.prototype, 'getAlbum');
+
+    const agent = await login();
+    const res = await agent.get(`/music/${'x'.repeat(129)}`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getAlbum.mock.callCount(), 0);
+  });
+
+  it('rejects malformed album artist IDs before provider lookup', async () => {
+    const getAlbum = mock.method(ListenBrainzAPI.prototype, 'getAlbum');
+
+    const agent = await login();
+    const res = await agent.get(`/music/${'x'.repeat(129)}/artist`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getAlbum.mock.callCount(), 0);
+  });
+
   it('returns album details when optional ListenBrainz stats and tags are absent', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getAlbum', async () => ({
       release_group_mbid: 'release-group-id',
@@ -158,6 +207,65 @@ describe('GET /music/:id', () => {
     assert.deepStrictEqual(res.body.tags.artist, []);
     assert.deepStrictEqual(res.body.stats.listeners, []);
     assert.deepStrictEqual(res.body.tracks[0].artists, []);
+  });
+
+  it('falls back to MusicBrainz when ListenBrainz has no album detail page', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getAlbum', async () => {
+      throw new Error('[ListenBrainz] Failed to fetch album details: 404');
+    });
+    mock.method(MusicBrainz.prototype, 'getReleaseGroupDetails', async () => ({
+      id: 'release-group-id',
+      score: 100,
+      media_type: 'album',
+      title: 'MusicBrainz Album',
+      'primary-type': 'Album',
+      'first-release-date': '2024-02-03',
+      'artist-credit': [
+        {
+          name: 'MusicBrainz Artist',
+          artist: {
+            id: 'artist-id',
+            name: 'MusicBrainz Artist',
+            'sort-name': 'Artist, MusicBrainz',
+          },
+        },
+      ],
+      posterPath: undefined,
+      'type-id': '',
+      'primary-type-id': '',
+      count: 1,
+      releases: [],
+      releasedate: '2024-02-03',
+      tags: [{ count: 5, name: 'jazz' }],
+    }));
+
+    const agent = await login();
+    const res = await agent.get('/music/release-group-id');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.id, 'release-group-id');
+    assert.strictEqual(res.body.title, 'MusicBrainz Album');
+    assert.strictEqual(res.body.artist.name, 'MusicBrainz Artist');
+    assert.deepStrictEqual(res.body.tags.releaseGroup, [
+      { count: 5, genreMbid: '', tag: 'jazz' },
+    ]);
+  });
+
+  it('returns 404 when neither music detail provider has the album', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getAlbum', async () => {
+      throw new Error('[ListenBrainz] Failed to fetch album details: 404');
+    });
+    mock.method(MusicBrainz.prototype, 'getReleaseGroupDetails', async () => {
+      throw new Error(
+        '[MusicBrainz] Failed to fetch release group details: Request failed with status code 404'
+      );
+    });
+
+    const agent = await login();
+    const res = await agent.get('/music/missing-release-group-id');
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(res.body.message, 'Album not found');
   });
 
   it('filters saved media request users from music detail responses', async () => {

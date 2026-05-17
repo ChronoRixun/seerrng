@@ -330,6 +330,13 @@ describe('DELETE /request/:requestId', () => {
 
     assert.strictEqual(res.status, 404);
   });
+
+  it('returns 404 for malformed request IDs', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.delete('/request/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+  });
 });
 
 describe('PUT /request/:requestId (movie)', () => {
@@ -358,6 +365,24 @@ describe('PUT /request/:requestId (movie)', () => {
 });
 
 describe('GET /request', () => {
+  it('rejects malformed request list query filters', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent
+      .get('/request')
+      .query({ mediaType: ['movie', 'tv'] });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Media type must be a string/);
+  });
+
+  it('rejects unknown request list sort parameters', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.get('/request').query({ sort: 'drop-table' });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Sort must be valid/);
+  });
+
   it('marks audiobook-only book requests removable when the Bookshelf server exists', async (t) => {
     const settings = getSettings();
     settings.readarr = [
@@ -501,6 +526,19 @@ describe('GET /request', () => {
 });
 
 describe('POST /request', () => {
+  it('rejects malformed advanced option payloads before request processing', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.MUSIC,
+      mediaId: 'listenbrainz-release-id',
+      tags: [1, 'not-a-number'],
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /tags must contain positive integers/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
   it('creates a pending music request with the resolved MusicBrainz release group', async (t) => {
     const settings = getSettings();
     settings.lidarr = [
@@ -1417,6 +1455,24 @@ describe('POST /request', () => {
 });
 
 describe('PUT /request/:requestId', () => {
+  it('rejects oversized request option strings on edit', async () => {
+    const mediaRequest = await seedRequest();
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put(`/request/${mediaRequest.id}`).send({
+      mediaType: MediaType.MOVIE,
+      rootFolder: '/movies/'.padEnd(4097, 'x'),
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /rootFolder must be 4096 characters/i);
+
+    const persisted = await getRepository(MediaRequest).findOneOrFail({
+      where: { id: mediaRequest.id },
+    });
+    assert.strictEqual(persisted.rootFolder, null);
+  });
+
   it('rejects attempts to change the media type of an existing request', async () => {
     const requestedBy = await getRepository(User).findOneOrFail({
       where: { email: 'friend@seerr.dev' },
@@ -1679,6 +1735,14 @@ describe('POST /request/:requestId/:status', () => {
     });
   }
 
+  it('rejects unknown request status actions', async () => {
+    const pending = await seedRequest(MediaRequestStatus.PENDING);
+    const admin = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await admin.post(`/request/${pending.id}/not-a-status`);
+
+    assert.strictEqual(res.status, 404);
+  });
+
   it('rejects approving a book request with a stale Bookshelf server format', async (t) => {
     const settings = getSettings();
     settings.readarr = [createReadarrSettings(11, 'ebook')];
@@ -1865,6 +1929,18 @@ describe('POST /request/:requestId/retry', () => {
 });
 
 describe('POST /request/bulk', () => {
+  it('rejects bulk item text that exceeds request limits', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      items: [{ mediaId: 'album-id', title: 'x'.repeat(513) }],
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /title must be 512 characters/i);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 0);
+  });
+
   it('creates music requests and returns skipped/failed item summaries', async (t) => {
     const settings = getSettings();
     settings.lidarr = [createLidarrSettings(10)];
@@ -1942,6 +2018,258 @@ describe('POST /request/bulk', () => {
         reason: 'ListenBrainz unavailable',
       },
     ]);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 2);
+  });
+
+  it('creates book requests and returns skipped item summaries', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(10, 'ebook')];
+    const availableMedia = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.AVAILABLE,
+        status4k: MediaStatus.UNKNOWN,
+        externalServiceId: 123,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media: availableMedia,
+        provider: MediaIdentifierProvider.OPENLIBRARY,
+        value: 'available-work',
+        canonical: true,
+      })
+    );
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async (workId: string) =>
+        ({
+          key: `/works/${workId.replace(/^\/?works\//, '')}`,
+          title: workId,
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async (workId: string) =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: `/books/${workId.replace(/^\/?works\//, '')}-edition`,
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+      settings.readarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.BOOK,
+      format: 'ebook',
+      items: [
+        {
+          mediaId: 'new-work',
+          title: 'New Work',
+          authorId: 'OL1A',
+          isbn13: '9780441478125',
+          editionId: 'new-work-edition',
+        },
+        { mediaId: 'available-work', title: 'Available Work' },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].type, MediaType.BOOK);
+    assert.strictEqual(res.body.created[0].bookFormat, 'ebook');
+    assert.deepStrictEqual(res.body.skipped, [
+      {
+        mediaId: 'available-work',
+        title: 'Available Work',
+        reason: 'This ebook is already available.',
+      },
+    ]);
+    assert.deepStrictEqual(res.body.failed, []);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 1);
+  });
+
+  it('does not count skipped music bulk items against quota', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(10)];
+    const userRepo = getRepository(User);
+    const friend = await userRepo.findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    friend.musicQuotaLimit = 2;
+    friend.musicQuotaDays = 7;
+    await userRepo.save(friend);
+    const duplicateMedia = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'duplicate-album',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.MUSIC,
+        media: duplicateMedia,
+        requestedBy: friend,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+      })
+    );
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async (releaseGroupId: string) =>
+        ({
+          release_group_mbid: releaseGroupId,
+          release_group_metadata: {
+            release_group: {
+              name: releaseGroupId,
+            },
+            artist: {
+              name: 'Bulk Artist',
+            },
+          },
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+      friend.musicQuotaLimit = undefined;
+      friend.musicQuotaDays = undefined;
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      items: [
+        { mediaId: 'duplicate-album', title: 'Duplicate Album' },
+        { mediaId: 'new-album', title: 'New Album' },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].media.mbId, 'new-album');
+    assert.deepStrictEqual(res.body.skipped, [
+      {
+        mediaId: 'duplicate-album',
+        title: 'Duplicate Album',
+        reason: 'Request for this album already exists.',
+      },
+    ]);
+    assert.deepStrictEqual(res.body.failed, []);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 2);
+  });
+
+  it('does not count skipped book bulk items against quota', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(10, 'ebook')];
+    const userRepo = getRepository(User);
+    const friend = await userRepo.findOneOrFail({
+      where: { email: 'friend@seerr.dev' },
+    });
+    friend.bookQuotaLimit = 2;
+    friend.bookQuotaDays = 7;
+    await userRepo.save(friend);
+    const duplicateMedia = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media: duplicateMedia,
+        provider: MediaIdentifierProvider.OPENLIBRARY,
+        value: 'duplicate-work',
+        canonical: true,
+      })
+    );
+    await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.BOOK,
+        media: duplicateMedia,
+        requestedBy: friend,
+        status: MediaRequestStatus.PENDING,
+        is4k: false,
+        bookFormat: 'ebook',
+      })
+    );
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async (workId: string) =>
+        ({
+          key: `/works/${workId.replace(/^\/?works\//, '')}`,
+          title: workId,
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async (workId: string) =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: `/books/${workId.replace(/^\/?works\//, '')}-edition`,
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+      settings.readarr = [];
+      friend.bookQuotaLimit = undefined;
+      friend.bookQuotaDays = undefined;
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.BOOK,
+      format: 'ebook',
+      items: [
+        { mediaId: 'duplicate-work', title: 'Duplicate Work' },
+        {
+          mediaId: 'new-work',
+          title: 'New Work',
+          authorId: 'OL1A',
+          isbn13: '9780441478125',
+          editionId: 'new-work-edition',
+        },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].type, MediaType.BOOK);
+    assert.strictEqual(res.body.created[0].bookFormat, 'ebook');
+    assert.deepStrictEqual(res.body.skipped, [
+      {
+        mediaId: 'duplicate-work',
+        title: 'Duplicate Work',
+        reason: 'Request for this book already exists.',
+      },
+    ]);
+    assert.deepStrictEqual(res.body.failed, []);
     assert.strictEqual(await getRepository(MediaRequest).count(), 2);
   });
 

@@ -3,10 +3,13 @@ import PlexTvAPI from '@server/api/plextv';
 import { ApiErrorCode } from '@server/constants/error';
 import { MediaServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
+import { USER_SETTINGS_LIMITS } from '@server/constants/userSettings';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import { UserSettings } from '@server/entity/UserSettings';
 import type {
+  CardTextVisibility,
+  UserSettingsCardTextResponse,
   UserSettingsGeneralResponse,
   UserSettingsNotificationsResponse,
 } from '@server/interfaces/api/userSettingsInterfaces';
@@ -20,12 +23,336 @@ import {
   isOwnProfile,
   isOwnProfileOrAdmin,
 } from '@server/utils/profileMiddleware';
+import { redactSecrets } from '@server/utils/security';
+import {
+  parseBoundedString,
+  parseOptionalBoolean,
+  parseOptionalBoundedString,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 import net from 'net';
 import { Not } from 'typeorm';
 import { canMakePermissionsChange } from '.';
 
 const userSettingsRoutes = Router({ mergeParams: true });
+const MAX_USER_SETTINGS_ID_VALUE = 1_000_000_000;
+const MAX_LINKED_ACCOUNT_TOKEN_LENGTH = 4096;
+const MAX_LINKED_ACCOUNT_USERNAME_LENGTH = 512;
+const MAX_LINKED_ACCOUNT_PASSWORD_LENGTH = 512;
+const cardTextVisibilityValues = new Set<CardTextVisibility>([
+  'always',
+  'hover',
+]);
+
+const parseUserSettingsRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(
+    parsedValue,
+    MAX_USER_SETTINGS_ID_VALUE
+  );
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const serializeCardTextVisibility = (
+  settings?: UserSettings
+): UserSettingsCardTextResponse => ({
+  movie:
+    settings?.cardTextVisibilityMovie === 'always' ||
+    settings?.cardTextVisibilityMovie === 'hover'
+      ? settings.cardTextVisibilityMovie
+      : undefined,
+  tv:
+    settings?.cardTextVisibilityTv === 'always' ||
+    settings?.cardTextVisibilityTv === 'hover'
+      ? settings.cardTextVisibilityTv
+      : undefined,
+  album:
+    settings?.cardTextVisibilityAlbum === 'always' ||
+    settings?.cardTextVisibilityAlbum === 'hover'
+      ? settings.cardTextVisibilityAlbum
+      : undefined,
+  book:
+    settings?.cardTextVisibilityBook === 'always' ||
+    settings?.cardTextVisibilityBook === 'hover'
+      ? settings.cardTextVisibilityBook
+      : undefined,
+});
+
+const parseCardTextVisibilityBody = (
+  body: UserSettingsCardTextResponse
+): { value: UserSettingsCardTextResponse } | { error: string } => {
+  const value: UserSettingsCardTextResponse = {};
+
+  for (const key of ['movie', 'tv', 'album', 'book'] as const) {
+    const fieldValue = body[key];
+
+    if (fieldValue == null) {
+      continue;
+    }
+
+    if (!cardTextVisibilityValues.has(fieldValue)) {
+      return { error: `${key} must be "always" or "hover".` };
+    }
+
+    value[key] = fieldValue;
+  }
+
+  return { value };
+};
+
+type GeneralStringField =
+  | 'username'
+  | 'email'
+  | 'discordId'
+  | 'locale'
+  | 'discoverRegion'
+  | 'streamingRegion'
+  | 'originalLanguage';
+
+type NotificationStringField =
+  | 'pgpKey'
+  | 'discordId'
+  | 'pushbulletAccessToken'
+  | 'pushoverApplicationToken'
+  | 'pushoverUserKey'
+  | 'pushoverSound'
+  | 'telegramChatId'
+  | 'telegramMessageThreadId';
+
+const parseGeneralSettingsBody = (
+  body: UserSettingsGeneralResponse
+):
+  | {
+      value: UserSettingsGeneralResponse;
+    }
+  | { error: string } => {
+  const boundedFields: [GeneralStringField, number][] = [
+    ['username', USER_SETTINGS_LIMITS.username],
+    ['email', USER_SETTINGS_LIMITS.email],
+    ['discordId', USER_SETTINGS_LIMITS.discordId],
+    ['locale', USER_SETTINGS_LIMITS.locale],
+    ['discoverRegion', USER_SETTINGS_LIMITS.region],
+    ['streamingRegion', USER_SETTINGS_LIMITS.region],
+    ['originalLanguage', USER_SETTINGS_LIMITS.language],
+  ];
+  const value: UserSettingsGeneralResponse = {};
+
+  const username = parseBoundedString(body.username, {
+    fieldName: 'username',
+    maxLength: USER_SETTINGS_LIMITS.username,
+  });
+
+  if ('error' in username) {
+    return username;
+  }
+
+  value.username = username.value;
+
+  for (const [fieldName, maxLength] of boundedFields) {
+    if (fieldName === 'username') {
+      continue;
+    }
+
+    const parsed = parseOptionalBoundedString(body[fieldName], {
+      fieldName,
+      maxLength,
+    });
+
+    if ('error' in parsed) {
+      return parsed;
+    }
+
+    value[fieldName] = parsed.value;
+  }
+
+  for (const fieldName of [
+    'movieQuotaLimit',
+    'movieQuotaDays',
+    'tvQuotaLimit',
+    'tvQuotaDays',
+    'musicQuotaLimit',
+    'musicQuotaDays',
+    'bookQuotaLimit',
+    'bookQuotaDays',
+  ] as const) {
+    value[fieldName] = parseOptionalNonNegativeInteger(
+      body[fieldName],
+      USER_SETTINGS_LIMITS.quota
+    );
+  }
+
+  value.watchlistSyncMovies = parseOptionalBoolean(body.watchlistSyncMovies);
+  value.watchlistSyncTv = parseOptionalBoolean(body.watchlistSyncTv);
+  value.watchlistSyncMusic = parseOptionalBoolean(body.watchlistSyncMusic);
+  value.watchlistSyncBooks = parseOptionalBoolean(body.watchlistSyncBooks);
+
+  if (body.cardTextVisibility) {
+    const parsedCardTextVisibility = parseCardTextVisibilityBody(
+      body.cardTextVisibility
+    );
+
+    if ('error' in parsedCardTextVisibility) {
+      return parsedCardTextVisibility;
+    }
+
+    value.cardTextVisibility = parsedCardTextVisibility.value;
+  }
+
+  return { value };
+};
+
+const parseNotificationTypes = (
+  value: unknown
+): Partial<UserSettingsNotificationsResponse['notificationTypes']> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const allowedKeys = [
+    'email',
+    'discord',
+    'gotify',
+    'ntfy',
+    'pushbullet',
+    'pushover',
+    'slack',
+    'telegram',
+    'webhook',
+    'webpush',
+  ] as const;
+
+  return allowedKeys.reduce<
+    Partial<UserSettingsNotificationsResponse['notificationTypes']>
+  >((parsed, key) => {
+    const rawValue = value[key as keyof typeof value];
+
+    if (typeof rawValue === 'number' && Number.isInteger(rawValue)) {
+      parsed[key] = Math.max(0, Math.min(rawValue, 8191));
+    }
+
+    return parsed;
+  }, {});
+};
+
+const parseNotificationsBody = (
+  body: UserSettingsNotificationsResponse
+):
+  | {
+      value: UserSettingsNotificationsResponse;
+    }
+  | { error: string } => {
+  const boundedFields: [NotificationStringField, number][] = [
+    ['pgpKey', USER_SETTINGS_LIMITS.pgpKey],
+    ['discordId', USER_SETTINGS_LIMITS.discordId],
+    ['pushbulletAccessToken', USER_SETTINGS_LIMITS.pushbulletAccessToken],
+    ['pushoverApplicationToken', USER_SETTINGS_LIMITS.pushoverApplicationToken],
+    ['pushoverUserKey', USER_SETTINGS_LIMITS.pushoverUserKey],
+    ['pushoverSound', USER_SETTINGS_LIMITS.pushoverSound],
+    ['telegramChatId', USER_SETTINGS_LIMITS.telegramChatId],
+    ['telegramMessageThreadId', USER_SETTINGS_LIMITS.telegramMessageThreadId],
+  ];
+  const parsedBody: UserSettingsNotificationsResponse = {
+    notificationTypes: parseNotificationTypes(body.notificationTypes),
+  };
+
+  for (const [fieldName, maxLength] of boundedFields) {
+    const parsed = parseOptionalBoundedString(body[fieldName], {
+      fieldName,
+      maxLength,
+    });
+
+    if ('error' in parsed) {
+      return parsed;
+    }
+
+    parsedBody[fieldName] = parsed.value;
+  }
+
+  parsedBody.telegramSendSilently = parseOptionalBoolean(
+    body.telegramSendSilently
+  );
+
+  return { value: parsedBody };
+};
+
+const parsePasswordBody = (body: {
+  currentPassword?: unknown;
+  newPassword?: unknown;
+}):
+  | { value: { currentPassword?: string; newPassword: string } }
+  | { error: string } => {
+  const newPassword = parseBoundedString(body.newPassword, {
+    fieldName: 'newPassword',
+    maxLength: USER_SETTINGS_LIMITS.password,
+  });
+
+  if ('error' in newPassword) {
+    return newPassword;
+  }
+
+  if (newPassword.value.length < 8) {
+    return { error: 'Password must be at least 8 characters.' };
+  }
+
+  const currentPassword = parseOptionalBoundedString(body.currentPassword, {
+    fieldName: 'currentPassword',
+    maxLength: USER_SETTINGS_LIMITS.password,
+  });
+
+  if ('error' in currentPassword) {
+    return currentPassword;
+  }
+
+  return {
+    value: {
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value,
+    },
+  };
+};
+
+const parsePlexLinkBody = (body: {
+  authToken?: unknown;
+}): { value: { authToken: string } } | { error: string } => {
+  const authToken = parseBoundedString(body.authToken, {
+    fieldName: 'authToken',
+    maxLength: MAX_LINKED_ACCOUNT_TOKEN_LENGTH,
+  });
+
+  if ('error' in authToken) {
+    return authToken;
+  }
+
+  return { value: { authToken: authToken.value } };
+};
+
+const parseJellyfinLinkBody = (body: {
+  username?: unknown;
+  password?: unknown;
+}): { value: { username: string; password: string } } | { error: string } => {
+  const username = parseBoundedString(body.username, {
+    fieldName: 'username',
+    maxLength: MAX_LINKED_ACCOUNT_USERNAME_LENGTH,
+  });
+
+  if ('error' in username) {
+    return username;
+  }
+
+  const password = parseBoundedString(body.password, {
+    fieldName: 'password',
+    maxLength: MAX_LINKED_ACCOUNT_PASSWORD_LENGTH,
+  });
+
+  if ('error' in password) {
+    return password;
+  }
+
+  return { value: { username: username.value, password: password.value } };
+};
 
 userSettingsRoutes.get<{ id: string }, UserSettingsGeneralResponse>(
   '/main',
@@ -37,8 +364,13 @@ userSettingsRoutes.get<{ id: string }, UserSettingsGeneralResponse>(
     const userRepository = getRepository(User);
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await userRepository.findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       if (!user) {
@@ -73,6 +405,7 @@ userSettingsRoutes.get<{ id: string }, UserSettingsGeneralResponse>(
         watchlistSyncTv: user.settings?.watchlistSyncTv,
         watchlistSyncMusic: user.settings?.watchlistSyncMusic,
         watchlistSyncBooks: user.settings?.watchlistSyncBooks,
+        cardTextVisibility: serializeCardTextVisibility(user.settings),
       });
     } catch (e) {
       next({ status: 500, message: e.message });
@@ -86,10 +419,22 @@ userSettingsRoutes.post<
   UserSettingsGeneralResponse
 >('/main', isOwnProfileOrAdmin(), async (req, res, next) => {
   const userRepository = getRepository(User);
+  const parsedBody = parseGeneralSettingsBody(req.body);
+
+  if ('error' in parsedBody) {
+    return next({ status: 400, message: parsedBody.error });
+  }
+
+  const body = parsedBody.value;
 
   try {
+    const userId = parseUserSettingsRouteId(req.params.id);
+    if (!userId) {
+      return next({ status: 404, message: 'User not found.' });
+    }
+
     const user = await userRepository.findOne({
-      where: { id: Number(req.params.id) },
+      where: { id: userId },
     });
 
     if (!user) {
@@ -105,9 +450,9 @@ userSettingsRoutes.post<
     }
 
     const oldEmail = user.email;
-    user.username = req.body.username;
+    user.username = body.username;
     if (user.userType !== UserType.PLEX) {
-      user.email = req.body.email || user.jellyfinUsername || user.email;
+      user.email = body.email || user.jellyfinUsername || user.email;
     }
 
     const existingUser = await userRepository.findOne({
@@ -120,42 +465,58 @@ userSettingsRoutes.post<
 
     // Update quota values only if the user has the correct permissions
     if (
-      !user.hasPermission(Permission.MANAGE_USERS) &&
+      !req.user?.hasPermission(Permission.MANAGE_USERS) &&
       req.user?.id !== user.id
     ) {
-      user.movieQuotaDays = req.body.movieQuotaDays;
-      user.movieQuotaLimit = req.body.movieQuotaLimit;
-      user.tvQuotaDays = req.body.tvQuotaDays;
-      user.tvQuotaLimit = req.body.tvQuotaLimit;
-      user.musicQuotaDays = req.body.musicQuotaDays;
-      user.musicQuotaLimit = req.body.musicQuotaLimit;
-      user.bookQuotaDays = req.body.bookQuotaDays;
-      user.bookQuotaLimit = req.body.bookQuotaLimit;
+      user.movieQuotaDays = body.movieQuotaDays;
+      user.movieQuotaLimit = body.movieQuotaLimit;
+      user.tvQuotaDays = body.tvQuotaDays;
+      user.tvQuotaLimit = body.tvQuotaLimit;
+      user.musicQuotaDays = body.musicQuotaDays;
+      user.musicQuotaLimit = body.musicQuotaLimit;
+      user.bookQuotaDays = body.bookQuotaDays;
+      user.bookQuotaLimit = body.bookQuotaLimit;
     }
 
     if (!user.settings) {
       user.settings = new UserSettings({
         user: req.user,
-        discordId: req.body.discordId,
-        locale: req.body.locale,
-        discoverRegion: req.body.discoverRegion,
-        streamingRegion: req.body.streamingRegion,
-        originalLanguage: req.body.originalLanguage,
-        watchlistSyncMovies: req.body.watchlistSyncMovies,
-        watchlistSyncTv: req.body.watchlistSyncTv,
-        watchlistSyncMusic: req.body.watchlistSyncMusic,
-        watchlistSyncBooks: req.body.watchlistSyncBooks,
+        discordId: body.discordId,
+        locale: body.locale,
+        discoverRegion: body.discoverRegion,
+        streamingRegion: body.streamingRegion,
+        originalLanguage: body.originalLanguage,
+        watchlistSyncMovies: body.watchlistSyncMovies,
+        watchlistSyncTv: body.watchlistSyncTv,
+        watchlistSyncMusic: body.watchlistSyncMusic,
+        watchlistSyncBooks: body.watchlistSyncBooks,
+        cardTextVisibilityMovie: body.cardTextVisibility?.movie,
+        cardTextVisibilityTv: body.cardTextVisibility?.tv,
+        cardTextVisibilityAlbum: body.cardTextVisibility?.album,
+        cardTextVisibilityBook: body.cardTextVisibility?.book,
       });
     } else {
-      user.settings.discordId = req.body.discordId;
-      user.settings.locale = req.body.locale;
-      user.settings.discoverRegion = req.body.discoverRegion;
-      user.settings.streamingRegion = req.body.streamingRegion;
-      user.settings.originalLanguage = req.body.originalLanguage;
-      user.settings.watchlistSyncMovies = req.body.watchlistSyncMovies;
-      user.settings.watchlistSyncTv = req.body.watchlistSyncTv;
-      user.settings.watchlistSyncMusic = req.body.watchlistSyncMusic;
-      user.settings.watchlistSyncBooks = req.body.watchlistSyncBooks;
+      user.settings.discordId = body.discordId;
+      user.settings.locale = body.locale;
+      user.settings.discoverRegion = body.discoverRegion;
+      user.settings.streamingRegion = body.streamingRegion;
+      user.settings.originalLanguage = body.originalLanguage;
+      user.settings.watchlistSyncMovies = body.watchlistSyncMovies;
+      user.settings.watchlistSyncTv = body.watchlistSyncTv;
+      user.settings.watchlistSyncMusic = body.watchlistSyncMusic;
+      user.settings.watchlistSyncBooks = body.watchlistSyncBooks;
+      if (body.cardTextVisibility) {
+        user.settings.cardTextVisibilityMovie =
+          body.cardTextVisibility.movie ??
+          user.settings.cardTextVisibilityMovie;
+        user.settings.cardTextVisibilityTv =
+          body.cardTextVisibility.tv ?? user.settings.cardTextVisibilityTv;
+        user.settings.cardTextVisibilityAlbum =
+          body.cardTextVisibility.album ??
+          user.settings.cardTextVisibilityAlbum;
+        user.settings.cardTextVisibilityBook =
+          body.cardTextVisibility.book ?? user.settings.cardTextVisibilityBook;
+      }
     }
 
     const savedUser = await userRepository.save(user);
@@ -171,6 +532,7 @@ userSettingsRoutes.post<
       watchlistSyncTv: savedUser.settings?.watchlistSyncTv,
       watchlistSyncMusic: savedUser.settings?.watchlistSyncMusic,
       watchlistSyncBooks: savedUser.settings?.watchlistSyncBooks,
+      cardTextVisibility: serializeCardTextVisibility(savedUser.settings),
       email: savedUser.email,
     });
   } catch (e) {
@@ -184,6 +546,90 @@ userSettingsRoutes.post<
   }
 });
 
+userSettingsRoutes.get<{ id: string }, UserSettingsCardTextResponse>(
+  '/card-text',
+  isOwnProfileOrAdmin(),
+  async (req, res, next) => {
+    const userRepository = getRepository(User);
+
+    try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
+      const user = await userRepository.findOne({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
+      return res.status(200).json(serializeCardTextVisibility(user.settings));
+    } catch (e) {
+      next({ status: 500, message: e.message });
+    }
+  }
+);
+
+userSettingsRoutes.post<
+  { id: string },
+  UserSettingsCardTextResponse,
+  UserSettingsCardTextResponse
+>('/card-text', isOwnProfileOrAdmin(), async (req, res, next) => {
+  const userRepository = getRepository(User);
+  const parsedBody = parseCardTextVisibilityBody(req.body);
+
+  if ('error' in parsedBody) {
+    return next({ status: 400, message: parsedBody.error });
+  }
+
+  try {
+    const userId = parseUserSettingsRouteId(req.params.id);
+    if (!userId) {
+      return next({ status: 404, message: 'User not found.' });
+    }
+
+    const user = await userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return next({ status: 404, message: 'User not found.' });
+    }
+
+    if (user.id === 1 && req.user?.id !== 1) {
+      return next({
+        status: 403,
+        message: "You do not have permission to modify this user's settings.",
+      });
+    }
+
+    if (!user.settings) {
+      user.settings = new UserSettings({ user });
+    }
+
+    const body = parsedBody.value;
+    user.settings.cardTextVisibilityMovie =
+      body.movie ?? user.settings.cardTextVisibilityMovie;
+    user.settings.cardTextVisibilityTv =
+      body.tv ?? user.settings.cardTextVisibilityTv;
+    user.settings.cardTextVisibilityAlbum =
+      body.album ?? user.settings.cardTextVisibilityAlbum;
+    user.settings.cardTextVisibilityBook =
+      body.book ?? user.settings.cardTextVisibilityBook;
+
+    const savedUser = await userRepository.save(user);
+
+    return res
+      .status(200)
+      .json(serializeCardTextVisibility(savedUser.settings));
+  } catch (e) {
+    next({ status: 500, message: e.message });
+  }
+});
+
 userSettingsRoutes.get<{ id: string }, { hasPassword: boolean }>(
   '/password',
   isOwnProfileOrAdmin(),
@@ -191,8 +637,13 @@ userSettingsRoutes.get<{ id: string }, { hasPassword: boolean }>(
     const userRepository = getRepository(User);
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await userRepository.findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
         select: ['id', 'password'],
       });
 
@@ -213,26 +664,31 @@ userSettingsRoutes.post<
   { currentPassword?: string; newPassword: string }
 >('/password', isOwnProfileOrAdmin(), async (req, res, next) => {
   const userRepository = getRepository(User);
+  const parsedBody = parsePasswordBody(req.body);
+
+  if ('error' in parsedBody) {
+    return next({ status: 400, message: parsedBody.error });
+  }
+
+  const body = parsedBody.value;
 
   try {
+    const userId = parseUserSettingsRouteId(req.params.id);
+    if (!userId) {
+      return next({ status: 404, message: 'User not found.' });
+    }
+
     const user = await userRepository.findOne({
-      where: { id: Number(req.params.id) },
+      where: { id: userId },
     });
 
     const userWithPassword = await userRepository.findOne({
       select: ['id', 'password'],
-      where: { id: Number(req.params.id) },
+      where: { id: userId },
     });
 
     if (!user || !userWithPassword) {
       return next({ status: 404, message: 'User not found.' });
-    }
-
-    if (req.body.newPassword.length < 8) {
-      return next({
-        status: 400,
-        message: 'Password must be at least 8 characters.',
-      });
     }
 
     if (
@@ -253,7 +709,7 @@ userSettingsRoutes.post<
       req.user?.hasPermission(Permission.MANAGE_USERS) &&
       req.user?.id !== user.id
     ) {
-      await user.setPassword(req.body.newPassword);
+      await user.setPassword(body.newPassword);
       await userRepository.save(user);
       logger.debug('Password overriden by user.', {
         label: 'User Settings',
@@ -266,8 +722,8 @@ userSettingsRoutes.post<
     // If the user has a password, we need to check the currentPassword is correct
     if (
       user.password &&
-      (!req.body.currentPassword ||
-        !(await userWithPassword.passwordMatch(req.body.currentPassword)))
+      (!body.currentPassword ||
+        !(await userWithPassword.passwordMatch(body.currentPassword)))
     ) {
       logger.debug(
         'Attempt to change password for user failed. Invalid current password provided.',
@@ -276,7 +732,7 @@ userSettingsRoutes.post<
       return next({ status: 403, message: 'Current password is invalid.' });
     }
 
-    await user.setPassword(req.body.newPassword);
+    await user.setPassword(body.newPassword);
     await userRepository.save(user);
 
     return res.status(204).send();
@@ -291,6 +747,11 @@ userSettingsRoutes.post<{ authToken: string }>(
   async (req, res) => {
     const settings = getSettings();
     const userRepository = getRepository(User);
+    const parsedBody = parsePlexLinkBody(req.body);
+
+    if ('error' in parsedBody) {
+      return res.status(400).json({ message: parsedBody.error });
+    }
 
     if (!req.user) {
       return res.status(404).json({ code: ApiErrorCode.Unauthorized });
@@ -301,7 +762,7 @@ userSettingsRoutes.post<{ authToken: string }>(
     }
 
     // First we need to use this auth token to get the user's email from plex.tv
-    const plextv = new PlexTvAPI(req.body.authToken);
+    const plextv = new PlexTvAPI(parsedBody.value.authToken);
     const account = await plextv.getUser();
 
     // Do not allow linking of an already linked account
@@ -345,11 +806,16 @@ userSettingsRoutes.delete<{ id: string }>(
     }
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+
       const user = await userRepository
         .createQueryBuilder('user')
         .addSelect('user.password')
         .where({
-          id: Number(req.params.id),
+          id: userId,
         })
         .getOne();
 
@@ -389,6 +855,13 @@ userSettingsRoutes.post<{ username: string; password: string }>(
   async (req, res) => {
     const settings = getSettings();
     const userRepository = getRepository(User);
+    const parsedBody = parseJellyfinLinkBody(req.body);
+
+    if ('error' in parsedBody) {
+      return res.status(400).json({ message: parsedBody.error });
+    }
+
+    const body = parsedBody.value;
 
     if (!req.user) {
       return res.status(401).json({ code: ApiErrorCode.Unauthorized });
@@ -406,7 +879,7 @@ userSettingsRoutes.post<{ username: string; password: string }>(
     // Do not allow linking of an already linked account
     if (
       await userRepository.exist({
-        where: { jellyfinUsername: req.body.username },
+        where: { jellyfinUsername: body.username },
       })
     ) {
       return res.status(422).json({
@@ -433,8 +906,8 @@ userSettingsRoutes.post<{ username: string; password: string }>(
 
     try {
       const account = await jellyfinserver.login(
-        req.body.username,
-        req.body.password,
+        body.username,
+        body.password,
         clientIp
       );
 
@@ -499,11 +972,16 @@ userSettingsRoutes.delete<{ id: string }>(
     }
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+
       const user = await userRepository
         .createQueryBuilder('user')
         .addSelect('user.password')
         .where({
-          id: Number(req.params.id),
+          id: userId,
         })
         .getOne();
 
@@ -546,36 +1024,44 @@ userSettingsRoutes.get<{ id: string }, UserSettingsNotificationsResponse>(
     const settings = getSettings()?.notifications.agents;
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await userRepository.findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       if (!user) {
         return next({ status: 404, message: 'User not found.' });
       }
 
-      return res.status(200).json({
-        emailEnabled: settings.email.enabled,
-        pgpKey: user.settings?.pgpKey,
-        discordEnabled:
-          settings?.discord.enabled && settings.discord.options.enableMentions,
-        discordEnabledTypes:
-          settings?.discord.enabled && settings.discord.options.enableMentions
-            ? settings.discord.types
-            : 0,
-        discordId: user.settings?.discordId,
-        pushbulletAccessToken: user.settings?.pushbulletAccessToken,
-        pushoverApplicationToken: user.settings?.pushoverApplicationToken,
-        pushoverUserKey: user.settings?.pushoverUserKey,
-        pushoverSound: user.settings?.pushoverSound,
-        telegramEnabled: settings.telegram.enabled,
-        telegramBotUsername: settings.telegram.options.botUsername,
-        telegramChatId: user.settings?.telegramChatId,
-        telegramMessageThreadId: user.settings?.telegramMessageThreadId,
-        telegramSendSilently: user.settings?.telegramSendSilently,
-        webPushEnabled: settings.webpush.enabled,
-        notificationTypes: user.settings?.notificationTypes ?? {},
-      });
+      return res.status(200).json(
+        redactSecrets({
+          emailEnabled: settings.email.enabled,
+          pgpKey: user.settings?.pgpKey,
+          discordEnabled:
+            settings?.discord.enabled &&
+            settings.discord.options.enableMentions,
+          discordEnabledTypes:
+            settings?.discord.enabled && settings.discord.options.enableMentions
+              ? settings.discord.types
+              : 0,
+          discordId: user.settings?.discordId,
+          pushbulletAccessToken: user.settings?.pushbulletAccessToken,
+          pushoverApplicationToken: user.settings?.pushoverApplicationToken,
+          pushoverUserKey: user.settings?.pushoverUserKey,
+          pushoverSound: user.settings?.pushoverSound,
+          telegramEnabled: settings.telegram.enabled,
+          telegramBotUsername: settings.telegram.options.botUsername,
+          telegramChatId: user.settings?.telegramChatId,
+          telegramMessageThreadId: user.settings?.telegramMessageThreadId,
+          telegramSendSilently: user.settings?.telegramSendSilently,
+          webPushEnabled: settings.webpush.enabled,
+          notificationTypes: user.settings?.notificationTypes ?? {},
+        })
+      );
     } catch (e) {
       next({ status: 500, message: e.message });
     }
@@ -587,10 +1073,22 @@ userSettingsRoutes.post<{ id: string }, UserSettingsNotificationsResponse>(
   isOwnProfileOrAdmin(),
   async (req, res, next) => {
     const userRepository = getRepository(User);
+    const parsedBody = parseNotificationsBody(req.body);
+
+    if ('error' in parsedBody) {
+      return next({ status: 400, message: parsedBody.error });
+    }
+
+    const body = parsedBody.value;
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await userRepository.findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       if (!user) {
@@ -608,49 +1106,49 @@ userSettingsRoutes.post<{ id: string }, UserSettingsNotificationsResponse>(
       if (!user.settings) {
         user.settings = new UserSettings({
           user: req.user,
-          pgpKey: req.body.pgpKey,
-          discordId: req.body.discordId,
-          pushbulletAccessToken: req.body.pushbulletAccessToken,
-          pushoverApplicationToken: req.body.pushoverApplicationToken,
-          pushoverUserKey: req.body.pushoverUserKey,
-          telegramChatId: req.body.telegramChatId,
-          telegramMessageThreadId: req.body.telegramMessageThreadId,
-          telegramSendSilently: req.body.telegramSendSilently,
-          notificationTypes: req.body.notificationTypes,
+          pgpKey: body.pgpKey,
+          discordId: body.discordId,
+          pushbulletAccessToken: body.pushbulletAccessToken,
+          pushoverApplicationToken: body.pushoverApplicationToken,
+          pushoverUserKey: body.pushoverUserKey,
+          telegramChatId: body.telegramChatId,
+          telegramMessageThreadId: body.telegramMessageThreadId,
+          telegramSendSilently: body.telegramSendSilently,
+          notificationTypes: body.notificationTypes,
         });
       } else {
-        user.settings.pgpKey = req.body.pgpKey;
-        user.settings.discordId = req.body.discordId;
-        user.settings.pushbulletAccessToken = req.body.pushbulletAccessToken;
-        user.settings.pushoverApplicationToken =
-          req.body.pushoverApplicationToken;
-        user.settings.pushoverUserKey = req.body.pushoverUserKey;
-        user.settings.pushoverSound = req.body.pushoverSound;
-        user.settings.telegramChatId = req.body.telegramChatId;
-        user.settings.telegramMessageThreadId =
-          req.body.telegramMessageThreadId;
-        user.settings.telegramSendSilently = req.body.telegramSendSilently;
+        user.settings.pgpKey = body.pgpKey;
+        user.settings.discordId = body.discordId;
+        user.settings.pushbulletAccessToken = body.pushbulletAccessToken;
+        user.settings.pushoverApplicationToken = body.pushoverApplicationToken;
+        user.settings.pushoverUserKey = body.pushoverUserKey;
+        user.settings.pushoverSound = body.pushoverSound;
+        user.settings.telegramChatId = body.telegramChatId;
+        user.settings.telegramMessageThreadId = body.telegramMessageThreadId;
+        user.settings.telegramSendSilently = body.telegramSendSilently;
         user.settings.notificationTypes = Object.assign(
           {},
           user.settings.notificationTypes,
-          req.body.notificationTypes
+          body.notificationTypes
         );
       }
 
       await userRepository.save(user);
 
-      return res.status(200).json({
-        pgpKey: user.settings.pgpKey,
-        discordId: user.settings.discordId,
-        pushbulletAccessToken: user.settings.pushbulletAccessToken,
-        pushoverApplicationToken: user.settings.pushoverApplicationToken,
-        pushoverUserKey: user.settings.pushoverUserKey,
-        pushoverSound: user.settings.pushoverSound,
-        telegramChatId: user.settings.telegramChatId,
-        telegramMessageThreadId: user.settings.telegramMessageThreadId,
-        telegramSendSilently: user.settings.telegramSendSilently,
-        notificationTypes: user.settings.notificationTypes,
-      });
+      return res.status(200).json(
+        redactSecrets({
+          pgpKey: user.settings.pgpKey,
+          discordId: user.settings.discordId,
+          pushbulletAccessToken: user.settings.pushbulletAccessToken,
+          pushoverApplicationToken: user.settings.pushoverApplicationToken,
+          pushoverUserKey: user.settings.pushoverUserKey,
+          pushoverSound: user.settings.pushoverSound,
+          telegramChatId: user.settings.telegramChatId,
+          telegramMessageThreadId: user.settings.telegramMessageThreadId,
+          telegramSendSilently: user.settings.telegramSendSilently,
+          notificationTypes: user.settings.notificationTypes,
+        })
+      );
     } catch (e) {
       next({ status: 500, message: e.message });
     }
@@ -664,8 +1162,13 @@ userSettingsRoutes.get<{ id: string }, { permissions?: number }>(
     const userRepository = getRepository(User);
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await userRepository.findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       if (!user) {
@@ -688,10 +1191,22 @@ userSettingsRoutes.post<
   isAuthenticated(Permission.MANAGE_USERS),
   async (req, res, next) => {
     const userRepository = getRepository(User);
+    const parsedPermissions = parseOptionalNonNegativeInteger(
+      req.body.permissions
+    );
+
+    if (parsedPermissions === undefined) {
+      return next({ status: 400, message: 'permissions is invalid.' });
+    }
 
     try {
+      const userId = parseUserSettingsRouteId(req.params.id);
+      if (!userId) {
+        return next({ status: 404, message: 'User not found.' });
+      }
+
       const user = await userRepository.findOne({
-        where: { id: Number(req.params.id) },
+        where: { id: userId },
       });
 
       if (!user) {
@@ -706,13 +1221,13 @@ userSettingsRoutes.post<
         });
       }
 
-      if (!canMakePermissionsChange(req.body.permissions, req.user)) {
+      if (!canMakePermissionsChange(parsedPermissions, req.user)) {
         return next({
           status: 403,
           message: 'You do not have permission to grant this level of access',
         });
       }
-      user.permissions = req.body.permissions;
+      user.permissions = parsedPermissions;
 
       await userRepository.save(user);
 

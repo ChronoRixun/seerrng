@@ -71,6 +71,31 @@ async function loginAs(email: string, password: string) {
 }
 
 describe('POST /blocklist', () => {
+  it('rejects malformed blocklist identifiers before persistence', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/blocklist').send({
+      mediaType: MediaType.MOVIE,
+      tmdbId: 'not-a-number',
+      title: 'Bad Movie',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(await getRepository(Blocklist).count(), 0);
+  });
+
+  it('rejects oversized external blocklist identifiers', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/blocklist').send({
+      mediaType: MediaType.MUSIC,
+      externalId: 'x'.repeat(513),
+      externalProvider: MediaIdentifierProvider.MUSICBRAINZ,
+      title: 'Oversized Album',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(await getRepository(Blocklist).count(), 0);
+  });
+
   it('assigns the authenticated user when blocklisting music by external id', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/blocklist').send({
@@ -223,6 +248,16 @@ describe('POST /blocklist', () => {
 });
 
 describe('GET and DELETE /blocklist/:id', () => {
+  it('rejects malformed numeric media identifiers', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const lookup = await agent
+      .get('/blocklist/not-a-number')
+      .query({ mediaType: MediaType.MOVIE });
+
+    assert.strictEqual(lookup.status, 400);
+    assert.match(lookup.body.message, /invalid blocklist identifier/i);
+  });
+
   it('uses external ids for music lookups and deletes', async () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     await agent.post('/blocklist').send({

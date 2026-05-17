@@ -4,6 +4,7 @@ import globalMessages from '@server/i18n/globalMessages';
 import type { NotificationAgentSlack } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { isSafeHttpUrl } from '@server/utils/security';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
@@ -242,6 +243,21 @@ class SlackAgent
       type: Notification[type],
       subject: payload.subject,
     });
+
+    if (
+      !(await isSafeHttpUrl(settings.options.webhookUrl, {
+        allowPrivateAddresses:
+          process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS === 'true',
+      }))
+    ) {
+      logger.error('Invalid Slack webhook URL', {
+        label: 'Notifications',
+        type: Notification[type],
+        subject: payload.subject,
+      });
+      return false;
+    }
+
     try {
       await axios.post(
         settings.options.webhookUrl,

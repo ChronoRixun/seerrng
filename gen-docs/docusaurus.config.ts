@@ -4,17 +4,16 @@ import type * as OpenApiPlugin from 'docusaurus-plugin-openapi-docs';
 import { themes as prismThemes } from 'prism-react-renderer';
 
 const config: Config = {
-  title: 'Seerr',
-  tagline: 'One Stop Solution for all your media request needs',
+  title: 'SeerrNG',
+  tagline: 'Media requests across video, music, books, and related libraries',
   favicon: 'img/favicon.ico',
 
-  url: 'https://docs.seerr.dev',
-  baseUrl: '/',
+  url: 'https://snapetech.github.io',
+  baseUrl: '/seerrng/',
   trailingSlash: false,
 
-  organizationName: 'seerr-team',
-  projectName: 'seerr',
-  deploymentBranch: 'gh-pages',
+  organizationName: 'snapetech',
+  projectName: 'seerrng',
 
   onBrokenLinks: 'throw',
 
@@ -37,7 +36,7 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           routeBasePath: '/',
           path: '../docs',
-          editUrl: 'https://github.com/seerr-team/seerr/edit/develop/docs/',
+          editUrl: 'https://github.com/snapetech/seerrng/edit/develop/docs/',
           docItemComponent: '@theme/ApiItem',
         },
         pages: false,
@@ -62,7 +61,7 @@ const config: Config = {
               groupPathsBy: 'tag',
             },
             downloadUrl:
-              'https://raw.githubusercontent.com/seerr-team/seerr/refs/heads/develop/seerr-api.yml',
+              'https://raw.githubusercontent.com/snapetech/seerrng/refs/heads/develop/seerr-api.yml',
             hideSendButton: true,
           } satisfies OpenApiPlugin.Options,
         },
@@ -93,7 +92,7 @@ const config: Config = {
     },
     navbar: {
       logo: {
-        alt: 'Seerr',
+        alt: 'SeerrNG',
         src: 'img/logo_full.svg',
       },
       items: [
@@ -103,12 +102,12 @@ const config: Config = {
           position: 'right',
         },
         {
-          href: 'https://discord.gg/seerr',
+          href: 'https://discord.gg/2N42G4RJCU',
           label: 'Discord',
           position: 'right',
         },
         {
-          href: 'https://github.com/seerr-team/seerr',
+          href: 'https://github.com/snapetech/seerrng',
           label: 'GitHub',
           position: 'right',
         },
@@ -135,7 +134,7 @@ const config: Config = {
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/seerr-team/seerr',
+              href: 'https://github.com/snapetech/seerrng',
             },
           ],
         },
@@ -144,16 +143,16 @@ const config: Config = {
           items: [
             {
               label: 'Discord',
-              href: 'https://discord.gg/seerr',
+              href: 'https://discord.gg/2N42G4RJCU',
             },
             {
-              label: 'Github Discussions',
-              href: 'https://github.com/seerr-team/seerr/discussions',
+              label: 'GitHub Issues',
+              href: 'https://github.com/snapetech/seerrng/issues',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Seerr. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} snapetech and SeerrNG contributors. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.shadesOfPurple,

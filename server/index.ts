@@ -49,6 +49,8 @@ import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 
 const API_SPEC_PATH = path.join(__dirname, '../seerr-api.yml');
+const API_BODY_LIMIT = '100kb';
+const API_URLENCODED_PARAMETER_LIMIT = 100;
 
 logger.info(`Starting Seerr version ${getAppVersion()}`);
 const dev = process.env.NODE_ENV !== 'production';
@@ -169,8 +171,14 @@ app
     }
     server.use(compression());
     server.use(cookieParser());
-    server.use(express.json());
-    server.use(express.urlencoded({ extended: true }));
+    server.use(express.json({ limit: API_BODY_LIMIT }));
+    server.use(
+      express.urlencoded({
+        extended: true,
+        limit: API_BODY_LIMIT,
+        parameterLimit: API_URLENCODED_PARAMETER_LIMIT,
+      })
+    );
     server.use((req, _res, next) => {
       try {
         const descriptor = Object.getOwnPropertyDescriptor(req, 'ip');

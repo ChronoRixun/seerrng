@@ -12,7 +12,7 @@ import type {
   ServiceCommonServer,
   ServiceCommonServerWithDetails,
 } from '@server/interfaces/api/serviceInterfaces';
-import type { UserResultsResponse } from '@server/interfaces/api/userInterfaces';
+import type { PaginatedResponse } from '@server/interfaces/api/common';
 import { hasPermission } from '@server/lib/permissions';
 import { useEffect, useMemo, useState } from 'react';
 import { useIntl } from 'react-intl';
@@ -50,7 +50,16 @@ export type RequestOverrides = {
   folder?: string;
   tags?: number[];
   language?: number;
-  user?: User;
+  user?: RequestUser;
+};
+
+type RequestUser = Pick<
+  User,
+  'avatar' | 'displayName' | 'email' | 'id' | 'permissions'
+>;
+
+type ClientUserResultsResponse = PaginatedResponse & {
+  results: User[];
 };
 
 interface AdvancedRequesterProps {
@@ -59,7 +68,7 @@ interface AdvancedRequesterProps {
   isAnime?: boolean;
   bookFormat?: 'ebook' | 'audiobook' | 'both';
   defaultOverrides?: RequestOverrides;
-  requestUser?: User;
+  requestUser?: RequestUser;
   onChange: (overrides: RequestOverrides) => void;
 }
 
@@ -125,7 +134,7 @@ const AdvancedRequester = ({
       }
     );
 
-  const [selectedUser, setSelectedUser] = useState<User | null>(
+  const [selectedUser, setSelectedUser] = useState<RequestUser | null>(
     requestUser ?? null
   );
   const bookServiceType = bookFormat === 'audiobook' ? 'audiobook' : 'ebook';
@@ -141,7 +150,7 @@ const AdvancedRequester = ({
     [bookServiceType, data, is4k, type]
   );
 
-  const { data: userData } = useSWR<UserResultsResponse>(
+  const { data: userData } = useSWR<ClientUserResultsResponse>(
     currentHasPermission([Permission.MANAGE_REQUESTS, Permission.MANAGE_USERS])
       ? '/api/v1/user?take=1000&sort=displayname'
       : null

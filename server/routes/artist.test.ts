@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, before, describe, it, mock } from 'node:test';
 
 import ListenBrainzAPI from '@server/api/listenbrainz';
+import MusicBrainz from '@server/api/musicbrainz';
 import TheAudioDb from '@server/api/theaudiodb';
 import TmdbPersonMapper from '@server/api/themoviedb/personMapper';
 import cacheManager from '@server/lib/cache';
@@ -102,6 +103,16 @@ const artistDetails = (similarCount: number) => ({
 });
 
 describe('GET /artist/:id/similar', () => {
+  it('rejects malformed artist IDs before association lookup', async () => {
+    const getArtist = mock.method(ListenBrainzAPI.prototype, 'getArtist');
+
+    const agent = await login();
+    const res = await agent.get(`/artist/${'x'.repeat(129)}/similar`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getArtist.mock.callCount(), 0);
+  });
+
   it('returns paginated similar artists from the association graph', async () => {
     mock.method(ListenBrainzAPI.prototype, 'getArtist', async () =>
       artistDetails(3)
@@ -110,7 +121,9 @@ describe('GET /artist/:id/similar', () => {
     mock.method(TmdbPersonMapper.prototype, 'batchGetMappings', async () => []);
 
     const agent = await login();
-    const res = await agent.get('/artist/root-artist/similar?page=2&pageSize=1');
+    const res = await agent.get(
+      '/artist/root-artist/similar?page=2&pageSize=1'
+    );
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.page, 2);
@@ -144,5 +157,112 @@ describe('GET /artist/:id/similar', () => {
     assert.strictEqual(res.body.totalPages, 2);
     assert.strictEqual(res.body.totalResults, 60);
     assert.strictEqual(res.body.results.length, 50);
+  });
+});
+
+describe('GET /artist/:id', () => {
+  it('rejects malformed artist detail IDs before provider lookup', async () => {
+    const getArtist = mock.method(ListenBrainzAPI.prototype, 'getArtist');
+
+    const agent = await login();
+    const res = await agent.get(`/artist/${'x'.repeat(129)}`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getArtist.mock.callCount(), 0);
+  });
+
+  it('rejects oversized album type filters before provider lookup', async () => {
+    const getArtist = mock.method(ListenBrainzAPI.prototype, 'getArtist');
+    const getWikipedia = mock.method(
+      MusicBrainz.prototype,
+      'getArtistWikipediaExtract'
+    );
+
+    const agent = await login();
+    const res = await agent
+      .get('/artist/root-artist')
+      .query({ albumType: 'x'.repeat(129) });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(getArtist.mock.callCount(), 0);
+    assert.strictEqual(getWikipedia.mock.callCount(), 0);
+  });
+
+  it('paginates all release groups when album type is All', async () => {
+    mock.method(ListenBrainzAPI.prototype, 'getArtist', async () => ({
+      artist: {
+        area: 'US',
+        artist_mbid: 'root-artist',
+        begin_year: 2000,
+        mbid: 'root-artist',
+        name: 'Root Artist',
+        rels: {},
+        tag: { artist: [] },
+        type: 'Group',
+      },
+      coverArt: '',
+      listeningStats: { total_listen_count: 0, total_user_count: 0 },
+      popularRecordings: [],
+      similarArtists: {
+        artists: [],
+        topRecordingColor: { red: 0, green: 0, blue: 0 },
+        topReleaseGroupColor: { red: 0, green: 0, blue: 0 },
+      },
+      releaseGroups: [
+        {
+          mbid: 'album-new',
+          name: 'Newest Album',
+          type: 'Album',
+          date: '2024-01-01',
+          artist_credit_name: 'Root Artist',
+          artists: [],
+          total_listen_count: 10,
+        },
+        {
+          mbid: 'single-mid',
+          name: 'Middle Single',
+          type: 'Single',
+          date: '2023-01-01',
+          artist_credit_name: 'Root Artist',
+          artists: [],
+          total_listen_count: 9,
+        },
+        {
+          mbid: 'ep-old',
+          name: 'Oldest EP',
+          type: 'EP',
+          date: '2022-01-01',
+          artist_credit_name: 'Root Artist',
+          artists: [],
+          total_listen_count: 8,
+        },
+      ],
+    }));
+    mock.method(
+      MusicBrainz.prototype,
+      'getArtistWikipediaExtract',
+      async () => null
+    );
+    mock.method(TheAudioDb.prototype, 'getArtistImages', async () => null);
+
+    const agent = await login();
+    const res = await agent.get(
+      '/artist/root-artist?albumType=All&page=2&pageSize=2'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(res.body.pagination, {
+      page: 2,
+      pageSize: 2,
+      totalItems: 3,
+      totalPages: 2,
+      albumType: 'All',
+    });
+    assert.deepStrictEqual(
+      res.body.releaseGroups.map(
+        (releaseGroup: { id: string }) => releaseGroup.id
+      ),
+      ['ep-old']
+    );
   });
 });

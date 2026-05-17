@@ -5,22 +5,19 @@ import type {
   PermissionCheckOptions,
 } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
+import { safeStringEqual } from '@server/utils/security';
 
 export const checkUser: Middleware = async (req, _res, next) => {
   const settings = getSettings();
   let user: User | undefined | null;
 
-  if (req.header('X-API-Key') === settings.main.apiKey) {
+  const apiKey = req.header('X-API-Key');
+  if (safeStringEqual(apiKey, settings.main.apiKey)) {
     const userRepository = getRepository(User);
 
-    let userId = 1; // Work on original administrator account
-
-    // If a User ID is provided, we will act on that user's behalf
-    if (req.header('X-API-User')) {
-      userId = Number(req.header('X-API-User'));
-    }
-
-    user = await userRepository.findOne({ where: { id: userId } });
+    // API key access is a service-level credential. Keep it bound to the
+    // owner account instead of allowing callers to impersonate arbitrary users.
+    user = await userRepository.findOne({ where: { id: 1 } });
   } else if (req.session?.userId) {
     const userRepository = getRepository(User);
 

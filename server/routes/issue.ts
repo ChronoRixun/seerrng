@@ -1,4 +1,8 @@
-import { IssueStatus, IssueType } from '@server/constants/issue';
+import {
+  IssueStatus,
+  IssueType,
+  MAX_ISSUE_MESSAGE_LENGTH,
+} from '@server/constants/issue';
 import { getRepository } from '@server/datasource';
 import Issue from '@server/entity/Issue';
 import IssueComment from '@server/entity/IssueComment';
@@ -7,11 +11,53 @@ import type { IssueResultsResponse } from '@server/interfaces/api/issueInterface
 import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
+import { filterEntityResponse } from '@server/utils/entityResponse';
+import {
+  parseOptionalPositiveInt,
+  parsePageParams,
+} from '@server/utils/pagination';
+import { parsePositiveRouteId } from '@server/utils/routeId';
+import {
+  parseBoundedString,
+  parseOptionalAllowedString,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
 import { Router } from 'express';
 
 const issueRoutes = Router();
+const MAX_ISSUE_ROUTE_ID = 1_000_000_000;
+const issueSortFields = ['modified'] as const;
+const issueStatusFilters = ['open', 'resolved'] as const;
 
-issueRoutes.get<Record<string, string>, IssueResultsResponse>(
+const parseIssueBodyId = (value: unknown, fieldName: string) => {
+  const parsed = parseOptionalNonNegativeInteger(value, MAX_ISSUE_ROUTE_ID);
+  return parsed && parsed > 0
+    ? { value: parsed }
+    : { error: `${fieldName} must be a valid ID.` };
+};
+
+const parseIssueBodyOptionalIndex = (value: unknown, fieldName: string) => {
+  if (value === undefined || value === null || value === '') {
+    return { value: 0 };
+  }
+
+  const parsed = parseOptionalNonNegativeInteger(value, MAX_ISSUE_ROUTE_ID);
+  return parsed === undefined
+    ? { error: `${fieldName} must be a non-negative integer.` }
+    : { value: parsed };
+};
+
+const parseIssueBodyType = (value: unknown) => {
+  const parsed = parseOptionalNonNegativeInteger(value, IssueType.OTHER);
+  return parsed && Object.values(IssueType).includes(parsed)
+    ? { value: parsed as IssueType }
+    : { error: 'Issue type must be valid.' };
+};
+
+issueRoutes.get<
+  Record<string, string>,
+  IssueResultsResponse | { status: number; message: string }
+>(
   '/',
   isAuthenticated(
     [
@@ -22,13 +68,32 @@ issueRoutes.get<Record<string, string>, IssueResultsResponse>(
     { type: 'or' }
   ),
   async (req, res, next) => {
-    const pageSize = req.query.take ? Number(req.query.take) : 10;
-    const skip = req.query.skip ? Number(req.query.skip) : 0;
-    const createdBy = req.query.createdBy ? Number(req.query.createdBy) : null;
+    const { pageSize, skip } = parsePageParams(req.query, {
+      take: 10,
+      maxTake: 100,
+    });
+    const createdBy = parseOptionalPositiveInt(req.query.createdBy) ?? null;
+    const parsedSort = parseOptionalAllowedString(req.query.sort, {
+      fieldName: 'Sort',
+      allowedValues: issueSortFields,
+      maxLength: 32,
+    });
+    if ('error' in parsedSort) {
+      return next({ status: 400, message: parsedSort.error });
+    }
+
+    const parsedFilter = parseOptionalAllowedString(req.query.filter, {
+      fieldName: 'Filter',
+      allowedValues: issueStatusFilters,
+      maxLength: 32,
+    });
+    if ('error' in parsedFilter) {
+      return next({ status: 400, message: parsedFilter.error });
+    }
 
     let sortFilter: string;
 
-    switch (req.query.sort) {
+    switch (parsedSort.value) {
       case 'modified':
         sortFilter = 'issue.updatedAt';
         break;
@@ -38,7 +103,7 @@ issueRoutes.get<Record<string, string>, IssueResultsResponse>(
 
     let statusFilter: IssueStatus[];
 
-    switch (req.query.filter) {
+    switch (parsedFilter.value) {
       case 'open':
         statusFilter = [IssueStatus.OPEN];
         break;
@@ -91,7 +156,7 @@ issueRoutes.get<Record<string, string>, IssueResultsResponse>(
         results: issueCount,
         page: Math.ceil(skip / pageSize) + 1,
       },
-      results: issues,
+      results: filterEntityResponse(issues),
     });
   }
 );
@@ -119,9 +184,39 @@ issueRoutes.post<
 
     const issueRepository = getRepository(Issue);
     const mediaRepository = getRepository(Media);
+    const parsedMessage = parseBoundedString(req.body.message, {
+      fieldName: 'Issue message',
+      maxLength: MAX_ISSUE_MESSAGE_LENGTH,
+    });
+
+    if ('error' in parsedMessage) {
+      return next({ status: 400, message: parsedMessage.error });
+    }
+    const mediaId = parseIssueBodyId(req.body.mediaId, 'Media ID');
+    if ('error' in mediaId) {
+      return next({ status: 400, message: mediaId.error });
+    }
+    const issueType = parseIssueBodyType(req.body.issueType);
+    if ('error' in issueType) {
+      return next({ status: 400, message: issueType.error });
+    }
+    const problemSeason = parseIssueBodyOptionalIndex(
+      req.body.problemSeason,
+      'Problem season'
+    );
+    if ('error' in problemSeason) {
+      return next({ status: 400, message: problemSeason.error });
+    }
+    const problemEpisode = parseIssueBodyOptionalIndex(
+      req.body.problemEpisode,
+      'Problem episode'
+    );
+    if ('error' in problemEpisode) {
+      return next({ status: 400, message: problemEpisode.error });
+    }
 
     const media = await mediaRepository.findOne({
-      where: { id: req.body.mediaId },
+      where: { id: mediaId.value },
     });
 
     if (!media) {
@@ -130,85 +225,96 @@ issueRoutes.post<
 
     const issue = new Issue({
       createdBy: req.user,
-      issueType: req.body.issueType,
-      problemSeason: req.body.problemSeason,
-      problemEpisode: req.body.problemEpisode,
+      issueType: issueType.value,
+      problemSeason: problemSeason.value,
+      problemEpisode: problemEpisode.value,
       media,
       comments: [
         new IssueComment({
           user: req.user,
-          message: req.body.message,
+          message: parsedMessage.value,
         }),
       ],
     });
 
     const newIssue = await issueRepository.save(issue);
 
-    return res.status(200).json(newIssue);
+    return res.status(200).json(filterEntityResponse(newIssue));
   }
 );
 
-issueRoutes.get('/count', async (req, res, next) => {
-  const issueRepository = getRepository(Issue);
+issueRoutes.get(
+  '/count',
+  isAuthenticated(
+    [
+      Permission.MANAGE_ISSUES,
+      Permission.VIEW_ISSUES,
+      Permission.CREATE_ISSUES,
+    ],
+    { type: 'or' }
+  ),
+  async (req, res, next) => {
+    const issueRepository = getRepository(Issue);
 
-  try {
-    const query = issueRepository.createQueryBuilder('issue');
+    try {
+      const query = issueRepository.createQueryBuilder('issue');
 
-    const totalCount = await query.getCount();
+      const totalCount = await query.getCount();
 
-    const videoCount = await query
-      .where('issue.issueType = :issueType', {
-        issueType: IssueType.VIDEO,
-      })
-      .getCount();
+      const videoCount = await query
+        .where('issue.issueType = :issueType', {
+          issueType: IssueType.VIDEO,
+        })
+        .getCount();
 
-    const audioCount = await query
-      .where('issue.issueType = :issueType', {
-        issueType: IssueType.AUDIO,
-      })
-      .getCount();
+      const audioCount = await query
+        .where('issue.issueType = :issueType', {
+          issueType: IssueType.AUDIO,
+        })
+        .getCount();
 
-    const subtitlesCount = await query
-      .where('issue.issueType = :issueType', {
-        issueType: IssueType.SUBTITLES,
-      })
-      .getCount();
+      const subtitlesCount = await query
+        .where('issue.issueType = :issueType', {
+          issueType: IssueType.SUBTITLES,
+        })
+        .getCount();
 
-    const othersCount = await query
-      .where('issue.issueType = :issueType', {
-        issueType: IssueType.OTHER,
-      })
-      .getCount();
+      const othersCount = await query
+        .where('issue.issueType = :issueType', {
+          issueType: IssueType.OTHER,
+        })
+        .getCount();
 
-    const openCount = await query
-      .where('issue.status = :issueStatus', {
-        issueStatus: IssueStatus.OPEN,
-      })
-      .getCount();
+      const openCount = await query
+        .where('issue.status = :issueStatus', {
+          issueStatus: IssueStatus.OPEN,
+        })
+        .getCount();
 
-    const closedCount = await query
-      .where('issue.status = :issueStatus', {
-        issueStatus: IssueStatus.RESOLVED,
-      })
-      .getCount();
+      const closedCount = await query
+        .where('issue.status = :issueStatus', {
+          issueStatus: IssueStatus.RESOLVED,
+        })
+        .getCount();
 
-    return res.status(200).json({
-      total: totalCount,
-      video: videoCount,
-      audio: audioCount,
-      subtitles: subtitlesCount,
-      others: othersCount,
-      open: openCount,
-      closed: closedCount,
-    });
-  } catch (e) {
-    logger.debug('Something went wrong retrieving issue counts.', {
-      label: 'API',
-      errorMessage: e.message,
-    });
-    next({ status: 500, message: 'Unable to retrieve issue counts.' });
+      return res.status(200).json({
+        total: totalCount,
+        video: videoCount,
+        audio: audioCount,
+        subtitles: subtitlesCount,
+        others: othersCount,
+        open: openCount,
+        closed: closedCount,
+      });
+    } catch (e) {
+      logger.debug('Something went wrong retrieving issue counts.', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+      next({ status: 500, message: 'Unable to retrieve issue counts.' });
+    }
   }
-});
+);
 
 issueRoutes.get<{ issueId: string }>(
   '/:issueId',
@@ -222,6 +328,11 @@ issueRoutes.get<{ issueId: string }>(
   ),
   async (req, res, next) => {
     const issueRepository = getRepository(Issue);
+    const issueId = parsePositiveRouteId(req.params.issueId);
+    if (!issueId) {
+      return next({ status: 404, message: 'Issue not found.' });
+    }
+
     // Satisfy typescript here. User is set, we assure you!
     if (!req.user) {
       return next({ status: 500, message: 'User missing from request.' });
@@ -235,7 +346,7 @@ issueRoutes.get<{ issueId: string }>(
         .leftJoinAndSelect('comments.user', 'user')
         .leftJoinAndSelect('issue.media', 'media')
         .leftJoinAndSelect('media.identifiers', 'identifiers')
-        .where('issue.id = :issueId', { issueId: Number(req.params.issueId) })
+        .where('issue.id = :issueId', { issueId })
         .getOneOrFail();
 
       if (
@@ -251,7 +362,7 @@ issueRoutes.get<{ issueId: string }>(
         });
       }
 
-      return res.status(200).json(issue);
+      return res.status(200).json(filterEntityResponse(issue));
     } catch (e) {
       logger.debug('Failed to retrieve issue.', {
         label: 'API',
@@ -269,6 +380,20 @@ issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
   }),
   async (req, res, next) => {
     const issueRepository = getRepository(Issue);
+    const issueId = parsePositiveRouteId(req.params.issueId);
+    if (!issueId) {
+      return next({ status: 404, message: 'Issue not found.' });
+    }
+
+    const parsedMessage = parseBoundedString(req.body.message, {
+      fieldName: 'Comment message',
+      maxLength: MAX_ISSUE_MESSAGE_LENGTH,
+    });
+
+    if ('error' in parsedMessage) {
+      return next({ status: 400, message: parsedMessage.error });
+    }
+
     // Satisfy typescript here. User is set, we assure you!
     if (!req.user) {
       return next({ status: 500, message: 'User missing from request.' });
@@ -276,7 +401,7 @@ issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
 
     try {
       const issue = await issueRepository.findOneOrFail({
-        where: { id: Number(req.params.issueId) },
+        where: { id: issueId },
       });
 
       if (
@@ -290,7 +415,7 @@ issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
       }
 
       const comment = new IssueComment({
-        message: req.body.message,
+        message: parsedMessage.value,
         user: req.user,
       });
 
@@ -298,7 +423,7 @@ issueRoutes.post<{ issueId: string }, Issue, { message: string }>(
       issue.updatedAt = new Date();
       await issueRepository.save(issue);
 
-      return res.status(200).json(issue);
+      return res.status(200).json(filterEntityResponse(issue));
     } catch (e) {
       logger.debug('Something went wrong creating an issue comment.', {
         label: 'API',
@@ -316,6 +441,11 @@ issueRoutes.post<{ issueId: string; status: string }, Issue>(
   }),
   async (req, res, next) => {
     const issueRepository = getRepository(Issue);
+    const issueId = parsePositiveRouteId(req.params.issueId);
+    if (!issueId) {
+      return next({ status: 404, message: 'Issue not found.' });
+    }
+
     // Satisfy typescript here. User is set, we assure you!
     if (!req.user) {
       return next({ status: 500, message: 'User missing from request.' });
@@ -323,7 +453,7 @@ issueRoutes.post<{ issueId: string; status: string }, Issue>(
 
     try {
       const issue = await issueRepository.findOneOrFail({
-        where: { id: Number(req.params.issueId) },
+        where: { id: issueId },
       });
 
       if (
@@ -358,7 +488,7 @@ issueRoutes.post<{ issueId: string; status: string }, Issue>(
 
       await issueRepository.save(issue);
 
-      return res.status(200).json(issue);
+      return res.status(200).json(filterEntityResponse(issue));
     } catch (e) {
       logger.debug('Something went wrong creating an issue comment.', {
         label: 'API',
@@ -376,10 +506,14 @@ issueRoutes.delete(
   }),
   async (req, res, next) => {
     const issueRepository = getRepository(Issue);
+    const issueId = parsePositiveRouteId(req.params.issueId);
+    if (!issueId) {
+      return next({ status: 404, message: 'Issue not found.' });
+    }
 
     try {
       const issue = await issueRepository.findOneOrFail({
-        where: { id: Number(req.params.issueId) },
+        where: { id: issueId },
         relations: { createdBy: true },
       });
 

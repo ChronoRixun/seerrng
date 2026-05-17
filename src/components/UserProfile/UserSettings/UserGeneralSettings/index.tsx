@@ -81,6 +81,15 @@ const messages = defineMessages(
     bookwatchlistsync: 'Auto-Request Books',
     bookwatchlistsynctip:
       'Automatically request books added to SeerrNG book watchlists when a supported book watchlist source is available.',
+    cardTextVisibility: 'Card Titles',
+    cardTextVisibilityTip:
+      'Choose when each media type shows title text on poster cards.',
+    cardTextVisibilityMovie: 'Movies',
+    cardTextVisibilityTv: 'Series',
+    cardTextVisibilityAlbum: 'Music',
+    cardTextVisibilityBook: 'Books',
+    cardTextVisibilityHover: 'On hover',
+    cardTextVisibilityAlways: 'Always',
   }
 );
 
@@ -191,6 +200,10 @@ const UserGeneralSettings = () => {
           watchlistSyncTv: data?.watchlistSyncTv,
           watchlistSyncMusic: data?.watchlistSyncMusic,
           watchlistSyncBooks: data?.watchlistSyncBooks,
+          cardTextVisibilityMovie: data?.cardTextVisibility?.movie ?? 'hover',
+          cardTextVisibilityTv: data?.cardTextVisibility?.tv ?? 'hover',
+          cardTextVisibilityAlbum: data?.cardTextVisibility?.album ?? 'always',
+          cardTextVisibilityBook: data?.cardTextVisibility?.book ?? 'always',
         }}
         validationSchema={UserGeneralSettingsSchema}
         enableReinitialize
@@ -214,15 +227,19 @@ const UserGeneralSettings = () => {
               musicQuotaLimit: musicQuotaEnabled
                 ? values.musicQuotaLimit
                 : null,
-              musicQuotaDays: musicQuotaEnabled
-                ? values.musicQuotaDays
-                : null,
+              musicQuotaDays: musicQuotaEnabled ? values.musicQuotaDays : null,
               bookQuotaLimit: bookQuotaEnabled ? values.bookQuotaLimit : null,
               bookQuotaDays: bookQuotaEnabled ? values.bookQuotaDays : null,
               watchlistSyncMovies: values.watchlistSyncMovies,
               watchlistSyncTv: values.watchlistSyncTv,
               watchlistSyncMusic: values.watchlistSyncMusic,
               watchlistSyncBooks: values.watchlistSyncBooks,
+              cardTextVisibility: {
+                movie: values.cardTextVisibilityMovie,
+                tv: values.cardTextVisibilityTv,
+                album: values.cardTextVisibilityAlbum,
+                book: values.cardTextVisibilityBook,
+              },
             });
 
             if (currentUser?.id === user?.id && setLocale) {
@@ -434,12 +451,12 @@ const UserGeneralSettings = () => {
                 </div>
               </div>
               <div className="form-row">
-                <label htmlFor="discoverRegion" className="text-label">
+                <div className="text-label">
                   <span>{intl.formatMessage(messages.discoverRegion)}</span>
                   <span className="label-tip">
                     {intl.formatMessage(messages.discoverRegionTip)}
                   </span>
-                </label>
+                </div>
                 <div className="form-input-area">
                   <div className="form-input-field relative z-[22]">
                     <RegionSelector
@@ -452,12 +469,12 @@ const UserGeneralSettings = () => {
                 </div>
               </div>
               <div className="form-row">
-                <label htmlFor="originalLanguage" className="text-label">
+                <div className="text-label">
                   <span>{intl.formatMessage(messages.originallanguage)}</span>
                   <span className="label-tip">
                     {intl.formatMessage(messages.originallanguageTip)}
                   </span>
-                </label>
+                </div>
                 <div className="form-input-area">
                   <div className="form-input-field relative z-[21]">
                     <LanguageSelector
@@ -470,12 +487,12 @@ const UserGeneralSettings = () => {
                 </div>
               </div>
               <div className="form-row">
-                <label htmlFor="streamingRegionTip" className="text-label">
+                <div className="text-label">
                   <span>{intl.formatMessage(messages.streamingRegion)}</span>
                   <span className="label-tip">
                     {intl.formatMessage(messages.streamingRegionTip)}
                   </span>
-                </label>
+                </div>
                 <div className="form-input-area">
                   <div className="form-input-field relative z-20">
                     <RegionSelector
@@ -493,11 +510,11 @@ const UserGeneralSettings = () => {
                 !hasPermission(Permission.MANAGE_USERS) && (
                   <>
                     <div className="form-row">
-                      <label htmlFor="movieQuotaLimit" className="text-label">
+                      <div className="text-label">
                         <span>
                           {intl.formatMessage(messages.movierequestlimit)}
                         </span>
-                      </label>
+                      </div>
                       <div className="form-input-area">
                         <div className="flex flex-col">
                           <div className="mb-4 flex items-center">
@@ -533,11 +550,11 @@ const UserGeneralSettings = () => {
                       </div>
                     </div>
                     <div className="form-row">
-                      <label htmlFor="tvQuotaLimit" className="text-label">
+                      <div className="text-label">
                         <span>
                           {intl.formatMessage(messages.seriesrequestlimit)}
                         </span>
-                      </label>
+                      </div>
                       <div className="form-input-area">
                         <div className="flex flex-col">
                           <div className="mb-4 flex items-center">
@@ -573,20 +590,18 @@ const UserGeneralSettings = () => {
                       </div>
                     </div>
                     <div className="form-row">
-                      <label htmlFor="musicQuotaLimit" className="text-label">
+                      <div className="text-label">
                         <span>
                           {intl.formatMessage(messages.musicrequestlimit)}
                         </span>
-                      </label>
+                      </div>
                       <div className="form-input-area">
                         <div className="flex flex-col">
                           <div className="mb-4 flex items-center">
                             <input
                               type="checkbox"
                               checked={musicQuotaEnabled}
-                              onChange={() =>
-                                setMusicQuotaEnabled((s) => !s)
-                              }
+                              onChange={() => setMusicQuotaEnabled((s) => !s)}
                             />
                             <span className="ml-2 text-gray-300">
                               {intl.formatMessage(messages.enableOverride)}
@@ -615,11 +630,11 @@ const UserGeneralSettings = () => {
                       </div>
                     </div>
                     <div className="form-row">
-                      <label htmlFor="bookQuotaLimit" className="text-label">
+                      <div className="text-label">
                         <span>
                           {intl.formatMessage(messages.bookrequestlimit)}
                         </span>
-                      </label>
+                      </div>
                       <div className="form-input-area">
                         <div className="flex flex-col">
                           <div className="mb-4 flex items-center">
@@ -811,6 +826,47 @@ const UserGeneralSettings = () => {
                   </div>
                 </div>
               )}
+              <div className="form-row">
+                <label htmlFor="cardTextVisibilityMovie" className="text-label">
+                  <span>{intl.formatMessage(messages.cardTextVisibility)}</span>
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.cardTextVisibilityTip)}
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        ['cardTextVisibilityMovie', 'cardTextVisibilityMovie'],
+                        ['cardTextVisibilityTv', 'cardTextVisibilityTv'],
+                        ['cardTextVisibilityAlbum', 'cardTextVisibilityAlbum'],
+                        ['cardTextVisibilityBook', 'cardTextVisibilityBook'],
+                      ] as const
+                    ).map(([fieldName, messageKey]) => (
+                      <div key={fieldName}>
+                        <label
+                          htmlFor={fieldName}
+                          className="mb-1 block text-sm font-medium text-gray-300"
+                        >
+                          {intl.formatMessage(messages[messageKey])}
+                        </label>
+                        <Field as="select" id={fieldName} name={fieldName}>
+                          <option value="hover">
+                            {intl.formatMessage(
+                              messages.cardTextVisibilityHover
+                            )}
+                          </option>
+                          <option value="always">
+                            {intl.formatMessage(
+                              messages.cardTextVisibilityAlways
+                            )}
+                          </option>
+                        </Field>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
               <div className="actions">
                 <div className="flex justify-end">
                   <span className="ml-3 inline-flex rounded-md shadow-sm">

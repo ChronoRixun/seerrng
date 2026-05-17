@@ -69,10 +69,8 @@ const UserWebPushSettings = () => {
   const { data: dataDevices, mutate: revalidateDevices } = useSWR<
     {
       endpoint: string;
-      p256dh: string;
-      auth: string;
-      userAgent: string;
-      createdAt: Date;
+      userAgent: string | null;
+      createdAt: string;
     }[]
   >(`/api/v1/user/${user?.id}/pushSubscriptions`, { revalidateOnMount: true });
 

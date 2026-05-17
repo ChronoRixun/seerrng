@@ -10,10 +10,22 @@ import {
   mapOpenLibraryAuthorWork,
   type AuthorDetails,
 } from '@server/models/Book';
+import {
+  parseNonNegativeInt,
+  parsePositiveInt,
+} from '@server/utils/pagination';
+import { parseBoundedString } from '@server/utils/validation';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
 const authorRoutes = Router();
+const MAX_OPENLIBRARY_AUTHOR_ID_LENGTH = 128;
+
+const parseOpenLibraryAuthorId = (value: unknown) =>
+  parseBoundedString(value, {
+    fieldName: 'Author ID',
+    maxLength: MAX_OPENLIBRARY_AUTHOR_ID_LENGTH,
+  });
 
 const findBookMediaByOpenLibraryIds = async (
   ids: string[],
@@ -73,17 +85,23 @@ const getAuthorWorksPayload = async (
   };
 };
 
-authorRoutes.get<{ id: string }, AuthorDetails>(
+authorRoutes.get<{ id: string }, AuthorDetails | { status: number; message: string }>(
   '/:id',
   async (req, res, next) => {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
-    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const parsedAuthorId = parseOpenLibraryAuthorId(req.params.id);
+    if ('error' in parsedAuthorId) {
+      return res.status(404).json({ status: 404, message: 'Author not found' });
+    }
+
+    const authorId = parsedAuthorId.value;
+    const limit = parsePositiveInt(req.query.limit, 20, 100);
+    const offset = parseNonNegativeInt(req.query.offset);
     const openLibrary = new OpenLibraryAPI();
 
     try {
       const [author, worksPayload] = await Promise.all([
-        openLibrary.getAuthor(req.params.id),
-        getAuthorWorksPayload(req.params.id, limit, offset, req.user?.id),
+        openLibrary.getAuthor(authorId),
+        getAuthorWorksPayload(authorId, limit, offset, req.user?.id),
       ]);
       const biography =
         typeof author.bio === 'string' ? author.bio : author.bio?.value;
@@ -109,7 +127,7 @@ authorRoutes.get<{ id: string }, AuthorDetails>(
       logger.error('Failed to retrieve author details', {
         label: 'Author',
         errorMessage: e instanceof Error ? e.message : 'Unknown error',
-        authorId: req.params.id,
+        authorId,
       });
       return next({
         status: 500,
@@ -120,13 +138,19 @@ authorRoutes.get<{ id: string }, AuthorDetails>(
 );
 
 authorRoutes.get<{ id: string }>('/:id/works', async (req, res, next) => {
-  const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
-  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const parsedAuthorId = parseOpenLibraryAuthorId(req.params.id);
+  if ('error' in parsedAuthorId) {
+    return res.status(404).json({ status: 404, message: 'Author not found' });
+  }
+
+  const authorId = parsedAuthorId.value;
+  const limit = parsePositiveInt(req.query.limit, 20, 100);
+  const offset = parseNonNegativeInt(req.query.offset);
 
   try {
     const [author, worksPayload] = await Promise.all([
-      new OpenLibraryAPI().getAuthor(req.params.id).catch(() => undefined),
-      getAuthorWorksPayload(req.params.id, limit, offset, req.user?.id),
+      new OpenLibraryAPI().getAuthor(authorId).catch(() => undefined),
+      getAuthorWorksPayload(authorId, limit, offset, req.user?.id),
     ]);
 
     return res.status(200).json({
@@ -134,14 +158,14 @@ authorRoutes.get<{ id: string }>('/:id/works', async (req, res, next) => {
       works: worksPayload.works.map((work) => ({
         ...work,
         author: author?.name ?? work.author,
-        authorId: req.params.id.replace(/^\/?authors\//, ''),
+        authorId: authorId.replace(/^\/?authors\//, ''),
       })),
     });
   } catch (e) {
     logger.error('Failed to retrieve author works', {
       label: 'Author',
       errorMessage: e instanceof Error ? e.message : 'Unknown error',
-      authorId: req.params.id,
+      authorId,
     });
     return next({ status: 500, message: 'Unable to retrieve author works.' });
   }

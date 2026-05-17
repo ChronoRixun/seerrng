@@ -3,9 +3,170 @@ import OverrideRule from '@server/entity/OverrideRule';
 import type { OverrideRuleResultsResponse } from '@server/interfaces/api/overrideRuleInterfaces';
 import { Permission } from '@server/lib/permissions';
 import { isAuthenticated } from '@server/middleware/auth';
+import {
+  parseBoundedString,
+  parseOptionalNonNegativeInteger,
+} from '@server/utils/validation';
+import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 
 const overrideRuleRoutes = Router();
+const MAX_OVERRIDE_RULE_STRING_LENGTH = 500;
+const MAX_OVERRIDE_RULE_ID = 1_000_000_000;
+
+type OverrideRuleBody = {
+  users?: string | null;
+  genre?: string | null;
+  language?: string | null;
+  keywords?: string | null;
+  profileId?: number | null;
+  rootFolder?: string | null;
+  tags?: string | null;
+  radarrServiceId?: number | null;
+  sonarrServiceId?: number | null;
+  lidarrServiceId?: number | null;
+};
+
+type OverrideRulePatch = {
+  users?: string | null;
+  genre?: string | null;
+  language?: string | null;
+  keywords?: string | null;
+  profileId?: number | null;
+  rootFolder?: string | null;
+  tags?: string | null;
+  radarrServiceId?: number | null;
+  sonarrServiceId?: number | null;
+  lidarrServiceId?: number | null;
+};
+
+type OverrideRuleErrorResponse = { status: number; message: string };
+type OverrideRuleResponse = OverrideRule | OverrideRuleErrorResponse;
+type OverrideRuleRequest<P = Record<string, string>> = Request<
+  P,
+  OverrideRuleResponse,
+  OverrideRuleBody
+>;
+
+const parseOverrideRuleRouteId = (id: unknown): number | undefined => {
+  const parsedValue =
+    typeof id === 'string' && id.trim() !== '' ? Number(id) : id;
+  const parsed = parseOptionalNonNegativeInteger(
+    parsedValue,
+    MAX_OVERRIDE_RULE_ID
+  );
+
+  return parsed && parsed > 0 ? parsed : undefined;
+};
+
+const parseOptionalRuleString = (
+  value: unknown,
+  fieldName: string
+): string | null | undefined | { error: string } => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const parsed = parseBoundedString(value, {
+    fieldName,
+    maxLength: MAX_OVERRIDE_RULE_STRING_LENGTH,
+    required: false,
+  });
+
+  if ('error' in parsed) {
+    return parsed;
+  }
+
+  return parsed.value || null;
+};
+
+const parseOptionalRuleInteger = (
+  value: unknown,
+  fieldName: string
+): number | null | { error: string } => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const parsed = parseOptionalNonNegativeInteger(value, MAX_OVERRIDE_RULE_ID);
+  return parsed === undefined
+    ? { error: `${fieldName} must be a valid ID.` }
+    : parsed;
+};
+
+const parseOverrideRuleBody = (
+  body: OverrideRuleBody
+): OverrideRulePatch | { error: string } => {
+  const users = parseOptionalRuleString(body.users, 'Users');
+  if (typeof users === 'object' && users && 'error' in users) return users;
+  const genre = parseOptionalRuleString(body.genre, 'Genre');
+  if (typeof genre === 'object' && genre && 'error' in genre) return genre;
+  const language = parseOptionalRuleString(body.language, 'Language');
+  if (typeof language === 'object' && language && 'error' in language) {
+    return language;
+  }
+  const keywords = parseOptionalRuleString(body.keywords, 'Keywords');
+  if (typeof keywords === 'object' && keywords && 'error' in keywords) {
+    return keywords;
+  }
+  const rootFolder = parseOptionalRuleString(body.rootFolder, 'Root folder');
+  if (typeof rootFolder === 'object' && rootFolder && 'error' in rootFolder) {
+    return rootFolder;
+  }
+  const tags = parseOptionalRuleString(body.tags, 'Tags');
+  if (typeof tags === 'object' && tags && 'error' in tags) return tags;
+
+  const profileId = parseOptionalRuleInteger(body.profileId, 'Profile ID');
+  if (typeof profileId === 'object' && profileId && 'error' in profileId) {
+    return profileId;
+  }
+  const radarrServiceId = parseOptionalRuleInteger(
+    body.radarrServiceId,
+    'Radarr service ID'
+  );
+  if (
+    typeof radarrServiceId === 'object' &&
+    radarrServiceId &&
+    'error' in radarrServiceId
+  ) {
+    return radarrServiceId;
+  }
+  const sonarrServiceId = parseOptionalRuleInteger(
+    body.sonarrServiceId,
+    'Sonarr service ID'
+  );
+  if (
+    typeof sonarrServiceId === 'object' &&
+    sonarrServiceId &&
+    'error' in sonarrServiceId
+  ) {
+    return sonarrServiceId;
+  }
+  const lidarrServiceId = parseOptionalRuleInteger(
+    body.lidarrServiceId,
+    'Lidarr service ID'
+  );
+  if (
+    typeof lidarrServiceId === 'object' &&
+    lidarrServiceId &&
+    'error' in lidarrServiceId
+  ) {
+    return lidarrServiceId;
+  }
+
+  return {
+    users,
+    genre,
+    language,
+    keywords,
+    profileId,
+    rootFolder,
+    tags,
+    radarrServiceId,
+    sonarrServiceId,
+    lidarrServiceId,
+  };
+};
 
 overrideRuleRoutes.get(
   '/',
@@ -23,100 +184,56 @@ overrideRuleRoutes.get(
   }
 );
 
-overrideRuleRoutes.post<
-  Record<string, string>,
-  OverrideRule,
-  {
-    users?: string;
-    genre?: string;
-    language?: string;
-    keywords?: string;
-    profileId?: number;
-    rootFolder?: string;
-    tags?: string;
-    radarrServiceId?: number;
-    sonarrServiceId?: number;
+overrideRuleRoutes.post(
+  '/',
+  isAuthenticated(Permission.ADMIN),
+  async (
+    req: OverrideRuleRequest,
+    res: Response<OverrideRuleResponse>,
+    next: NextFunction
+  ) => {
+    const overrideRuleRepository = getRepository(OverrideRule);
+    const parsedBody = parseOverrideRuleBody(req.body);
+    if ('error' in parsedBody) {
+      return res.status(400).json({ status: 400, message: parsedBody.error });
+    }
+
+    try {
+      const rule = new OverrideRule();
+      Object.assign(rule, parsedBody);
+
+      const newRule = await overrideRuleRepository.save(rule);
+
+      return res.status(200).json(newRule);
+    } catch (e) {
+      next({ status: 404, message: e.message });
+    }
   }
->('/', isAuthenticated(Permission.ADMIN), async (req, res, next) => {
-  const overrideRuleRepository = getRepository(OverrideRule);
+);
 
-  try {
-    const rule = new OverrideRule({
-      users: req.body.users,
-      genre: req.body.genre,
-      language: req.body.language,
-      keywords: req.body.keywords,
-      profileId: req.body.profileId,
-      rootFolder: req.body.rootFolder,
-      tags: req.body.tags,
-      radarrServiceId: req.body.radarrServiceId,
-      sonarrServiceId: req.body.sonarrServiceId,
-    });
-
-    const newRule = await overrideRuleRepository.save(rule);
-
-    return res.status(200).json(newRule);
-  } catch (e) {
-    next({ status: 404, message: e.message });
-  }
-});
-
-overrideRuleRoutes.put<
-  { ruleId: string },
-  OverrideRule,
-  {
-    users?: string;
-    genre?: string;
-    language?: string;
-    keywords?: string;
-    profileId?: number;
-    rootFolder?: string;
-    tags?: string;
-    radarrServiceId?: number;
-    sonarrServiceId?: number;
-  }
->('/:ruleId', isAuthenticated(Permission.ADMIN), async (req, res, next) => {
-  const overrideRuleRepository = getRepository(OverrideRule);
-
-  try {
-    const rule = await overrideRuleRepository.findOne({
-      where: {
-        id: Number(req.params.ruleId),
-      },
-    });
-
-    if (!rule) {
+overrideRuleRoutes.put(
+  '/:ruleId',
+  isAuthenticated(Permission.ADMIN),
+  async (
+    req: OverrideRuleRequest<{ ruleId: string }>,
+    res: Response<OverrideRuleResponse>,
+    next: NextFunction
+  ) => {
+    const overrideRuleRepository = getRepository(OverrideRule);
+    const ruleId = parseOverrideRuleRouteId(req.params.ruleId);
+    if (!ruleId) {
       return next({ status: 404, message: 'Override Rule not found.' });
     }
 
-    rule.users = req.body.users;
-    rule.genre = req.body.genre;
-    rule.language = req.body.language;
-    rule.keywords = req.body.keywords;
-    rule.profileId = req.body.profileId;
-    rule.rootFolder = req.body.rootFolder;
-    rule.tags = req.body.tags;
-    rule.radarrServiceId = req.body.radarrServiceId;
-    rule.sonarrServiceId = req.body.sonarrServiceId;
-
-    const newRule = await overrideRuleRepository.save(rule);
-
-    return res.status(200).json(newRule);
-  } catch (e) {
-    next({ status: 404, message: e.message });
-  }
-});
-
-overrideRuleRoutes.delete<{ ruleId: string }, OverrideRule>(
-  '/:ruleId',
-  isAuthenticated(Permission.ADMIN),
-  async (req, res, next) => {
-    const overrideRuleRepository = getRepository(OverrideRule);
+    const parsedBody = parseOverrideRuleBody(req.body);
+    if ('error' in parsedBody) {
+      return res.status(400).json({ status: 400, message: parsedBody.error });
+    }
 
     try {
       const rule = await overrideRuleRepository.findOne({
         where: {
-          id: Number(req.params.ruleId),
+          id: ruleId,
         },
       });
 
@@ -124,13 +241,44 @@ overrideRuleRoutes.delete<{ ruleId: string }, OverrideRule>(
         return next({ status: 404, message: 'Override Rule not found.' });
       }
 
-      await overrideRuleRepository.remove(rule);
+      Object.assign(rule, parsedBody);
 
-      return res.status(200).json(rule);
+      const newRule = await overrideRuleRepository.save(rule);
+
+      return res.status(200).json(newRule);
     } catch (e) {
       next({ status: 404, message: e.message });
     }
   }
 );
+
+overrideRuleRoutes.delete<
+  { ruleId: string },
+  OverrideRule | { status: number; message: string }
+>('/:ruleId', isAuthenticated(Permission.ADMIN), async (req, res, next) => {
+  const overrideRuleRepository = getRepository(OverrideRule);
+  const ruleId = parseOverrideRuleRouteId(req.params.ruleId);
+  if (!ruleId) {
+    return next({ status: 404, message: 'Override Rule not found.' });
+  }
+
+  try {
+    const rule = await overrideRuleRepository.findOne({
+      where: {
+        id: ruleId,
+      },
+    });
+
+    if (!rule) {
+      return next({ status: 404, message: 'Override Rule not found.' });
+    }
+
+    await overrideRuleRepository.remove(rule);
+
+    return res.status(200).json(rule);
+  } catch (e) {
+    next({ status: 404, message: e.message });
+  }
+});
 
 export default overrideRuleRoutes;

@@ -14,9 +14,18 @@ import WebhookAgent from '@server/lib/notifications/agents/webhook';
 import WebPushAgent from '@server/lib/notifications/agents/webpush';
 import { getSettings } from '@server/lib/settings';
 import type { AvailableLocale } from '@server/types/languages';
+import {
+  isSafeHttpUrl,
+  preserveRedactedSecrets,
+  redactSecrets,
+} from '@server/utils/security';
 import { Router } from 'express';
 
 const notificationRoutes = Router();
+const MAX_WEBHOOK_PAYLOAD_BYTES = 64 * 1024;
+const MAX_WEBHOOK_CUSTOM_HEADERS = 20;
+const MAX_WEBHOOK_HEADER_VALUE_LENGTH = 4096;
+const WEBHOOK_HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 const messages = defineMessages('notifications.test', {
   subject: 'Test Notification',
@@ -35,19 +44,106 @@ const sendTestNotification = async (agent: NotificationAgent, user: User) => {
   });
 };
 
+const validateWebhookPayload = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return { status: 400, message: 'Webhook payload must be a JSON string.' };
+  }
+
+  if (Buffer.byteLength(value, 'utf8') > MAX_WEBHOOK_PAYLOAD_BYTES) {
+    return { status: 400, message: 'Webhook payload is too large.' };
+  }
+
+  try {
+    JSON.parse(value);
+  } catch {
+    return { status: 400, message: 'Webhook payload must be valid JSON.' };
+  }
+};
+
+const validateWebhookHeaders = (
+  headers: unknown
+): { status: number; message: string } | undefined => {
+  if (headers === undefined) {
+    return;
+  }
+
+  if (!Array.isArray(headers)) {
+    return { status: 400, message: 'Webhook custom headers must be an array.' };
+  }
+
+  if (headers.length > MAX_WEBHOOK_CUSTOM_HEADERS) {
+    return { status: 400, message: 'Too many webhook custom headers.' };
+  }
+
+  for (const header of headers) {
+    if (!header || typeof header !== 'object') {
+      return { status: 400, message: 'Invalid webhook custom header.' };
+    }
+
+    const { key, value } = header as { key?: unknown; value?: unknown };
+    if (typeof key !== 'string' || typeof value !== 'string') {
+      return { status: 400, message: 'Invalid webhook custom header.' };
+    }
+
+    if (
+      !WEBHOOK_HEADER_NAME.test(key.trim()) ||
+      /[\r\n]/.test(value) ||
+      value.length > MAX_WEBHOOK_HEADER_VALUE_LENGTH
+    ) {
+      return { status: 400, message: 'Invalid webhook custom header.' };
+    }
+  }
+};
+
+const validateNotificationUrl = async (
+  value: unknown,
+  label: string,
+  options: { allowTemplates?: boolean } = {}
+) => {
+  const allowPrivateAddresses =
+    process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS === 'true';
+
+  if (
+    !(await isSafeHttpUrl(value, {
+      ...options,
+      allowPrivateAddresses,
+    }))
+  ) {
+    return {
+      status: 400,
+      message: allowPrivateAddresses
+        ? `${label} must be a valid HTTP or HTTPS URL.`
+        : `${label} must be a valid public HTTP or HTTPS URL.`,
+    };
+  }
+};
+
 notificationRoutes.get('/discord', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.discord);
+  res.status(200).json(redactSecrets(settings.notifications.agents.discord));
 });
 
 notificationRoutes.post('/discord', async (req, res) => {
   const settings = getSettings();
+  const validationError = req.body.enabled
+    ? await validateNotificationUrl(
+        req.body.options?.webhookUrl,
+        'Discord webhook URL'
+      )
+    : undefined;
 
-  settings.notifications.agents.discord = req.body;
+  if (validationError) {
+    return res.status(validationError.status).json(validationError);
+  }
+
+  settings.notifications.agents.discord = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.discord
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.discord);
+  res.status(200).json(redactSecrets(settings.notifications.agents.discord));
 });
 
 notificationRoutes.post('/discord/test', async (req, res, next) => {
@@ -56,6 +152,15 @@ notificationRoutes.post('/discord/test', async (req, res, next) => {
       status: 500,
       message: 'User information is missing from the request.',
     });
+  }
+
+  const validationError = await validateNotificationUrl(
+    req.body.options?.webhookUrl,
+    'Discord webhook URL'
+  );
+
+  if (validationError) {
+    return next(validationError);
   }
 
   const discordAgent = new DiscordAgent(req.body);
@@ -72,16 +177,29 @@ notificationRoutes.post('/discord/test', async (req, res, next) => {
 notificationRoutes.get('/slack', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.slack);
+  res.status(200).json(redactSecrets(settings.notifications.agents.slack));
 });
 
 notificationRoutes.post('/slack', async (req, res) => {
   const settings = getSettings();
+  const validationError = req.body.enabled
+    ? await validateNotificationUrl(
+        req.body.options?.webhookUrl,
+        'Slack webhook URL'
+      )
+    : undefined;
 
-  settings.notifications.agents.slack = req.body;
+  if (validationError) {
+    return res.status(validationError.status).json(validationError);
+  }
+
+  settings.notifications.agents.slack = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.slack
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.slack);
+  res.status(200).json(redactSecrets(settings.notifications.agents.slack));
 });
 
 notificationRoutes.post('/slack/test', async (req, res, next) => {
@@ -90,6 +208,15 @@ notificationRoutes.post('/slack/test', async (req, res, next) => {
       status: 500,
       message: 'User information is missing from the request.',
     });
+  }
+
+  const validationError = await validateNotificationUrl(
+    req.body.options?.webhookUrl,
+    'Slack webhook URL'
+  );
+
+  if (validationError) {
+    return next(validationError);
   }
 
   const slackAgent = new SlackAgent(req.body);
@@ -106,16 +233,19 @@ notificationRoutes.post('/slack/test', async (req, res, next) => {
 notificationRoutes.get('/telegram', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.telegram);
+  res.status(200).json(redactSecrets(settings.notifications.agents.telegram));
 });
 
 notificationRoutes.post('/telegram', async (req, res) => {
   const settings = getSettings();
 
-  settings.notifications.agents.telegram = req.body;
+  settings.notifications.agents.telegram = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.telegram
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.telegram);
+  res.status(200).json(redactSecrets(settings.notifications.agents.telegram));
 });
 
 notificationRoutes.post('/telegram/test', async (req, res, next) => {
@@ -140,16 +270,19 @@ notificationRoutes.post('/telegram/test', async (req, res, next) => {
 notificationRoutes.get('/pushbullet', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.pushbullet);
+  res.status(200).json(redactSecrets(settings.notifications.agents.pushbullet));
 });
 
 notificationRoutes.post('/pushbullet', async (req, res) => {
   const settings = getSettings();
 
-  settings.notifications.agents.pushbullet = req.body;
+  settings.notifications.agents.pushbullet = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.pushbullet
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.pushbullet);
+  res.status(200).json(redactSecrets(settings.notifications.agents.pushbullet));
 });
 
 notificationRoutes.post('/pushbullet/test', async (req, res, next) => {
@@ -174,16 +307,19 @@ notificationRoutes.post('/pushbullet/test', async (req, res, next) => {
 notificationRoutes.get('/pushover', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.pushover);
+  res.status(200).json(redactSecrets(settings.notifications.agents.pushover));
 });
 
 notificationRoutes.post('/pushover', async (req, res) => {
   const settings = getSettings();
 
-  settings.notifications.agents.pushover = req.body;
+  settings.notifications.agents.pushover = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.pushover
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.pushover);
+  res.status(200).json(redactSecrets(settings.notifications.agents.pushover));
 });
 
 notificationRoutes.post('/pushover/test', async (req, res, next) => {
@@ -208,16 +344,19 @@ notificationRoutes.post('/pushover/test', async (req, res, next) => {
 notificationRoutes.get('/email', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.email);
+  res.status(200).json(redactSecrets(settings.notifications.agents.email));
 });
 
 notificationRoutes.post('/email', async (req, res) => {
   const settings = getSettings();
 
-  settings.notifications.agents.email = req.body;
+  settings.notifications.agents.email = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.email
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.email);
+  res.status(200).json(redactSecrets(settings.notifications.agents.email));
 });
 
 notificationRoutes.post('/email/test', async (req, res, next) => {
@@ -242,16 +381,19 @@ notificationRoutes.post('/email/test', async (req, res, next) => {
 notificationRoutes.get('/webpush', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.webpush);
+  res.status(200).json(redactSecrets(settings.notifications.agents.webpush));
 });
 
 notificationRoutes.post('/webpush', async (req, res) => {
   const settings = getSettings();
 
-  settings.notifications.agents.webpush = req.body;
+  settings.notifications.agents.webpush = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.webpush
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.webpush);
+  res.status(200).json(redactSecrets(settings.notifications.agents.webpush));
 });
 
 notificationRoutes.post('/webpush/test', async (req, res, next) => {
@@ -294,31 +436,55 @@ notificationRoutes.get('/webhook', (_req, res) => {
     },
   };
 
-  res.status(200).json(response);
+  res.status(200).json(redactSecrets(response));
 });
 
 notificationRoutes.post('/webhook', async (req, res, next) => {
   const settings = getSettings();
   try {
-    JSON.parse(req.body.options.jsonPayload);
+    const payloadError = validateWebhookPayload(req.body.options?.jsonPayload);
+    const headerError = validateWebhookHeaders(req.body.options?.customHeaders);
+    if (payloadError) {
+      return next(payloadError);
+    }
+    if (headerError) {
+      return next(headerError);
+    }
 
-    settings.notifications.agents.webhook = {
-      enabled: req.body.enabled,
-      embedPoster: req.body.embedPoster,
-      types: req.body.types,
-      options: {
-        jsonPayload: Buffer.from(
-          JSON.stringify(req.body.options.jsonPayload)
-        ).toString('base64'),
-        webhookUrl: req.body.options.webhookUrl,
-        authHeader: req.body.options.authHeader,
-        customHeaders: req.body.options.customHeaders ?? [],
-        supportVariables: req.body.options.supportVariables ?? false,
+    const validationError = req.body.enabled
+      ? await validateNotificationUrl(
+          req.body.options?.webhookUrl,
+          'Webhook URL',
+          {
+          allowTemplates: req.body.options?.supportVariables === true,
+          }
+        )
+      : undefined;
+
+    if (validationError) {
+      return next(validationError);
+    }
+
+    settings.notifications.agents.webhook = preserveRedactedSecrets(
+      {
+        enabled: req.body.enabled,
+        embedPoster: req.body.embedPoster,
+        types: req.body.types,
+        options: {
+          jsonPayload: Buffer.from(
+            JSON.stringify(req.body.options.jsonPayload)
+          ).toString('base64'),
+          webhookUrl: req.body.options.webhookUrl,
+          authHeader: req.body.options.authHeader,
+          customHeaders: req.body.options.customHeaders ?? [],
+          supportVariables: req.body.options.supportVariables ?? false,
+        },
       },
-    };
+      settings.notifications.agents.webhook
+    );
     await settings.save();
 
-    res.status(200).json(settings.notifications.agents.webhook);
+    res.status(200).json(redactSecrets(settings.notifications.agents.webhook));
   } catch (e) {
     next({ status: 500, message: e.message });
   }
@@ -333,7 +499,24 @@ notificationRoutes.post('/webhook/test', async (req, res, next) => {
   }
 
   try {
-    JSON.parse(req.body.options.jsonPayload);
+    const payloadError = validateWebhookPayload(req.body.options?.jsonPayload);
+    const headerError = validateWebhookHeaders(req.body.options?.customHeaders);
+    if (payloadError) {
+      return next(payloadError);
+    }
+    if (headerError) {
+      return next(headerError);
+    }
+
+    const validationError = await validateNotificationUrl(
+      req.body.options?.webhookUrl,
+      'Webhook URL',
+      { allowTemplates: req.body.options?.supportVariables === true }
+    );
+
+    if (validationError) {
+      return next(validationError);
+    }
 
     const testBody = {
       enabled: req.body.enabled,
@@ -367,16 +550,26 @@ notificationRoutes.post('/webhook/test', async (req, res, next) => {
 notificationRoutes.get('/gotify', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.gotify);
+  res.status(200).json(redactSecrets(settings.notifications.agents.gotify));
 });
 
 notificationRoutes.post('/gotify', async (req, res) => {
   const settings = getSettings();
+  const validationError = req.body.enabled
+    ? await validateNotificationUrl(req.body.options?.url, 'Gotify URL')
+    : undefined;
 
-  settings.notifications.agents.gotify = req.body;
+  if (validationError) {
+    return res.status(validationError.status).json(validationError);
+  }
+
+  settings.notifications.agents.gotify = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.gotify
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.gotify);
+  res.status(200).json(redactSecrets(settings.notifications.agents.gotify));
 });
 
 notificationRoutes.post('/gotify/test', async (req, res, next) => {
@@ -385,6 +578,15 @@ notificationRoutes.post('/gotify/test', async (req, res, next) => {
       status: 500,
       message: 'User information is missing from the request.',
     });
+  }
+
+  const validationError = await validateNotificationUrl(
+    req.body.options?.url,
+    'Gotify URL'
+  );
+
+  if (validationError) {
+    return next(validationError);
   }
 
   const gotifyAgent = new GotifyAgent(req.body);
@@ -401,16 +603,26 @@ notificationRoutes.post('/gotify/test', async (req, res, next) => {
 notificationRoutes.get('/ntfy', (_req, res) => {
   const settings = getSettings();
 
-  res.status(200).json(settings.notifications.agents.ntfy);
+  res.status(200).json(redactSecrets(settings.notifications.agents.ntfy));
 });
 
 notificationRoutes.post('/ntfy', async (req, res) => {
   const settings = getSettings();
+  const validationError = req.body.enabled
+    ? await validateNotificationUrl(req.body.options?.url, 'ntfy URL')
+    : undefined;
 
-  settings.notifications.agents.ntfy = req.body;
+  if (validationError) {
+    return res.status(validationError.status).json(validationError);
+  }
+
+  settings.notifications.agents.ntfy = preserveRedactedSecrets(
+    req.body,
+    settings.notifications.agents.ntfy
+  );
   await settings.save();
 
-  res.status(200).json(settings.notifications.agents.ntfy);
+  res.status(200).json(redactSecrets(settings.notifications.agents.ntfy));
 });
 
 notificationRoutes.post('/ntfy/test', async (req, res, next) => {
@@ -419,6 +631,15 @@ notificationRoutes.post('/ntfy/test', async (req, res, next) => {
       status: 500,
       message: 'User information is missing from the request.',
     });
+  }
+
+  const validationError = await validateNotificationUrl(
+    req.body.options?.url,
+    'ntfy URL'
+  );
+
+  if (validationError) {
+    return next(validationError);
   }
 
   const ntfyAgent = new NtfyAgent(req.body);

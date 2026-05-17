@@ -8,28 +8,34 @@ import MetadataAlbum from '@server/entity/MetadataAlbum';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import { getAssociations } from '@server/lib/associations';
 import logger from '@server/logger';
+import { parsePositiveInt } from '@server/utils/pagination';
+import {
+  parseBoundedString,
+  parseOptionalBoundedString,
+} from '@server/utils/validation';
 import { Router } from 'express';
 import { In } from 'typeorm';
 
 const artistRoutes = Router();
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
+const MAX_MUSICBRAINZ_ID_LENGTH = 128;
+const MAX_ALBUM_TYPE_LENGTH = 128;
+const ALL_ALBUM_TYPES = 'All';
 
-const parsePositiveInt = (
-  value: unknown,
-  fallback: number,
-  max = Number.MAX_SAFE_INTEGER
-): number => {
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return fallback;
-  }
-
-  return Math.min(Math.floor(parsed), max);
-};
+const parseMusicBrainzId = (value: unknown, fieldName = 'Artist ID') =>
+  parseBoundedString(value, {
+    fieldName,
+    maxLength: MAX_MUSICBRAINZ_ID_LENGTH,
+  });
 
 artistRoutes.get('/:id/similar', async (req, res, next) => {
+  const parsedArtistId = parseMusicBrainzId(req.params.id);
+  if ('error' in parsedArtistId) {
+    return res.status(404).json({ status: 404, message: 'Artist not found' });
+  }
+
+  const artistId = parsedArtistId.value;
   const page = parsePositiveInt(req.query.page, 1);
   const pageSize = parsePositiveInt(
     req.query.pageSize,
@@ -38,7 +44,7 @@ artistRoutes.get('/:id/similar', async (req, res, next) => {
   );
 
   try {
-    const graph = await getAssociations('artist', req.params.id, req.user, {
+    const graph = await getAssociations('artist', artistId, req.user, {
       includeWeak: true,
       limit: 60,
     });
@@ -63,7 +69,7 @@ artistRoutes.get('/:id/similar', async (req, res, next) => {
     logger.error('Something went wrong retrieving similar artists', {
       label: 'Artist API',
       errorMessage: e.message,
-      artistId: req.params.id,
+      artistId,
     });
     return next({
       status: 500,
@@ -73,6 +79,22 @@ artistRoutes.get('/:id/similar', async (req, res, next) => {
 });
 
 artistRoutes.get('/:id', async (req, res, next) => {
+  const parsedArtistId = parseMusicBrainzId(req.params.id);
+  if ('error' in parsedArtistId) {
+    return res.status(404).json({ status: 404, message: 'Artist not found' });
+  }
+
+  const parsedAlbumType = parseOptionalBoundedString(req.query.albumType, {
+    fieldName: 'Album type',
+    maxLength: MAX_ALBUM_TYPE_LENGTH,
+  });
+  if ('error' in parsedAlbumType) {
+    return res
+      .status(400)
+      .json({ status: 400, message: parsedAlbumType.error });
+  }
+
+  const artistId = parsedArtistId.value;
   const listenbrainz = new ListenBrainzAPI();
   const musicbrainz = new MusicBrainz();
   const theAudioDb = new TheAudioDb();
@@ -84,13 +106,13 @@ artistRoutes.get('/:id', async (req, res, next) => {
     MAX_PAGE_SIZE
   );
   const initialItemsPerType = 20;
-  const albumType = req.query.albumType as string | undefined;
+  const albumType = parsedAlbumType.value;
 
   try {
     const [artistData, metadataArtist] = await Promise.all([
-      listenbrainz.getArtist(req.params.id),
+      listenbrainz.getArtist(artistId),
       getRepository(MetadataArtist).findOne({
-        where: { mbArtistId: req.params.id },
+        where: { mbArtistId: artistId },
         select: ['mbArtistId', 'tadbThumb', 'tadbCover', 'tmdbThumb'],
       }),
     ]);
@@ -99,17 +121,20 @@ artistRoutes.get('/:id', async (req, res, next) => {
       throw new Error('Artist not found');
     }
 
-    const groupedReleaseGroups = artistData.releaseGroups.reduce((acc, rg) => {
-      const type = rg.secondary_types?.length
-        ? rg.secondary_types[0]
-        : rg.type || 'Other';
+    const groupedReleaseGroups = artistData.releaseGroups.reduce(
+      (acc, rg) => {
+        const type = rg.secondary_types?.length
+          ? rg.secondary_types[0]
+          : rg.type || 'Other';
 
-      if (!acc[type]) {
-        acc[type] = [];
-      }
-      acc[type].push(rg);
-      return acc;
-    }, {} as Record<string, typeof artistData.releaseGroups>);
+        if (!acc[type]) {
+          acc[type] = [];
+        }
+        acc[type].push(rg);
+        return acc;
+      },
+      {} as Record<string, typeof artistData.releaseGroups>
+    );
 
     Object.keys(groupedReleaseGroups).forEach((type) => {
       groupedReleaseGroups[type].sort((a, b) => {
@@ -123,10 +148,25 @@ artistRoutes.get('/:id', async (req, res, next) => {
     let totalCount;
     let totalPages;
 
-    if (albumType) {
+    if (albumType === ALL_ALBUM_TYPES) {
+      const allReleaseGroups = Object.values(groupedReleaseGroups).flat();
+      allReleaseGroups.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      totalCount = allReleaseGroups.length;
+      totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
+
+      releaseGroupsToProcess = allReleaseGroups.slice(
+        (page - 1) * pageSize,
+        page * pageSize
+      );
+    } else if (albumType) {
       const filteredReleaseGroups = groupedReleaseGroups[albumType] || [];
       totalCount = filteredReleaseGroups.length;
-      totalPages = Math.ceil(totalCount / pageSize);
+      totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
 
       releaseGroupsToProcess = filteredReleaseGroups.slice(
         (page - 1) * pageSize,
@@ -150,13 +190,13 @@ artistRoutes.get('/:id', async (req, res, next) => {
     const responses = await Promise.allSettled([
       musicbrainz
         .getArtistWikipediaExtract({
-          artistMbid: req.params.id,
+          artistMbid: artistId,
           language: req.locale,
         })
         .catch(() => null),
       !metadataArtist?.tadbThumb && !metadataArtist?.tadbCover
-        ? theAudioDb.getArtistImages(req.params.id)
-        : theAudioDb.getArtistImagesFromCache(req.params.id),
+        ? theAudioDb.getArtistImages(artistId)
+        : theAudioDb.getArtistImagesFromCache(artistId),
       Media.getRelatedMedia(req.user, mbIds),
       getRepository(MetadataAlbum).find({
         where: { mbAlbumId: In(mbIds) },
@@ -229,7 +269,7 @@ artistRoutes.get('/:id', async (req, res, next) => {
     logger.error('Something went wrong retrieving artist details', {
       label: 'Artist API',
       errorMessage: e.message,
-      artistId: req.params.id,
+      artistId,
     });
     return next({
       status: 500,

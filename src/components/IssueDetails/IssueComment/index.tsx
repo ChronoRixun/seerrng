@@ -6,6 +6,7 @@ import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
 import { Menu, Transition } from '@headlessui/react';
 import { EllipsisVerticalIcon } from '@heroicons/react/24/solid';
+import { MAX_ISSUE_MESSAGE_LENGTH } from '@server/constants/issue';
 import type { default as IssueCommentType } from '@server/entity/IssueComment';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
@@ -21,6 +22,8 @@ const messages = defineMessages('components.IssueDetails.IssueComment', {
   delete: 'Delete Comment',
   areyousuredelete: 'Are you sure you want to delete this comment?',
   validationComment: 'You must enter a message',
+  validationCommentLength:
+    'Comment must be {maxLength, number} characters or fewer',
   edit: 'Edit Comment',
 });
 
@@ -43,9 +46,14 @@ const IssueComment = ({
   const { hasPermission } = useUser();
 
   const EditCommentSchema = Yup.object().shape({
-    newMessage: Yup.string().required(
-      intl.formatMessage(messages.validationComment)
-    ),
+    newMessage: Yup.string()
+      .max(
+        MAX_ISSUE_MESSAGE_LENGTH,
+        intl.formatMessage(messages.validationCommentLength, {
+          maxLength: MAX_ISSUE_MESSAGE_LENGTH,
+        })
+      )
+      .required(intl.formatMessage(messages.validationComment)),
   });
 
   const deleteComment = async () => {

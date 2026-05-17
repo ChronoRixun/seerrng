@@ -163,7 +163,7 @@ const Login = () => {
         <LanguagePicker />
       </div>
       <div className="relative z-40 mt-10 flex flex-col items-center px-4 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="relative h-48 w-full max-w-full">
+        <div className="relative h-48 w-full max-w-full drop-shadow-[0_2px_8px_rgba(15,23,42,0.65)]">
           <Image src="/logo_stacked.svg" alt="Logo" fill />
         </div>
       </div>
@@ -241,7 +241,7 @@ const Login = () => {
                     <div className="flex-grow border-t border-gray-600" />
                   </div>
                 ) : (
-                  <h2 className="mb-6 text-center text-lg font-bold text-neutral-200">
+                  <h2 className="mb-6 text-center text-lg font-bold text-gray-200">
                     {intl.formatMessage(messages.signinheader)}
                   </h2>
                 ))}

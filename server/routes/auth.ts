@@ -3,6 +3,7 @@ import PlexTvAPI from '@server/api/plextv';
 import { ApiErrorCode } from '@server/constants/error';
 import { MediaServerType, ServerType } from '@server/constants/server';
 import { UserType } from '@server/constants/user';
+import { USER_SETTINGS_LIMITS } from '@server/constants/userSettings';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import { startJobs } from '@server/job/schedule';
@@ -14,12 +15,80 @@ import { checkAvatarChanged } from '@server/routes/avatarproxy';
 import { ApiError } from '@server/types/error';
 import { getAppVersion } from '@server/utils/appVersion';
 import { getHostname } from '@server/utils/getHostname';
+import {
+  getRateLimitKey,
+  resolvesToLocalOrPrivateAddress,
+} from '@server/utils/security';
+import {
+  parseBoundedString,
+  parseOptionalBoundedString,
+} from '@server/utils/validation';
 import axios from 'axios';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import net from 'net';
 import validator from 'validator';
 
 const authRoutes = Router();
+const MAX_AUTH_TOKEN_LENGTH = 4096;
+const MAX_HOSTNAME_LENGTH = 255;
+const MAX_URL_BASE_LENGTH = 512;
+const MAX_RESET_GUID_LENGTH = 64;
+
+const parseLoginIdentifier = (
+  value: unknown,
+  fieldName = 'email'
+): { value: string } | { error: string } =>
+  parseBoundedString(value, {
+    fieldName,
+    maxLength: USER_SETTINGS_LIMITS.email,
+  });
+
+const parsePassword = (
+  value: unknown,
+  options: { required?: boolean } = {}
+): { value: string | undefined } | { error: string } => {
+  const parsed =
+    options.required === false
+      ? parseOptionalBoundedString(value, {
+          fieldName: 'password',
+          maxLength: USER_SETTINGS_LIMITS.password,
+        })
+      : parseBoundedString(value, {
+          fieldName: 'password',
+          maxLength: USER_SETTINGS_LIMITS.password,
+        });
+
+  if ('error' in parsed) {
+    return parsed;
+  }
+
+  return { value: parsed.value };
+};
+
+const parseResetGuid = (value: unknown) =>
+  parseBoundedString(value, {
+    fieldName: 'password reset token',
+    maxLength: MAX_RESET_GUID_LENGTH,
+  });
+
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  skip: () => process.env.NODE_ENV === 'test',
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getRateLimitKey,
+});
+
+const passwordResetRateLimit = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  skip: () => process.env.NODE_ENV === 'test',
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getRateLimitKey,
+});
 
 authRoutes.get('/me', isAuthenticated(), async (req, res) => {
   const userRepository = getRepository(User);
@@ -43,18 +112,22 @@ authRoutes.get('/me', isAuthenticated(), async (req, res) => {
     logger.warn(`User ${user.username} has no valid email address`);
   }
 
-  return res.status(200).json(user);
+  return res.status(200).json(user.filter(true));
 });
 
 authRoutes.post('/plex', async (req, res, next) => {
   const settings = getSettings();
   const userRepository = getRepository(User);
   const body = req.body as { authToken?: string };
+  const authToken = parseBoundedString(body.authToken, {
+    fieldName: 'Authentication token',
+    maxLength: MAX_AUTH_TOKEN_LENGTH,
+  });
 
-  if (!body.authToken) {
+  if ('error' in authToken) {
     return next({
-      status: 500,
-      message: 'Authentication token required.',
+      status: 400,
+      message: authToken.error,
     });
   }
 
@@ -67,7 +140,7 @@ authRoutes.post('/plex', async (req, res, next) => {
   }
   try {
     // First we need to use this auth token to get the user's email from plex.tv
-    const plextv = new PlexTvAPI(body.authToken);
+    const plextv = new PlexTvAPI(authToken.value);
     const account = await plextv.getUser();
 
     // Next let's see if the user already exists
@@ -136,7 +209,7 @@ authRoutes.post('/plex', async (req, res, next) => {
             );
           }
 
-          user.plexToken = body.authToken;
+          user.plexToken = authToken.value;
           user.plexId = account.id;
           user.avatar = account.thumb;
           user.email = account.email;
@@ -223,7 +296,7 @@ function getUserAvatarUrl(user: User): string {
   return `/avatarproxy/${user.jellyfinUserId}?v=${user.avatarVersion}`;
 }
 
-authRoutes.post('/jellyfin', async (req, res, next) => {
+authRoutes.post('/jellyfin', authRateLimit, async (req, res, next) => {
   const settings = getSettings();
   const userRepository = getRepository(User);
   const body = req.body as {
@@ -236,6 +309,50 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
     email?: string;
     serverType?: number;
   };
+  const username = parseLoginIdentifier(body.username, 'username');
+
+  if ('error' in username) {
+    return res.status(400).json({ error: username.error });
+  }
+
+  const password = parsePassword(body.password, { required: false });
+
+  if ('error' in password) {
+    return res.status(400).json({ error: password.error });
+  }
+
+  const email = parseOptionalBoundedString(body.email, {
+    fieldName: 'email',
+    maxLength: USER_SETTINGS_LIMITS.email,
+  });
+
+  if ('error' in email) {
+    return res.status(400).json({ error: email.error });
+  }
+
+  const hostname = parseOptionalBoundedString(body.hostname, {
+    fieldName: 'hostname',
+    maxLength: MAX_HOSTNAME_LENGTH,
+  });
+
+  if ('error' in hostname) {
+    return res.status(400).json({ error: hostname.error });
+  }
+
+  const urlBase = parseOptionalBoundedString(body.urlBase, {
+    fieldName: 'urlBase',
+    maxLength: MAX_URL_BASE_LENGTH,
+  });
+
+  if ('error' in urlBase) {
+    return res.status(400).json({ error: urlBase.error });
+  }
+
+  body.username = username.value;
+  body.password = password.value;
+  body.email = email.value;
+  body.hostname = hostname.value;
+  body.urlBase = urlBase.value;
 
   //Make sure jellyfin login is enabled, but only if jellyfin && Emby is not already configured
   if (
@@ -249,14 +366,37 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
     return res.status(500).json({ error: 'Jellyfin login is disabled' });
   }
 
-  if (!body.username) {
-    return res.status(500).json({ error: 'You must provide an username' });
-  } else if (settings.jellyfin.ip !== '' && body.hostname) {
+  if (settings.jellyfin.ip !== '' && body.hostname) {
     return res
       .status(500)
       .json({ error: 'Jellyfin hostname already configured' });
   } else if (settings.jellyfin.ip === '' && !body.hostname) {
     return res.status(500).json({ error: 'No hostname provided.' });
+  }
+
+  if (settings.jellyfin.ip === '' && body.hostname) {
+    try {
+      const parsedHostname = new URL(
+        getHostname({
+          useSsl: body.useSsl,
+          ip: body.hostname,
+          port: body.port,
+          urlBase: body.urlBase,
+        })
+      ).hostname;
+
+      if (
+        process.env.SEERR_ALLOW_PRIVATE_SETUP_HOSTS !== 'true' &&
+        (await resolvesToLocalOrPrivateAddress(parsedHostname))
+      ) {
+        return res.status(400).json({
+          error:
+            'Jellyfin/Emby hostname must not resolve to a private address.',
+        });
+      }
+    } catch {
+      return res.status(400).json({ error: 'Invalid hostname provided.' });
+    }
   }
 
   try {
@@ -593,14 +733,16 @@ authRoutes.post('/jellyfin', async (req, res, next) => {
   }
 });
 
-authRoutes.post('/local', async (req, res, next) => {
+authRoutes.post('/local', authRateLimit, async (req, res, next) => {
   const settings = getSettings();
   const userRepository = getRepository(User);
   const body = req.body as { email?: string; password?: string };
+  const email = parseLoginIdentifier(body.email);
+  const password = parsePassword(body.password);
 
   if (!settings.main.localLogin) {
     return res.status(500).json({ error: 'Password sign-in is disabled.' });
-  } else if (!body.email || !body.password) {
+  } else if ('error' in email || 'error' in password) {
     return res.status(500).json({
       error: 'You must provide both an email address and a password.',
     });
@@ -609,14 +751,14 @@ authRoutes.post('/local', async (req, res, next) => {
     const user = await userRepository
       .createQueryBuilder('user')
       .select(['user.id', 'user.email', 'user.password', 'user.plexId'])
-      .where('user.email = :email', { email: body.email.toLowerCase() })
+      .where('user.email = :email', { email: email.value.toLowerCase() })
       .getOne();
 
-    if (!user || !(await user.passwordMatch(body.password))) {
+    if (!user || !(await user.passwordMatch(password.value ?? ''))) {
       logger.warn('Failed sign-in attempt using invalid Seerr password', {
         label: 'API',
         ip: req.ip,
-        email: body.email,
+        email: email.value,
         userId: user?.id,
       });
       return next({
@@ -636,7 +778,7 @@ authRoutes.post('/local', async (req, res, next) => {
       label: 'API',
       errorMessage: e.message,
       ip: req.ip,
-      email: body.email,
+      email: 'error' in email ? undefined : email.value,
     });
     return next({
       status: 500,
@@ -722,98 +864,128 @@ authRoutes.post('/logout', async (req, res, next) => {
   }
 });
 
-authRoutes.post('/reset-password', async (req, res, next) => {
-  const userRepository = getRepository(User);
-  const body = req.body as { email?: string };
+authRoutes.post(
+  '/reset-password',
+  passwordResetRateLimit,
+  async (req, res, next) => {
+    const userRepository = getRepository(User);
+    const body = req.body as { email?: string };
 
-  if (!body.email) {
-    return next({
-      status: 500,
-      message: 'Email address required.',
-    });
+    if (!body.email) {
+      return next({
+        status: 500,
+        message: 'Email address required.',
+      });
+    }
+
+    const email = parseLoginIdentifier(body.email);
+
+    if ('error' in email) {
+      return next({
+        status: 500,
+        message: email.error,
+      });
+    }
+
+    const user = await userRepository
+      .createQueryBuilder('user')
+      .where('user.email = :email', { email: email.value.toLowerCase() })
+      .getOne();
+
+    if (user) {
+      await user.resetPassword();
+      await userRepository.save(user);
+      logger.info('Successfully sent password reset link', {
+        label: 'API',
+        ip: req.ip,
+        email: email.value,
+      });
+    } else {
+      logger.error('Something went wrong sending password reset link', {
+        label: 'API',
+        ip: req.ip,
+        email: email.value,
+      });
+    }
+
+    return res.status(200).json({ status: 'ok' });
   }
+);
 
-  const user = await userRepository
-    .createQueryBuilder('user')
-    .where('user.email = :email', { email: body.email.toLowerCase() })
-    .getOne();
+authRoutes.post(
+  '/reset-password/:guid',
+  passwordResetRateLimit,
+  async (req, res, next) => {
+    const userRepository = getRepository(User);
+    const guid = parseResetGuid(req.params.guid);
+    const password = parsePassword(req.body.password);
 
-  if (user) {
-    await user.resetPassword();
+    if ('error' in password || !password.value || password.value.length < 8) {
+      logger.warn('Failed password reset attempt using invalid new password', {
+        label: 'API',
+        ip: req.ip,
+        guid: 'error' in guid ? undefined : guid.value,
+      });
+      return next({
+        status: 500,
+        message: 'Password must be at least 8 characters long.',
+      });
+    }
+
+    if ('error' in guid) {
+      logger.warn('Failed password reset attempt using invalid recovery link', {
+        label: 'API',
+        ip: req.ip,
+      });
+      return next({
+        status: 500,
+        message: 'Invalid password reset link.',
+      });
+    }
+
+    const user = await userRepository.findOne({
+      where: { resetPasswordGuid: guid.value },
+    });
+
+    if (!user) {
+      logger.warn('Failed password reset attempt using invalid recovery link', {
+        label: 'API',
+        ip: req.ip,
+        guid: guid.value,
+      });
+      return next({
+        status: 500,
+        message: 'Invalid password reset link.',
+      });
+    }
+
+    if (
+      !user.recoveryLinkExpirationDate ||
+      user.recoveryLinkExpirationDate <= new Date()
+    ) {
+      logger.warn('Failed password reset attempt using expired recovery link', {
+        label: 'API',
+        ip: req.ip,
+        guid: guid.value,
+        email: user.email,
+      });
+      return next({
+        status: 500,
+        message: 'Invalid password reset link.',
+      });
+    }
+    user.recoveryLinkExpirationDate = null;
+    await user.setPassword(password.value);
     await userRepository.save(user);
-    logger.info('Successfully sent password reset link', {
+    logger.info('Successfully reset password', {
       label: 'API',
       ip: req.ip,
-      email: body.email,
-    });
-  } else {
-    logger.error('Something went wrong sending password reset link', {
-      label: 'API',
-      ip: req.ip,
-      email: body.email,
-    });
-  }
-
-  return res.status(200).json({ status: 'ok' });
-});
-
-authRoutes.post('/reset-password/:guid', async (req, res, next) => {
-  const userRepository = getRepository(User);
-
-  if (!req.body.password || req.body.password?.length < 8) {
-    logger.warn('Failed password reset attempt using invalid new password', {
-      label: 'API',
-      ip: req.ip,
-      guid: req.params.guid,
-    });
-    return next({
-      status: 500,
-      message: 'Password must be at least 8 characters long.',
-    });
-  }
-
-  const user = await userRepository.findOne({
-    where: { resetPasswordGuid: req.params.guid },
-  });
-
-  if (!user) {
-    logger.warn('Failed password reset attempt using invalid recovery link', {
-      label: 'API',
-      ip: req.ip,
-      guid: req.params.guid,
-    });
-    return next({
-      status: 500,
-      message: 'Invalid password reset link.',
-    });
-  }
-
-  if (
-    !user.recoveryLinkExpirationDate ||
-    user.recoveryLinkExpirationDate <= new Date()
-  ) {
-    logger.warn('Failed password reset attempt using expired recovery link', {
-      label: 'API',
-      ip: req.ip,
-      guid: req.params.guid,
+      guid,
       email: user.email,
     });
-    return next({
-      status: 500,
-      message: 'Invalid password reset link.',
-    });
-  }
-  user.recoveryLinkExpirationDate = null;
-  await user.setPassword(req.body.password);
-  await userRepository.save(user);
-  logger.info('Successfully reset password', {
-    label: 'API',
-    ip: req.ip,
-    guid: req.params.guid,
-    email: user.email,
-  });
 
-  return res.status(200).json({ status: 'ok' });
-});
+    return res.status(200).json({ status: 'ok' });
+  }
+);
 
 export default authRoutes;

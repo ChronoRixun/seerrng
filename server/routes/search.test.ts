@@ -92,6 +92,42 @@ async function loginAs(email: string, password: string) {
 }
 
 describe('GET /search', () => {
+  it('rejects missing search queries before provider lookup', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.get('/search');
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Query must be a string/);
+  });
+
+  it('rejects oversized search queries', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent
+      .get('/search/company')
+      .query({ query: 'x'.repeat(257) });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /256 characters or fewer/);
+  });
+
+  it('rejects array language parameters before provider lookup', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent
+      .get('/search')
+      .query({ query: 'matrix', language: ['en', 'fr'] });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Language must be a string/);
+  });
+
+  it('rejects blank keyword searches', async () => {
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.get('/search/keyword').query({ query: '   ' });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Query is required/);
+  });
+
   it('returns global video, music, and book results together', async () => {
     mock.method(MusicBrainz.prototype, 'searchAlbum', async () => [
       {

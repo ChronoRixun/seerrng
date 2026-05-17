@@ -3,14 +3,21 @@ import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
 import type { PermissionCheckOptions } from '@server/lib/permissions';
 import { Permission } from '@server/lib/permissions';
-import type { LidarrSettings, ReadarrSettings } from '@server/lib/settings';
+import type {
+  LidarrSettings,
+  RadarrSettings,
+  ReadarrSettings,
+  SonarrSettings,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import type { Express } from 'express';
 import express from 'express';
 import request from 'supertest';
 import serviceRoutes from './service';
 import lidarrRoutes from './settings/lidarr';
+import radarrRoutes from './settings/radarr';
 import readarrRoutes from './settings/readarr';
+import sonarrRoutes from './settings/sonarr';
 
 let app: Express;
 
@@ -47,10 +54,12 @@ function createApp(permissions = Permission.REQUEST_ADVANCED) {
           ? values.some((permission) => Boolean(permissions & permission))
           : values.every((permission) => Boolean(permissions & permission));
       },
-    } as any;
+    } as Express.Request['user'];
     next();
   });
   app.use('/service', serviceRoutes);
+  app.use('/settings/radarr', radarrRoutes);
+  app.use('/settings/sonarr', sonarrRoutes);
   app.use('/settings/lidarr', lidarrRoutes);
   app.use('/settings/readarr', readarrRoutes);
   app.use(
@@ -82,6 +91,33 @@ function makeLidarr(overrides: Partial<LidarrSettings> = {}): LidarrSettings {
   };
 }
 
+function makeRadarr(overrides: Partial<RadarrSettings> = {}): RadarrSettings {
+  return {
+    ...baseServerSettings,
+    id: overrides.id ?? 0,
+    name: 'Radarr',
+    port: 7878,
+    minimumAvailability: 'released',
+    isDefault: true,
+    ...overrides,
+  };
+}
+
+function makeSonarr(overrides: Partial<SonarrSettings> = {}): SonarrSettings {
+  return {
+    ...baseServerSettings,
+    id: overrides.id ?? 0,
+    name: 'Sonarr',
+    port: 8989,
+    seriesType: 'standard',
+    animeSeriesType: 'anime',
+    enableSeasonFolders: true,
+    monitorNewItems: 'all',
+    isDefault: true,
+    ...overrides,
+  };
+}
+
 function makeReadarr(
   overrides: Partial<ReadarrSettings> = {}
 ): ReadarrSettings {
@@ -104,6 +140,8 @@ before(() => {
 
 beforeEach(() => {
   const settings = getSettings();
+  settings.radarr = [];
+  settings.sonarr = [];
   settings.lidarr = [];
   settings.readarr = [];
   mock.method(settings, 'save', async () => undefined);
@@ -113,7 +151,85 @@ afterEach(() => {
   mock.restoreAll();
 });
 
+describe('Radarr settings routes', () => {
+  it('rejects malformed settings IDs before update lookup', async () => {
+    getSettings().radarr = [makeRadarr({ id: 4 })];
+
+    const res = await request(app)
+      .put('/settings/radarr/not-a-number')
+      .send(makeRadarr({ name: 'Updated Radarr' }));
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().radarr[0].name, 'Radarr');
+  });
+
+  it('rejects malformed settings IDs before delete lookup', async () => {
+    getSettings().radarr = [makeRadarr({ id: 4 })];
+
+    const res = await request(app).delete('/settings/radarr/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().radarr.length, 1);
+  });
+});
+
+describe('Sonarr settings routes', () => {
+  it('rejects malformed settings IDs before update lookup', async () => {
+    getSettings().sonarr = [makeSonarr({ id: 4 })];
+
+    const res = await request(app)
+      .put('/settings/sonarr/not-a-number')
+      .send(makeSonarr({ name: 'Updated Sonarr' }));
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().sonarr[0].name, 'Sonarr');
+  });
+
+  it('rejects malformed settings IDs before delete lookup', async () => {
+    getSettings().sonarr = [makeSonarr({ id: 4 })];
+
+    const res = await request(app).delete('/settings/sonarr/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().sonarr.length, 1);
+  });
+});
+
 describe('Lidarr settings routes', () => {
+  it('rejects malformed settings IDs before update lookup', async () => {
+    getSettings().lidarr = [makeLidarr({ id: 4 })];
+
+    const res = await request(app)
+      .put('/settings/lidarr/not-a-number')
+      .send(makeLidarr({ name: 'Updated Lidarr' }));
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().lidarr[0].name, 'Lidarr');
+  });
+
+  it('rejects malformed settings IDs before profile lookup', async () => {
+    getSettings().lidarr = [makeLidarr({ id: 4 })];
+
+    const res = await request(app).get('/settings/lidarr/not-a-number/profiles');
+
+    assert.strictEqual(res.status, 404);
+  });
+
+  it('rejects malformed settings IDs before delete lookup', async () => {
+    getSettings().lidarr = [makeLidarr({ id: 4 })];
+
+    const res = await request(app).delete('/settings/lidarr/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().lidarr.length, 1);
+  });
+
+  it('rejects malformed service detail IDs before external calls', async () => {
+    const res = await request(app).get('/service/lidarr/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+  });
+
   it('keeps only the newest default Lidarr server active', async () => {
     const first = await request(app)
       .post('/settings/lidarr')
@@ -212,6 +328,26 @@ describe('Lidarr settings routes', () => {
 });
 
 describe('Bookshelf settings routes', () => {
+  it('rejects malformed settings IDs before update lookup', async () => {
+    getSettings().readarr = [makeReadarr({ id: 7 })];
+
+    const res = await request(app)
+      .put('/settings/readarr/not-a-number')
+      .send(makeReadarr({ name: 'Updated Bookshelf' }));
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().readarr[0].name, 'Bookshelf');
+  });
+
+  it('rejects malformed settings IDs before delete lookup', async () => {
+    getSettings().readarr = [makeReadarr({ id: 7 })];
+
+    const res = await request(app).delete('/settings/readarr/not-a-number');
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getSettings().readarr.length, 1);
+  });
+
   it('keeps separate default Bookshelf servers per book format', async () => {
     const first = await request(app)
       .post('/settings/readarr')

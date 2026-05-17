@@ -250,9 +250,10 @@ class Tvdb extends ExternalAPI implements TvShowProvider {
 
       return { ...tmdbTvShow, seasons };
     } catch (error) {
-      logger.error(
-        `Failed to enrich TMDB show with TVDB data: ${error.message} token: ${this.token}`
-      );
+      logger.error('Failed to enrich TMDB show with TVDB data', {
+        label: 'TVDB',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
       return tmdbTvShow;
     }
   }

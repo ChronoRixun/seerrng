@@ -10,39 +10,69 @@ import type { BlocklistResultsResponse } from '@server/interfaces/api/blocklistI
 import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
+import { filterEntityResponse } from '@server/utils/entityResponse';
 import { Router } from 'express';
 import { EntityNotFoundError, In, QueryFailedError } from 'typeorm';
 import { z } from 'zod';
 
 const blocklistRoutes = Router();
+const maxBlocklistId = 1_000_000_000;
+const maxBlocklistTextLength = 512;
+const maxBlocklistedTagsLength = 4096;
 
 export const blocklistAdd = z.object({
-  tmdbId: z.coerce.number().optional(),
-  externalId: z.string().optional(),
+  tmdbId: z.coerce.number().int().positive().max(maxBlocklistId).optional(),
+  externalId: z.string().trim().min(1).max(maxBlocklistTextLength).optional(),
   externalProvider: z.nativeEnum(MediaIdentifierProvider).optional(),
   mediaType: z.nativeEnum(MediaType),
-  title: z.coerce.string().optional(),
-  user: z.coerce.number().optional(),
-  blocklistedTags: z.string().optional(),
+  title: z.string().trim().max(maxBlocklistTextLength).optional(),
+  user: z.coerce.number().int().positive().max(maxBlocklistId).optional(),
+  blocklistedTags: z.string().trim().max(maxBlocklistedTagsLength).optional(),
 });
 
 const blocklistGet = z.object({
-  take: z.coerce.number().int().positive().default(25),
+  take: z.coerce.number().int().positive().max(100).default(25),
   skip: z.coerce.number().int().nonnegative().default(0),
   search: z.string().optional(),
   filter: z.enum(['all', 'manual', 'blocklistedTags']).optional(),
 });
 
+const parseBlocklistNumericId = (id: string): number | undefined => {
+  const parsed = Number(id);
+
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= maxBlocklistId
+    ? parsed
+    : undefined;
+};
+
+const parseBlocklistExternalId = (id: string): string | undefined => {
+  const trimmed = id.trim();
+
+  return trimmed.length > 0 && trimmed.length <= maxBlocklistTextLength
+    ? trimmed
+    : undefined;
+};
+
 const getBlocklistLookup = (id: string, mediaType: MediaType) => {
   if (mediaType === MediaType.MOVIE || mediaType === MediaType.TV) {
+    const tmdbId = parseBlocklistNumericId(id);
+    if (!tmdbId) {
+      return;
+    }
+
     return {
-      tmdbId: Number(id),
+      tmdbId,
       mediaType,
     };
   }
 
+  const externalId = parseBlocklistExternalId(id);
+  if (!externalId) {
+    return;
+  }
+
   return {
-    externalId: id,
+    externalId,
     mediaType,
   };
 };
@@ -95,7 +125,7 @@ blocklistRoutes.get(
           results: itemsCount,
           page: Math.ceil(skip / take) + 1,
         },
-        results: blocklistedItems,
+        results: filterEntityResponse(blocklistedItems),
       } as BlocklistResultsResponse);
     } catch (error) {
       logger.error('Something went wrong while retrieving blocklisted items', {
@@ -126,12 +156,19 @@ blocklistRoutes.get(
 
     try {
       const blocklisteRepository = getRepository(Blocklist);
+      const lookup = getBlocklistLookup(req.params.id, mediaType);
+      if (!lookup) {
+        return next({
+          status: 400,
+          message: 'Invalid blocklist identifier.',
+        });
+      }
 
       const blocklistItem = await blocklisteRepository.findOneOrFail({
-        where: getBlocklistLookup(req.params.id, mediaType),
+        where: lookup,
       });
 
-      return res.status(200).send(blocklistItem);
+      return res.status(200).send(filterEntityResponse(blocklistItem));
     } catch (e) {
       if (e instanceof EntityNotFoundError) {
         return next({
@@ -180,6 +217,10 @@ blocklistRoutes.post(
         return;
       }
 
+      if (error instanceof z.ZodError) {
+        return next({ status: 400, message: 'Invalid blocklist payload.' });
+      }
+
       if (error instanceof QueryFailedError) {
         if (
           error.driverError.errno === 19 ||
@@ -209,9 +250,14 @@ blocklistRoutes.post(
   }),
   async (req, res, next) => {
     try {
+      const collectionId = parseBlocklistNumericId(req.params.id);
+      if (!collectionId) {
+        return next({ status: 400, message: 'Invalid collection ID.' });
+      }
+
       const tmdb = new TheMovieDb();
       const collection = await tmdb.getCollection({
-        collectionId: Number(req.params.id),
+        collectionId,
         language: req.locale,
       });
 
@@ -319,9 +365,16 @@ blocklistRoutes.delete(
 
     try {
       const blocklisteRepository = getRepository(Blocklist);
+      const lookup = getBlocklistLookup(req.params.id, mediaType);
+      if (!lookup) {
+        return next({
+          status: 400,
+          message: 'Invalid blocklist identifier.',
+        });
+      }
 
       const blocklistItem = await blocklisteRepository.findOneOrFail({
-        where: getBlocklistLookup(req.params.id, mediaType),
+        where: lookup,
       });
 
       await blocklisteRepository.remove(blocklistItem);
@@ -346,9 +399,17 @@ blocklistRoutes.delete(
         mediaItem =
           identifier?.media.mediaType === mediaType ? identifier.media : null;
       } else {
+        const tmdbId = parseBlocklistNumericId(req.params.id);
+        if (!tmdbId) {
+          return next({
+            status: 400,
+            message: 'Invalid blocklist identifier.',
+          });
+        }
+
         mediaItem = await mediaRepository.findOne({
           where: {
-            tmdbId: Number(req.params.id),
+            tmdbId,
             mediaType,
           },
         });
@@ -378,9 +439,14 @@ blocklistRoutes.delete(
   }),
   async (req, res, next) => {
     try {
+      const collectionId = parseBlocklistNumericId(req.params.id);
+      if (!collectionId) {
+        return next({ status: 400, message: 'Invalid collection ID.' });
+      }
+
       const tmdb = new TheMovieDb();
       const collection = await tmdb.getCollection({
-        collectionId: Number(req.params.id),
+        collectionId,
         language: req.locale,
       });
 

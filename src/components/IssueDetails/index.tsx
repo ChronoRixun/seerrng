@@ -22,7 +22,7 @@ import {
   ServerIcon,
 } from '@heroicons/react/24/outline';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
-import { IssueStatus } from '@server/constants/issue';
+import { IssueStatus, MAX_ISSUE_MESSAGE_LENGTH } from '@server/constants/issue';
 import { MediaType } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
 import type Issue from '@server/entity/Issue';
@@ -76,6 +76,8 @@ const messages = defineMessages('components.IssueDetails', {
   nocomments: 'No comments.',
   unknownissuetype: 'Unknown',
   commentplaceholder: 'Add a comment…',
+  validationCommentLength:
+    'Comment must be {maxLength, number} characters or fewer',
 });
 
 type IssueMediaDetails = MovieDetails | TvDetails | MusicDetails | BookDetails;
@@ -133,7 +135,14 @@ const IssueDetails = () => {
   });
 
   const CommentSchema = Yup.object().shape({
-    message: Yup.string().required(),
+    message: Yup.string()
+      .max(
+        MAX_ISSUE_MESSAGE_LENGTH,
+        intl.formatMessage(messages.validationCommentLength, {
+          maxLength: MAX_ISSUE_MESSAGE_LENGTH,
+        })
+      )
+      .required(),
   });
 
   const issueOption = issueOptions.find(

@@ -112,6 +112,21 @@ function mockBookDetails() {
 }
 
 describe('GET /book/:id', () => {
+  it('rejects malformed book IDs before calling OpenLibrary', async () => {
+    const getWork = mock.method(OpenLibraryAPI.prototype, 'getWork');
+    const getWorkEditions = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions'
+    );
+
+    const agent = await login();
+    const res = await agent.get(`/book/${'x'.repeat(129)}`);
+
+    assert.strictEqual(res.status, 404);
+    assert.strictEqual(getWork.mock.callCount(), 0);
+    assert.strictEqual(getWorkEditions.mock.callCount(), 0);
+  });
+
   it('reports whether the current user has the book on their watchlist', async () => {
     mockBookDetails();
 
@@ -223,6 +238,28 @@ describe('GET /book/:id', () => {
 });
 
 describe('GET /book/search', () => {
+  it('rejects missing search queries before provider lookup', async () => {
+    const searchBooks = mock.method(OpenLibraryAPI.prototype, 'searchBooks');
+
+    const agent = await login();
+    const res = await agent.get('/book/search');
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(searchBooks.mock.callCount(), 0);
+  });
+
+  it('rejects oversized search queries before provider lookup', async () => {
+    const searchBooks = mock.method(OpenLibraryAPI.prototype, 'searchBooks');
+
+    const agent = await login();
+    const res = await agent
+      .get('/book/search')
+      .query({ query: 'x'.repeat(257) });
+
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(searchBooks.mock.callCount(), 0);
+  });
+
   it('normalizes empty search pagination', async () => {
     mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
       numFound: 0,

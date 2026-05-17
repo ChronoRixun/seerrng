@@ -152,6 +152,13 @@ export const themePalettes: ThemePalette[] = [
     primary: 'cyan',
     secondary: 'blue',
   },
+  {
+    id: 'sietch-neon',
+    name: 'Sietch',
+    swatches: ['#6f5f54', '#3b3f46', '#8f5cff', '#d7ff3f'],
+    primary: 'sietchNeon',
+    secondary: 'sietchSpice',
+  },
 ];
 
 const shades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
@@ -391,6 +398,32 @@ const themeScales = {
     '136 19 55',
     '76 5 25',
   ],
+  sietchNeon: [
+    '250 246 255',
+    '240 232 255',
+    '222 207 255',
+    '199 171 255',
+    '174 128 255',
+    '143 92 255',
+    '124 58 237',
+    '104 39 196',
+    '79 30 142',
+    '55 25 94',
+    '31 18 46',
+  ],
+  sietchSpice: [
+    '251 247 239',
+    '242 232 217',
+    '222 203 178',
+    '198 166 128',
+    '170 128 83',
+    '142 96 54',
+    '116 75 43',
+    '91 62 45',
+    '67 53 46',
+    '49 43 41',
+    '29 26 25',
+  ],
 } as const;
 
 type ThemeScaleName = keyof typeof themeScales;
@@ -440,13 +473,8 @@ const getStoredPalette = (): string => {
 };
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [mode, setModeState] = useState<ThemeMode>('dark');
-  const [palette, setPaletteState] = useState(themePalettes[0].id);
-
-  useEffect(() => {
-    setModeState(getStoredMode());
-    setPaletteState(getStoredPalette());
-  }, []);
+  const [mode, setModeState] = useState<ThemeMode>(() => getStoredMode());
+  const [palette, setPaletteState] = useState(() => getStoredPalette());
 
   useEffect(() => {
     const activePalette =
