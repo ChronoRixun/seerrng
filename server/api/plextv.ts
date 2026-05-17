@@ -6,6 +6,12 @@ import { randomUUID } from 'node:crypto';
 import xml2js from 'xml2js';
 import ExternalAPI from './externalapi';
 
+export const PLEXTV_HTTP_OPTIONS = {
+  timeout: 10_000,
+  maxContentLength: 1024 * 1024,
+  maxBodyLength: 1024,
+} as const;
+
 interface PlexAccountResponse {
   user: PlexUser;
 }
@@ -148,6 +154,7 @@ class PlexTvAPI extends ExternalAPI {
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
+        ...PLEXTV_HTTP_OPTIONS,
         nodeCache: cacheManager.getCache('plextv').data,
       }
     );

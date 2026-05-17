@@ -17,6 +17,8 @@ export interface ExternalAPIOptions {
   nodeCache?: NodeCache;
   headers?: Record<string, unknown>;
   timeout?: number;
+  maxContentLength?: number;
+  maxBodyLength?: number;
   rateLimit?: {
     maxRPS: number;
     maxRequests: number;
@@ -74,6 +76,8 @@ class ExternalAPI {
       baseURL: baseUrl,
       params,
       timeout: options.timeout,
+      maxContentLength: options.maxContentLength,
+      maxBodyLength: options.maxBodyLength,
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
