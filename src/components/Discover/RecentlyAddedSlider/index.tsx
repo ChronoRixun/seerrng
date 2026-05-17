@@ -3,6 +3,7 @@ import TmdbTitleCard from '@app/components/TitleCard/TmdbTitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
 import type { MediaResultsResponse } from '@server/interfaces/api/mediaInterfaces';
+import { useMemo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -23,8 +24,26 @@ const RecentlyAddedSlider = () => {
     { revalidateOnFocus: false }
   );
 
+  const recentlyAddedCards = useMemo(
+    () =>
+      (media?.results ?? [])
+        .filter(
+          (item) => item.mediaType === 'movie' || item.mediaType === 'tv'
+        )
+        .map((item) => (
+          <TmdbTitleCard
+            key={`media-slider-item-${item.id}`}
+            id={item.id}
+            tmdbId={item.tmdbId}
+            tvdbId={item.tvdbId}
+            type={item.mediaType === 'tv' ? 'tv' : 'movie'}
+          />
+        )),
+    [media?.results]
+  );
+
   if (
-    (media && !media.results.length && !mediaError) ||
+    (media && !recentlyAddedCards.length && !mediaError) ||
     !hasPermission([Permission.MANAGE_REQUESTS, Permission.RECENT_VIEW], {
       type: 'or',
     })
@@ -42,19 +61,7 @@ const RecentlyAddedSlider = () => {
       <Slider
         sliderKey="media"
         isLoading={inView && !media}
-        items={(media?.results ?? [])
-          .filter(
-            (item) => item.mediaType === 'movie' || item.mediaType === 'tv'
-          )
-          .map((item) => (
-            <TmdbTitleCard
-              key={`media-slider-item-${item.id}`}
-              id={item.id}
-              tmdbId={item.tmdbId}
-              tvdbId={item.tvdbId}
-              type={item.mediaType === 'tv' ? 'tv' : 'movie'}
-            />
-          ))}
+        items={recentlyAddedCards}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import defineMessages from '@app/utils/defineMessages';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import type { WatchlistItem } from '@server/interfaces/api/discoverInterfaces';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { useInView } from 'react-intersection-observer';
 import { useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -32,9 +33,43 @@ const PlexWatchlistSlider = () => {
     revalidateOnFocus: false,
   });
 
+  const watchlistCards = useMemo(
+    () =>
+      (watchlistItems?.results ?? []).flatMap((item) => {
+        const card =
+          item.mediaType === 'music' && item.mbId ? (
+            <LibraryTitleCard
+              id={item.mbId}
+              type="album"
+              title={item.title}
+              isAddedToWatchlist={true}
+            />
+          ) : item.mediaType === 'book' && item.externalId ? (
+            <LibraryTitleCard
+              id={item.externalId}
+              type="book"
+              title={item.title}
+              isAddedToWatchlist={true}
+            />
+          ) : item.tmdbId ? (
+            <TmdbTitleCard
+              id={item.tmdbId}
+              tmdbId={item.tmdbId}
+              type={item.mediaType === 'tv' ? 'tv' : 'movie'}
+              isAddedToWatchlist={true}
+            />
+          ) : null;
+
+        return card
+          ? [<div key={`watchlist-slider-item-${item.ratingKey}`}>{card}</div>]
+          : [];
+      }),
+    [watchlistItems?.results]
+  );
+  const isWatchlistEmpty = !!watchlistItems && watchlistCards.length === 0;
+
   if (
-    (watchlistItems &&
-      watchlistItems.results.length === 0 &&
+    (isWatchlistEmpty &&
       !user?.settings?.watchlistSyncMovies &&
       !user?.settings?.watchlistSyncTv &&
       !user?.settings?.watchlistSyncMusic &&
@@ -55,34 +90,9 @@ const PlexWatchlistSlider = () => {
       <Slider
         sliderKey="watchlist"
         isLoading={inView && !watchlistItems}
-        isEmpty={!!watchlistItems && watchlistItems.results.length === 0}
+        isEmpty={isWatchlistEmpty}
         emptyMessage={intl.formatMessage(messages.emptywatchlist)}
-        items={watchlistItems?.results.map((item) => (
-          <div key={`watchlist-slider-item-${item.ratingKey}`}>
-            {item.mediaType === 'music' && item.mbId ? (
-              <LibraryTitleCard
-                id={item.mbId}
-                type="album"
-                title={item.title}
-                isAddedToWatchlist={true}
-              />
-            ) : item.mediaType === 'book' && item.externalId ? (
-              <LibraryTitleCard
-                id={item.externalId}
-                type="book"
-                title={item.title}
-                isAddedToWatchlist={true}
-              />
-            ) : item.tmdbId ? (
-              <TmdbTitleCard
-                id={item.tmdbId}
-                tmdbId={item.tmdbId}
-                type={item.mediaType === 'tv' ? 'tv' : 'movie'}
-                isAddedToWatchlist={true}
-              />
-            ) : null}
-          </div>
-        ))}
+        items={watchlistCards}
       />
     </div>
   );
