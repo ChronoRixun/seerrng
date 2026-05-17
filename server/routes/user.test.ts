@@ -3,6 +3,7 @@ import { before, describe, it } from 'node:test';
 
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
+import { MAX_PERMISSION_VALUE } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import { checkUser } from '@server/middleware/auth';
 import { setupTestDb } from '@server/test/db';
@@ -122,6 +123,27 @@ describe('User route input validation', () => {
     const agent = await loginAs('admin@seerr.dev', 'test1234');
     const res = await agent.post('/user/2/settings/permissions').send({
       permissions: 'not-a-number',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /permissions is invalid/i);
+  });
+
+  it('rejects unknown permission bits on settings permission updates', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/user/2/settings/permissions').send({
+      permissions: MAX_PERMISSION_VALUE + 1,
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /permissions is invalid/i);
+  });
+
+  it('rejects unknown permission bits on bulk permission updates', async () => {
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.put('/user').send({
+      ids: [2],
+      permissions: MAX_PERMISSION_VALUE + 1,
     });
 
     assert.strictEqual(res.status, 400);
