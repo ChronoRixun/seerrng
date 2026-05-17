@@ -302,15 +302,15 @@ jobs:
     name: Deploy main to seerr.home
     if: github.ref == 'refs/heads/main'
     needs: publish
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, kspls0]
     permissions:
       contents: read
       packages: read
     env:
       SEERRNG_TAG: main
-      SEERRNG_CONTAINER_NAME: ${{ vars.SEERRNG_CONTAINER_NAME || 'seerrng-readonly' }}
+      SEERRNG_CONTAINER_NAME: ${{ vars.SEERRNG_CONTAINER_NAME || 'seerr-host' }}
       SEERRNG_PORT: ${{ vars.SEERRNG_PORT || '5055' }}
-      SEERRNG_CONFIG_DIR: ${{ vars.SEERRNG_CONFIG_DIR || '/opt/seerrng/config' }}
+      SEERRNG_CONFIG_DIR: ${{ vars.SEERRNG_CONFIG_DIR || '/mnt/datapool_lvm_media/seerrng-config' }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -327,5 +327,16 @@ jobs:
       - name: Pull latest main image
         run: docker pull ghcr.io/${{ github.repository }}:main
 
+      - name: Prepare config directory
+        run: |
+          sudo install -d -m 0755 "$SEERRNG_CONFIG_DIR"
+          sudo chown -R 1000:1000 "$SEERRNG_CONFIG_DIR"
+
       - name: Deploy seerr.home
-        run: docker compose -f deploy/compose.main.yml up -d --remove-orphans
+        run: docker compose -f deploy/compose.main.yml up -d --remove-orphans --wait --wait-timeout 180
+
+      - name: Verify seerr.home deployment
+        run: |
+          docker ps --filter "name=^/${SEERRNG_CONTAINER_NAME}$" --filter "status=running" --format '{{.Names}}' | grep -qx "$SEERRNG_CONTAINER_NAME"
+          curl --fail --silent --show-error "http://127.0.0.1:${SEERRNG_PORT}/api/v1/status" | tee status.json
+          grep -q '"buildVersion":"main"' status.json
