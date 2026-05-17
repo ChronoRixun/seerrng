@@ -20,7 +20,7 @@ concurrency:
 jobs:
   test-build:
     name: Test build
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
     steps:

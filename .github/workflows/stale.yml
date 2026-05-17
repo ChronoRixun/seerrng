@@ -15,7 +15,7 @@ concurrency:
 jobs:
   stale:
     name: Close stale issues and PRs
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       actions: write
       issues: write

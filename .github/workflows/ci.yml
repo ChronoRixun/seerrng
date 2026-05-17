@@ -298,7 +298,7 @@ jobs:
     name: Deploy main to seerr.home
     if: github.ref == 'refs/heads/main'
     needs: publish
-    runs-on: [self-hosted, seerrng, kspls0]
+    runs-on: [self-hosted, seerrng, linux-build]
     permissions:
       contents: read
       packages: read

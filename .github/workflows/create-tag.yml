@@ -16,7 +16,7 @@ jobs:
   determine-tag-version:
     name: Determine tag version
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
     outputs:
@@ -46,7 +46,7 @@ jobs:
   create-tag:
     name: Create tag
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: write
     needs: determine-tag-version

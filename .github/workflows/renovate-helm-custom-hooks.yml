@@ -18,7 +18,7 @@ concurrency:
 jobs:
   renovate-post-run:
     name: Renovate Bump Chart Version
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
       pull-requests: write

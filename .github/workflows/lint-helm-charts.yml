@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   lint-test:
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
     steps:

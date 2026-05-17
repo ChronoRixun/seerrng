@@ -20,7 +20,7 @@ env:
 jobs:
   validate-main-tag:
     name: Validate main release tag
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
     steps:
@@ -42,7 +42,7 @@ jobs:
   changelog:
     name: Generate changelog
     needs: validate-main-tag
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
     outputs:
@@ -66,7 +66,7 @@ jobs:
 
   create-draft-release:
     name: Create draft release
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: write
     needs: changelog
@@ -88,13 +88,13 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: kspld0
+          - runner: linux-amd64
             platform: linux/amd64
             arch: amd64
-          - runner: kspls0
+          - runner: linux-arm64-cross
             platform: linux/arm64
             arch: arm64
-    runs-on: [self-hosted, "${{ matrix.runner }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ matrix.runner }}", seerrng]
     env:
       VERSION: ${{ github.ref_name }}
     steps:
@@ -128,7 +128,7 @@ jobs:
   publish:
     name: Publish multi-arch manifests
     needs: build
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
       packages: write
@@ -216,7 +216,7 @@ jobs:
   sign:
     name: Sign images and create SBOM attestations
     needs: publish
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
       id-token: write
@@ -285,7 +285,7 @@ jobs:
   verify:
     name: Verify signatures and attestations
     needs: [publish, sign]
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
     env:
@@ -319,7 +319,7 @@ jobs:
   publish-release:
     name: Publish release
     needs: [create-draft-release, verify]
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: write
     env:
@@ -333,7 +333,7 @@ jobs:
   dispatch-package-channels:
     name: Dispatch package channels
     needs: publish-release
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       actions: write
       contents: read
@@ -360,7 +360,7 @@ jobs:
   announce-discord:
     name: Announce release to Discord
     needs: [changelog, publish, publish-release]
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
     permissions:
       contents: read
     env:

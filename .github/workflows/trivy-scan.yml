@@ -23,7 +23,7 @@ jobs:
   trivy:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     name: Scan latest container image
-    runs-on: [self-hosted, kspld0]
+    runs-on: [self-hosted, Linux, X64, seerrng]
 
     permissions:
       contents: read
