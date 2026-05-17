@@ -1,4 +1,5 @@
 import ButtonWithDropdown from '@app/components/Common/ButtonWithDropdown';
+import { getSafeHref } from '@app/utils/safeUrl';
 
 interface PlayButtonProps {
   links: PlayButtonLink[];
@@ -11,7 +12,11 @@ export interface PlayButtonLink {
 }
 
 const PlayButton = ({ links }: PlayButtonProps) => {
-  if (!links || !links.length) {
+  const safeLinks = links
+    .map((link) => ({ ...link, url: getSafeHref(link.url) }))
+    .filter((link): link is PlayButtonLink => Boolean(link.url));
+
+  if (!safeLinks.length) {
     return null;
   }
 
@@ -21,16 +26,16 @@ const PlayButton = ({ links }: PlayButtonProps) => {
       buttonType="ghost"
       text={
         <>
-          {links[0].svg}
-          <span>{links[0].text}</span>
+          {safeLinks[0].svg}
+          <span>{safeLinks[0].text}</span>
         </>
       }
-      href={links[0].url}
+      href={safeLinks[0].url}
       target="_blank"
       rel="noopener noreferrer"
     >
-      {links.length > 1 &&
-        links.slice(1).map((link, i) => {
+      {safeLinks.length > 1 &&
+        safeLinks.slice(1).map((link, i) => {
           return (
             <ButtonWithDropdown.Item
               key={`play-button-dropdown-item-${i}`}

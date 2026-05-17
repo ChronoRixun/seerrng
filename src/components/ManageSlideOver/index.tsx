@@ -11,6 +11,7 @@ import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { getSafeHref } from '@app/utils/safeUrl';
 import { Bars4Icon, ServerIcon } from '@heroicons/react/24/outline';
 import {
   CheckCircleIcon,
@@ -123,6 +124,10 @@ const ManageSlideOver = ({
   const { data: sonarrData } = useSWR<SonarrSettings[]>(
     hasPermission(Permission.ADMIN) ? '/api/v1/settings/sonarr' : null
   );
+  const safeServiceUrl = getSafeHref(data.mediaInfo?.serviceUrl);
+  const safeServiceUrl4k = getSafeHref(data.mediaInfo?.serviceUrl4k);
+  const safeTautulliUrl = getSafeHref(data.mediaInfo?.tautulliUrl);
+  const safeTautulliUrl4k = getSafeHref(data.mediaInfo?.tautulliUrl4k);
 
   const deleteMedia = async () => {
     if (data.mediaInfo) {
@@ -332,20 +337,18 @@ const ManageSlideOver = ({
           </div>
         )}
         {hasPermission(Permission.ADMIN) &&
-          (data.mediaInfo?.serviceUrl ||
-            data.mediaInfo?.tautulliUrl ||
-            watchData?.data) && (
+          (safeServiceUrl || safeTautulliUrl || watchData?.data) && (
             <div>
               <h3 className="mb-2 text-xl font-bold">
                 {intl.formatMessage(messages.manageModalMedia)}
               </h3>
               <div className="space-y-2">
-                {(watchData?.data || data.mediaInfo?.tautulliUrl) && (
+                {(watchData?.data || safeTautulliUrl) && (
                   <div>
                     {!!watchData?.data && (
                       <div
                         className={`grid grid-cols-1 divide-y divide-gray-700 overflow-hidden border-gray-700 text-sm text-gray-300 shadow ${
-                          data.mediaInfo?.tautulliUrl
+                          safeTautulliUrl
                             ? 'rounded-t-md border-x border-t'
                             : 'rounded-md border'
                         }`}
@@ -416,9 +419,9 @@ const ManageSlideOver = ({
                         )}
                       </div>
                     )}
-                    {data.mediaInfo?.tautulliUrl && (
+                    {safeTautulliUrl && (
                       <a
-                        href={data.mediaInfo.tautulliUrl}
+                        href={safeTautulliUrl}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -437,9 +440,9 @@ const ManageSlideOver = ({
                     )}
                   </div>
                 )}
-                {data.mediaInfo?.serviceUrl && (
+                {safeServiceUrl && (
                   <a
-                    href={data?.mediaInfo?.serviceUrl}
+                    href={safeServiceUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="block"
@@ -456,7 +459,7 @@ const ManageSlideOver = ({
                 )}
 
                 {hasPermission(Permission.ADMIN) &&
-                  data?.mediaInfo?.serviceUrl &&
+                  safeServiceUrl &&
                   isDefaultService() && (
                     <div>
                       <ConfirmButton
@@ -492,20 +495,18 @@ const ManageSlideOver = ({
             </div>
           )}
         {hasPermission(Permission.ADMIN) &&
-          (data.mediaInfo?.serviceUrl4k ||
-            data.mediaInfo?.tautulliUrl4k ||
-            watchData?.data4k) && (
+          (safeServiceUrl4k || safeTautulliUrl4k || watchData?.data4k) && (
             <div>
               <h3 className="mb-2 text-xl font-bold">
                 {intl.formatMessage(messages.manageModalMedia4k)}
               </h3>
               <div className="space-y-2">
-                {(watchData?.data4k || data.mediaInfo?.tautulliUrl4k) && (
+                {(watchData?.data4k || safeTautulliUrl4k) && (
                   <div>
                     {watchData?.data4k && (
                       <div
                         className={`grid grid-cols-1 divide-y divide-gray-700 overflow-hidden border-gray-700 text-sm text-gray-300 shadow ${
-                          data.mediaInfo?.tautulliUrl4k
+                          safeTautulliUrl4k
                             ? 'rounded-t-md border-x border-t'
                             : 'rounded-md border'
                         }`}
@@ -578,9 +579,9 @@ const ManageSlideOver = ({
                         )}
                       </div>
                     )}
-                    {data.mediaInfo?.tautulliUrl4k && (
+                    {safeTautulliUrl4k && (
                       <a
-                        href={data.mediaInfo.tautulliUrl4k}
+                        href={safeTautulliUrl4k}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -599,10 +600,10 @@ const ManageSlideOver = ({
                     )}
                   </div>
                 )}
-                {data?.mediaInfo?.serviceUrl4k && (
+                {safeServiceUrl4k && (
                   <>
                     <a
-                      href={data?.mediaInfo?.serviceUrl4k}
+                      href={safeServiceUrl4k}
                       target="_blank"
                       rel="noreferrer"
                       className="block"

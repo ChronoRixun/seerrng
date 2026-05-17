@@ -10,6 +10,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import OverrideRuleTiles from '@app/components/Settings/OverrideRule/OverrideRuleTiles';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { getSafeHref } from '@app/utils/safeUrl';
 import { Transition } from '@headlessui/react';
 import {
   BookOpenIcon,
@@ -31,15 +32,21 @@ import { Fragment, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
 
-const LidarrModal = dynamic(() => import('@app/components/Settings/LidarrModal'));
+const LidarrModal = dynamic(
+  () => import('@app/components/Settings/LidarrModal')
+);
 const OverrideRuleModal = dynamic(
   () => import('@app/components/Settings/OverrideRule/OverrideRuleModal')
 );
-const RadarrModal = dynamic(() => import('@app/components/Settings/RadarrModal'));
+const RadarrModal = dynamic(
+  () => import('@app/components/Settings/RadarrModal')
+);
 const ReadarrModal = dynamic(
   () => import('@app/components/Settings/ReadarrModal')
 );
-const SonarrModal = dynamic(() => import('@app/components/Settings/SonarrModal'));
+const SonarrModal = dynamic(
+  () => import('@app/components/Settings/SonarrModal')
+);
 
 const messages = defineMessages('components.Settings', {
   services: 'Services',
@@ -149,7 +156,8 @@ const ServerInstance = ({
 
   const internalUrl =
     (isSSL ? 'https://' : 'http://') + hostname + ':' + String(port);
-  const serviceUrl = externalUrl ?? internalUrl;
+  const internalHref = getSafeHref(internalUrl) ?? internalUrl;
+  const serviceUrl = getSafeHref(externalUrl) ?? internalHref;
 
   return (
     <li className="col-span-1 rounded-lg bg-gray-800 shadow ring-1 ring-gray-500">
@@ -201,12 +209,12 @@ const ServerInstance = ({
               {intl.formatMessage(messages.address)}
             </span>
             <a
-              href={internalUrl}
+              href={internalHref}
               target="_blank"
               rel="noopener noreferrer"
               className="transition duration-300 hover:text-white hover:underline"
             >
-              {internalUrl}
+              {internalHref}
             </a>
           </p>
           <p className="mt-1 truncate text-sm leading-5 text-gray-300">

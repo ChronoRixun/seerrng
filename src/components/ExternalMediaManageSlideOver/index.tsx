@@ -8,6 +8,7 @@ import RequestBlock from '@app/components/RequestBlock';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
+import { getSafeHref } from '@app/utils/safeUrl';
 import {
   CheckCircleIcon,
   DocumentMinusIcon,
@@ -118,7 +119,11 @@ const ExternalMediaManageSlideOver = ({
           }
         : undefined,
     ] as (ServiceLink | undefined)[]
-  ).filter((link): link is ServiceLink => !!link);
+  )
+    .map((link) =>
+      link ? { ...link, url: getSafeHref(link.url) ?? '' } : undefined
+    )
+    .filter((link): link is ServiceLink => Boolean(link && link.url));
 
   const requests =
     mediaInfo?.requests?.filter(

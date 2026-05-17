@@ -9,6 +9,7 @@ import TraktLogo from '@app/assets/services/trakt.svg';
 import TvdbLogo from '@app/assets/services/tvdb.svg';
 import useLocale from '@app/hooks/useLocale';
 import useSettings from '@app/hooks/useSettings';
+import { getSafeHref } from '@app/utils/safeUrl';
 import { MediaType } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
 
@@ -33,12 +34,14 @@ const ExternalLinkBlock = ({
 }: ExternalLinkBlockProps) => {
   const settings = useSettings();
   const { locale } = useLocale();
+  const safeMediaUrl = getSafeHref(mediaUrl);
+  const safeRtUrl = getSafeHref(rtUrl);
 
   return (
     <div className="flex w-full items-center justify-center space-x-5">
-      {mediaUrl && (
+      {safeMediaUrl && (
         <a
-          href={mediaUrl}
+          href={safeMediaUrl}
           className="w-12 opacity-50 transition duration-300 hover:opacity-100"
           target="_blank"
           rel="noreferrer"
@@ -93,9 +96,9 @@ const ExternalLinkBlock = ({
           <ImdbLogo />
         </a>
       )}
-      {rtUrl && (
+      {safeRtUrl && (
         <a
-          href={rtUrl}
+          href={safeRtUrl}
           className="w-14 opacity-50 transition duration-300 hover:opacity-100"
           target="_blank"
           rel="noreferrer"

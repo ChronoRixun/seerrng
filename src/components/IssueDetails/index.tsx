@@ -15,6 +15,7 @@ import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
 import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
+import { getSafeHref } from '@app/utils/safeUrl';
 import { Transition } from '@headlessui/react';
 import {
   ChatBubbleOvalLeftEllipsisIcon,
@@ -136,6 +137,8 @@ const IssueDetails = () => {
     iOSPlexUrl: data?.mediaInfo?.iOSPlexUrl,
     iOSPlexUrl4k: data?.mediaInfo?.iOSPlexUrl4k,
   });
+  const safeMediaUrl = getSafeHref(mediaUrl);
+  const safeMediaUrl4k = getSafeHref(mediaUrl4k);
 
   const CommentSchema = Yup.object().shape({
     message: Yup.string()
@@ -285,7 +288,12 @@ const IssueDetails = () => {
           }
         : undefined,
     ] as (IssueServiceLink | undefined)[]
-  ).filter((link): link is IssueServiceLink => !!link);
+  )
+    .map((link) =>
+      link ? { ...link, url: getSafeHref(link.url) ?? '' } : undefined
+    )
+    .filter((link): link is IssueServiceLink => Boolean(link && link.url));
+  const safeServiceUrl4k = getSafeHref(issueData.media.serviceUrl4k);
 
   return (
     <div
@@ -471,10 +479,10 @@ const IssueDetails = () => {
               </div>
             </div>
             <div className="mb-6 mt-4 flex flex-col space-y-2">
-              {issueData?.media.mediaUrl && (
+              {safeMediaUrl && (
                 <Button
                   as="a"
-                  href={mediaUrl}
+                  href={safeMediaUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full"
@@ -522,10 +530,10 @@ const IssueDetails = () => {
                     </span>
                   </Button>
                 ))}
-              {issueData?.media.mediaUrl4k && (
+              {safeMediaUrl4k && (
                 <Button
                   as="a"
-                  href={mediaUrl4k}
+                  href={safeMediaUrl4k}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full"
@@ -549,24 +557,23 @@ const IssueDetails = () => {
                   </span>
                 </Button>
               )}
-              {issueData?.media.serviceUrl4k &&
-                hasPermission(Permission.ADMIN) && (
-                  <Button
-                    as="a"
-                    href={issueData?.media.serviceUrl4k}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full"
-                    buttonType="ghost"
-                  >
-                    <ServerIcon />
-                    <span>
-                      {intl.formatMessage(messages.openin4karr, {
-                        arr: arrName,
-                      })}
-                    </span>
-                  </Button>
-                )}
+              {safeServiceUrl4k && hasPermission(Permission.ADMIN) && (
+                <Button
+                  as="a"
+                  href={safeServiceUrl4k}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full"
+                  buttonType="ghost"
+                >
+                  <ServerIcon />
+                  <span>
+                    {intl.formatMessage(messages.openin4karr, {
+                      arr: arrName,
+                    })}
+                  </span>
+                </Button>
+              )}
             </div>
           </div>
           <div className="mt-6">
@@ -737,10 +744,10 @@ const IssueDetails = () => {
             </div>
           </div>
           <div className="mb-6 mt-4 flex flex-col space-y-2">
-            {issueData?.media.mediaUrl && (
+            {safeMediaUrl && (
               <Button
                 as="a"
-                href={mediaUrl}
+                href={safeMediaUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full"
@@ -788,10 +795,10 @@ const IssueDetails = () => {
                   </span>
                 </Button>
               ))}
-            {issueData?.media.mediaUrl4k && (
+            {safeMediaUrl4k && (
               <Button
                 as="a"
-                href={mediaUrl4k}
+                href={safeMediaUrl4k}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full"
@@ -815,24 +822,23 @@ const IssueDetails = () => {
                 </span>
               </Button>
             )}
-            {issueData?.media.serviceUrl4k &&
-              hasPermission(Permission.ADMIN) && (
-                <Button
-                  as="a"
-                  href={issueData?.media.serviceUrl4k}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full"
-                  buttonType="ghost"
-                >
-                  <ServerIcon />
-                  <span>
-                    {intl.formatMessage(messages.openin4karr, {
-                      arr: arrName,
-                    })}
-                  </span>
-                </Button>
-              )}
+            {safeServiceUrl4k && hasPermission(Permission.ADMIN) && (
+              <Button
+                as="a"
+                href={safeServiceUrl4k}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full"
+                buttonType="ghost"
+              >
+                <ServerIcon />
+                <span>
+                  {intl.formatMessage(messages.openin4karr, {
+                    arr: arrName,
+                  })}
+                </span>
+              </Button>
+            )}
           </div>
         </div>
       </div>

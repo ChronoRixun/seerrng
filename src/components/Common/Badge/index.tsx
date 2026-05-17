@@ -1,3 +1,4 @@
+import { getSafeHref, isExternalHref } from '@app/utils/safeUrl';
 import Link from 'next/link';
 import React from 'react';
 
@@ -77,10 +78,12 @@ const Badge = (
     badgeStyle.push(className);
   }
 
-  if (href?.includes('://')) {
+  const safeHref = getSafeHref(href);
+
+  if (safeHref && isExternalHref(safeHref)) {
     return (
       <a
-        href={href}
+        href={safeHref}
         target="_blank"
         rel="noopener noreferrer"
         className={badgeStyle.join(' ')}
@@ -89,10 +92,10 @@ const Badge = (
         {children}
       </a>
     );
-  } else if (href) {
+  } else if (safeHref) {
     return (
       <Link
-        href={href}
+        href={safeHref}
         className={badgeStyle.join(' ')}
         ref={ref as React.Ref<HTMLAnchorElement>}
       >
