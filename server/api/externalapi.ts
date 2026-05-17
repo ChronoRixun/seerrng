@@ -2,6 +2,7 @@ import { requestInterceptorFunction } from '@server/utils/customProxyAgent';
 import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 import axios from 'axios';
 import rateLimit from 'axios-rate-limit';
+import { createHash } from 'node:crypto';
 import type NodeCache from 'node-cache';
 
 // 5 minute default TTL (in seconds)
@@ -9,6 +10,8 @@ const DEFAULT_TTL = 300;
 
 // 10 seconds default rolling buffer (in ms)
 const DEFAULT_ROLLING_BUFFER = 10000;
+
+const CACHE_KEY_DIGEST_PREFIX = ':sha256:';
 
 export interface ExternalAPIOptions {
   nodeCache?: NodeCache;
@@ -19,6 +22,42 @@ export interface ExternalAPIOptions {
     maxRequests: number;
   };
 }
+
+export const createExternalApiCacheKeySuffix = (
+  options?: Record<string, unknown>
+) => {
+  if (!options) {
+    return '';
+  }
+
+  const seen = new WeakSet<object>();
+  const serialized = JSON.stringify(options, (_key, value: unknown) => {
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    if (seen.has(value)) {
+      return '[Circular]';
+    }
+
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    return Object.keys(value)
+      .sort()
+      .reduce<Record<string, unknown>>((sorted, key) => {
+        sorted[key] = (value as Record<string, unknown>)[key];
+        return sorted;
+      }, {});
+  });
+
+  return `${CACHE_KEY_DIGEST_PREFIX}${createHash('sha256')
+    .update(serialized ?? '')
+    .digest('hex')}`;
+};
 
 class ExternalAPI {
   protected axios: AxiosInstance;
@@ -154,7 +193,9 @@ class ExternalAPI {
       return `${this.baseUrl}${endpoint}`;
     }
 
-    return `${this.baseUrl}${endpoint}${JSON.stringify(options)}`;
+    return `${this.baseUrl}${endpoint}${createExternalApiCacheKeySuffix(
+      options
+    )}`;
   }
 
   private async fetchAndCache<T>(

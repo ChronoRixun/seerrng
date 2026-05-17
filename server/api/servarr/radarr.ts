@@ -1,4 +1,5 @@
 import logger from '@server/logger';
+import { redactSecrets } from '@server/utils/security';
 import ServarrBase from './base';
 
 export interface RadarrMovieOptions {
@@ -241,7 +242,7 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
           label: 'Radarr',
           errorMessage: e.message,
           options,
-          response: e?.response?.data,
+          response: redactSecrets(e?.response?.data),
         }
       );
       throw new Error('Failed to add movie to Radarr', { cause: e });

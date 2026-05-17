@@ -5,7 +5,7 @@ import type { NotificationAgentNtfy } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import type { AvailableLocale } from '@server/types/languages';
-import { isSafeHttpUrl } from '@server/utils/security';
+import { isSafeHttpUrl, redactSecrets } from '@server/utils/security';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
@@ -193,7 +193,7 @@ class NtfyAgent
         type: Notification[type],
         subject: payload.subject,
         errorMessage: e.message,
-        response: e?.response?.data,
+        response: redactSecrets(e?.response?.data),
       });
 
       return false;
