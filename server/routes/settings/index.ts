@@ -107,6 +107,27 @@ const parseSettingsPathId = (value: unknown, fieldName: string) =>
     maxLength: MAX_SETTINGS_PATH_ID_LENGTH,
   });
 
+const findScheduledJob = (value: unknown) => {
+  const jobId = parseSettingsPathId(value, 'Job ID');
+  if ('error' in jobId) {
+    return undefined;
+  }
+
+  return scheduledJobs.find((job) => job.id === jobId.value);
+};
+
+const getScheduledJobResponse = (
+  scheduledJob: (typeof scheduledJobs)[number]
+) => ({
+  id: scheduledJob.id,
+  name: scheduledJob.name,
+  type: scheduledJob.type,
+  interval: scheduledJob.interval,
+  cronSchedule: scheduledJob.cronSchedule,
+  nextExecutionTime: scheduledJob.job.nextInvocation(),
+  running: scheduledJob.running ? scheduledJob.running() : false,
+});
+
 const parseSettingsBodyObject = (
   body: unknown
 ): { value: Record<string, unknown> } | { error: string } => {
@@ -212,7 +233,10 @@ const parseNetworkSettingsBody = (
     }
 
     const dnsCache = { ...(value.dnsCache as Record<string, unknown>) };
-    const enabled = parseOptionalBooleanSetting(dnsCache.enabled, 'dnsCache.enabled');
+    const enabled = parseOptionalBooleanSetting(
+      dnsCache.enabled,
+      'dnsCache.enabled'
+    );
     if ('error' in enabled) {
       return enabled;
     }
@@ -237,7 +261,11 @@ const parseNetworkSettingsBody = (
   }
 
   if (value.proxy !== undefined) {
-    if (!value.proxy || typeof value.proxy !== 'object' || Array.isArray(value.proxy)) {
+    if (
+      !value.proxy ||
+      typeof value.proxy !== 'object' ||
+      Array.isArray(value.proxy)
+    ) {
       return { error: 'proxy must be an object.' };
     }
 
@@ -279,8 +307,13 @@ const parseNetworkSettingsBody = (
     if ('error' in port) {
       return port;
     }
-    if (proxy.enabled === true && (!proxy.hostname || port.value === undefined || port.value < 1)) {
-      return { error: 'proxy hostname and port are required when proxy is enabled.' };
+    if (
+      proxy.enabled === true &&
+      (!proxy.hostname || port.value === undefined || port.value < 1)
+    ) {
+      return {
+        error: 'proxy hostname and port are required when proxy is enabled.',
+      };
     }
     proxy.port = port.value;
 
@@ -341,7 +374,11 @@ const parseMainSettingsBody = (
   }
 
   for (const [key, fieldName, max] of [
-    ['blocklistedTagsLimit', 'blocklistedTagsLimit', MAX_BLOCKLISTED_TAGS_LIMIT],
+    [
+      'blocklistedTagsLimit',
+      'blocklistedTagsLimit',
+      MAX_BLOCKLISTED_TAGS_LIMIT,
+    ],
     ['defaultPermissions', 'defaultPermissions', MAX_PERMISSION_VALUE],
   ] as const) {
     const parsed = parseOptionalNetworkInteger(value[key], fieldName, max);
@@ -528,7 +565,9 @@ export const parseLogMessages = (
     }
 
     if (
-      !Object.keys(logMessage).every((key) => logMessageProperties.includes(key))
+      !Object.keys(logMessage).every((key) =>
+        logMessageProperties.includes(key)
+      )
     ) {
       Object.keys(logMessage)
         .filter((prop) => !logMessageProperties.includes(prop))
@@ -867,9 +906,7 @@ settingsRoutes.post('/jellyfin', async (req, res, next) => {
     'jellyfinForgotPasswordUrl'
   );
   if ('error' in jellyfinForgotPasswordUrl) {
-    return res
-      .status(400)
-      .json({ message: jellyfinForgotPasswordUrl.error });
+    return res.status(400).json({ message: jellyfinForgotPasswordUrl.error });
   }
   parsedBody.value.jellyfinForgotPasswordUrl = jellyfinForgotPasswordUrl.value;
 
@@ -1250,54 +1287,28 @@ settingsRoutes.get(
 );
 
 settingsRoutes.get('/jobs', (_req, res) => {
-  return res.status(200).json(
-    scheduledJobs.map((job) => ({
-      id: job.id,
-      name: job.name,
-      type: job.type,
-      interval: job.interval,
-      cronSchedule: job.cronSchedule,
-      nextExecutionTime: job.job.nextInvocation(),
-      running: job.running ? job.running() : false,
-    }))
-  );
+  return res.status(200).json(scheduledJobs.map(getScheduledJobResponse));
 });
 
 settingsRoutes.post<{ jobId: string }>('/jobs/:jobId/run', (req, res, next) => {
-  const jobId = parseSettingsPathId(req.params.jobId, 'Job ID');
-  if ('error' in jobId) {
-    return next({ status: 404, message: 'Job not found.' });
-  }
-
-  const scheduledJob = scheduledJobs.find((job) => job.id === jobId.value);
-
+  const scheduledJob = findScheduledJob(req.params.jobId);
   if (!scheduledJob) {
     return next({ status: 404, message: 'Job not found.' });
   }
 
+  if (scheduledJob.running?.()) {
+    return next({ status: 409, message: 'Job is already running.' });
+  }
+
   scheduledJob.job.invoke();
 
-  return res.status(200).json({
-    id: scheduledJob.id,
-    name: scheduledJob.name,
-    type: scheduledJob.type,
-    interval: scheduledJob.interval,
-    cronSchedule: scheduledJob.cronSchedule,
-    nextExecutionTime: scheduledJob.job.nextInvocation(),
-    running: scheduledJob.running ? scheduledJob.running() : false,
-  });
+  return res.status(200).json(getScheduledJobResponse(scheduledJob));
 });
 
 settingsRoutes.post<{ jobId: JobId }>(
   '/jobs/:jobId/cancel',
   (req, res, next) => {
-    const jobId = parseSettingsPathId(req.params.jobId, 'Job ID');
-    if ('error' in jobId) {
-      return next({ status: 404, message: 'Job not found.' });
-    }
-
-    const scheduledJob = scheduledJobs.find((job) => job.id === jobId.value);
-
+    const scheduledJob = findScheduledJob(req.params.jobId);
     if (!scheduledJob) {
       return next({ status: 404, message: 'Job not found.' });
     }
@@ -1306,28 +1317,14 @@ settingsRoutes.post<{ jobId: JobId }>(
       scheduledJob.cancelFn();
     }
 
-    return res.status(200).json({
-      id: scheduledJob.id,
-      name: scheduledJob.name,
-      type: scheduledJob.type,
-      interval: scheduledJob.interval,
-      cronSchedule: scheduledJob.cronSchedule,
-      nextExecutionTime: scheduledJob.job.nextInvocation(),
-      running: scheduledJob.running ? scheduledJob.running() : false,
-    });
+    return res.status(200).json(getScheduledJobResponse(scheduledJob));
   }
 );
 
 settingsRoutes.post<{ jobId: JobId }>(
   '/jobs/:jobId/schedule',
   async (req, res, next) => {
-    const jobId = parseSettingsPathId(req.params.jobId, 'Job ID');
-    if ('error' in jobId) {
-      return next({ status: 404, message: 'Job not found.' });
-    }
-
-    const scheduledJob = scheduledJobs.find((job) => job.id === jobId.value);
-
+    const scheduledJob = findScheduledJob(req.params.jobId);
     if (!scheduledJob) {
       return next({ status: 404, message: 'Job not found.' });
     }
@@ -1354,15 +1351,7 @@ settingsRoutes.post<{ jobId: JobId }>(
 
       scheduledJob.cronSchedule = schedule;
 
-      return res.status(200).json({
-        id: scheduledJob.id,
-        name: scheduledJob.name,
-        type: scheduledJob.type,
-        interval: scheduledJob.interval,
-        cronSchedule: scheduledJob.cronSchedule,
-        nextExecutionTime: scheduledJob.job.nextInvocation(),
-        running: scheduledJob.running ? scheduledJob.running() : false,
-      });
+      return res.status(200).json(getScheduledJobResponse(scheduledJob));
     } else {
       return next({ status: 400, message: 'Invalid job schedule.' });
     }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
+import { scheduledJobs } from '@server/job/schedule';
 import { getSettings } from '@server/lib/settings';
 import type { Express } from 'express';
 import express from 'express';
@@ -48,6 +49,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  scheduledJobs.length = 0;
   mock.restoreAll();
 });
 
@@ -778,6 +780,30 @@ describe('Settings route input validation', () => {
     );
 
     assert.strictEqual(res.status, 404);
+  });
+
+  it('does not invoke a job that already reports running', async () => {
+    let invoked = false;
+    scheduledJobs.push({
+      id: 'radarr-scan',
+      name: 'Radarr Scan',
+      type: 'process',
+      interval: 'hours',
+      cronSchedule: '0 0 * * *',
+      job: {
+        invoke: () => {
+          invoked = true;
+        },
+        nextInvocation: () => null,
+      } as never,
+      running: () => true,
+    });
+
+    const res = await request(app).post('/settings/jobs/radarr-scan/run');
+
+    assert.strictEqual(res.status, 409);
+    assert.match(res.body.message, /already running/);
+    assert.strictEqual(invoked, false);
   });
 
   it('rejects oversized cache IDs before lookup', async () => {
