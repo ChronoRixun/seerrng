@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isSafeHttpUrl, isValidHttpUrl, safeStringEqual } from './security';
+import type { Request } from 'express';
+import {
+  getRateLimitKey,
+  isSafeHttpUrl,
+  isValidHttpUrl,
+  safeStringEqual,
+} from './security';
 
 describe('isValidHttpUrl', () => {
   it('accepts http and https URLs', () => {
@@ -48,5 +54,27 @@ describe('safeStringEqual', () => {
     assert.equal(safeStringEqual('secret', 'other'), false);
     assert.equal(safeStringEqual('secret', 'secret1'), false);
     assert.equal(safeStringEqual(undefined, 'secret'), false);
+  });
+});
+
+describe('getRateLimitKey', () => {
+  it('does not trust client-supplied forwarded headers directly', () => {
+    const req = {
+      headers: { 'x-forwarded-for': '203.0.113.10' },
+      ip: '198.51.100.5',
+      socket: { remoteAddress: '198.51.100.6' },
+    } as unknown as Request;
+
+    assert.equal(getRateLimitKey(req), '198.51.100.5');
+  });
+
+  it('falls back to the socket remote address when Express has no ip', () => {
+    const req = {
+      headers: {},
+      ip: undefined,
+      socket: { remoteAddress: '198.51.100.6' },
+    } as unknown as Request;
+
+    assert.equal(getRateLimitKey(req), '198.51.100.6');
   });
 });
