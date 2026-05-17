@@ -89,7 +89,12 @@ export const isImageCacheWarmUrl = (rawUrl: string): boolean => {
     const path = getImageCacheWarmPath(url);
 
     return (
-      getImageCacheWarmProvider(url) !== null && path.length <= maxWarmPathLength
+      getImageCacheWarmProvider(url) !== null &&
+      !url.username &&
+      !url.password &&
+      path.length <= maxWarmPathLength &&
+      !url.pathname.startsWith('//') &&
+      !url.pathname.includes('://')
     );
   } catch {
     return false;

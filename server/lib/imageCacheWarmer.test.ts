@@ -76,8 +76,23 @@ describe('isImageCacheWarmUrl', () => {
 
   it('rejects malformed or unsupported warm URLs before queueing', () => {
     assert.equal(isImageCacheWarmUrl('not-a-url'), false);
-    assert.equal(isImageCacheWarmUrl('http://image.tmdb.org/poster.jpg'), false);
+    assert.equal(
+      isImageCacheWarmUrl('http://image.tmdb.org/poster.jpg'),
+      false
+    );
     assert.equal(isImageCacheWarmUrl('https://example.com/poster.jpg'), false);
+    assert.equal(
+      isImageCacheWarmUrl('https://user:pass@image.tmdb.org/t/p/w300/a.jpg'),
+      false
+    );
+    assert.equal(
+      isImageCacheWarmUrl('https://image.tmdb.org//evil.example/a.jpg'),
+      false
+    );
+    assert.equal(
+      isImageCacheWarmUrl('https://image.tmdb.org/https://evil.example/a.jpg'),
+      false
+    );
   });
 
   it('rejects oversized warm URL paths before queueing', () => {
