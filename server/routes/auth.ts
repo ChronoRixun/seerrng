@@ -26,7 +26,7 @@ import {
   parseOptionalBoundedString,
 } from '@server/utils/validation';
 import axios from 'axios';
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import net from 'net';
 import validator from 'validator';
@@ -90,6 +90,27 @@ const parseRequestBodyObject = (
 
   return { value: body as Record<string, unknown> };
 };
+
+export const establishAuthenticatedSession = (
+  req: Request,
+  userId: number
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (!req.session) {
+      resolve();
+      return;
+    }
+
+    req.session.regenerate((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      req.session.userId = userId;
+      resolve();
+    });
+  });
 
 const parseOptionalPort = (
   value: unknown,
@@ -330,10 +351,7 @@ authRoutes.post('/plex', authRateLimit, async (req, res, next) => {
       }
     }
 
-    // Set logged in session
-    if (req.session) {
-      req.session.userId = user.id;
-    }
+    await establishAuthenticatedSession(req, user.id);
 
     return res.status(200).json(user?.filter() ?? {});
   } catch (e) {
@@ -726,10 +744,7 @@ authRoutes.post('/jellyfin', authRateLimit, async (req, res, next) => {
       }
     }
 
-    // Set logged in session
-    if (req.session) {
-      req.session.userId = user?.id;
-    }
+    await establishAuthenticatedSession(req, user.id);
 
     return res.status(200).json(user?.filter() ?? {});
   } catch (e) {
@@ -855,10 +870,7 @@ authRoutes.post('/local', authRateLimit, async (req, res, next) => {
       });
     }
 
-    // Set logged in session
-    if (user && req.session) {
-      req.session.userId = user.id;
-    }
+    await establishAuthenticatedSession(req, user.id);
 
     return res.status(200).json(user?.filter() ?? {});
   } catch (e) {
