@@ -437,7 +437,11 @@ const getValidatedTmdbSort = (sortBy: unknown): SortOptions =>
     : 'popularity.desc') as SortOptions;
 
 const optionalTmdbQueryString = (maxLength = MAX_DISCOVER_FILTER_LENGTH) =>
-  z.string().trim().max(maxLength).optional();
+  z
+    .union([z.string(), z.number()])
+    .transform((value) => String(value).trim())
+    .pipe(z.string().max(maxLength))
+    .optional();
 const optionalTmdbDateString = z
   .string()
   .trim()
@@ -478,12 +482,18 @@ export type FilterOptions = z.infer<typeof QueryFilterOptions>;
 const ApiQuerySchema = QueryFilterOptions.omit({
   certificationMode: true,
 });
+const SEEDED_DISCOVERY_JITTER_RATIO = 0.75;
+const SEEDED_DISCOVERY_JITTER_FLOOR = 50;
+const SEEDED_DISCOVERY_JITTER = {
+  jitterRatio: SEEDED_DISCOVERY_JITTER_RATIO,
+  jitterFloor: SEEDED_DISCOVERY_JITTER_FLOOR,
+};
 
 discoverRoutes.get('/movies', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage(req.user);
 
   try {
-    const parsedQuery = ApiQuerySchema.safeParse(req.query);
+    const parsedQuery = ApiQuerySchema.safeParse({ ...req.query });
     if (!parsedQuery.success) {
       return res.status(400).json({
         status: 400,
@@ -535,7 +545,11 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     });
     const rankedResults = query.sortBy
       ? data.results
-      : rankTmdbMovieResults(data.results, parsedShuffleSeed.value);
+      : rankTmdbMovieResults(
+          data.results,
+          parsedShuffleSeed.value,
+          parsedShuffleSeed.value ? SEEDED_DISCOVERY_JITTER : {}
+        );
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -851,7 +865,7 @@ discoverRoutes.get('/tv', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage(req.user);
 
   try {
-    const parsedQuery = ApiQuerySchema.safeParse(req.query);
+    const parsedQuery = ApiQuerySchema.safeParse({ ...req.query });
     if (!parsedQuery.success) {
       return res.status(400).json({
         status: 400,
@@ -903,7 +917,11 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     });
     const rankedResults = query.sortBy
       ? data.results
-      : rankTmdbTvResults(data.results, parsedShuffleSeed.value);
+      : rankTmdbTvResults(
+          data.results,
+          parsedShuffleSeed.value,
+          parsedShuffleSeed.value ? SEEDED_DISCOVERY_JITTER : {}
+        );
 
     const media = await Media.getRelatedMedia(
       req.user,
@@ -1648,8 +1666,8 @@ discoverRoutes.get('/music', async (req, res) => {
               rankByQualityScore(
                 sortedAlbums,
                 scoreMusicAlbum,
-                undefined,
-                undefined,
+                shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
+                shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
                 shuffleSeed
               ),
               providerWindow.sliceEnd
@@ -1807,8 +1825,8 @@ discoverRoutes.get('/music', async (req, res) => {
               (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
             ),
             scoreMusicAlbum,
-            undefined,
-            undefined,
+            shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
+            shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
             shuffleSeed
           ),
           providerWindow.sliceEnd
@@ -1893,8 +1911,8 @@ discoverRoutes.get('/music', async (req, res) => {
             (a, b) => scoreMusicAlbum(b) - scoreMusicAlbum(a)
           ),
           scoreMusicAlbum,
-          undefined,
-          undefined,
+          shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
+          shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
           shuffleSeed
         ),
         providerWindow.sliceEnd
@@ -1981,8 +1999,8 @@ discoverRoutes.get('/music', async (req, res) => {
             rankByQualityScore(
               sortedReleases.map(mapFreshReleaseAlbum),
               scoreMusicAlbum,
-              undefined,
-              undefined,
+              shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
+              shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
               shuffleSeed
             ),
             providerWindow.sliceEnd
@@ -2157,8 +2175,8 @@ discoverRoutes.get('/books', async (req, res) => {
                   (a, b) => scoreBookDoc(b) - scoreBookDoc(a)
                 ),
                 scoreBookDoc,
-                undefined,
-                undefined,
+                shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
+                shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
                 shuffleSeed
               ),
               itemsPerPage
@@ -2176,8 +2194,8 @@ discoverRoutes.get('/books', async (req, res) => {
         ? rankByQualityScore(
             [...books.docs].sort((a, b) => scoreBookDoc(b) - scoreBookDoc(a)),
             scoreBookDoc,
-            undefined,
-            undefined,
+            shuffleSeed ? SEEDED_DISCOVERY_JITTER_RATIO : undefined,
+            shuffleSeed ? SEEDED_DISCOVERY_JITTER_FLOOR : undefined,
             shuffleSeed
           )
         : books.docs;

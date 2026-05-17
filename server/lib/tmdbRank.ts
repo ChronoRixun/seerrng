@@ -74,25 +74,27 @@ export const rankByQualityScore = <T>(
 
 export const rankTmdbMovieResults = (
   results: TmdbMovieResult[],
-  seed?: string
+  seed?: string,
+  options: { jitterRatio?: number; jitterFloor?: number } = {}
 ): TmdbMovieResult[] =>
   rankByQualityScore(
     results,
     (result) => scoreTmdbResult({ ...result, date: result.release_date }),
-    undefined,
-    undefined,
+    options.jitterRatio,
+    options.jitterFloor,
     seed
   );
 
 export const rankTmdbTvResults = (
   results: TmdbTvResult[],
-  seed?: string
+  seed?: string,
+  options: { jitterRatio?: number; jitterFloor?: number } = {}
 ): TmdbTvResult[] =>
   rankByQualityScore(
     results,
     (result) => scoreTmdbResult({ ...result, date: result.first_air_date }),
-    undefined,
-    undefined,
+    options.jitterRatio,
+    options.jitterFloor,
     seed
   );
 

@@ -67,4 +67,34 @@ describe('rankByQualityScore', () => {
 
     assert.deepStrictEqual(firstRank, secondRank);
   });
+
+  it('allows seeded discovery callers to request stronger visible jitter', () => {
+    const items = [
+      { title: 'A', score: 100 },
+      { title: 'B', score: 99 },
+      { title: 'C', score: 98 },
+      { title: 'D', score: 97 },
+      { title: 'E', score: 96 },
+    ];
+
+    const firstRank = rankByQualityScore(
+      items,
+      (item) => item.score,
+      0.75,
+      50,
+      'refresh-a'
+    );
+    const secondRank = rankByQualityScore(
+      items,
+      (item) => item.score,
+      0.75,
+      50,
+      'refresh-b'
+    );
+
+    assert.notDeepStrictEqual(
+      firstRank.map((item) => item.title),
+      secondRank.map((item) => item.title)
+    );
+  });
 });

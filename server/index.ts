@@ -167,7 +167,7 @@ app
 
     const server = express();
     if (settings.network.trustProxy) {
-      server.enable('trust proxy');
+      server.set('trust proxy', 1);
     }
     server.use(compression());
     server.use(cookieParser());

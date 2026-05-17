@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { getInternalApiBaseUrl } from './utils/internalApi';
 
 const isPathPrefix = (pathname: string, prefix: string): boolean =>
   pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -25,9 +26,7 @@ const isResetPasswordPath = (pathname: string): boolean =>
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const apiBaseUrl = `http://${process.env.HOST || 'localhost'}:${
-    process.env.PORT || 5055
-  }`;
+  const apiBaseUrl = getInternalApiBaseUrl();
 
   let settings: { initialized?: boolean };
   try {

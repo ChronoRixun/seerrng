@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const IS_SCROLLING_CHECK_THROTTLE = 200;
 const BUFFER_HEIGHT = 200;
+const BOTTOM_RECHECK_INTERVAL = 500;
 
 /**
  * useVerticalScroll is a custom hook to handle infinite scrolling
@@ -50,6 +51,16 @@ const useVerticalScroll = (
   useEffect(() => {
     runCallback();
   }, [runCallback]);
+
+  useEffect(() => {
+    if (!shouldFetch) {
+      return;
+    }
+
+    const interval = setInterval(runCallback, BOTTOM_RECHECK_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [runCallback, shouldFetch]);
 
   useEffect(() => {
     const onScroll = () => {

@@ -306,6 +306,26 @@ describe('GET /discover/movies', () => {
     assert.strictEqual(res.body.results[0].title, 'Seeded Movie');
   });
 
+  it('accepts numeric query parser values for root movie discovery', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/movie');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 0,
+        results: [],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/movies')
+      .query({ page: 1, genre: 28, shuffleSeed: 'refresh-a' });
+
+    assert.strictEqual(res.status, 200);
+  });
+
   it('ranks movie genre discovery by quality signals within the TMDB page', async () => {
     mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
       if (endpoint === '/genre/movie/list') {
@@ -583,6 +603,26 @@ describe('GET /discover/tv', () => {
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.results[0].name, 'Seeded Series');
+  });
+
+  it('accepts numeric query parser values for root series discovery', async () => {
+    mockPrivate(ExternalAPI.prototype, 'get', async (endpoint: unknown) => {
+      assert.strictEqual(endpoint, '/discover/tv');
+
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 0,
+        results: [],
+      };
+    });
+
+    const agent = await login();
+    const res = await agent
+      .get('/discover/tv')
+      .query({ page: 1, network: 213, shuffleSeed: 'refresh-a' });
+
+    assert.strictEqual(res.status, 200);
   });
 
   it('ranks series genre discovery by quality signals within the TMDB page', async () => {
