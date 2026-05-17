@@ -9,7 +9,21 @@ import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici';
 
 export let requestInterceptorFunction: (
   config: InternalAxiosRequestConfig
-) => InternalAxiosRequestConfig;
+) => InternalAxiosRequestConfig = (config) => config;
+
+const getAxiosRequestUrl = (
+  config: InternalAxiosRequestConfig
+): string | URL | undefined => {
+  if (!config.url) {
+    return config.baseURL;
+  }
+
+  try {
+    return config.baseURL ? new URL(config.url, config.baseURL) : config.url;
+  } catch {
+    return config.url;
+  }
+};
 
 export default async function createCustomProxyAgent(
   proxySettings: ProxySettings,
@@ -99,9 +113,7 @@ export default async function createCustomProxyAgent(
     axios.defaults.httpsAgent = new HttpsProxyAgent(proxyUrl, agentOptions);
 
     requestInterceptorFunction = (config) => {
-      const url = config.baseURL
-        ? new URL(config.baseURL + (config.url || ''))
-        : config.url;
+      const url = getAxiosRequestUrl(config);
       if (url && skipUrl(url)) {
         config.httpAgent = false;
         config.httpsAgent = false;

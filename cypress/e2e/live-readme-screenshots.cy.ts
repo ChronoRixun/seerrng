@@ -76,6 +76,13 @@ const getDeep = <T extends Element>(selector: string) =>
     });
   });
 
+const setInputValue = (input: HTMLInputElement, value: string) => {
+  input.focus();
+  input.value = value;
+  input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
 const getDeepText = <T extends Element>(selector: string, pattern: RegExp) =>
   cy.document().then({ timeout: 30000 }, (doc) => {
     return new Cypress.Promise<T>((resolve, reject) => {
@@ -107,18 +114,15 @@ const getDeepText = <T extends Element>(selector: string, pattern: RegExp) =>
 
 const login = () => {
   cy.visit('https://request.snape.tech/', { timeout: 60000 });
-  getDeep<HTMLInputElement>('input').then((input) =>
-    cy.wrap(input).type(Cypress.env('LIVE_README_EMAIL'), { force: true })
-  );
+  getDeep<HTMLInputElement>('input').then((input) => {
+    setInputValue(input, Cypress.env('LIVE_README_EMAIL'));
+  });
   getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
     cy.wrap(button).click({ force: true })
   );
-  getDeep<HTMLInputElement>('input[type="password"]').then((input) =>
-    cy.wrap(input).type(Cypress.env('LIVE_README_PASSWORD'), {
-      force: true,
-      log: false,
-    })
-  );
+  getDeep<HTMLInputElement>('input[type="password"]').then((input) => {
+    setInputValue(input, Cypress.env('LIVE_README_PASSWORD'));
+  });
   getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
     cy.wrap(button).click({ force: true })
   );
