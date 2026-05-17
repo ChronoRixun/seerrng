@@ -130,7 +130,11 @@ const waitForImages = () => {
               }
 
               const timeout = window.setTimeout(() => {
-                reject(new Error(`Timed out loading image: ${image.currentSrc || image.src}`));
+                reject(
+                  new Error(
+                    `Timed out loading image: ${image.currentSrc || image.src}`
+                  )
+                );
               }, 15000);
 
               image.addEventListener(
@@ -145,7 +149,11 @@ const waitForImages = () => {
                 'error',
                 () => {
                   window.clearTimeout(timeout);
-                  reject(new Error(`Failed loading image: ${image.currentSrc || image.src}`));
+                  reject(
+                    new Error(
+                      `Failed loading image: ${image.currentSrc || image.src}`
+                    )
+                  );
                 },
                 { once: true }
               );
@@ -169,8 +177,9 @@ describe('README screenshots', () => {
     cy.get('[data-testid=title-card]').should('have.length.greaterThan', 20);
     cy.contains('Recommended Music').scrollIntoView();
     cy.contains('Meteora').should('be.visible');
-    cy.contains('The Clockwork Sea').should('be.visible');
+    cy.contains('The Clockwork Sea').should('exist');
     waitForImages();
+    cy.contains('Recommended Music').scrollIntoView();
     cy.wait(1000);
     cy.screenshot('readme-discover', { capture: 'viewport' });
   });

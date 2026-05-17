@@ -11,6 +11,7 @@ import {
   parseOptionalBoundedString,
   parseOptionalNonNegativeInteger,
 } from '@server/utils/validation';
+import { isValidHttpUrl } from './security';
 
 const MAX_SERVICE_STRING_LENGTH = 512;
 const MAX_SERVICE_PATH_LENGTH = 4096;
@@ -62,6 +63,20 @@ const parseOptionalServiceString = (
 ): { value: string | undefined } | { error: string } =>
   parseOptionalBoundedString(value, { fieldName, maxLength });
 
+const parseOptionalExternalUrl = (
+  value: unknown
+): { value: string | undefined } | { error: string } => {
+  const parsed = parseOptionalServiceString(value, 'externalUrl');
+
+  if ('error' in parsed || parsed.value === undefined) {
+    return parsed;
+  }
+
+  return isValidHttpUrl(parsed.value)
+    ? parsed
+    : { error: 'externalUrl must be a valid HTTP URL.' };
+};
+
 const parseDvrSettings = (
   body: unknown,
   current?: DVRSettings
@@ -96,10 +111,7 @@ const parseDvrSettings = (
   const baseUrl = parseOptionalServiceString(settings.baseUrl, 'baseUrl');
   if ('error' in baseUrl) return baseUrl;
 
-  const externalUrl = parseOptionalServiceString(
-    settings.externalUrl,
-    'externalUrl'
-  );
+  const externalUrl = parseOptionalExternalUrl(settings.externalUrl);
   if ('error' in externalUrl) return externalUrl;
 
   const tags = parseNumberArray(settings.tags, 'tags');

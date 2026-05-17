@@ -66,6 +66,19 @@ describe('Settings route input validation', () => {
     assert.strictEqual(saveMock.mock.callCount(), 0);
   });
 
+  it('rejects unsafe Tautulli external URLs before saving', async () => {
+    const settings = getSettings();
+    const saveMock = mock.method(settings, 'save', async () => undefined);
+
+    const res = await request(app).post('/settings/tautulli').send({
+      externalUrl: 'javascript:alert(1)',
+    });
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /externalUrl must be a valid HTTP URL/);
+    assert.strictEqual(saveMock.mock.callCount(), 0);
+  });
+
   it('rejects malformed media server settings bodies before external work', async () => {
     const settings = getSettings();
     const saveMock = mock.method(settings, 'save', async () => undefined);
@@ -143,7 +156,9 @@ describe('Settings route input validation', () => {
   });
 
   it('rejects malformed metadata test bodies before provider calls', async () => {
-    const arrayRes = await request(app).post('/settings/metadatas/test').send([]);
+    const arrayRes = await request(app)
+      .post('/settings/metadatas/test')
+      .send([]);
     const flagRes = await request(app)
       .post('/settings/metadatas/test')
       .send({ tmdb: 'true' });

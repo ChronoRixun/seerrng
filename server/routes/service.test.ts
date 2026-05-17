@@ -159,6 +159,16 @@ describe('Radarr settings routes', () => {
     assert.match(res.body.message, /settings must be an object/i);
   });
 
+  it('rejects unsafe external service URLs before persistence', async () => {
+    const res = await request(app)
+      .post('/settings/radarr')
+      .send(makeRadarr({ externalUrl: 'javascript:alert(1)' }));
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /externalUrl must be a valid HTTP URL/i);
+    assert.strictEqual(getSettings().radarr.length, 0);
+  });
+
   it('does not clear Radarr defaults for string boolean payloads', async () => {
     getSettings().radarr = [makeRadarr({ id: 3, name: 'Primary Radarr' })];
 

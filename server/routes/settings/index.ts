@@ -31,7 +31,11 @@ import { getAppVersion } from '@server/utils/appVersion';
 import { dnsCache } from '@server/utils/dnsCache';
 import { getHostname } from '@server/utils/getHostname';
 import { parsePageParams } from '@server/utils/pagination';
-import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
+import {
+  isValidHttpUrl,
+  preserveRedactedSecrets,
+  redactSecrets,
+} from '@server/utils/security';
 import {
   parseBoundedString,
   parseOptionalAllowedString,
@@ -107,6 +111,24 @@ const parseOptionalSettingsBodyObject = (
   }
 
   return parseSettingsBodyObject(body);
+};
+
+const validateOptionalHttpUrl = (
+  value: unknown,
+  fieldName: string
+): { value: string | undefined } | { error: string } => {
+  const parsed = parseOptionalBoundedString(value, {
+    fieldName,
+    maxLength: 512,
+  });
+
+  if ('error' in parsed || parsed.value === undefined) {
+    return parsed;
+  }
+
+  return isValidHttpUrl(parsed.value)
+    ? parsed
+    : { error: `${fieldName} must be a valid HTTP URL.` };
 };
 
 const readLogTail = async (
@@ -605,6 +627,15 @@ settingsRoutes.post('/tautulli', async (req, res, next) => {
   if ('error' in parsedBody) {
     return res.status(400).json({ message: parsedBody.error });
   }
+
+  const externalUrl = validateOptionalHttpUrl(
+    parsedBody.value.externalUrl,
+    'externalUrl'
+  );
+  if ('error' in externalUrl) {
+    return res.status(400).json({ message: externalUrl.error });
+  }
+  parsedBody.value.externalUrl = externalUrl.value;
 
   Object.assign(
     settings.tautulli,
