@@ -43,3 +43,16 @@ export const buildDiscoverQueryString = (
         : [];
     })
     .join('&');
+
+export const appendDiscoverQueryString = (
+  params: Record<string, unknown>,
+  extraQueryString?: string
+): string => {
+  const queryParts = [buildDiscoverQueryString(params)];
+
+  if (extraQueryString) {
+    queryParts.push(extraQueryString);
+  }
+
+  return queryParts.filter(Boolean).join('&');
+};

@@ -10,6 +10,7 @@ import useWarmImageCache from '@app/hooks/useWarmImageCache';
 import { ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 import { MediaStatus } from '@server/constants/media';
 import { Permission } from '@server/lib/permissions';
+import { appendDiscoverQueryString } from '@server/utils/discoverQuery';
 import type {
   AlbumResult,
   ArtistResult,
@@ -88,17 +89,13 @@ const MediaSlider = ({
         return null;
       }
 
-      const params = [`page=${pageIndex + 1}`];
-
-      if (extraParams) {
-        params.push(extraParams);
-      }
-
-      if (randomizeOrder) {
-        params.push(`shuffleSeed=${shuffleSeed}`);
-      }
-
-      return `${url}?${params.join('&')}`;
+      return `${url}?${appendDiscoverQueryString(
+        {
+          page: pageIndex + 1,
+          shuffleSeed: randomizeOrder ? shuffleSeed : undefined,
+        },
+        extraParams
+      )}`;
     },
     [extraParams, randomizeOrder, shouldLoad, shuffleSeed, url]
   );
