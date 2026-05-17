@@ -14,6 +14,7 @@ import { getQueryParamString } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ArrowDownTrayIcon,
@@ -100,7 +101,9 @@ const MusicDetails = () => {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<MusicDetailsType>(musicId ? `/api/v1/music/${musicId}` : null);
+  } = useSWR<MusicDetailsType>(
+    musicId ? `/api/v1/music/${encodeApiPathSegment(musicId)}` : null
+  );
 
   useEffect(() => {
     setShowManager(router.query.manage === '1');
@@ -240,7 +243,9 @@ const MusicDetails = () => {
     setIsWatchlistUpdating(true);
 
     try {
-      await axios.delete(`/api/v1/watchlist/${data.mbId}?mediaType=music`);
+      await axios.delete(
+        `/api/v1/watchlist/${encodeApiPathSegment(data.mbId)}?mediaType=music`
+      );
 
       addToast(
         <span>
@@ -594,7 +599,7 @@ const MusicDetails = () => {
       <MediaSlider
         sliderKey="similar-artists"
         title={intl.formatMessage(messages.similarartists)}
-        url={`/api/v1/music/${data.id}/artist-similar`}
+        url={`/api/v1/music/${encodeApiPathSegment(data.id)}/artist-similar`}
         hideWhenEmpty
       />
     </>

@@ -8,6 +8,7 @@ import useDeepLinks from '@app/hooks/useDeepLinks';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
 import { withProperties } from '@app/utils/typeHelpers';
@@ -347,18 +348,21 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     'approve' | 'decline' | null
   >(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const bookId = request.type === 'book' ? getBookId(request) : undefined;
   const url =
     request.type === 'movie'
       ? `/api/v1/movie/${request.media.tmdbId}`
       : request.type === 'tv'
         ? `/api/v1/tv/${request.media.tmdbId}`
-        : request.type === 'music'
-          ? `/api/v1/music/${request.media.mbId}`
-          : `/api/v1/book/${getBookId(request)}`;
+        : request.type === 'music' && request.media.mbId
+          ? `/api/v1/music/${encodeApiPathSegment(request.media.mbId)}`
+          : request.type === 'book' && bookId
+            ? `/api/v1/book/${encodeApiPathSegment(bookId)}`
+            : null;
 
   const { data: title, error } = useSWR<
     MovieDetails | TvDetails | MusicDetails | BookDetails
-  >(inView && !url.endsWith('/undefined') ? `${url}` : null);
+  >(inView ? url : null);
   const {
     data: requestData,
     error: requestError,

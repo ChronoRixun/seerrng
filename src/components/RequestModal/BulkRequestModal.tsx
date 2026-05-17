@@ -9,6 +9,7 @@ import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
@@ -290,7 +291,7 @@ const BulkRequestModal = ({
 
         do {
           const response = await axios.get<AuthorWorksResponse>(
-            `/api/v1/author/${authorId}/works`,
+            `/api/v1/author/${encodeApiPathSegment(authorId)}/works`,
             { params: { limit, offset } }
           );
 
@@ -345,7 +346,7 @@ const BulkRequestModal = ({
 
         do {
           const response = await axios.get<ArtistResponse>(
-            `/api/v1/artist/${artistId}`,
+            `/api/v1/artist/${encodeApiPathSegment(artistId)}`,
             {
               params: { albumType: releaseType, page, pageSize: 50 },
             }
@@ -460,7 +461,7 @@ const BulkRequestModal = ({
     }
 
     const response = await axios.get<AuthorWorksResponse>(
-      `/api/v1/author/${authorId}/works`,
+      `/api/v1/author/${encodeApiPathSegment(authorId)}/works`,
       { params: { limit: 20, offset: authorOffset } }
     );
 

@@ -5,6 +5,7 @@ import Tooltip from '@app/components/Common/Tooltip';
 import { issueOptions } from '@app/components/IssueModal/constants';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { EyeIcon } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
@@ -70,9 +71,9 @@ const IssueItem = ({ issue }: IssueItemProps) => {
       : issue.media.mediaType === MediaType.TV
         ? `/api/v1/tv/${issue.media.tmdbId}`
         : issue.media.mediaType === MediaType.MUSIC && issue.media.mbId
-          ? `/api/v1/music/${issue.media.mbId}`
+          ? `/api/v1/music/${encodeApiPathSegment(issue.media.mbId)}`
           : issue.media.mediaType === MediaType.BOOK && bookId
-            ? `/api/v1/book/${bookId}`
+            ? `/api/v1/book/${encodeApiPathSegment(bookId)}`
             : null;
   const { data: title, error } = useSWR<IssueTitle>(inView ? url : null);
 

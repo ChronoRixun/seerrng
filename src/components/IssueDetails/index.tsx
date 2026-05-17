@@ -13,6 +13,7 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
 import {
@@ -123,9 +124,9 @@ const IssueDetails = () => {
       : issueData?.media.mediaType === MediaType.TV
         ? `/api/v1/tv/${issueData.media.tmdbId}`
         : issueData?.media.mediaType === MediaType.MUSIC && issueData.media.mbId
-          ? `/api/v1/music/${issueData.media.mbId}`
+          ? `/api/v1/music/${encodeApiPathSegment(issueData.media.mbId)}`
           : issueData?.media.mediaType === MediaType.BOOK && bookId
-            ? `/api/v1/book/${bookId}`
+            ? `/api/v1/book/${encodeApiPathSegment(bookId)}`
             : null;
   const { data, error } = useSWR<IssueMediaDetails>(detailUrl);
 

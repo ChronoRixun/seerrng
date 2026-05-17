@@ -6,6 +6,7 @@ import BulkRequestModal from '@app/components/RequestModal/BulkRequestModal';
 import TitleCard from '@app/components/TitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
 import ErrorPage from '@app/pages/_error';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/solid';
 import { MediaStatus } from '@server/constants/media';
@@ -29,7 +30,7 @@ const AuthorDetails = () => {
   const authorId = router.query.authorId as string | undefined;
   const [showBulkRequestModal, setShowBulkRequestModal] = useState(false);
   const { data, error, mutate } = useSWR<AuthorDetailsType>(
-    authorId ? `/api/v1/author/${authorId}` : null
+    authorId ? `/api/v1/author/${encodeApiPathSegment(authorId)}` : null
   );
 
   const bulkItems = useMemo(

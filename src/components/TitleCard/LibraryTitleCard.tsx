@@ -1,5 +1,6 @@
 import TitleCard from '@app/components/TitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import {
   canRequestMissingBookFormat,
   isBookInProgress,
@@ -32,7 +33,10 @@ const LibraryTitleCard = ({
     triggerOnce: true,
   });
   const url = useMemo(
-    () => (type === 'album' ? `/api/v1/music/${id}` : `/api/v1/book/${id}`),
+    () =>
+      type === 'album'
+        ? `/api/v1/music/${encodeApiPathSegment(id)}`
+        : `/api/v1/book/${encodeApiPathSegment(id)}`,
     [id, type]
   );
   const { data: title, error } = useSWR<MusicDetails | BookDetails>(

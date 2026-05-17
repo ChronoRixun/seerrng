@@ -6,6 +6,7 @@ import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   MediaRequestStatus,
@@ -84,9 +85,12 @@ const BookRequestModal = ({
   const [selectedIsbn, setSelectedIsbn] = useState<string>('');
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
-  const { data, error } = useSWR<BookDetails>(`/api/v1/book/${bookId}`, {
-    revalidateOnMount: true,
-  });
+  const { data, error } = useSWR<BookDetails>(
+    `/api/v1/book/${encodeApiPathSegment(bookId)}`,
+    {
+      revalidateOnMount: true,
+    }
+  );
   const { data: bookServices } = useSWR<ServiceCommonServer[]>(
     '/api/v1/service/readarr'
   );

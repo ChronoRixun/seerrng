@@ -6,6 +6,7 @@ import Tooltip from '@app/components/Common/Tooltip';
 import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { CalendarIcon, TrashIcon, UserIcon } from '@heroicons/react/24/solid';
 import type { MediaType } from '@server/constants/media';
@@ -44,7 +45,9 @@ const BlocklistBlock = ({
     mediaType === 'music' || mediaType === 'book' ? externalId : tmdbId;
   const { data } = useSWR<Blocklist>(
     blocklistId
-      ? `/api/v1/blocklist/${blocklistId}?mediaType=${mediaType}`
+      ? `/api/v1/blocklist/${encodeApiPathSegment(
+          blocklistId
+        )}?mediaType=${mediaType}`
       : null
   );
 
@@ -52,7 +55,9 @@ const BlocklistBlock = ({
     setIsUpdating(true);
 
     try {
-      await axios.delete(`/api/v1/blocklist/${id}?mediaType=${mediaType}`);
+      await axios.delete(
+        `/api/v1/blocklist/${encodeApiPathSegment(id)}?mediaType=${mediaType}`
+      );
 
       addToast(
         <span>
@@ -125,10 +130,7 @@ const BlocklistBlock = ({
             <Button
               buttonType="danger"
               onClick={() =>
-                removeFromBlocklist(
-                  data.externalId ?? data.tmdbId,
-                  data.title
-                )
+                removeFromBlocklist(data.externalId ?? data.tmdbId, data.title)
               }
               disabled={isUpdating}
             >

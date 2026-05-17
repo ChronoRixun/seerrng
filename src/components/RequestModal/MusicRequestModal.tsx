@@ -6,6 +6,7 @@ import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
@@ -59,9 +60,12 @@ const MusicRequestModal = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
-  const { data, error } = useSWR<MusicDetails>(`/api/v1/music/${mbId}`, {
-    revalidateOnMount: true,
-  });
+  const { data, error } = useSWR<MusicDetails>(
+    `/api/v1/music/${encodeApiPathSegment(mbId)}`,
+    {
+      revalidateOnMount: true,
+    }
+  );
   const { data: musicServices } = useSWR<ServiceCommonServer[]>(
     '/api/v1/service/lidarr'
   );

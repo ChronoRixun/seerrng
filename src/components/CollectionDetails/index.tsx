@@ -12,6 +12,7 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
 import {
@@ -84,7 +85,9 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
     error,
     mutate: revalidate,
   } = useSWR<Collection>(
-    collectionId ? `/api/v1/collection/${collectionId}` : null,
+    collectionId
+      ? `/api/v1/collection/${encodeApiPathSegment(collectionId)}`
+      : null,
     {
       fallbackData: collection,
       revalidateOnMount: true,
@@ -102,7 +105,9 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
     setIsBlocklistUpdating(true);
 
     try {
-      await axios.post(`/api/v1/blocklist/collection/${data?.id}`);
+      await axios.post(
+        `/api/v1/blocklist/collection/${encodeApiPathSegment(data?.id ?? '')}`
+      );
 
       addToast(
         <span>
@@ -132,7 +137,9 @@ const CollectionDetails = ({ collection }: CollectionDetailsProps) => {
     setIsBlocklistUpdating(true);
 
     try {
-      await axios.delete(`/api/v1/blocklist/collection/${data.id}`);
+      await axios.delete(
+        `/api/v1/blocklist/collection/${encodeApiPathSegment(data.id)}`
+      );
 
       addToast(
         <span>

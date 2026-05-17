@@ -8,6 +8,7 @@ import BulkRequestModal from '@app/components/RequestModal/BulkRequestModal';
 import TitleCard from '@app/components/TitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
 import ErrorPage from '@app/pages/_error';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/solid';
 import { MediaStatus } from '@server/constants/media';
@@ -90,7 +91,7 @@ const ArtistDetails = () => {
   const artistId = router.query.artistId as string | undefined;
   const [showBulkRequestModal, setShowBulkRequestModal] = useState(false);
   const { data, error } = useSWR<ArtistData>(
-    artistId ? `/api/v1/artist/${artistId}` : null,
+    artistId ? `/api/v1/artist/${encodeApiPathSegment(artistId)}` : null,
     { revalidateOnFocus: false, dedupingInterval: 30000 }
   );
   const [albumTypes, setAlbumTypes] = useState<Record<string, AlbumTypeState>>(
@@ -139,7 +140,7 @@ const ArtistDetails = () => {
       try {
         const pageSize = Math.min(data?.typeCounts?.[albumType] ?? 100, 1000);
         const response = await axios.get<ArtistData>(
-          `/api/v1/artist/${artistId}`,
+          `/api/v1/artist/${encodeApiPathSegment(artistId)}`,
           { params: { albumType, pageSize } }
         );
 
@@ -275,7 +276,7 @@ const ArtistDetails = () => {
           <MediaSlider
             sliderKey="artist-similar-artists"
             title={intl.formatMessage(messages.similarartists)}
-            url={`/api/v1/artist/${artistId}/similar`}
+            url={`/api/v1/artist/${encodeApiPathSegment(artistId)}/similar`}
             hideWhenEmpty
           />
         )}

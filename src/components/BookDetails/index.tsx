@@ -13,6 +13,7 @@ import { getQueryParamString } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ArrowDownTrayIcon,
@@ -98,7 +99,9 @@ const BookDetails = () => {
     data,
     error,
     mutate: revalidate,
-  } = useSWR<BookDetailsType>(bookId ? `/api/v1/book/${bookId}` : null);
+  } = useSWR<BookDetailsType>(
+    bookId ? `/api/v1/book/${encodeApiPathSegment(bookId)}` : null
+  );
 
   useEffect(() => {
     setShowManager(router.query.manage === '1');
@@ -266,7 +269,9 @@ const BookDetails = () => {
     setIsWatchlistUpdating(true);
 
     try {
-      await axios.delete(`/api/v1/watchlist/${data.id}?mediaType=book`);
+      await axios.delete(
+        `/api/v1/watchlist/${encodeApiPathSegment(data.id)}?mediaType=book`
+      );
 
       addToast(
         <span>

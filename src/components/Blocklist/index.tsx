@@ -15,6 +15,7 @@ import {
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ChevronLeftIcon,
@@ -310,9 +311,9 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
       : item.mediaType === 'tv'
         ? `/api/v1/tv/${item.tmdbId}`
         : item.mediaType === 'music' && item.externalId
-          ? `/api/v1/music/${item.externalId}`
+          ? `/api/v1/music/${encodeApiPathSegment(item.externalId)}`
           : item.mediaType === 'book' && item.externalId
-            ? `/api/v1/book/${item.externalId}`
+            ? `/api/v1/book/${encodeApiPathSegment(item.externalId)}`
             : null;
   const { data: title, error } = useSWR<BlocklistTitle>(inView ? url : null);
 
@@ -332,7 +333,7 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
       await axios.delete(
         `/api/v1/blocklist/${
           item.mediaType === 'music' || item.mediaType === 'book'
-            ? item.externalId
+            ? encodeApiPathSegment(item.externalId ?? '')
             : tmdbId
         }?mediaType=${item.mediaType}`
       );

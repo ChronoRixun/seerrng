@@ -10,6 +10,7 @@ import { useIsTouch } from '@app/hooks/useIsTouch';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { withProperties } from '@app/utils/typeHelpers';
 import { Transition } from '@headlessui/react';
@@ -180,7 +181,7 @@ const TitleCard = ({
     setIsUpdating(true);
     try {
       const response = await axios.delete<Watchlist>(
-        `/api/v1/watchlist/${id}?mediaType=${
+        `/api/v1/watchlist/${encodeApiPathSegment(id)}?mediaType=${
           mediaType === 'album' ? 'music' : mediaType
         }`
       );
@@ -218,7 +219,9 @@ const TitleCard = ({
     if (topNode) {
       try {
         if (mediaType === 'collection') {
-          await axios.post(`/api/v1/blocklist/collection/${id}`);
+          await axios.post(
+            `/api/v1/blocklist/collection/${encodeApiPathSegment(id)}`
+          );
         } else if (isAlbum || isBook) {
           await axios.post('/api/v1/blocklist', {
             externalId: id,
@@ -284,7 +287,9 @@ const TitleCard = ({
     if (topNode) {
       try {
         if (mediaType === 'collection') {
-          const res = await axios.delete(`/api/v1/blocklist/collection/${id}`);
+          const res = await axios.delete(
+            `/api/v1/blocklist/collection/${encodeApiPathSegment(id)}`
+          );
 
           if (res.status === 204) {
             addToast(
@@ -308,7 +313,9 @@ const TitleCard = ({
           }
         } else {
           const res = await axios.delete(
-            `/api/v1/blocklist/${id}?mediaType=${isAlbum ? 'music' : mediaType}`
+            `/api/v1/blocklist/${encodeApiPathSegment(id)}?mediaType=${
+              isAlbum ? 'music' : mediaType
+            }`
           );
 
           if (res.status === 204) {
