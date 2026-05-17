@@ -27,7 +27,7 @@ import {
   parseOptionalQueryBoolean,
 } from '@server/utils/validation';
 import { Router } from 'express';
-import type { FindOneOptions } from 'typeorm';
+import type { FindOneOptions, FindOptionsWhere } from 'typeorm';
 import { In, IsNull, Not } from 'typeorm';
 
 const mediaRoutes = Router();
@@ -42,6 +42,12 @@ const mediaListFilters = [
   'pending',
 ] as const;
 const mediaListSorts = ['modified', 'mediaAdded'] as const;
+const mediaListTypes = [
+  MediaType.MOVIE,
+  MediaType.TV,
+  MediaType.MUSIC,
+  MediaType.BOOK,
+] as const;
 const mediaFileFormats = ['ebook', 'audiobook', 'both'] as const;
 
 const parseMediaRouteId = (id: unknown): number | undefined =>
@@ -63,6 +69,41 @@ const parseMediaStatusAction = (
   mediaStatusActions.includes(status as MediaStatusAction)
     ? (status as MediaStatusAction)
     : undefined;
+
+const parseMediaTypes = (
+  value: unknown
+): { value?: MediaType[] } | { error: string } => {
+  if (value === undefined || value === null || value === '') {
+    return {};
+  }
+
+  if (Array.isArray(value)) {
+    return { error: 'Media type must be a string.' };
+  }
+
+  if (typeof value !== 'string') {
+    return { error: 'Media type must be a string.' };
+  }
+
+  const types = value
+    .split(',')
+    .map((type) => type.trim())
+    .filter(Boolean);
+
+  if (!types.length) {
+    return {};
+  }
+
+  const invalidType = types.find(
+    (type): type is string => !mediaListTypes.includes(type as MediaType)
+  );
+
+  if (invalidType) {
+    return { error: 'Media type must be valid.' };
+  }
+
+  return { value: [...new Set(types)] as MediaType[] };
+};
 
 const parseSeasonStatusUpdates = (
   seasons: unknown
@@ -142,6 +183,10 @@ mediaRoutes.get('/', async (req, res, next) => {
   if ('error' in parsedSort) {
     return next({ status: 400, message: parsedSort.error });
   }
+  const parsedMediaTypes = parseMediaTypes(req.query.mediaType);
+  if ('error' in parsedMediaTypes) {
+    return next({ status: 400, message: parsedMediaTypes.error });
+  }
   const filter = parsedFilter.value;
   const sort = parsedSort.value;
 
@@ -184,11 +229,18 @@ mediaRoutes.get('/', async (req, res, next) => {
       };
   }
 
-  let whereClause: FindOneOptions<Media>['where'];
+  let whereClause: FindOptionsWhere<Media> | undefined;
   if (statusFilter || sort === 'mediaAdded') {
     whereClause = {};
     if (statusFilter) whereClause.status = statusFilter;
     if (sort === 'mediaAdded') whereClause.mediaAddedAt = Not(IsNull());
+  }
+  if (parsedMediaTypes.value?.length) {
+    whereClause = whereClause ?? {};
+    whereClause.mediaType =
+      parsedMediaTypes.value.length === 1
+        ? parsedMediaTypes.value[0]
+        : In(parsedMediaTypes.value);
   }
 
   try {

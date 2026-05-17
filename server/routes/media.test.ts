@@ -139,6 +139,52 @@ describe('GET /media', () => {
     assert.strictEqual(res.status, 400);
     assert.match(res.body.message, /Sort must be valid/);
   });
+
+  it('filters media lists by media type before pagination', async () => {
+    await getRepository(Media).save([
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.MUSIC,
+        status: MediaStatus.AVAILABLE,
+        mediaAddedAt: new Date('2026-01-03T00:00:00.000Z'),
+      }),
+      new Media({
+        tmdbId: 123,
+        mediaType: MediaType.MOVIE,
+        status: MediaStatus.AVAILABLE,
+        mediaAddedAt: new Date('2026-01-02T00:00:00.000Z'),
+      }),
+      new Media({
+        tmdbId: 456,
+        mediaType: MediaType.TV,
+        status: MediaStatus.PARTIALLY_AVAILABLE,
+        mediaAddedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }),
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+        mediaAddedAt: new Date('2025-12-31T00:00:00.000Z'),
+      }),
+    ]);
+
+    const res = await request(app).get(
+      '/media?filter=allavailable&sort=mediaAdded&take=20&mediaType=movie,tv'
+    );
+
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(
+      res.body.results.map((item: { mediaType: string }) => item.mediaType),
+      [MediaType.MOVIE, MediaType.TV]
+    );
+  });
+
+  it('rejects malformed media type filters', async () => {
+    const res = await request(app).get('/media?mediaType=movie,invalid');
+
+    assert.strictEqual(res.status, 400);
+    assert.match(res.body.message, /Media type must be valid/);
+  });
 });
 
 describe('POST /media/:id/:status', () => {

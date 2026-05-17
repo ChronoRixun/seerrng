@@ -20,7 +20,9 @@ const RecentlyAddedSlider = () => {
     triggerOnce: true,
   });
   const { data: media, error: mediaError } = useSWR<MediaResultsResponse>(
-    inView ? '/api/v1/media?filter=allavailable&take=20&sort=mediaAdded' : null,
+    inView
+      ? '/api/v1/media?filter=allavailable&take=20&sort=mediaAdded&mediaType=movie%2Ctv'
+      : null,
     { revalidateOnFocus: false }
   );
 
