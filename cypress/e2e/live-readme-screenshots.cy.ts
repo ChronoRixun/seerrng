@@ -76,13 +76,6 @@ const getDeep = <T extends Element>(selector: string) =>
     });
   });
 
-const setInputValue = (input: HTMLInputElement, value: string) => {
-  input.focus();
-  input.value = value;
-  input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-};
-
 const getDeepText = <T extends Element>(selector: string, pattern: RegExp) =>
   cy.document().then({ timeout: 30000 }, (doc) => {
     return new Cypress.Promise<T>((resolve, reject) => {
@@ -114,19 +107,37 @@ const getDeepText = <T extends Element>(selector: string, pattern: RegExp) =>
 
 const login = () => {
   cy.visit('https://request.snape.tech/', { timeout: 60000 });
-  getDeep<HTMLInputElement>('input').then((input) => {
-    setInputValue(input, Cypress.env('LIVE_README_EMAIL'));
-  });
+  getDeep<HTMLInputElement>('input').then((input) =>
+    cy.wrap(input).clear({ force: true }).type(Cypress.env('LIVE_README_EMAIL'), {
+      force: true,
+    })
+  );
   getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
     cy.wrap(button).click({ force: true })
   );
-  getDeep<HTMLInputElement>('input[type="password"]').then((input) => {
-    setInputValue(input, Cypress.env('LIVE_README_PASSWORD'));
-  });
+  getDeep<HTMLInputElement>('input[type="password"]').then((input) =>
+    cy.wrap(input).clear({ force: true }).type(Cypress.env('LIVE_README_PASSWORD'), {
+      force: true,
+      log: false,
+    })
+  );
   getDeepText<HTMLButtonElement>('button', /log in|continue|next/i).then((button) =>
     cy.wrap(button).click({ force: true })
   );
   cy.location('hostname', { timeout: 60000 }).should('eq', 'request.snape.tech');
+  cy.location('pathname', { timeout: 60000 }).then((pathname) => {
+    if (pathname === '/login') {
+      cy.get('input[placeholder*="Email" i], input[type="email"]', { timeout: 30000 })
+        .first()
+        .clear()
+        .type(Cypress.env('LIVE_README_EMAIL'));
+      cy.get('input[placeholder*="Password" i], input[type="password"]')
+        .first()
+        .clear()
+        .type(Cypress.env('LIVE_README_PASSWORD'), { log: false });
+      cy.contains('button', /sign in|login/i).click();
+    }
+  });
 };
 
 describe('live README screenshots', () => {
