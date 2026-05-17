@@ -95,7 +95,7 @@ function initTheAudioDbImageProxy() {
   if (!_theAudioDbImageProxy) {
     _theAudioDbImageProxy = new ImageProxy(
       'theaudiodb',
-      'https://www.theaudiodb.com',
+      'https://r2.theaudiodb.com',
       {
         rateLimitOptions: {
           maxRequests: 10,

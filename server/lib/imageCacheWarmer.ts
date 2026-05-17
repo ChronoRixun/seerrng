@@ -39,7 +39,7 @@ const archiveOrgImageProxy = new ImageProxy(
 );
 const theAudioDbImageProxy = new ImageProxy(
   'theaudiodb',
-  'https://www.theaudiodb.com',
+  'https://r2.theaudiodb.com',
   {
     rateLimitOptions: {
       maxRequests: 5,
@@ -68,6 +68,7 @@ export const getImageCacheWarmProvider = (url: URL): string | null => {
       return 'coverartarchive';
     case 'https://archive.org':
       return 'archiveorg';
+    case 'https://r2.theaudiodb.com':
     case 'https://www.theaudiodb.com':
       return 'theaudiodb';
     case 'https://covers.openlibrary.org':

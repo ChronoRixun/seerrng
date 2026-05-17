@@ -70,7 +70,7 @@ describe('getImageCacheUrl', () => {
     assert.equal(
       getImageCacheUrl({
         cacheImages: true,
-        src: 'https://www.theaudiodb.com/images/media/artist/thumb.jpg',
+        src: 'https://r2.theaudiodb.com/images/media/artist/thumb.jpg',
         type: 'music',
       }),
       '/imageproxy/theaudiodb/images/media/artist/thumb.jpg'

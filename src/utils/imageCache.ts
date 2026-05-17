@@ -18,7 +18,7 @@ const PROXIED_IMAGE_PREFIXES = {
     target: '/imageproxy/archiveorg/',
   },
   musicTheAudioDb: {
-    source: /^https:\/\/www\.theaudiodb\.com\//,
+    source: /^https:\/\/(?:www|r2)\.theaudiodb\.com\//,
     target: '/imageproxy/theaudiodb/',
   },
   book: {
