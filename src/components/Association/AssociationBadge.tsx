@@ -1,8 +1,8 @@
+import MeshNetworkIcon from '@app/assets/mesh-network.svg';
 import type { AssociationMediaType } from '@app/hooks/useAssociations';
 import useAssociations, {
   toAssociationMediaType,
 } from '@app/hooks/useAssociations';
-import MeshNetworkIcon from '@app/assets/mesh-network.svg';
 import defineMessages from '@app/utils/defineMessages';
 import { useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -12,7 +12,6 @@ import AssociationPopover from './AssociationPopover';
 
 const messages = defineMessages('components.Association', {
   associations: 'Associations',
-  similar: 'Similar',
 });
 
 interface AssociationBadgeProps {
@@ -65,7 +64,7 @@ const AssociationBadge = ({
 
   const buttonClass =
     variant === 'card'
-      ? 'flex h-4 items-center justify-center gap-1 rounded-full border border-cyan-300 bg-cyan-600/90 px-1.5 text-white shadow-md backdrop-blur transition hover:border-cyan-200 hover:bg-cyan-500/95 sm:h-5 sm:px-2'
+      ? 'inline-flex h-4 w-7 items-center justify-center rounded-full border border-cyan-200/90 bg-gradient-to-br from-cyan-500/95 via-teal-500/90 to-blue-500/95 text-white shadow-md shadow-cyan-950/30 ring-1 ring-black/20 backdrop-blur transition hover:border-white/90 hover:from-cyan-400 hover:via-teal-400 hover:to-blue-400 sm:h-5 sm:w-8'
       : 'flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-gray-300 ring-1 ring-gray-700 transition hover:text-white';
 
   return (
@@ -91,11 +90,6 @@ const AssociationBadge = ({
           className={variant === 'card' ? 'h-3 w-3' : 'h-4 w-4'}
           aria-hidden="true"
         />
-        {variant === 'card' && (
-          <span className="hidden text-[0.625rem] font-medium uppercase leading-none tracking-wider sm:inline">
-            {intl.formatMessage(messages.similar)}
-          </span>
-        )}
       </button>
       {isOpen &&
         ReactDOM.createPortal(
