@@ -14,6 +14,7 @@ import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
 import { Permission } from '@server/lib/permissions';
 import type { MovieDetails } from '@server/models/Movie';
 import axios from 'axios';
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
@@ -44,6 +45,7 @@ interface RequestModalProps extends React.HTMLAttributes<HTMLDivElement> {
   onCancel?: () => void;
   onComplete?: (newStatus: MediaStatus) => void;
   onUpdating?: (isUpdating: boolean) => void;
+  requestQualityControl?: ReactNode;
 }
 
 const MovieRequestModal = ({
@@ -53,6 +55,7 @@ const MovieRequestModal = ({
   onUpdating,
   editRequest,
   is4k = false,
+  requestQualityControl,
 }: RequestModalProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [requestOverrides, setRequestOverrides] =
@@ -343,6 +346,7 @@ const MovieRequestModal = ({
           />
         </div>
       )}
+      {requestQualityControl}
       {(quota?.movie.limit ?? 0) > 0 && (
         <QuotaDisplay
           mediaType="movie"

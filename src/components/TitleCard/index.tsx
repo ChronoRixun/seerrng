@@ -390,21 +390,26 @@ const TitleCard = ({
         ? 'music'
         : 'tmdb';
 
+  const requestPermissions = [
+    Permission.REQUEST,
+    mediaType === 'movie' || mediaType === 'collection'
+      ? Permission.REQUEST_MOVIE
+      : mediaType === 'tv'
+        ? Permission.REQUEST_TV
+        : isAlbum
+          ? Permission.REQUEST_MUSIC
+          : Permission.REQUEST_BOOK,
+  ];
+
+  if (mediaType === 'movie') {
+    requestPermissions.push(Permission.REQUEST_4K, Permission.REQUEST_4K_MOVIE);
+  } else if (mediaType === 'tv') {
+    requestPermissions.push(Permission.REQUEST_4K, Permission.REQUEST_4K_TV);
+  }
+
   const showRequestButton =
     canUseRequestActions &&
-    hasPermission(
-      [
-        Permission.REQUEST,
-        mediaType === 'movie' || mediaType === 'collection'
-          ? Permission.REQUEST_MOVIE
-          : mediaType === 'tv'
-            ? Permission.REQUEST_TV
-            : isAlbum
-              ? Permission.REQUEST_MUSIC
-              : Permission.REQUEST_BOOK,
-      ],
-      { type: 'or' }
-    ) &&
+    hasPermission(requestPermissions, { type: 'or' }) &&
     !isArtist;
 
   const showHideButton =
@@ -441,6 +446,7 @@ const TitleCard = ({
           onComplete={requestComplete}
           onUpdating={requestUpdating}
           onCancel={closeModal}
+          show4kSelector={mediaType === 'movie' || mediaType === 'tv'}
         />
       )}
       {canUseVideoActions && showBlocklistModal && (

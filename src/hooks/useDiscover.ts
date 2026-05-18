@@ -116,6 +116,19 @@ const isMissingBookFormat = (item: BaseMedia) => {
 const getMediaResultKey = (item: BaseMedia): string =>
   `${item.mediaType}:${item.id}`;
 
+const isDiscoverMediaResult = (item: unknown): item is BaseMedia => {
+  if (!item || typeof item !== 'object') {
+    return false;
+  }
+
+  const candidate = item as Partial<BaseMedia>;
+
+  return (
+    (typeof candidate.id === 'number' || typeof candidate.id === 'string') &&
+    typeof candidate.mediaType === 'string'
+  );
+};
+
 const useDiscover = <
   T extends BaseMedia,
   S = Record<string, never>,
@@ -213,7 +226,15 @@ const useDiscover = <
     let filteredTitles: T[] = [];
 
     for (const page of data ?? []) {
+      if (!page || !Array.isArray(page.results)) {
+        continue;
+      }
+
       for (const result of page.results) {
+        if (!isDiscoverMediaResult(result)) {
+          continue;
+        }
+
         const resultKey = getMediaResultKey(result);
 
         if (!resultKeys.has(resultKey)) {
@@ -256,13 +277,21 @@ const useDiscover = <
   useWarmImageCache(titles);
 
   const rawResultCount = useMemo(
-    () => (data ?? []).reduce((total, page) => total + page.results.length, 0),
+    () =>
+      (data ?? []).reduce(
+        (total, page) =>
+          total + (Array.isArray(page?.results) ? page.results.length : 0),
+        0
+      ),
     [data]
   );
   const lastResultPage = data?.[data.length - 1];
+  const lastResultPageResults = Array.isArray(lastResultPage?.results)
+    ? lastResultPage.results
+    : [];
   const hasMoreUnfilteredResults =
     !!lastResultPage &&
-    lastResultPage.results.length >= 20 &&
+    lastResultPageResults.length >= 20 &&
     lastResultPage.totalResults > size * 20;
   const shouldScanNextFilteredPage =
     !isLoadingInitialData &&
@@ -275,7 +304,7 @@ const useDiscover = <
   const isEmpty =
     !isLoadingInitialData && titles.length === 0 && !shouldScanNextFilteredPage;
   const isReachingEnd =
-    (!!data && (lastResultPage?.results.length ?? 0) < 20) ||
+    (!!data && lastResultPageResults.length < 20) ||
     (!!data && (lastResultPage?.totalResults ?? 0) <= size * 20) ||
     (!!data && (lastResultPage?.totalResults ?? 0) < 41) ||
     (titles.length === 0 &&

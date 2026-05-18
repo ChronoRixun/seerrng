@@ -1,3 +1,4 @@
+import Alert from '@app/components/Common/Alert';
 import Button from '@app/components/Common/Button';
 import CardTextVisibilityToggle from '@app/components/Common/CardTextVisibilityToggle';
 import Header from '@app/components/Common/Header';
@@ -28,6 +29,7 @@ const messages = defineMessages('components.Discover.DiscoverMusic', {
   popularMonth: 'Popular This Month',
   popularYear: 'Popular This Year',
   listenCount: 'Most Listened',
+  loadError: 'Music discovery could not be loaded right now.',
 });
 
 const LibraryFilterSlideover = dynamic(
@@ -61,6 +63,7 @@ const DiscoverMusic = () => {
     isLoadingMore,
     isReachingEnd,
     titles,
+    error,
     fetchMore,
   } = useDiscover<AlbumResult>(
     '/api/v1/discover/music',
@@ -148,6 +151,9 @@ const DiscoverMusic = () => {
           </div>
         </div>
       </div>
+      {error && !titles.length && !isLoadingInitialData && (
+        <Alert title={intl.formatMessage(messages.loadError)} type="warning" />
+      )}
       <ListView
         items={titles}
         isEmpty={isEmpty}

@@ -19,6 +19,7 @@ import type { QuotaResponse } from '@server/interfaces/api/userInterfaces';
 import { Permission } from '@server/lib/permissions';
 import type { TvDetails } from '@server/models/Tv';
 import axios from 'axios';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useIntl } from 'react-intl';
 import useSWR, { mutate } from 'swr';
@@ -59,6 +60,7 @@ interface RequestModalProps extends React.HTMLAttributes<HTMLDivElement> {
   onUpdating?: (isUpdating: boolean) => void;
   is4k?: boolean;
   editRequest?: NonFunctionProperties<MediaRequest>;
+  requestQualityControl?: ReactNode;
 }
 
 const TvRequestModal = ({
@@ -68,6 +70,7 @@ const TvRequestModal = ({
   onUpdating,
   editRequest,
   is4k = false,
+  requestQualityControl,
 }: RequestModalProps) => {
   const settings = useSettings();
   const { addToast } = useToasts();
@@ -494,6 +497,7 @@ const TvRequestModal = ({
             />
           </p>
         )}
+      {requestQualityControl}
       {(quota?.tv.limit ?? 0) > 0 && (
         <QuotaDisplay
           mediaType="tv"
