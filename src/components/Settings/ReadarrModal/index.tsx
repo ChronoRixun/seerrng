@@ -1,3 +1,4 @@
+import Button from '@app/components/Common/Button';
 import Modal from '@app/components/Common/Modal';
 import SensitiveInput from '@app/components/Common/SensitiveInput';
 import useToasts from '@app/hooks/useToasts';
@@ -66,6 +67,10 @@ const messages = defineMessages('components.Settings.ReadarrModal', {
     'Scan Bookshelf for existing books and request status so users cannot request content already available.',
   enableSearchHelp:
     'Automatically trigger a search in Bookshelf when a request is approved.',
+  diagnose: 'Run Diagnostic',
+  diagnosing: 'Running diagnostic...',
+  diagnosticOk: 'Bookshelf lookup returned usable metadata.',
+  diagnosticFailed: 'Bookshelf diagnostic failed.',
 });
 
 interface TestResponse {
@@ -88,6 +93,25 @@ interface TestResponse {
   urlBase?: string;
 }
 
+interface DiagnosticResponse {
+  ok: boolean;
+  category:
+    | 'ok'
+    | 'backend_unreachable'
+    | 'lookup_empty'
+    | 'lookup_incomplete'
+    | 'backend_add_rejected';
+  message: string;
+  metadataSource?: string;
+  lookupCount?: number;
+  sample?: {
+    title?: string;
+    foreignBookId?: string;
+    authorName?: string;
+    editionCount?: number;
+  };
+}
+
 interface ReadarrModalProps {
   readarr: ReadarrSettings | null;
   onClose: () => void;
@@ -100,6 +124,9 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
   const { addToast } = useToasts();
   const [isValidated, setIsValidated] = useState(readarr ? true : false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [diagnosticResponse, setDiagnosticResponse] =
+    useState<DiagnosticResponse | null>(null);
   const [testResponse, setTestResponse] = useState<TestResponse>({
     profiles: [],
     metadataProfiles: [],
@@ -182,6 +209,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
 
         setIsValidated(true);
         setTestResponse(response.data);
+        setDiagnosticResponse(null);
         if (initialLoad.current) {
           addToast(intl.formatMessage(messages.toastReadarrTestSuccess), {
             appearance: 'success',
@@ -190,6 +218,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
         }
       } catch {
         setIsValidated(false);
+        setDiagnosticResponse(null);
         if (initialLoad.current) {
           addToast(intl.formatMessage(messages.toastReadarrTestFailure), {
             appearance: 'error',
@@ -347,6 +376,89 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
               <p className="description">
                 {intl.formatMessage(messages.compatibilityNote)}
               </p>
+              <div className="form-row">
+                <span className="text-label">
+                  {intl.formatMessage(messages.diagnose)}
+                </span>
+                <div className="form-input-area">
+                  <Button
+                    buttonType="default"
+                    buttonSize="sm"
+                    disabled={
+                      !values.apiKey ||
+                      !values.hostname ||
+                      !values.port ||
+                      isTesting ||
+                      isDiagnosing
+                    }
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      setIsDiagnosing(true);
+                      try {
+                        const response = await axios.post<DiagnosticResponse>(
+                          '/api/v1/settings/readarr/diagnose',
+                          {
+                            hostname: values.hostname,
+                            apiKey: values.apiKey,
+                            port: Number(values.port),
+                            baseUrl: values.baseUrl,
+                            useSsl: values.ssl,
+                            activeDirectory: values.rootFolder,
+                            activeProfileId: Number(values.activeProfileId),
+                            activeMetadataProfileId: Number(
+                              values.activeMetadataProfileId
+                            ),
+                            term: 'isbn:9780547928227',
+                          }
+                        );
+
+                        setDiagnosticResponse(response.data);
+                        addToast(
+                          response.data.ok
+                            ? intl.formatMessage(messages.diagnosticOk)
+                            : intl.formatMessage(messages.diagnosticFailed),
+                          {
+                            appearance: response.data.ok ? 'success' : 'error',
+                            autoDismiss: true,
+                          }
+                        );
+                      } catch (e) {
+                        const message = axios.isAxiosError(e)
+                          ? e.response?.data?.message || e.message
+                          : e instanceof Error
+                            ? e.message
+                            : 'Diagnostic request failed.';
+                        setDiagnosticResponse({
+                          ok: false,
+                          category: 'backend_unreachable',
+                          message,
+                        });
+                        addToast(
+                          intl.formatMessage(messages.diagnosticFailed),
+                          {
+                            appearance: 'error',
+                            autoDismiss: true,
+                          }
+                        );
+                      } finally {
+                        setIsDiagnosing(false);
+                      }
+                    }}
+                  >
+                    {isDiagnosing
+                      ? intl.formatMessage(messages.diagnosing)
+                      : intl.formatMessage(messages.diagnose)}
+                  </Button>
+                  {diagnosticResponse && (
+                    <p className="description mt-2">
+                      {diagnosticResponse.category}: {diagnosticResponse.message}
+                      {diagnosticResponse.metadataSource
+                        ? ` Metadata: ${diagnosticResponse.metadataSource}.`
+                        : ''}
+                    </p>
+                  )}
+                </div>
+              </div>
               <div className="form-row">
                 <label htmlFor="isDefault" className="checkbox-label">
                   {intl.formatMessage(messages.defaultserver)}

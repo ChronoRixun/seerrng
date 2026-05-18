@@ -7373,6 +7373,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServarrServiceDetails'
+  /settings/readarr/diagnose:
+    post:
+      summary: Diagnose Bookshelf lookup and add readiness
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ReadarrSettings'
+                - type: object
+                  properties:
+                    term:
+                      type: string
+                      example: isbn:9780547928227
+                    testAdd:
+                      type: boolean
+                      default: false
+      responses:
+        '200':
+          description: Bookshelf diagnostic result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, category, message]
+                properties:
+                  ok:
+                    type: boolean
+                  category:
+                    type: string
+                    enum:
+                      - ok
+                      - backend_unreachable
+                      - lookup_empty
+                      - lookup_incomplete
+                      - backend_add_rejected
+                  message:
+                    type: string
+                  term:
+                    type: string
+                  metadataSource:
+                    type: string
+                  lookupCount:
+                    type: number
   /settings/readarr/{readarrId}:
     put:
       summary: Update Bookshelf settings

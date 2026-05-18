@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
+import ReadarrAPI from '@server/api/servarr/readarr';
 import type { PermissionCheckOptions } from '@server/lib/permissions';
 import { Permission } from '@server/lib/permissions';
 import type {
@@ -700,6 +701,156 @@ describe('Bookshelf settings routes', () => {
         serviceType: 'ebook',
       },
     ]);
+  });
+
+  it('diagnoses unreachable Bookshelf backends', async () => {
+    mock.method(ReadarrAPI.prototype, 'getSystemStatus', async () => {
+      throw new Error('connect ECONNREFUSED');
+    });
+
+    const res = await request(app)
+      .post('/settings/readarr/diagnose')
+      .send(makeReadarr());
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.ok, false);
+    assert.strictEqual(res.body.category, 'backend_unreachable');
+    assert.match(res.body.message, /ECONNREFUSED/);
+  });
+
+  it('diagnoses empty Bookshelf lookups', async () => {
+    mock.method(ReadarrAPI.prototype, 'getSystemStatus', async () => ({
+      appName: 'Readarr',
+      version: '0.4.20.129',
+      urlBase: '',
+    }));
+    mock.method(ReadarrAPI.prototype, 'getDevelopmentConfig', async () => ({
+      id: 1,
+      metadataSource: 'http://127.0.0.1:8790',
+    }));
+    mock.method(ReadarrAPI.prototype, 'getProfiles', async () => [
+      { id: 1, name: 'eBook' },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'getMetadataProfiles', async () => [
+      { id: 1, name: 'Standard' },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'getRootFolders', async () => [
+      {
+        id: 1,
+        path: '/books',
+        freeSpace: 1,
+        totalSpace: 1,
+        unmappedFolders: [],
+      },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => []);
+
+    const res = await request(app)
+      .post('/settings/readarr/diagnose')
+      .send(makeReadarr({ activeDirectory: '/books' }));
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.ok, false);
+    assert.strictEqual(res.body.category, 'lookup_empty');
+    assert.strictEqual(res.body.lookupCount, 0);
+  });
+
+  it('diagnoses incomplete Bookshelf lookups', async () => {
+    mock.method(ReadarrAPI.prototype, 'getSystemStatus', async () => ({
+      appName: 'Readarr',
+      version: '0.4.20.129',
+      urlBase: '',
+    }));
+    mock.method(ReadarrAPI.prototype, 'getDevelopmentConfig', async () => ({
+      id: 1,
+      metadataSource: 'http://127.0.0.1:8790',
+    }));
+    mock.method(ReadarrAPI.prototype, 'getProfiles', async () => [
+      { id: 1, name: 'eBook' },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'getMetadataProfiles', async () => [
+      { id: 1, name: 'Standard' },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'getRootFolders', async () => [
+      {
+        id: 1,
+        path: '/books',
+        freeSpace: 1,
+        totalSpace: 1,
+        unmappedFolders: [],
+      },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => [
+      {
+        title: 'Broken Result',
+        foreignBookId: 'broken-id',
+      },
+    ]);
+
+    const res = await request(app)
+      .post('/settings/readarr/diagnose')
+      .send(makeReadarr({ activeDirectory: '/books' }));
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.ok, false);
+    assert.strictEqual(res.body.category, 'lookup_incomplete');
+    assert.strictEqual(res.body.sample[0].authorPresent, false);
+  });
+
+  it('diagnoses add rejections after lookup succeeds', async () => {
+    mock.method(ReadarrAPI.prototype, 'getSystemStatus', async () => ({
+      appName: 'Readarr',
+      version: '0.4.20.129',
+      urlBase: '',
+    }));
+    mock.method(ReadarrAPI.prototype, 'getDevelopmentConfig', async () => ({
+      id: 1,
+      metadataSource: 'http://127.0.0.1:8790',
+    }));
+    mock.method(ReadarrAPI.prototype, 'getProfiles', async () => [
+      { id: 1, name: 'eBook' },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'getMetadataProfiles', async () => [
+      { id: 1, name: 'Standard' },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'getRootFolders', async () => [
+      {
+        id: 1,
+        path: '/books',
+        freeSpace: 1,
+        totalSpace: 1,
+        unmappedFolders: [],
+      },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => [
+      {
+        title: 'The Hobbit',
+        foreignBookId: '1540236',
+        author: {
+          foreignAuthorId: '656983',
+          authorName: 'J.R.R. Tolkien',
+        },
+        editions: [
+          {
+            foreignEditionId: '5907',
+            title: 'The Hobbit',
+            monitored: true,
+          },
+        ],
+      },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'addBook', async () => {
+      throw new Error('[Readarr] Failed to add book: rejected');
+    });
+
+    const res = await request(app)
+      .post('/settings/readarr/diagnose')
+      .send({ ...makeReadarr({ activeDirectory: '/books' }), testAdd: true });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.ok, false);
+    assert.strictEqual(res.body.category, 'backend_add_rejected');
+    assert.match(res.body.message, /rejected/);
   });
 
   it('hides Bookshelf operational details from users without service detail permissions', async () => {
