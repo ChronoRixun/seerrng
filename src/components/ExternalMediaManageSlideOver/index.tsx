@@ -5,6 +5,7 @@ import SlideOver from '@app/components/Common/SlideOver';
 import DownloadBlock from '@app/components/DownloadBlock';
 import IssueBlock from '@app/components/IssueBlock';
 import RequestBlock from '@app/components/RequestBlock';
+import SelectableDownloadList from '@app/components/SelectableDownloadList';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import defineMessages from '@app/utils/defineMessages';
@@ -195,49 +196,51 @@ const ExternalMediaManageSlideOver = ({
               {intl.formatMessage(messages.downloadstatus)}
             </h3>
             <div className="overflow-hidden rounded-md border border-gray-700 shadow">
-              <ul>
-                {downloads.map((status, index) => (
-                  <li
-                    key={`external-dl-status-${status.externalId}-${index}`}
-                    className="border-b border-gray-700 last:border-b-0"
-                  >
-                    <DownloadBlock
-                      downloadItem={{
-                        ...status,
-                        title:
-                          mediaType === MediaType.BOOK
-                            ? `${data.title} (${intl.formatMessage(
-                                messages.ebook
-                              )})`
-                            : status.title,
-                      }}
-                      title={
-                        mediaType === MediaType.BOOK
-                          ? `${data.title} (${intl.formatMessage(messages.ebook)})`
-                          : data.title
-                      }
-                    />
-                  </li>
-                ))}
-                {audiobookDownloads.map((status, index) => (
-                  <li
-                    key={`external-audio-dl-status-${status.externalId}-${index}`}
-                    className="border-b border-gray-700 last:border-b-0"
-                  >
-                    <DownloadBlock
-                      downloadItem={{
-                        ...status,
-                        title: `${data.title} (${intl.formatMessage(
-                          messages.audiobook
-                        )})`,
-                      }}
-                      title={`${data.title} (${intl.formatMessage(
-                        messages.audiobook
-                      )})`}
-                    />
-                  </li>
-                ))}
-              </ul>
+              <SelectableDownloadList
+                items={[
+                  ...downloads.map((status, index) => {
+                    const downloadTitle =
+                      mediaType === MediaType.BOOK
+                        ? `${data.title} (${intl.formatMessage(messages.ebook)})`
+                        : status.title;
+
+                    return {
+                      id: `standard-${status.downloadId ?? status.externalId ?? index}`,
+                      content: (
+                        <DownloadBlock
+                          downloadItem={{
+                            ...status,
+                            title: downloadTitle,
+                          }}
+                          title={
+                            mediaType === MediaType.BOOK
+                              ? downloadTitle
+                              : data.title
+                          }
+                        />
+                      ),
+                    };
+                  }),
+                  ...audiobookDownloads.map((status, index) => {
+                    const downloadTitle = `${data.title} (${intl.formatMessage(
+                      messages.audiobook
+                    )})`;
+
+                    return {
+                      id: `audiobook-${status.downloadId ?? status.externalId ?? index}`,
+                      content: (
+                        <DownloadBlock
+                          downloadItem={{
+                            ...status,
+                            title: downloadTitle,
+                          }}
+                          title={downloadTitle}
+                        />
+                      ),
+                    };
+                  }),
+                ]}
+              />
             </div>
           </div>
         )}

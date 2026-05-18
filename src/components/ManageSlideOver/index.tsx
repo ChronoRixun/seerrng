@@ -7,6 +7,7 @@ import Tooltip from '@app/components/Common/Tooltip';
 import DownloadBlock from '@app/components/DownloadBlock';
 import IssueBlock from '@app/components/IssueBlock';
 import RequestBlock from '@app/components/RequestBlock';
+import SelectableDownloadList from '@app/components/SelectableDownloadList';
 import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -248,32 +249,24 @@ const ManageSlideOver = ({
               {intl.formatMessage(messages.downloadstatus)}
             </h3>
             <div className="overflow-hidden rounded-md border border-gray-700 shadow">
-              <ul>
-                {filterDuplicateDownloads(data.mediaInfo?.downloadStatus).map(
-                  (status, index) => (
-                    <Tooltip
-                      key={`dl-status-${status.externalId}-${index}`}
-                      content={status.title}
-                    >
-                      <li className="border-b border-gray-700 last:border-b-0">
-                        <DownloadBlock downloadItem={status} />
-                      </li>
-                    </Tooltip>
-                  )
-                )}
-                {filterDuplicateDownloads(data.mediaInfo?.downloadStatus4k).map(
-                  (status, index) => (
-                    <Tooltip
-                      key={`dl-status-4k-${status.externalId}-${index}`}
-                      content={status.title}
-                    >
-                      <li className="border-b border-gray-700 last:border-b-0">
-                        <DownloadBlock downloadItem={status} is4k />
-                      </li>
-                    </Tooltip>
-                  )
-                )}
-              </ul>
+              <SelectableDownloadList
+                items={[
+                  ...filterDuplicateDownloads(
+                    data.mediaInfo?.downloadStatus
+                  ).map((status, index) => ({
+                    id: `standard-${status.downloadId ?? status.externalId ?? index}`,
+                    tooltip: status.title,
+                    content: <DownloadBlock downloadItem={status} />,
+                  })),
+                  ...filterDuplicateDownloads(
+                    data.mediaInfo?.downloadStatus4k
+                  ).map((status, index) => ({
+                    id: `4k-${status.downloadId ?? status.externalId ?? index}`,
+                    tooltip: status.title,
+                    content: <DownloadBlock downloadItem={status} is4k />,
+                  })),
+                ]}
+              />
             </div>
           </div>
         )}
