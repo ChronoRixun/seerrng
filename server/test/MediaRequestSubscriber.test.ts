@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 
+import ExternalAPI from '@server/api/externalapi';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import type { LidarrAlbumOptions } from '@server/api/servarr/lidarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
@@ -20,11 +21,13 @@ import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
 import { MediaRequest } from '@server/entity/MediaRequest';
+import SeasonRequest from '@server/entity/SeasonRequest';
 import { User } from '@server/entity/User';
 import notificationManager from '@server/lib/notifications';
 import { getSettings } from '@server/lib/settings';
 import { MediaRequestSubscriber } from '@server/subscriber/MediaRequestSubscriber';
 import { resetTestDb, seedTestDb } from '@server/utils/seedTestDb';
+import axios from 'axios';
 
 async function getRequester() {
   return getRepository(User).findOneOrFail({
@@ -52,6 +55,30 @@ async function createApprovedRequest(media: Media, requestedBy: User) {
   return request;
 }
 
+const waitForAsyncDispatch = async (predicate: () => boolean) => {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+};
+
+const waitForSavedMedia = async (
+  mediaId: number,
+  predicate: (media: Media) => boolean
+) => {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const media = await getRepository(Media).findOneByOrFail({ id: mediaId });
+    if (predicate(media)) {
+      return media;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  return getRepository(Media).findOneByOrFail({ id: mediaId });
+};
+
 describe('MediaRequestSubscriber service dispatch', () => {
   before(async () => {
     await seedTestDb();
@@ -64,8 +91,265 @@ describe('MediaRequestSubscriber service dispatch', () => {
   afterEach(() => {
     mock.restoreAll();
     const settings = getSettings();
+    settings.radarr = [];
+    settings.sonarr = [];
     settings.lidarr = [];
     settings.readarr = [];
+  });
+
+  it('sends approved movie requests to Radarr with the configured profile and root folder', async () => {
+    const settings = getSettings();
+    settings.radarr = [
+      {
+        id: 30,
+        name: 'Radarr',
+        hostname: 'radarr.local',
+        port: 7878,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 5,
+        activeProfileName: 'HD',
+        activeDirectory: '/movies',
+        minimumAvailability: 'released',
+        tags: [12],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MOVIE,
+        tmdbId: 550,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    (
+      mock.method as (
+        object: object,
+        methodName: string,
+        implementation: () => Promise<unknown>
+      ) => unknown
+    )(ExternalAPI.prototype, 'get', async () => ({
+      id: 550,
+      title: 'Fight Club',
+      release_date: '1999-10-15',
+    }));
+
+    const originalCreate = axios.create;
+    let addPayload: Record<string, unknown> | undefined;
+    mock.method(axios, 'create', (config: { baseURL?: string }) => {
+      if (config?.baseURL === 'https://api.themoviedb.org/3') {
+        return originalCreate.call(axios, config);
+      }
+
+      return {
+        interceptors: { request: { use: () => undefined } },
+        get: async (endpoint: string) => {
+          if (endpoint === '/movie/lookup') {
+            return {
+              data: [
+                {
+                  title: 'Fight Club',
+                  tmdbId: 550,
+                  year: 1999,
+                  hasFile: false,
+                  monitored: false,
+                  tags: [],
+                },
+              ],
+            };
+          }
+
+          throw new Error(`Unexpected GET ${endpoint}`);
+        },
+        post: async (endpoint: string, payload: Record<string, unknown>) => {
+          assert.equal(endpoint, '/movie');
+          addPayload = payload;
+
+          return {
+            data: {
+              id: 77,
+              title: 'Fight Club',
+              titleSlug: 'fight-club-1999',
+            },
+          };
+        },
+      };
+    });
+
+    const request = await createApprovedRequest(media, requestedBy);
+
+    await new MediaRequestSubscriber().sendToRadarr(request);
+    await waitForAsyncDispatch(() => !!addPayload);
+
+    assert.equal(addPayload?.tmdbId, 550);
+    assert.equal(addPayload?.qualityProfileId, 5);
+    assert.equal(addPayload?.profileId, 5);
+    assert.equal(addPayload?.rootFolderPath, '/movies');
+    assert.equal(addPayload?.minimumAvailability, 'released');
+    assert.deepStrictEqual(addPayload?.addOptions, {
+      searchForMovie: true,
+    });
+    assert.deepStrictEqual(addPayload?.tags, [12]);
+
+    const savedMedia = await waitForSavedMedia(
+      media.id,
+      (media) => media.externalServiceId === 77
+    );
+    assert.equal(savedMedia.externalServiceId, 77);
+    assert.equal(savedMedia.externalServiceSlug, 'fight-club-1999');
+    assert.equal(savedMedia.serviceId, 30);
+  });
+
+  it('sends approved series requests to Sonarr with seasons and service routing', async () => {
+    const settings = getSettings();
+    settings.sonarr = [
+      {
+        id: 31,
+        name: 'Sonarr',
+        hostname: 'sonarr.local',
+        port: 8989,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 6,
+        activeProfileName: 'HD',
+        activeLanguageProfileId: 1,
+        activeDirectory: '/tv',
+        tags: [14],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        seriesType: 'standard',
+        animeSeriesType: 'anime',
+        enableSeasonFolders: true,
+        monitorNewItems: 'all',
+        overrideRule: [],
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.TV,
+        tmdbId: 1399,
+        tvdbId: 121361,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    (
+      mock.method as (
+        object: object,
+        methodName: string,
+        implementation: () => Promise<unknown>
+      ) => unknown
+    )(ExternalAPI.prototype, 'get', async () => ({
+      id: 1399,
+      name: 'Game of Thrones',
+      external_ids: { tvdb_id: 121361 },
+      keywords: { results: [] },
+    }));
+
+    const originalCreate = axios.create;
+    let addPayload: Record<string, unknown> | undefined;
+    mock.method(axios, 'create', (config: { baseURL?: string }) => {
+      if (config?.baseURL === 'https://api.themoviedb.org/3') {
+        return originalCreate.call(axios, config);
+      }
+
+      return {
+        interceptors: { request: { use: () => undefined } },
+        get: async (endpoint: string) => {
+          if (endpoint === '/series/lookup') {
+            return {
+              data: [
+                {
+                  title: 'Game of Thrones',
+                  tvdbId: 121361,
+                  seasons: [
+                    { seasonNumber: 1, monitored: false },
+                    { seasonNumber: 2, monitored: false },
+                  ],
+                  tags: [],
+                },
+              ],
+            };
+          }
+
+          throw new Error(`Unexpected GET ${endpoint}`);
+        },
+        post: async (endpoint: string, payload: Record<string, unknown>) => {
+          assert.equal(endpoint, '/series');
+          addPayload = payload;
+
+          return {
+            data: {
+              id: 88,
+              title: 'Game of Thrones',
+              titleSlug: 'game-of-thrones',
+            },
+          };
+        },
+      };
+    });
+
+    mock.method(MediaRequest, 'sendNotification', async () => undefined);
+    const request = await getRepository(MediaRequest).save(
+      new MediaRequest({
+        type: MediaType.TV,
+        status: MediaRequestStatus.APPROVED,
+        media,
+        requestedBy,
+        is4k: false,
+        seasons: [
+          new SeasonRequest({
+            seasonNumber: 1,
+            status: MediaRequestStatus.APPROVED,
+          }),
+          new SeasonRequest({
+            seasonNumber: 2,
+            status: MediaRequestStatus.APPROVED,
+          }),
+        ],
+      })
+    );
+
+    await new MediaRequestSubscriber().sendToSonarr(request);
+    await waitForAsyncDispatch(() => !!addPayload);
+
+    assert.equal(addPayload?.tvdbId, 121361);
+    assert.equal(addPayload?.qualityProfileId, 6);
+    assert.equal(addPayload?.languageProfileId, 1);
+    assert.equal(addPayload?.rootFolderPath, '/tv');
+    assert.equal(addPayload?.seasonFolder, true);
+    assert.equal(addPayload?.seriesType, 'standard');
+    assert.equal(addPayload?.monitorNewItems, 'all');
+    assert.deepStrictEqual(addPayload?.addOptions, {
+      ignoreEpisodesWithFiles: true,
+      searchForMissingEpisodes: true,
+    });
+    assert.deepStrictEqual(addPayload?.seasons, [
+      { seasonNumber: 1, monitored: true },
+      { seasonNumber: 2, monitored: true },
+    ]);
+    assert.deepStrictEqual(addPayload?.tags, [14]);
+
+    const savedMedia = await waitForSavedMedia(
+      media.id,
+      (media) => media.externalServiceId === 88
+    );
+    assert.equal(savedMedia.externalServiceId, 88);
+    assert.equal(savedMedia.externalServiceSlug, 'game-of-thrones');
+    assert.equal(savedMedia.serviceId, 31);
   });
 
   it('sends approved music requests to Lidarr and completes the request', async () => {
