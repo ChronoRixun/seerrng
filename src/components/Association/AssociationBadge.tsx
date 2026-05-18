@@ -64,7 +64,7 @@ const AssociationBadge = ({
 
   const buttonClass =
     variant === 'card'
-      ? 'inline-flex h-4 w-7 items-center justify-center rounded-full border border-cyan-200/90 bg-gradient-to-br from-cyan-500/95 via-teal-500/90 to-blue-500/95 text-white shadow-md shadow-cyan-950/30 ring-1 ring-black/20 backdrop-blur transition hover:border-white/90 hover:from-cyan-400 hover:via-teal-400 hover:to-blue-400 sm:h-5 sm:w-8'
+      ? 'inline-flex h-4 w-4 items-center justify-center rounded-full border border-cyan-200/90 bg-gradient-to-br from-cyan-500/95 via-teal-500/90 to-blue-500/95 text-white shadow-md shadow-cyan-950/30 ring-1 ring-black/20 backdrop-blur transition hover:border-white/90 hover:from-cyan-400 hover:via-teal-400 hover:to-blue-400 sm:h-5 sm:w-5'
       : 'flex h-8 w-8 items-center justify-center rounded-full bg-gray-800 text-gray-300 ring-1 ring-gray-700 transition hover:text-white';
 
   return (
@@ -87,7 +87,9 @@ const AssociationBadge = ({
         }}
       >
         <MeshNetworkIcon
-          className={variant === 'card' ? 'h-3 w-3' : 'h-4 w-4'}
+          className={
+            variant === 'card' ? 'h-3.5 w-3.5 sm:h-4 sm:w-4' : 'h-4 w-4'
+          }
           aria-hidden="true"
         />
       </button>
