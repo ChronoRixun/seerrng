@@ -2,6 +2,12 @@ import logger from '@server/logger';
 import { redactSecrets } from '@server/utils/security';
 import ServarrBase from './base';
 
+const isConflictError = (error: unknown): boolean =>
+  (typeof error === 'object' &&
+    error !== null &&
+    (error as { response?: { status?: number } }).response?.status === 409) ||
+  (error instanceof Error && /status code 409/i.test(error.message));
+
 export interface RadarrMovieOptions {
   title: string;
   qualityProfileId: number;
@@ -236,6 +242,30 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
       }
       return response.data;
     } catch (e) {
+      if (isConflictError(e)) {
+        const existingMovie = await this.recoverExistingMovie(options).catch(
+          (recoveryError) => {
+            logger.warn(
+              'Failed to recover existing Radarr movie after conflict.',
+              {
+                label: 'Radarr',
+                errorMessage:
+                  recoveryError instanceof Error
+                    ? recoveryError.message
+                    : 'Unknown recovery error',
+                options,
+              }
+            );
+
+            return undefined;
+          }
+        );
+
+        if (existingMovie) {
+          return existingMovie;
+        }
+      }
+
       logger.error(
         'Failed to add movie to Radarr. This might happen if the movie already exists, in which case you can safely ignore this error.',
         {
@@ -248,6 +278,48 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
       throw new Error('Failed to add movie to Radarr', { cause: e });
     }
   };
+
+  private async recoverExistingMovie(
+    options: RadarrMovieOptions
+  ): Promise<RadarrMovie | undefined> {
+    const movies = await this.getMovies();
+    const movie = movies.find((item) => item.tmdbId === options.tmdbId);
+
+    if (!movie) {
+      return undefined;
+    }
+
+    logger.warn('Recovered existing Radarr movie after add conflict.', {
+      label: 'Radarr',
+      movieId: movie.id,
+      movieTitle: movie.title,
+      tmdbId: movie.tmdbId,
+    });
+
+    if (!movie.monitored) {
+      const response = await this.axios.put<RadarrMovie>('/movie', {
+        ...movie,
+        title: options.title,
+        qualityProfileId: options.qualityProfileId,
+        profileId: options.profileId,
+        minimumAvailability: options.minimumAvailability,
+        tags: Array.from(new Set([...movie.tags, ...options.tags])),
+        rootFolderPath: options.rootFolderPath,
+        monitored: options.monitored,
+        addOptions: {
+          searchForMovie: options.searchNow,
+        },
+      });
+
+      return response.data;
+    }
+
+    if (options.searchNow && !movie.hasFile) {
+      this.searchMovie(movie.id);
+    }
+
+    return movie;
+  }
 
   public async searchMovie(movieId: number): Promise<void> {
     logger.info('Executing movie search command', {

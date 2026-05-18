@@ -11,6 +11,7 @@ services:
       PORT: 5055
       CONFIG_DIRECTORY: /app/config
       SEERR_EXTERNAL_READ_ONLY: "true"
+      SEERR_ALLOW_PRODUCTION_EXTERNAL_READ_ONLY: "true"
       LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "${SEERRNG_PORT:-5055}:5055"

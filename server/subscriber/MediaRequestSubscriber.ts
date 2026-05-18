@@ -50,6 +50,59 @@ const sanitizeDisplayName = (displayName: string): string => {
     .replace(/^-|-$/g, '');
 };
 
+const READARR_LOOKUP_RETRY_DELAYS_MS =
+  process.env.NODE_ENV === 'test' ? [1, 1, 1] : [500, 1500, 3000];
+
+const sleep = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, delayMs));
+
+const isTransientExternalError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return /status code (429|502|503|504)|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENOTFOUND|socket hang up/i.test(
+    message
+  );
+};
+
+const lookupReadarrBookWithRetry = async (
+  readarr: ReadarrAPI,
+  term: string,
+  context: {
+    mediaId: number;
+    requestId: number;
+    serviceType: 'ebook' | 'audiobook';
+  }
+): Promise<ReadarrBookLookupResult[]> => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await readarr.lookupBook(term);
+    } catch (error) {
+      if (
+        !isTransientExternalError(error) ||
+        attempt >= READARR_LOOKUP_RETRY_DELAYS_MS.length
+      ) {
+        throw error;
+      }
+
+      const delayMs = READARR_LOOKUP_RETRY_DELAYS_MS[attempt];
+      logger.warn('Bookshelf lookup failed transiently; retrying.', {
+        label: 'Readarr',
+        mediaId: context.mediaId,
+        requestId: context.requestId,
+        serviceType: context.serviceType,
+        lookupTerm: term,
+        attempt: attempt + 1,
+        nextAttempt: attempt + 2,
+        delayMs,
+        errorMessage:
+          error instanceof Error ? error.message : 'Unknown lookup error',
+      });
+
+      await sleep(delayMs);
+    }
+  }
+};
+
 @EventSubscriber()
 export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRequest> {
   private getBookStatusFromLinks(media: Media): MediaStatus {
@@ -1299,7 +1352,11 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
         for (const term of lookupTerms) {
           lookupTerm = term;
-          searchResults = await readarr.lookupBook(term);
+          searchResults = await lookupReadarrBookWithRetry(readarr, term, {
+            mediaId: media.id,
+            requestId: entity.id,
+            serviceType,
+          });
 
           if (searchResults?.length) {
             break;

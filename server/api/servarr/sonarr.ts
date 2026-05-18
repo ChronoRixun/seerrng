@@ -2,6 +2,12 @@ import logger from '@server/logger';
 import { redactSecrets } from '@server/utils/security';
 import ServarrBase from './base';
 
+const isConflictError = (error: unknown): boolean =>
+  (typeof error === 'object' &&
+    error !== null &&
+    (error as { response?: { status?: number } }).response?.status === 409) ||
+  (error instanceof Error && /status code 409/i.test(error.message));
+
 export interface SonarrSeason {
   seasonNumber: number;
   monitored: boolean;
@@ -303,6 +309,30 @@ class SonarrAPI extends ServarrBase<{
 
       return createdSeriesResponse.data;
     } catch (e) {
+      if (isConflictError(e)) {
+        const existingSeries = await this.recoverExistingSeries(options).catch(
+          (recoveryError) => {
+            logger.warn(
+              'Failed to recover existing Sonarr series after conflict.',
+              {
+                label: 'Sonarr API',
+                errorMessage:
+                  recoveryError instanceof Error
+                    ? recoveryError.message
+                    : 'Unknown recovery error',
+                options,
+              }
+            );
+
+            return undefined;
+          }
+        );
+
+        if (existingSeries) {
+          return existingSeries;
+        }
+      }
+
       logger.error('Something went wrong while adding a series to Sonarr.', {
         label: 'Sonarr API',
         errorMessage: e.message,
@@ -311,6 +341,39 @@ class SonarrAPI extends ServarrBase<{
       });
       throw new Error('Failed to add series', { cause: e });
     }
+  }
+
+  private async recoverExistingSeries(
+    options: AddSeriesOptions
+  ): Promise<SonarrSeries | undefined> {
+    const series = (await this.getSeries()).find(
+      (item) => item.tvdbId === options.tvdbid
+    );
+
+    if (!series?.id) {
+      return undefined;
+    }
+
+    logger.warn('Recovered existing Sonarr series after add conflict.', {
+      label: 'Sonarr API',
+      seriesId: series.id,
+      seriesTitle: series.title,
+      tvdbId: series.tvdbId,
+    });
+
+    series.monitored = options.monitored ?? series.monitored;
+    series.tags = options.tags
+      ? Array.from(new Set([...series.tags, ...options.tags]))
+      : series.tags;
+    series.seasons = this.buildSeasonList(options.seasons, series.seasons);
+
+    const response = await this.axios.put<SonarrSeries>('/series', series);
+
+    if (options.searchNow && response.data.id) {
+      this.searchSeries(response.data.id);
+    }
+
+    return response.data;
   }
 
   public async getLanguageProfiles(): Promise<LanguageProfile[]> {

@@ -52,6 +52,9 @@ const API_SPEC_PATH = path.join(__dirname, '../seerr-api.yml');
 const API_BODY_LIMIT = '100kb';
 const API_URLENCODED_PARAMETER_LIMIT = 100;
 
+const isTruthyEnv = (value?: string): boolean =>
+  value?.toLowerCase() === 'true' || value === '1';
+
 const getErrorLogFields = (error: unknown) => ({
   errorMessage: error instanceof Error ? error.message : 'Unknown error',
   errorStack: error instanceof Error ? error.stack : undefined,
@@ -74,6 +77,19 @@ process.on('uncaughtException', (error) => {
 
 logger.info(`Starting Seerr version ${getAppVersion()}`);
 const dev = process.env.NODE_ENV !== 'production';
+
+if (
+  !dev &&
+  isTruthyEnv(process.env.SEERR_EXTERNAL_READ_ONLY) &&
+  !isTruthyEnv(process.env.SEERR_ALLOW_PRODUCTION_EXTERNAL_READ_ONLY)
+) {
+  logger.error(
+    'Refusing to start production with SEERR_EXTERNAL_READ_ONLY enabled. Set SEERR_ALLOW_PRODUCTION_EXTERNAL_READ_ONLY=true only for an intentional read-only production clone.',
+    { label: 'Server' }
+  );
+  process.exit(1);
+}
+
 const app = next({ dev });
 const handle = app.getRequestHandler();
 

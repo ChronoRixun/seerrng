@@ -594,6 +594,105 @@ describe('MediaRequestSubscriber service dispatch', () => {
     assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
   });
 
+  it('retries transient Bookshelf lookup failures before dispatching a book request', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 20,
+        name: 'Bookshelf',
+        hostname: 'bookshelf.local',
+        port: 8787,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Books',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/books',
+        tags: [4],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780441478125',
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => undefined);
+
+    let lookupAttempts = 0;
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => {
+      lookupAttempts += 1;
+
+      if (lookupAttempts < 3) {
+        throw new Error(
+          '[Readarr] Failed to lookup book: Request failed with status code 503'
+        );
+      }
+
+      return [
+        {
+          title: 'The Left Hand of Darkness',
+          foreignBookId: 'readarr-work-id',
+          titleSlug: 'left-hand-darkness',
+          editions: [
+            {
+              foreignEditionId: 'edition-id',
+              title: 'The Left Hand of Darkness',
+              isbn13: '9780441478125',
+              monitored: true,
+            },
+          ],
+        },
+      ] as ReadarrBookLookupResult[];
+    });
+
+    let addPayload: ReadarrBookOptions | undefined;
+    mock.method(
+      ReadarrAPI.prototype,
+      'addBook',
+      async (payload: ReadarrBookOptions) => {
+        addPayload = payload;
+
+        return {
+          ...payload,
+          id: 55,
+          titleSlug: 'left-hand-darkness',
+        };
+      }
+    );
+    mock.method(notificationManager, 'sendNotification', () => undefined);
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    assert.equal(lookupAttempts, 3);
+    assert.equal(addPayload?.foreignBookId, 'readarr-work-id');
+
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: request.id,
+    });
+    assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+  });
+
   it('sends audiobook requests to the default audiobook Bookshelf server', async () => {
     const settings = getSettings();
     settings.readarr = [
