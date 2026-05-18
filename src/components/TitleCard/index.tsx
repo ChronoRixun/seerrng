@@ -517,7 +517,7 @@ const TitleCard = ({
             fill
           />
           <div className="absolute left-0 right-0 flex items-center justify-between p-2">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <div
                 className={`pointer-events-none z-40 self-start rounded-full border shadow-md ${
                   mediaType === 'movie' || mediaType === 'collection'
@@ -544,7 +544,7 @@ const TitleCard = ({
                 </div>
               </div>
               {currentStatus !== MediaStatus.BLOCKLISTED && (
-                <div className="z-40">
+                <div className="z-40 flex items-center">
                   <AssociationBadge
                     mediaType={mediaType}
                     id={id}

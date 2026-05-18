@@ -173,8 +173,10 @@ describe('Associations', () => {
         .should('not.contain.text', 'Similar')
         .and(($badge) => {
           const rect = $badge[0].getBoundingClientRect();
-          expect(rect.width).to.be.lessThan(40);
-          expect(rect.height).to.be.lessThan(24);
+          expect(rect.width).to.be.greaterThan(24);
+          expect(rect.width).to.be.lessThan(36);
+          expect(rect.height).to.be.greaterThan(24);
+          expect(rect.height).to.be.lessThan(36);
         })
         .click();
     });
