@@ -623,6 +623,45 @@ describe('POST /request', () => {
     assert.strictEqual(savedMedia.requests.length, 1);
   });
 
+  it('accepts zero-valued Lidarr service and profile overrides in music requests', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(0)];
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async () =>
+        ({
+          release_group_mbid: 'zero-single-album',
+          release_group_metadata: {
+            release_group: {
+              name: 'Zero Single Album',
+            },
+            artist: {
+              name: 'Bulk Artist',
+            },
+          },
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+    });
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/request').send({
+      mediaType: MediaType.MUSIC,
+      mediaId: 'zero-single-album',
+      serverId: 0,
+      profileId: 0,
+      metadataProfileId: 0,
+    });
+
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.serverId, 0);
+    assert.strictEqual(res.body.profileId, 0);
+    assert.strictEqual(res.body.metadataProfileId, 0);
+  });
+
   it('creates a music request when ListenBrainz album lookup fails for a valid release group', async (t) => {
     const settings = getSettings();
     settings.lidarr = [
@@ -2324,6 +2363,46 @@ describe('POST /request/bulk', () => {
     assert.strictEqual(await getRepository(MediaRequest).count(), 2);
   });
 
+  it('accepts zero-valued Lidarr service and profile overrides in bulk music requests', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(0)];
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async (releaseGroupId: string) =>
+        ({
+          release_group_mbid: releaseGroupId,
+          release_group_metadata: {
+            release_group: {
+              name: releaseGroupId,
+            },
+            artist: {
+              name: 'Bulk Artist',
+            },
+          },
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+    });
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      serverId: 0,
+      profileId: 0,
+      metadataProfileId: 0,
+      items: [{ mediaId: 'zero-service-album', title: 'Zero Service Album' }],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].serverId, 0);
+    assert.strictEqual(res.body.created[0].profileId, 0);
+    assert.strictEqual(res.body.created[0].metadataProfileId, 0);
+  });
+
   it('creates book requests and returns skipped item summaries', async (t) => {
     const settings = getSettings();
     settings.readarr = [createReadarrSettings(10, 'ebook')];
@@ -2402,6 +2481,63 @@ describe('POST /request/bulk', () => {
     ]);
     assert.deepStrictEqual(res.body.failed, []);
     assert.strictEqual(await getRepository(MediaRequest).count(), 1);
+  });
+
+  it('accepts zero-valued Bookshelf service and profile overrides in bulk book requests', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(0, 'ebook')];
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async (workId: string) =>
+        ({
+          key: `/works/${workId.replace(/^\/?works\//, '')}`,
+          title: workId,
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async (workId: string) =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: `/books/${workId.replace(/^\/?works\//, '')}-edition`,
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+      settings.readarr = [];
+    });
+
+    const agent = await loginAs('admin@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.BOOK,
+      format: 'ebook',
+      serverId: 0,
+      profileId: 0,
+      metadataProfileId: 0,
+      items: [
+        {
+          mediaId: 'zero-book-work',
+          title: 'Zero Book Work',
+          authorId: 'OL1A',
+          isbn13: '9780441478125',
+          editionId: 'zero-book-work-edition',
+        },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].serverId, 0);
+    assert.strictEqual(res.body.created[0].profileId, 0);
+    assert.strictEqual(res.body.created[0].metadataProfileId, 0);
   });
 
   it('does not count skipped music bulk items against quota', async (t) => {

@@ -109,6 +109,22 @@ const logRequestServiceProfileFailure = (
   });
 };
 
+const logRequestValidationFailure = (
+  action: string,
+  error: { status: number; message: string },
+  body: Partial<MediaRequestBody> | undefined,
+  userId: number | undefined
+) => {
+  logger.warn('Rejected request payload during validation', {
+    label: 'Request',
+    action,
+    status: error.status,
+    message: error.message,
+    requestBody: getRequestLogBody(body),
+    userId,
+  });
+};
+
 const parseRequestStatusAction = (
   status: unknown
 ): MediaRequestStatus | undefined => {
@@ -130,19 +146,24 @@ type RequestOptionValidationResult<T> =
 
 const parseOptionalRequestOptionId = (
   value: unknown,
-  fieldName: string
+  fieldName: string,
+  allowZero = false
 ): RequestOptionValidationResult<number | undefined> => {
   if (value === undefined || value === null || value === '') {
     return { value: undefined };
   }
 
-  const parsed = parsePositiveRouteId(value, maxRequestIdValue);
+  const parsed = allowZero
+    ? parseOptionalNonNegativeInteger(value, maxRequestIdValue)
+    : parsePositiveRouteId(value, maxRequestIdValue);
 
   if (parsed === undefined) {
     return {
       error: {
         status: 400,
-        message: `${fieldName} must be a positive integer no greater than ${maxRequestIdValue}.`,
+        message: `${fieldName} must be a ${
+          allowZero ? 'non-negative' : 'positive'
+        } integer no greater than ${maxRequestIdValue}.`,
       },
     };
   }
@@ -299,7 +320,8 @@ const sanitizeMediaRequestBody = (
 
   const serverId = parseOptionalRequestOptionId(
     bodyObject.serverId,
-    'serverId'
+    'serverId',
+    true
   );
   if ('error' in serverId) {
     return serverId;
@@ -307,7 +329,8 @@ const sanitizeMediaRequestBody = (
 
   const profileId = parseOptionalRequestOptionId(
     bodyObject.profileId,
-    'profileId'
+    'profileId',
+    true
   );
   if ('error' in profileId) {
     return profileId;
@@ -315,7 +338,8 @@ const sanitizeMediaRequestBody = (
 
   const languageProfileId = parseOptionalRequestOptionId(
     bodyObject.languageProfileId,
-    'languageProfileId'
+    'languageProfileId',
+    true
   );
   if ('error' in languageProfileId) {
     return languageProfileId;
@@ -323,7 +347,8 @@ const sanitizeMediaRequestBody = (
 
   const metadataProfileId = parseOptionalRequestOptionId(
     bodyObject.metadataProfileId,
-    'metadataProfileId'
+    'metadataProfileId',
+    true
   );
   if ('error' in metadataProfileId) {
     return metadataProfileId;
@@ -1259,6 +1284,12 @@ requestRoutes.post<never, MediaRequest, MediaRequestBody>(
       }
       const body = sanitizeMediaRequestBody(req.body);
       if ('error' in body) {
+        logRequestValidationFailure(
+          'create',
+          body.error,
+          req.body,
+          req.user.id
+        );
         return next(body.error);
       }
 
@@ -1349,6 +1380,12 @@ requestRoutes.post<never, BulkMediaRequestResponse, BulkMediaRequestBody>(
 
       const sanitizedBody = sanitizeBulkMediaRequestBody(req.body);
       if ('error' in sanitizedBody) {
+        logRequestValidationFailure(
+          'bulk-create',
+          sanitizedBody.error,
+          req.body,
+          req.user.id
+        );
         return next(sanitizedBody.error);
       }
       const body = sanitizedBody.value;
@@ -1683,6 +1720,12 @@ requestRoutes.put<{ requestId: string }>(
 
       const sanitizedBody = sanitizeMediaRequestBody(req.body);
       if ('error' in sanitizedBody) {
+        logRequestValidationFailure(
+          'edit',
+          sanitizedBody.error,
+          req.body,
+          req.user?.id
+        );
         return next(sanitizedBody.error);
       }
       const body = sanitizedBody.value;

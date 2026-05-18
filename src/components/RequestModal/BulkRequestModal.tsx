@@ -36,6 +36,8 @@ const messages = defineMessages('components.RequestModal.BulkRequestModal', {
   quotaexceeded: 'Not enough request quota remaining.',
   summary: '{created} created, {skipped} skipped, {failed} failed.',
   faileditems: 'Failed Items',
+  submittingprogress:
+    'Submitting {processed} of {total} {total, plural, one {item} other {items}}.',
   close: 'Close',
   format: 'Format',
   ebook: 'Ebook',
@@ -93,6 +95,22 @@ type AuthorWorksResponse = {
     offset: number;
     totalItems: number;
   };
+};
+
+const getBulkRequestErrorMessage = (error: unknown): string | undefined => {
+  if (axios.isAxiosError(error)) {
+    const responseMessage = error.response?.data?.message;
+
+    if (typeof responseMessage === 'string' && responseMessage.trim()) {
+      return responseMessage;
+    }
+
+    if (error.message) {
+      return error.message;
+    }
+  }
+
+  return error instanceof Error ? error.message : undefined;
 };
 
 interface BulkRequestModalProps {
@@ -255,6 +273,10 @@ const BulkRequestModal = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [confirmLargeBatch, setConfirmLargeBatch] = useState(false);
   const [summary, setSummary] = useState<BulkMediaRequestResponse>();
+  const [submitProgress, setSubmitProgress] = useState<{
+    processed: number;
+    total: number;
+  }>();
   const [authorOffset, setAuthorOffset] = useState(initialItems.length);
   const [authorTotal, setAuthorTotal] = useState<number | undefined>(
     initialTotalItems
@@ -501,6 +523,7 @@ const BulkRequestModal = ({
     }
 
     setIsUpdating(true);
+    setSubmitProgress({ processed: 0, total: selectedItems.length });
 
     try {
       const requestItems = selectedItems.map((item) => ({
@@ -529,6 +552,10 @@ const BulkRequestModal = ({
         );
 
         responses.push(response.data);
+        setSubmitProgress((current) => ({
+          processed: (current?.processed ?? 0) + chunk.length,
+          total: requestItems.length,
+        }));
       }
 
       const nextSummary = responses.reduce<BulkMediaRequestResponse>(
@@ -555,13 +582,18 @@ const BulkRequestModal = ({
         }),
         { appearance: nextSummary.failed.length ? 'warning' : 'success' }
       );
-    } catch {
-      addToast(intl.formatMessage(globalMessages.error), {
-        appearance: 'error',
-        autoDismiss: true,
-      });
+    } catch (error) {
+      addToast(
+        getBulkRequestErrorMessage(error) ??
+          intl.formatMessage(globalMessages.error),
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     } finally {
       setIsUpdating(false);
+      setSubmitProgress(undefined);
     }
   };
 
@@ -614,7 +646,8 @@ const BulkRequestModal = ({
                   })
         }
         okDisabled={
-          !summary && (selectedIds.length === 0 || selectedExceedsQuota)
+          !summary &&
+          (isUpdating || selectedIds.length === 0 || selectedExceedsQuota)
         }
         dialogClass="sm:max-w-5xl"
       >
@@ -662,6 +695,17 @@ const BulkRequestModal = ({
                 <Alert
                   title={intl.formatMessage(messages.quotaexceeded)}
                   type="warning"
+                />
+              </div>
+            )}
+            {submitProgress && (
+              <div className="mt-6">
+                <Alert
+                  title={intl.formatMessage(messages.submittingprogress, {
+                    processed: submitProgress.processed,
+                    total: submitProgress.total,
+                  })}
+                  type="info"
                 />
               </div>
             )}
