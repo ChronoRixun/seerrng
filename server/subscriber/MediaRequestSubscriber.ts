@@ -116,6 +116,90 @@ const isAddableReadarrBookLookupResult = (
   );
 };
 
+const parseReadarrAuthorName = (
+  result: ReadarrBookLookupResult
+): string | undefined => {
+  const authorTitle = result.authorTitle?.trim();
+
+  if (!authorTitle) {
+    return undefined;
+  }
+
+  const titleIndex = authorTitle
+    .toLocaleLowerCase()
+    .lastIndexOf(result.title.toLocaleLowerCase());
+  const rawAuthorName =
+    titleIndex > 0 ? authorTitle.slice(0, titleIndex).trim() : authorTitle;
+  const [lastName, ...firstNameParts] = rawAuthorName
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!lastName) {
+    return undefined;
+  }
+
+  return firstNameParts.length
+    ? `${firstNameParts.join(' ')} ${lastName}`
+    : lastName;
+};
+
+const hydrateSoftcoverLookupResults = async (
+  readarr: ReadarrAPI,
+  results: ReadarrBookLookupResult[],
+  normalizedIsbn?: string
+): Promise<ReadarrBookLookupResult[]> => {
+  const authorCache = new Map<string, ReadarrBookLookupResult['author']>();
+
+  return Promise.all(
+    results.map(async (result) => {
+      if (isAddableReadarrBookLookupResult(result)) {
+        return result;
+      }
+
+      if (result.author || !result.foreignEditionId) {
+        return result;
+      }
+
+      const authorName = parseReadarrAuthorName(result);
+
+      if (!authorName) {
+        return result;
+      }
+
+      let author = authorCache.get(authorName);
+
+      if (!author) {
+        const [authorResult] = await readarr.lookupAuthor(authorName);
+
+        if (!authorResult?.foreignAuthorId || !authorResult.authorName) {
+          return result;
+        }
+
+        author = {
+          foreignAuthorId: authorResult.foreignAuthorId,
+          authorName: authorResult.authorName,
+          id: authorResult.id,
+        };
+        authorCache.set(authorName, author);
+      }
+
+      return {
+        ...result,
+        author,
+        editions: [
+          {
+            foreignEditionId: result.foreignEditionId,
+            title: result.title,
+            isbn13: normalizedIsbn,
+            monitored: true,
+          },
+        ],
+      };
+    })
+  );
+};
+
 @EventSubscriber()
 export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRequest> {
   private getBookStatusFromLinks(media: Media): MediaStatus {
@@ -1423,6 +1507,11 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             requestId: entity.id,
             serviceType,
           });
+          searchResults = await hydrateSoftcoverLookupResults(
+            readarr,
+            searchResults,
+            normalizedIsbn
+          );
 
           const addableSearchResults = searchResults.filter(
             isAddableReadarrBookLookupResult

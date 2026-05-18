@@ -8,12 +8,18 @@ export interface ReadarrMetadataProfile {
   name: string;
 }
 
+export interface ReadarrDevelopmentConfig {
+  id: number;
+  metadataSource?: string;
+}
+
 export interface ReadarrBookLookupResult {
   id?: number;
   title: string;
   titleSlug?: string;
   foreignBookId: string;
   foreignEditionId?: string;
+  authorId?: number;
   qualityProfileId?: number;
   metadataProfileId?: number;
   rootFolderPath?: string;
@@ -42,6 +48,13 @@ export interface ReadarrBookLookupResult {
     asin?: string;
     monitored: boolean;
   }[];
+}
+
+export interface ReadarrAuthorLookupResult {
+  id?: number;
+  foreignAuthorId: string;
+  authorName: string;
+  titleSlug?: string;
 }
 
 export interface ReadarrEdition {
@@ -120,6 +133,17 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
     }
   }
 
+  public async getDevelopmentConfig(): Promise<ReadarrDevelopmentConfig> {
+    try {
+      return await this.get<ReadarrDevelopmentConfig>('/config/development');
+    } catch (e) {
+      throw new Error(
+        `[Readarr] Failed to retrieve development config: ${e.message}`,
+        { cause: e }
+      );
+    }
+  }
+
   public async getBooks(): Promise<ReadarrBook[]> {
     try {
       return await this.get<ReadarrBook[]>('/book');
@@ -148,6 +172,18 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
       });
     } catch (e) {
       throw new Error(`[Readarr] Failed to lookup book: ${e.message}`, {
+        cause: e,
+      });
+    }
+  }
+
+  public async lookupAuthor(term: string): Promise<ReadarrAuthorLookupResult[]> {
+    try {
+      return await this.get<ReadarrAuthorLookupResult[]>('/author/lookup', {
+        params: { term },
+      });
+    } catch (e) {
+      throw new Error(`[Readarr] Failed to lookup author: ${e.message}`, {
         cause: e,
       });
     }
@@ -247,12 +283,15 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
     }
   }
 
-  public async removeBook(bookId: number): Promise<void> {
+  public async removeBook(
+    bookId: number,
+    options: { deleteFiles?: boolean; addImportListExclusion?: boolean } = {}
+  ): Promise<void> {
     try {
       await this.axios.delete(`/book/${bookId}`, {
         params: {
-          deleteFiles: true,
-          addImportListExclusion: false,
+          deleteFiles: options.deleteFiles ?? true,
+          addImportListExclusion: options.addImportListExclusion ?? false,
         },
       });
     } catch (e) {

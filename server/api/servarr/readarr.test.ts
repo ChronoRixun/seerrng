@@ -11,7 +11,7 @@ type MockableReadarr = {
   get: (
     endpoint: string,
     options?: { params?: Record<string, unknown> }
-  ) => Promise<unknown[]>;
+  ) => Promise<unknown>;
   post: (
     endpoint: string,
     data?: Record<string, unknown>
@@ -86,6 +86,66 @@ describe('ReadarrAPI.getEditions', () => {
     assert.deepStrictEqual(getMock.mock.calls[0].arguments[1], {
       params: { bookId: 42 },
     });
+  });
+});
+
+describe('ReadarrAPI.lookupAuthor', () => {
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  it('looks up authors by term', async () => {
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
+    const getMock = mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'get',
+      async () => [
+        {
+          foreignAuthorId: '656983',
+          authorName: 'J.R.R. Tolkien',
+        },
+      ]
+    );
+
+    const result = await api.lookupAuthor('J.R.R. Tolkien');
+
+    assert.strictEqual(result[0].foreignAuthorId, '656983');
+    assert.strictEqual(getMock.mock.calls[0].arguments[0], '/author/lookup');
+    assert.deepStrictEqual(getMock.mock.calls[0].arguments[1], {
+      params: { term: 'J.R.R. Tolkien' },
+    });
+  });
+});
+
+describe('ReadarrAPI.getDevelopmentConfig', () => {
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  it('fetches development config', async () => {
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
+    const getMock = mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'get',
+      async () => ({
+        id: 1,
+        metadataSource: 'http://127.0.0.1:8790',
+      })
+    );
+
+    const result = await api.getDevelopmentConfig();
+
+    assert.strictEqual(result.metadataSource, 'http://127.0.0.1:8790');
+    assert.strictEqual(
+      getMock.mock.calls[0].arguments[0],
+      '/config/development'
+    );
   });
 });
 

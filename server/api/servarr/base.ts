@@ -6,6 +6,7 @@ import logger from '@server/logger';
 import { buildServiceUrl } from '@server/utils/serviceUrl';
 
 export interface SystemStatus {
+  appName?: string;
   version: string;
   buildTime: Date;
   isDebug: boolean;
@@ -39,6 +40,7 @@ export interface RootFolder {
   path: string;
   freeSpace: number;
   totalSpace: number;
+  accessible?: boolean;
   unmappedFolders: {
     name: string;
     path: string;
@@ -144,7 +146,7 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
     }
   }
 
-  public getSystemStatus = async (): Promise<SystemStatus> => {
+  public async getSystemStatus(): Promise<SystemStatus> {
     try {
       const response = await this.axios.get<SystemStatus>('/system/status');
 
@@ -155,9 +157,9 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
         { cause: e }
       );
     }
-  };
+  }
 
-  public getProfiles = async (): Promise<QualityProfile[]> => {
+  public async getProfiles(): Promise<QualityProfile[]> {
     try {
       const data = await this.getRolling<QualityProfile[]>(
         `/qualityProfile`,
@@ -172,9 +174,9 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
         { cause: e }
       );
     }
-  };
+  }
 
-  public getRootFolders = async (): Promise<RootFolder[]> => {
+  public async getRootFolders(): Promise<RootFolder[]> {
     try {
       const data = await this.getRolling<RootFolder[]>(
         `/rootfolder`,
@@ -189,7 +191,7 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
         { cause: e }
       );
     }
-  };
+  }
 
   public getQueue = async (): Promise<(QueueItem & QueueItemAppendT)[]> => {
     try {
