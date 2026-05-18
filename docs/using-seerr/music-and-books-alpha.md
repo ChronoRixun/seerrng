@@ -11,7 +11,9 @@ system. This page is the validation checklist for alpha builds.
 
 - Lidarr for music requests.
 - Bookshelf for book requests. SeerrNG currently talks to Bookshelf through the
-  Readarr-compatible API surface.
+  Readarr-compatible API surface. See the
+  [Bookshelf Backend](/using-seerr/bookshelf-backend) guide for the recommended
+  two-instance ebook/audiobook deployment.
 - Jellyfin, Plex, or Emby for the inherited media-server integration.
 
 ## Configuration Checklist
@@ -44,6 +46,10 @@ Run these against a real Lidarr instance:
 9. Remove the item from SeerrNG and confirm Lidarr removal behavior is expected.
 10. Retry a failed music request and confirm it dispatches again.
 
+When testing **Request Discography**, include an environment where the default
+Lidarr service ID is `0`. The bulk request backend must accept `serverId: 0`;
+otherwise SeerrNG rejects the request before it reaches Lidarr.
+
 ## Book Validation
 
 Run these against a real Bookshelf instance:
@@ -64,6 +70,10 @@ Run these against a real Bookshelf instance:
     entries are removed when both exist.
 13. Retry a failed book request and confirm partial service links are preserved
     when one side already succeeded.
+
+When testing **Request Bibliography**, include an environment where one Bookshelf
+service ID is `0`. Ebook, audiobook, and both-format bulk requests must accept
+that service override and dispatch to the correct Bookshelf instance.
 
 ## Identity Checks
 

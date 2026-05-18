@@ -73,3 +73,13 @@ Enable this setting if you would like to scan your Radarr/Sonarr server for exis
 #### Enable Automatic Search (optional)
 
 Enable this setting to have Radarr/Sonarr to automatically search for media upon approval of a request.
+
+### Bookshelf Settings
+
+SeerrNG uses Bookshelf for book requests through the Readarr-compatible API.
+For ebook and audiobook requests, run separate Bookshelf instances and mark one
+service as the default for each book format.
+
+Use the [Bookshelf Backend](/using-seerr/bookshelf-backend) guide for the
+recommended Docker Compose deployment, migration steps, diagnostics, and
+rollback procedure.
