@@ -1,5 +1,6 @@
 import { normalizeIsbn } from '@server/lib/isbn';
 import logger from '@server/logger';
+import axios from 'axios';
 import ServarrBase from './base';
 
 export interface ReadarrMetadataProfile {
@@ -23,6 +24,16 @@ export interface ReadarrBookLookupResult {
     foreignAuthorId?: string;
     authorName?: string;
     id?: number;
+    rootFolderPath?: string;
+    qualityProfileId?: number;
+    metadataProfileId?: number;
+    monitored?: boolean;
+    monitorNewItems?: string;
+    addOptions?: {
+      monitor?: string;
+      searchForMissingBooks?: boolean;
+    };
+    manualAdd?: boolean;
   };
   editions?: {
     foreignEditionId: string;
@@ -67,6 +78,25 @@ type ReadarrQueueItem = {
   book?: {
     id?: number;
   };
+};
+
+const getReadarrErrorMessage = (error: unknown): string => {
+  if (!axios.isAxiosError(error)) {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  const status = error.response?.status;
+  const data = error.response?.data as
+    | { message?: unknown; errorMessage?: unknown }
+    | undefined;
+  const message =
+    typeof data?.message === 'string'
+      ? data.message
+      : typeof data?.errorMessage === 'string'
+        ? data.errorMessage
+        : error.message;
+
+  return status ? `${message} (status ${status})` : message;
 };
 
 class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
@@ -208,9 +238,12 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
         options as unknown as Record<string, unknown>
       );
     } catch (e) {
-      throw new Error(`[Readarr] Failed to add book: ${e.message}`, {
-        cause: e,
-      });
+      throw new Error(
+        `[Readarr] Failed to add book: ${getReadarrErrorMessage(e)}`,
+        {
+          cause: e,
+        }
+      );
     }
   }
 

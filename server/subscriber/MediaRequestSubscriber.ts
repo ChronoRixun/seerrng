@@ -52,6 +52,7 @@ const sanitizeDisplayName = (displayName: string): string => {
 
 const READARR_LOOKUP_RETRY_DELAYS_MS =
   process.env.NODE_ENV === 'test' ? [1, 1, 1] : [500, 1500, 3000];
+const READARR_MAX_EXPANDED_LOOKUP_TERMS = 18;
 
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -101,6 +102,18 @@ const lookupReadarrBookWithRetry = async (
       await sleep(delayMs);
     }
   }
+};
+
+const isAddableReadarrBookLookupResult = (
+  result: ReadarrBookLookupResult
+): boolean => {
+  return !!(
+    result.foreignBookId &&
+    result.title &&
+    result.author?.foreignAuthorId &&
+    Array.isArray(result.editions) &&
+    result.editions.length > 0
+  );
 };
 
 @EventSubscriber()
@@ -1315,24 +1328,26 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           .map((editionIsbn) => normalizeValidIsbn(editionIsbn))
           .filter((editionIsbn): editionIsbn is string => !!editionIsbn);
         const expandedTerms = [
-          ...editionIsbns.flatMap((editionIsbn) => [
-            editionIsbn,
-            `isbn:${editionIsbn}`,
-          ]),
           work?.title && author?.name
             ? `${work.title} ${author.name}`
             : undefined,
           work?.title && author?.name
             ? `${author.name} ${work.title}`
             : undefined,
+          ...editionIsbns.flatMap((editionIsbn) => [
+            `isbn:${editionIsbn}`,
+            editionIsbn,
+          ]),
         ];
 
-        return expandedTerms.filter(
-          (term, index, terms): term is string =>
-            !!term &&
-            !lookupTerms.includes(term) &&
-            terms.indexOf(term) === index
-        );
+        return expandedTerms
+          .filter(
+            (term, index, terms): term is string =>
+              !!term &&
+              !lookupTerms.includes(term) &&
+              terms.indexOf(term) === index
+          )
+          .slice(0, READARR_MAX_EXPANDED_LOOKUP_TERMS);
       };
 
       const identifierRepository = getRepository(MediaIdentifier);
@@ -1398,6 +1413,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
         const termsToTry = [...lookupTerms];
         let expandedLookupTermsAdded = false;
+        let sawIncompleteLookupResult = false;
 
         for (let index = 0; index < termsToTry.length; index++) {
           const term = termsToTry[index];
@@ -1408,8 +1424,29 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             serviceType,
           });
 
-          if (searchResults?.length) {
+          const addableSearchResults = searchResults.filter(
+            isAddableReadarrBookLookupResult
+          );
+
+          if (addableSearchResults.length) {
+            searchResults = addableSearchResults;
             break;
+          }
+
+          if (searchResults.length) {
+            sawIncompleteLookupResult = true;
+            logger.warn(
+              'Bookshelf lookup returned incomplete metadata; continuing fallback lookup.',
+              {
+                label: 'Readarr',
+                mediaId: media.id,
+                requestId: entity.id,
+                serviceType,
+                lookupTerm: term,
+                resultCount: searchResults.length,
+              }
+            );
+            searchResults = [];
           }
 
           if (index === termsToTry.length - 1 && !expandedLookupTermsAdded) {
@@ -1422,6 +1459,12 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         }
 
         if (!searchResults?.length) {
+          if (sawIncompleteLookupResult) {
+            throw new Error(
+              `Bookshelf returned incomplete book metadata for ${termsToTry.length} lookup terms. The Bookshelf/Readarr metadata provider may be unavailable.`
+            );
+          }
+
           throw new Error(
             `Book not found in Bookshelf search for ${termsToTry.join(', ')}`
           );
@@ -1499,6 +1542,21 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           metadataProfileId: metadataProfile,
           rootFolderPath: rootFolder,
           tags,
+          author: bookInfo.author
+            ? {
+                ...bookInfo.author,
+                rootFolderPath: rootFolder,
+                qualityProfileId: qualityProfile,
+                metadataProfileId: metadataProfile,
+                monitored: true,
+                addOptions: {
+                  monitor: 'none',
+                  searchForMissingBooks: false,
+                },
+                manualAdd: true,
+              }
+            : bookInfo.author,
+          editions: bookInfo.editions ?? [],
           addOptions: {
             searchForNewBook: true,
           },

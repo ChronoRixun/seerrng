@@ -542,6 +542,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Left Hand of Darkness',
           foreignBookId: 'readarr-work-id',
           titleSlug: 'left-hand-darkness',
+          author: {
+            foreignAuthorId: 'le-guin-author-id',
+            authorName: 'Ursula K. Le Guin',
+          },
           editions: [
             {
               foreignEditionId: 'edition-id',
@@ -675,6 +679,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Lord of the Rings',
           foreignBookId: 'readarr-expanded-id',
           titleSlug: 'lord-of-the-rings',
+          author: {
+            foreignAuthorId: 'tolkien-author-id',
+            authorName: 'J.R.R. Tolkien',
+          },
           editions: [
             {
               foreignEditionId: 'expanded-edition-id',
@@ -707,7 +715,8 @@ describe('MediaRequestSubscriber service dispatch', () => {
       '9780000000000',
       'isbn:9780000000000',
       'The Lord of the Rings',
-      '9780007124015',
+      'The Lord of the Rings J.R.R. Tolkien',
+      'J.R.R. Tolkien The Lord of the Rings',
       'isbn:9780007124015',
     ]);
     assert.equal(addPayload?.foreignBookId, 'readarr-expanded-id');
@@ -716,6 +725,99 @@ describe('MediaRequestSubscriber service dispatch', () => {
       id: request.id,
     });
     assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+  });
+
+  it('fails book requests without posting incomplete Bookshelf metadata', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 20,
+        name: 'Bookshelf',
+        hostname: 'bookshelf.local',
+        port: 8787,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Books',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/books',
+        tags: [4],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.OPENLIBRARY,
+            value: 'OL46125W',
+            canonical: true,
+          }),
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780007115877',
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
+      key: '/works/OL46125W',
+      title: 'Foundation',
+      authors: [{ author: { key: '/authors/OL34221A' } }],
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getAuthor', async () => ({
+      key: '/authors/OL34221A',
+      name: 'Isaac Asimov',
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getWorkEditions', async () => ({
+      size: 1,
+      entries: [
+        {
+          key: '/books/OL1M',
+          title: 'Foundation',
+          isbn_13: ['9780007115877'],
+        },
+      ],
+    }));
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => [
+      {
+        title: 'Articles on Foundation Universe Books, Including',
+        foreignBookId: '17897706',
+        author: undefined,
+        editions: undefined,
+      },
+    ]);
+    const addBook = mock.method(
+      ReadarrAPI.prototype,
+      'addBook',
+      async (payload: ReadarrBookOptions) => ({
+        ...payload,
+        id: 999,
+      })
+    );
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    assert.equal(addBook.mock.callCount(), 0);
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: request.id,
+    });
+    assert.equal(savedRequest.status, MediaRequestStatus.FAILED);
   });
 
   it('retries transient Bookshelf lookup failures before dispatching a book request', async () => {
@@ -778,6 +880,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Left Hand of Darkness',
           foreignBookId: 'readarr-work-id',
           titleSlug: 'left-hand-darkness',
+          author: {
+            foreignAuthorId: 'le-guin-author-id',
+            authorName: 'Ursula K. Le Guin',
+          },
           editions: [
             {
               foreignEditionId: 'edition-id',
@@ -893,6 +999,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Left Hand of Darkness',
           foreignBookId: 'readarr-audio-id',
           titleSlug: 'the-left-hand-of-darkness-audio',
+          author: {
+            foreignAuthorId: 'le-guin-author-id',
+            authorName: 'Ursula K. Le Guin',
+          },
           editions: [
             {
               foreignEditionId: 'audio-edition-id',
@@ -1074,6 +1184,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Left Hand of Darkness',
           foreignBookId: 'readarr-audio-id',
           titleSlug: 'left-hand-darkness-audio',
+          author: {
+            foreignAuthorId: 'le-guin-author-id',
+            authorName: 'Ursula K. Le Guin',
+          },
           editions: [
             {
               foreignEditionId: 'audio-edition-id',
@@ -1185,6 +1299,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Left Hand of Darkness',
           foreignBookId: 'readarr-work-id',
           titleSlug: 'left-hand-darkness',
+          author: {
+            foreignAuthorId: 'le-guin-author-id',
+            authorName: 'Ursula K. Le Guin',
+          },
           editions: [
             {
               foreignEditionId: 'edition-id',
@@ -1326,6 +1444,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Left Hand of Darkness',
           foreignBookId: 'readarr-work-id',
           titleSlug: 'left-hand-darkness',
+          author: {
+            foreignAuthorId: 'le-guin-author-id',
+            authorName: 'Ursula K. Le Guin',
+          },
           editions: [
             {
               foreignEditionId: 'edition-id',
@@ -1449,6 +1571,10 @@ describe('MediaRequestSubscriber service dispatch', () => {
           title: 'The Left Hand of Darkness',
           foreignBookId: 'readarr-work-id',
           titleSlug: 'left-hand-darkness',
+          author: {
+            foreignAuthorId: 'le-guin-author-id',
+            authorName: 'Ursula K. Le Guin',
+          },
           editions: [
             {
               foreignEditionId: 'edition-id',
