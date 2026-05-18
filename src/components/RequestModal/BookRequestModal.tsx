@@ -25,7 +25,8 @@ import useSWR, { mutate } from 'swr';
 
 const messages = defineMessages('components.RequestModal.Book', {
   requestadmin: 'This request will be approved automatically.',
-  requestSuccess: '<strong>{title}</strong> requested successfully!',
+  requestSuccessWithFormat:
+    '<strong>{title}</strong> requested successfully as {format}.',
   requestCancel: 'Request for <strong>{title}</strong> canceled.',
   requestEdited: 'Request for <strong>{title}</strong> edited successfully!',
   requestApproved: 'Request for <strong>{title}</strong> approved!',
@@ -59,6 +60,7 @@ const messages = defineMessages('components.RequestModal.Book', {
   ebook: 'Ebook',
   audiobook: 'Audiobook',
   both: 'Both',
+  ebookAndAudiobook: 'ebook and audiobook',
 });
 
 interface BookRequestModalProps {
@@ -277,10 +279,17 @@ const BookRequestModal = ({
         onComplete?.(
           hasAutoApprove ? MediaStatus.PROCESSING : MediaStatus.PENDING
         );
+        const formatLabel =
+          bookFormat === 'ebook'
+            ? intl.formatMessage(messages.ebook)
+            : bookFormat === 'audiobook'
+              ? intl.formatMessage(messages.audiobook)
+              : intl.formatMessage(messages.ebookAndAudiobook);
         addToast(
           <span>
-            {intl.formatMessage(messages.requestSuccess, {
+            {intl.formatMessage(messages.requestSuccessWithFormat, {
               title: data?.title,
+              format: formatLabel,
               strong: (msg: React.ReactNode) => <strong>{msg}</strong>,
             })}
           </span>,

@@ -36,6 +36,7 @@ const messages = defineMessages('components.RequestModal.BulkRequestModal', {
   quotaexceeded: 'Not enough request quota remaining.',
   summary: '{created} created, {skipped} skipped, {failed} failed.',
   faileditems: 'Failed Items',
+  retryfailed: 'Retry Failed',
   submittingprogress:
     'Submitting {processed} of {total} {total, plural, one {item} other {items}}.',
   close: 'Close',
@@ -264,7 +265,7 @@ const BulkRequestModal = ({
   const { addToast } = useToasts();
   const { user, hasPermission } = useUser();
   const [format, setFormat] = useState<BulkBookFormat>('ebook');
-  const [releaseType, setReleaseType] = useState('All');
+  const [releaseType, setReleaseType] = useState('Album');
   const [items, setItems] = useState<BulkItem[]>(initialItems);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [requestOverrides, setRequestOverrides] =
@@ -478,6 +479,22 @@ const BulkRequestModal = ({
     }
   };
 
+  const retryFailedItems = () => {
+    if (!summary?.failed.length) {
+      return;
+    }
+
+    const failedIds = new Set(summary.failed.map((failure) => failure.mediaId));
+    setSelectedIds(
+      items
+        .filter((item) => failedIds.has(item.id) && !getIneligibleReason(item))
+        .map((item) => item.id)
+    );
+    setConfirmLargeBatch(false);
+    setSubmitProgress(undefined);
+    setSummary(undefined);
+  };
+
   const loadMoreAuthorWorks = async () => {
     if (!authorId || isLoadingItems) {
       return;
@@ -663,8 +680,13 @@ const BulkRequestModal = ({
             />
             {summary.failed.length > 0 && (
               <>
-                <div className="mt-4 text-lg font-semibold">
-                  {intl.formatMessage(messages.faileditems)}
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-lg font-semibold">
+                    {intl.formatMessage(messages.faileditems)}
+                  </div>
+                  <Button buttonType="primary" onClick={retryFailedItems}>
+                    {intl.formatMessage(messages.retryfailed)}
+                  </Button>
                 </div>
                 {renderFailures(summary.failed)}
               </>

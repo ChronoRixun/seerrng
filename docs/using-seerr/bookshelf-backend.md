@@ -458,11 +458,11 @@ service/profile override value, not as a missing or invalid ID.
 ## Current Limitations
 
 - Bulk book and music requests can still take a long time on large discographies
-  or bibliographies. The modal shows submit progress, but it does not yet offer
-  per-item preflight or retry-failed-only actions.
-- Music discography selection still exposes noisy release groups. Prefer manual
-  filtering when requesting only studio albums, EPs, singles, live albums, or
-  compilations.
+  or bibliographies. The modal shows submit progress and can retry failed items,
+  but it does not yet offer a per-item backend preflight before submission.
+- Music discography selection defaults to albums and can be filtered by release
+  type. Review the selection before requesting singles, live albums,
+  compilations, or other secondary release groups.
 - Book requests rely on Bookshelf-compatible lookup metadata. The diagnostic
   can identify incomplete lookup results, but it does not yet run automatically
   before every request.

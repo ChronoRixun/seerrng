@@ -563,7 +563,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         }
 
         if (
-          entity.profileId &&
+          entity.profileId !== null &&
+          entity.profileId !== undefined &&
           entity.profileId !== radarrSettings.activeProfileId
         ) {
           qualityProfile = entity.profileId;
@@ -925,7 +926,11 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           });
         }
 
-        if (entity.profileId && entity.profileId !== qualityProfile) {
+        if (
+          entity.profileId !== null &&
+          entity.profileId !== undefined &&
+          entity.profileId !== qualityProfile
+        ) {
           qualityProfile = entity.profileId;
           logger.info(
             `Request has an override quality profile ID: ${qualityProfile}`,
@@ -938,7 +943,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         }
 
         if (
-          entity.languageProfileId &&
+          entity.languageProfileId !== null &&
+          entity.languageProfileId !== undefined &&
           entity.languageProfileId !== languageProfile
         ) {
           languageProfile = entity.languageProfileId;
@@ -1196,7 +1202,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
       const albumInfo = searchResults[0].album;
       const rootFolder = entity.rootFolder || lidarrSettings.activeDirectory;
-      const qualityProfile = entity.profileId || lidarrSettings.activeProfileId;
+      const qualityProfile =
+        entity.profileId ?? lidarrSettings.activeProfileId;
       const metadataProfile =
         entity.metadataProfileId ?? lidarrSettings.activeMetadataProfileId ?? 1;
       const tags = entity.tags
@@ -1570,11 +1577,15 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             ? entity.rootFolder
             : readarrSettings.activeDirectory;
         const qualityProfile =
-          allowServerOverride && entity.profileId
+          allowServerOverride &&
+          entity.profileId !== null &&
+          entity.profileId !== undefined
             ? entity.profileId
             : readarrSettings.activeProfileId;
         const metadataProfile =
-          allowServerOverride && entity.metadataProfileId
+          allowServerOverride &&
+          entity.metadataProfileId !== null &&
+          entity.metadataProfileId !== undefined
             ? entity.metadataProfileId
             : (readarrSettings.activeMetadataProfileId ?? 1);
         const tags =

@@ -476,6 +476,106 @@ describe('MediaRequestSubscriber service dispatch', () => {
     assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
   });
 
+  it('preserves zero-valued Lidarr profile overrides during dispatch', async () => {
+    const settings = getSettings();
+    settings.lidarr = [
+      {
+        id: 0,
+        name: 'Lidarr',
+        hostname: 'lidarr.local',
+        port: 8686,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 7,
+        activeProfileName: 'Lossless',
+        activeMetadataProfileId: 8,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/music',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'zero-profile-release-group',
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+    request.serverId = 0;
+    request.profileId = 0;
+    request.metadataProfileId = 0;
+
+    mock.method(LidarrAPI.prototype, 'searchAlbumByMusicBrainzId', async () => [
+      {
+        album: {
+          title: 'Zero Profile Album',
+          disambiguation: '',
+          overview: 'Album overview',
+          artistId: 2,
+          foreignAlbumId: 'zero-profile-release-group',
+          duration: 2700,
+          albumType: 'Album',
+          mediumCount: 1,
+          ratings: { votes: 1, value: 10 },
+          releaseDate: '2026-01-01',
+          genres: ['Rock'],
+          images: [],
+          links: [],
+          artist: {
+            id: 2,
+            status: 'continuing',
+            ended: false,
+            artistName: 'Zero Profile Artist',
+            foreignArtistId: 'artist-id',
+            tadbId: 0,
+            discogsId: 0,
+            overview: 'Artist overview',
+            artistType: 'Group',
+            disambiguation: '',
+            links: [],
+            images: [],
+            genres: ['Rock'],
+            cleanName: 'zeroprofileartist',
+            sortName: 'zero profile artist',
+            tags: [],
+            added: '2026-01-01T00:00:00Z',
+            ratings: { votes: 1, value: 10 },
+          },
+        },
+      },
+    ]);
+
+    let addPayload: LidarrAlbumOptions | undefined;
+    mock.method(
+      LidarrAPI.prototype,
+      'addAlbum',
+      async (payload: LidarrAlbumOptions) => {
+        addPayload = payload;
+
+        return {
+          id: 45,
+          titleSlug: 'zero-profile-album',
+        } as Awaited<ReturnType<LidarrAPI['addAlbum']>>;
+      }
+    );
+
+    await new MediaRequestSubscriber().sendToLidarr(request);
+
+    assert.equal(addPayload?.profileId, 0);
+    assert.equal(addPayload?.artist.metadataProfileId, 0);
+  });
+
   it('resolves approved book requests through ISBN before title and stores Readarr identifiers', async () => {
     const settings = getSettings();
     settings.readarr = [
@@ -523,6 +623,9 @@ describe('MediaRequestSubscriber service dispatch', () => {
       })
     );
     const request = await createApprovedRequest(media, requestedBy);
+    request.serverId = 20;
+    request.profileId = 0;
+    request.metadataProfileId = 0;
 
     mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
       key: '/works/OL45804W',
@@ -579,9 +682,9 @@ describe('MediaRequestSubscriber service dispatch', () => {
       '9780441478125',
       'isbn:9780441478125',
     ]);
-    assert.equal(addPayload?.qualityProfileId, 11);
+    assert.equal(addPayload?.qualityProfileId, 0);
     assert.equal(addPayload?.foreignBookId, 'readarr-work-id');
-    assert.equal(addPayload?.metadataProfileId, 12);
+    assert.equal(addPayload?.metadataProfileId, 0);
     assert.equal(addPayload?.rootFolderPath, '/books');
     assert.deepStrictEqual(addPayload?.tags, [4]);
 
