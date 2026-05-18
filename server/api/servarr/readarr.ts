@@ -1,5 +1,5 @@
-import logger from '@server/logger';
 import { normalizeIsbn } from '@server/lib/isbn';
+import logger from '@server/logger';
 import ServarrBase from './base';
 
 export interface ReadarrMetadataProfile {
@@ -31,6 +31,14 @@ export interface ReadarrBookLookupResult {
     asin?: string;
     monitored: boolean;
   }[];
+}
+
+export interface ReadarrEdition {
+  foreignEditionId: string;
+  title: string;
+  isbn13?: string;
+  asin?: string;
+  monitored: boolean;
 }
 
 export interface ReadarrBookOptions extends ReadarrBookLookupResult {
@@ -90,6 +98,19 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
     }
   }
 
+  public async getEditions(bookId: number): Promise<ReadarrEdition[]> {
+    try {
+      return await this.get<ReadarrEdition[]>('/edition', {
+        params: { bookId },
+      });
+    } catch (e) {
+      throw new Error(
+        `[Readarr] Failed to retrieve editions for book ${bookId}: ${e.message}`,
+        { cause: e }
+      );
+    }
+  }
+
   public async lookupBook(term: string): Promise<ReadarrBookLookupResult[]> {
     try {
       return await this.get<ReadarrBookLookupResult[]>('/book/lookup', {
@@ -102,7 +123,9 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
     }
   }
 
-  public async addBook(options: ReadarrBookOptions): Promise<ReadarrBookLookupResult> {
+  public async addBook(
+    options: ReadarrBookOptions
+  ): Promise<ReadarrBookLookupResult> {
     try {
       const existingBooks = await this.get<ReadarrBook[]>('/book');
       const optionEditionIds = new Set(
@@ -166,7 +189,8 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
               options.qualityProfileId ?? existingBook.qualityProfileId,
             metadataProfileId:
               options.metadataProfileId ?? existingBook.metadataProfileId,
-            rootFolderPath: options.rootFolderPath ?? existingBook.rootFolderPath,
+            rootFolderPath:
+              options.rootFolderPath ?? existingBook.rootFolderPath,
             tags: options.tags ?? existingBook.tags,
           }
         );

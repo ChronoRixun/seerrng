@@ -5,6 +5,7 @@ import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import { resolveOpenLibraryIdentifiersForReadarrBook } from '@server/lib/bookIdentifierResolver';
+import { normalizeIsbn, normalizeValidIsbn } from '@server/lib/isbn';
 import type {
   RunnableScanner,
   StatusBase,
@@ -18,6 +19,9 @@ type SyncStatus = StatusBase & {
   currentServer: ReadarrSettings;
   servers: ReadarrSettings[];
 };
+
+const normalizeReadarrIsbn = (isbn?: string): string | undefined =>
+  normalizeValidIsbn(isbn) ?? normalizeIsbn(isbn);
 
 class ReadarrScanner
   extends BaseScanner<ReadarrBook>
@@ -98,9 +102,16 @@ class ReadarrScanner
 
   private async processReadarrBook(readarrBook: ReadarrBook): Promise<void> {
     try {
+      if (!readarrBook.editions?.length) {
+        readarrBook.editions = await this.readarrApi.getEditions(
+          readarrBook.id
+        );
+      }
+
       const identifier =
-        readarrBook.editions?.find((edition) => edition.isbn13)?.isbn13 ??
-        readarrBook.foreignBookId;
+        readarrBook.editions
+          ?.map((edition) => normalizeReadarrIsbn(edition.isbn13))
+          .find((isbn): isbn is string => !!isbn) ?? readarrBook.foreignBookId;
 
       if (!identifier) {
         this.log(
@@ -114,7 +125,7 @@ class ReadarrScanner
       }
 
       const provider = readarrBook.editions?.some(
-        (edition) => edition.isbn13 === identifier
+        (edition) => normalizeReadarrIsbn(edition.isbn13) === identifier
       )
         ? MediaIdentifierProvider.ISBN
         : MediaIdentifierProvider.READARR;
@@ -129,14 +140,16 @@ class ReadarrScanner
             }
           : undefined,
         ...((readarrBook.editions ?? [])
-          .map((edition) =>
-            edition.isbn13
+          .map((edition) => {
+            const isbn = normalizeReadarrIsbn(edition.isbn13);
+
+            return isbn
               ? {
                   provider: MediaIdentifierProvider.ISBN,
-                  value: edition.isbn13,
+                  value: isbn,
                 }
-              : undefined
-          )
+              : undefined;
+          })
           .filter(Boolean) as {
           provider: MediaIdentifierProvider;
           value: string;

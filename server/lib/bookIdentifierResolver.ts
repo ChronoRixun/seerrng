@@ -1,15 +1,12 @@
 import OpenLibraryAPI from '@server/api/openlibrary';
 import type { ReadarrBook } from '@server/api/servarr/readarr';
 import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
-import { normalizeValidIsbn } from '@server/lib/isbn';
 import logger from '@server/logger';
 
 type ResolvedIdentifier = {
   provider: MediaIdentifierProvider;
   value: string;
 };
-
-const MAX_ISBN_RESOLUTION_ATTEMPTS = 3;
 
 const normalizeOpenLibraryWorkId = (value?: string): string | undefined => {
   const id = value?.replace('/works/', '');
@@ -91,45 +88,6 @@ export const resolveOpenLibraryIdentifiersForReadarrBook = async (
         label: 'Bookshelf Scan',
         errorMessage: e instanceof Error ? e.message : String(e),
       });
-    }
-  }
-
-  if (
-    !identifiers.some(
-      (id) => id?.provider === MediaIdentifierProvider.OPENLIBRARY
-    )
-  ) {
-    const isbnCandidates = [
-      ...new Set(
-        (book.editions ?? [])
-          .map((edition) => normalizeValidIsbn(edition.isbn13))
-          .filter((isbn): isbn is string => !!isbn)
-      ),
-    ].slice(0, MAX_ISBN_RESOLUTION_ATTEMPTS);
-
-    for (const isbn of isbnCandidates) {
-      try {
-        const searchResult = await openLibrary.searchBooks({
-          query: `isbn:${isbn}`,
-          limit: 1,
-        });
-        const isbnWorkId = normalizeOpenLibraryWorkId(
-          searchResult.docs[0]?.key
-        );
-
-        if (isbnWorkId) {
-          identifiers.push({
-            provider: MediaIdentifierProvider.OPENLIBRARY,
-            value: isbnWorkId,
-          });
-          break;
-        }
-      } catch (e) {
-        logger.debug('Unable to resolve Open Library work for scanned ISBN', {
-          label: 'Bookshelf Scan',
-          errorMessage: e instanceof Error ? e.message : String(e),
-        });
-      }
     }
   }
 

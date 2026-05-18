@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
 
-import type { ReadarrBook, ReadarrBookOptions } from '@server/api/servarr/readarr';
+import type {
+  ReadarrBook,
+  ReadarrBookOptions,
+} from '@server/api/servarr/readarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 
 type MockableReadarr = {
-  get: (endpoint: string) => Promise<ReadarrBook[]>;
+  get: (
+    endpoint: string,
+    options?: { params?: Record<string, unknown> }
+  ) => Promise<unknown[]>;
   post: (
     endpoint: string,
     data?: Record<string, unknown>
@@ -50,13 +56,49 @@ const existingBook = (overrides: Partial<ReadarrBook> = {}): ReadarrBook => ({
   ...overrides,
 });
 
+describe('ReadarrAPI.getEditions', () => {
+  afterEach(() => {
+    mock.restoreAll();
+  });
+
+  it('fetches editions for a specific book', async () => {
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
+    const getMock = mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'get',
+      async () => [
+        {
+          foreignEditionId: 'edition-foreign-id',
+          title: 'Test Book',
+          isbn13: '9780000000001',
+          monitored: true,
+        },
+      ]
+    );
+
+    const result = await api.getEditions(42);
+
+    assert.strictEqual(result.length, 1);
+    assert.strictEqual(getMock.mock.calls[0].arguments[0], '/edition');
+    assert.deepStrictEqual(getMock.mock.calls[0].arguments[1], {
+      params: { bookId: 42 },
+    });
+  });
+});
+
 describe('ReadarrAPI.addBook', () => {
   afterEach(() => {
     mock.restoreAll();
   });
 
   it('returns an existing monitored book without posting', async () => {
-    const api = new ReadarrAPI({ url: 'http://localhost:8787/api/v1', apiKey: 'key' });
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
     const getMock = mock.method(
       ReadarrAPI.prototype as unknown as MockableReadarr,
       'get',
@@ -142,7 +184,10 @@ describe('ReadarrAPI.addBook', () => {
   });
 
   it('monitors and searches an existing unmonitored book', async () => {
-    const api = new ReadarrAPI({ url: 'http://localhost:8787/api/v1', apiKey: 'key' });
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
     const updatedBook = existingBook({ monitored: true });
     mock.method(
       ReadarrAPI.prototype as unknown as MockableReadarr,
@@ -173,7 +218,10 @@ describe('ReadarrAPI.addBook', () => {
   });
 
   it('posts a new book when no existing match is found', async () => {
-    const api = new ReadarrAPI({ url: 'http://localhost:8787/api/v1', apiKey: 'key' });
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
     mock.method(
       ReadarrAPI.prototype as unknown as MockableReadarr,
       'get',

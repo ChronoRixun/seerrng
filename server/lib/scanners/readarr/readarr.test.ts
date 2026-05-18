@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { beforeEach, describe, it, mock } from 'node:test';
 
 import OpenLibraryAPI from '@server/api/openlibrary';
-import type { ReadarrBook } from '@server/api/servarr/readarr';
+import type { ReadarrBook, ReadarrEdition } from '@server/api/servarr/readarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
@@ -16,12 +16,26 @@ import { setupTestDb } from '@server/test/db';
 
 let getBooksImpl: () => Promise<ReadarrBook[]> = async () => [];
 let getBooksCallCount = 0;
+let getEditionsImpl: (
+  bookId: number
+) => Promise<ReadarrEdition[]> = async () => [];
+let getEditionsCallCount = 0;
 Object.defineProperty(ReadarrAPI.prototype, 'getBooks', {
   set() {},
   get() {
     return async () => {
       getBooksCallCount += 1;
       return getBooksImpl();
+    };
+  },
+  configurable: true,
+});
+Object.defineProperty(ReadarrAPI.prototype, 'getEditions', {
+  set() {},
+  get() {
+    return async (bookId: number) => {
+      getEditionsCallCount += 1;
+      return getEditionsImpl(bookId);
     };
   },
   configurable: true,
@@ -111,6 +125,8 @@ describe('Readarr Scanner', () => {
     });
     getBooksImpl = async () => [];
     getBooksCallCount = 0;
+    getEditionsImpl = async () => [];
+    getEditionsCallCount = 0;
   });
 
   it('resets PROCESSING to UNKNOWN when a book is not in any Readarr server', async () => {
@@ -319,47 +335,33 @@ describe('Readarr Scanner', () => {
     assert.strictEqual(updated.status, MediaStatus.AVAILABLE);
   });
 
-  it('stores resolved Open Library work identifiers for Bookshelf imports matched by ISBN', async () => {
-    mock.restoreAll();
-    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
-      numFound: 1,
-      start: 0,
-      docs: [
-        {
-          key: '/works/OL45804W',
-          title: 'Test Book',
-          isbn: ['9780000000002'],
-        },
-      ],
-    }));
-    mock.method(OpenLibraryAPI.prototype, 'getEdition', async () => {
-      throw new Error('Edition not found');
-    });
-
+  it('hydrates missing Bookshelf editions and stores normalized ISBN identifiers', async () => {
     configureReadarr([{ syncEnabled: true }]);
     getBooksImpl = async () => [
       fakeReadarrBook({
-        editions: [
-          {
-            foreignEditionId: 'edition-id',
-            title: 'Test Book',
-            isbn13: '9780000000002',
-            monitored: true,
-          },
-        ],
+        editions: [],
       }),
+    ];
+    getEditionsImpl = async () => [
+      {
+        foreignEditionId: 'edition-id',
+        title: 'Test Book',
+        isbn13: '978-0-000-00000-2',
+        monitored: true,
+      },
     ];
 
     await readarrScanner.run();
 
     const identifiers = await getRepository(MediaIdentifier).find({
       where: {
-        provider: MediaIdentifierProvider.OPENLIBRARY,
-        value: 'OL45804W',
+        provider: MediaIdentifierProvider.ISBN,
+        value: '9780000000002',
       },
       relations: { media: true },
     });
 
+    assert.strictEqual(getEditionsCallCount, 1);
     assert.strictEqual(identifiers.length, 1);
     assert.strictEqual(identifiers[0].media.mediaType, MediaType.BOOK);
   });
