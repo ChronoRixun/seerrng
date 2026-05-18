@@ -32,7 +32,7 @@ export interface MediaIds {
   isHama?: boolean;
 }
 
-interface ProcessOptions {
+export interface ProcessOptions {
   is4k?: boolean;
   mediaAddedAt?: Date;
   ratingKey?: string;

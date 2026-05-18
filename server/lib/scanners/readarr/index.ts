@@ -7,6 +7,7 @@ import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import { resolveOpenLibraryIdentifiersForReadarrBook } from '@server/lib/bookIdentifierResolver';
 import { normalizeIsbn, normalizeValidIsbn } from '@server/lib/isbn';
 import type {
+  ProcessOptions,
   RunnableScanner,
   StatusBase,
 } from '@server/lib/scanners/baseScanner';
@@ -23,6 +24,17 @@ type SyncStatus = StatusBase & {
 const normalizeReadarrIsbn = (isbn?: string): string | undefined =>
   normalizeValidIsbn(isbn) ?? normalizeIsbn(isbn);
 
+const SQLITE_BUSY_RETRY_ATTEMPTS = 3;
+const SQLITE_BUSY_RETRY_DELAY_MS = 750;
+
+const isSqliteBusyError = (error: unknown): boolean =>
+  error instanceof Error &&
+  (error.message.includes('SQLITE_BUSY') ||
+    error.message.includes('database is locked'));
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 class ReadarrScanner
   extends BaseScanner<ReadarrBook>
   implements RunnableScanner<SyncStatus>
@@ -34,7 +46,7 @@ class ReadarrScanner
   private didScan = false;
 
   constructor() {
-    super('Bookshelf Scan', { bundleSize: 50 });
+    super('Bookshelf Scan', { bundleSize: 10 });
   }
 
   public status(): SyncStatus {
@@ -174,7 +186,7 @@ class ReadarrScanner
       const totalBooks = readarrBook.statistics?.totalBookCount ?? 1;
 
       if (!readarrBook.monitored) {
-        await this.processBook(provider, identifier, {
+        await this.processBookWithRetry(provider, identifier, {
           serviceId: this.currentServer.id,
           externalServiceId: readarrBook.id,
           externalServiceSlug:
@@ -191,7 +203,7 @@ class ReadarrScanner
         return;
       }
 
-      await this.processBook(provider, identifier, {
+      await this.processBookWithRetry(provider, identifier, {
         serviceId: this.currentServer.id,
         externalServiceId: readarrBook.id,
         externalServiceSlug: readarrBook.titleSlug ?? readarrBook.foreignBookId,
@@ -213,6 +225,25 @@ class ReadarrScanner
         errorMessage: e.message,
         title: readarrBook.title,
       });
+    }
+  }
+
+  private async processBookWithRetry(
+    provider: MediaIdentifierProvider,
+    identifier: string,
+    options: ProcessOptions
+  ): Promise<void> {
+    for (let attempt = 1; attempt <= SQLITE_BUSY_RETRY_ATTEMPTS; attempt += 1) {
+      try {
+        await this.processBook(provider, identifier, options);
+        return;
+      } catch (e) {
+        if (!isSqliteBusyError(e) || attempt === SQLITE_BUSY_RETRY_ATTEMPTS) {
+          throw e;
+        }
+
+        await sleep(SQLITE_BUSY_RETRY_DELAY_MS * attempt);
+      }
     }
   }
 
