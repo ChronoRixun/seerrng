@@ -13,6 +13,10 @@ permissions:
 jobs:
   publish-ppa:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu_series: [jammy, noble]
     steps:
       - name: Resolve version
         id: version
@@ -53,6 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.version.outputs.version }}"
+          series="${{ matrix.ubuntu_series }}"
           src="seerrng-${version}"
           rm -rf "$src"
           mkdir -p "$src/usr/lib/seerrng" "$src/usr/bin" "$src/lib/systemd/system" "$src/etc/seerrng" \
@@ -64,9 +69,12 @@ jobs:
           cp packaging/aur/seerrng.sysusers "$src/usr/lib/sysusers.d/seerrng.conf"
           cp packaging/aur/seerrng.tmpfiles "$src/usr/lib/tmpfiles.d/seerrng.conf"
           cp -r packaging/debian "$src/debian"
+          find "$src/usr/lib/seerrng" -type f \
+            | sed "s#^$src/##" \
+            > "$src/debian/source/include-binaries"
           ppa_rev="$(date -u +%Y%m%d%H%M)"
           cat > "$src/debian/changelog" <<EOF
-          seerrng (${version}+ppa${ppa_rev}~jammy) jammy; urgency=medium
+          seerrng (${version}+ppa${ppa_rev}~${series}) ${series}; urgency=medium
 
             * Release ${{ steps.version.outputs.tag }}
 

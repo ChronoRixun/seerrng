@@ -14,7 +14,7 @@ pulls and starts a new image.
 The authoritative live deployment path is GitHub Actions:
 
 1. Push the desired commit to `snapetech/seerrng` `main`.
-2. Wait for `.github/workflows/ci.yml` (`Seerr CI`) to build and push
+2. Wait for `.github/workflows/ci.yml` (`SeerrNG CI`) to build and push
    `ghcr.io/snapetech/seerrng:main`.
 3. Wait for the `Deploy main to seerr.home` job to pass. That job pulls the
    fresh `:main` image on the host, replaces the running container, and verifies

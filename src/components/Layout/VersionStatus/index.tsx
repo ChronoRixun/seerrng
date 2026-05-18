@@ -12,8 +12,8 @@ import { useIntl } from 'react-intl';
 import useSWR from 'swr';
 
 const messages = defineMessages('components.Layout.VersionStatus', {
-  streamdevelop: 'Seerr Develop',
-  streamstable: 'Seerr Stable',
+  streammain: 'SeerrNG Main',
+  streamstable: 'SeerrNG Stable',
   outofdate: 'Out of Date',
   commitsbehind:
     '{commitsBehind} {commitsBehind, plural, one {commit} other {commits}} behind',
@@ -57,8 +57,8 @@ const VersionStatus = ({ onClick }: VersionStatusProps) => {
   const versionStream =
     data.commitTag === 'local'
       ? 'Keep it up! 👍'
-      : data.version.startsWith('develop-')
-        ? intl.formatMessage(messages.streamdevelop)
+      : data.version.startsWith('main-')
+        ? intl.formatMessage(messages.streammain)
         : intl.formatMessage(messages.streamstable);
 
   return (
@@ -80,7 +80,7 @@ const VersionStatus = ({ onClick }: VersionStatusProps) => {
     >
       {data.commitTag === 'local' ? (
         <CodeBracketIcon className="h-6 w-6" />
-      ) : data.version.startsWith('develop-') ? (
+      ) : data.version.startsWith('main-') ? (
         <BeakerIcon className="h-6 w-6" />
       ) : (
         <ServerIcon className="h-6 w-6" />
@@ -98,7 +98,7 @@ const VersionStatus = ({ onClick }: VersionStatusProps) => {
             intl.formatMessage(messages.outofdate)
           ) : (
             <code className="bg-transparent p-0">
-              {data.version.replace('develop-', '')}
+              {data.version.replace('main-', '')}
             </code>
           )}
         </span>

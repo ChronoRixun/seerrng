@@ -40,4 +40,4 @@ Bookshelf through its Readarr-compatible API.
 
 We value your feedback and support in identifying and fixing bugs to make Seerr even better. As an open-source project, we welcome contributions from everyone. Contribution includes building new features, patching bugs, translating the application, or even just writing documentation.
 
-If you would like to contribute, please be sure to review our [contribution guidelines](https://github.com/seerr-team/seerr/blob/develop/CONTRIBUTING.md).
+If you would like to contribute, please be sure to review our [contribution guidelines](https://github.com/snapetech/seerrng/blob/main/CONTRIBUTING.md).

@@ -16,7 +16,7 @@ import useSWR from 'swr';
 
 const messages = defineMessages('components.Settings.SettingsAbout', {
   about: 'About',
-  aboutseerr: 'About Seerr',
+  aboutseerr: 'About SeerrNG',
   version: 'Version',
   totalmedia: 'Total Media',
   totalrequests: 'Total Requests',
@@ -24,13 +24,13 @@ const messages = defineMessages('components.Settings.SettingsAbout', {
   githubdiscussions: 'GitHub Discussions',
   timezone: 'Time Zone',
   appDataPath: 'Data Directory',
-  supportseerr: 'Support Seerr',
+  supportseerr: 'Support SeerrNG',
   contribute: 'Make a Contribution',
   documentation: 'Documentation',
   outofdate: 'Out of Date',
   uptodate: 'Up to Date',
-  runningDevelop:
-    'You are running the <code>develop</code> branch of Seerr, which is only recommended for those contributing to development or assisting with bleeding-edge testing.',
+  runningMain:
+    'You are running the <code>main</code> branch of SeerrNG, which is only recommended for those contributing to development or assisting with bleeding-edge testing.',
   legalUse:
     'SeerrNG is intended for lawful personal media management. The project does not condone piracy or copyright infringement. Users are responsible for complying with applicable laws, licenses, and service terms in their region.',
 });
@@ -61,9 +61,9 @@ const SettingsAbout = () => {
       />
       <div className="section">
         <List title={intl.formatMessage(messages.aboutseerr)}>
-          {data.version.startsWith('develop-') && (
+          {data.version.startsWith('main-') && (
             <Alert
-              title={intl.formatMessage(messages.runningDevelop, {
+              title={intl.formatMessage(messages.runningMain, {
                 code: (msg: React.ReactNode) => (
                   <code className="bg-gray-800/50">{msg}</code>
                 ),
@@ -75,14 +75,14 @@ const SettingsAbout = () => {
             className="flex flex-row items-center truncate"
           >
             <code className="truncate">
-              {data.version.replace('develop-', '')}
+              {data.version.replace('main-', '')}
             </code>
             {status?.commitTag !== 'local' &&
               (status?.updateAvailable ? (
                 <a
                   href={
-                    data.version.startsWith('develop-')
-                      ? `https://github.com/snapetech/seerrng/compare/${status.commitTag}...develop`
+                    data.version.startsWith('main-')
+                      ? `https://github.com/snapetech/seerrng/compare/${status.commitTag}...main`
                       : data.version.startsWith('main-')
                         ? `https://github.com/snapetech/seerrng/compare/${status.commitTag}...main`
                       : 'https://github.com/snapetech/seerrng/releases'
@@ -100,8 +100,8 @@ const SettingsAbout = () => {
               ) : (
                 <a
                   href={
-                    data.version.startsWith('develop-')
-                      ? 'https://github.com/snapetech/seerrng/commits/develop'
+                    data.version.startsWith('main-')
+                      ? 'https://github.com/snapetech/seerrng/commits/main'
                       : data.version.startsWith('main-')
                         ? 'https://github.com/snapetech/seerrng/commits/main'
                       : 'https://github.com/snapetech/seerrng/releases'
@@ -143,32 +143,32 @@ const SettingsAbout = () => {
         <List title={intl.formatMessage(messages.gettingsupport)}>
           <List.Item title={intl.formatMessage(messages.documentation)}>
             <a
-              href="https://docs.seerr.dev"
+              href="https://snapetech.github.io/seerrng"
               target="_blank"
               rel="noreferrer"
               className="text-indigo-500 transition duration-300 hover:underline"
             >
-              https://docs.seerr.dev
+              https://snapetech.github.io/seerrng
             </a>
           </List.Item>
           <List.Item title={intl.formatMessage(messages.githubdiscussions)}>
             <a
-              href="https://github.com/seerr-team/seerr/discussions"
+              href="https://github.com/snapetech/seerrng/discussions"
               target="_blank"
               rel="noreferrer"
               className="text-indigo-500 transition duration-300 hover:underline"
             >
-              https://github.com/seerr-team/seerr/discussions
+              https://github.com/snapetech/seerrng/discussions
             </a>
           </List.Item>
           <List.Item title="Discord">
             <a
-              href="https://discord.gg/seerr"
+              href="https://discord.gg/2N42G4RJCU"
               target="_blank"
               rel="noreferrer"
               className="text-indigo-500 transition duration-300 hover:underline"
             >
-              https://discord.gg/seerr
+              https://discord.gg/2N42G4RJCU
             </a>
           </List.Item>
         </List>
@@ -177,12 +177,12 @@ const SettingsAbout = () => {
         <List title={intl.formatMessage(messages.supportseerr)}>
           <List.Item title={intl.formatMessage(messages.contribute)}>
             <a
-              href="https://opencollective.com/seerr"
+              href="https://github.com/snapetech/seerrng"
               target="_blank"
               rel="noreferrer"
               className="text-indigo-500 transition duration-300 hover:underline"
             >
-              https://opencollective.com/seerr
+              https://github.com/snapetech/seerrng
             </a>
           </List.Item>
         </List>

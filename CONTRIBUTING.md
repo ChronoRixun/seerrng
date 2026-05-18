@@ -136,7 +136,7 @@ Please be respectful to maintainers and disclose AI assistance.
 3. Create a new branch:
 
    ```bash
-   git switch -c BRANCH_NAME develop
+   git switch -c BRANCH_NAME main
    ```
 
    - It is recommended to give your branch a meaningful name, relevant to the feature or fix you are working on.
@@ -167,7 +167,7 @@ Please be respectful to maintainers and disclose AI assistance.
 
      ```bash
      git fetch upstream
-     git rebase upstream/develop
+     git rebase upstream/main
      git push origin BRANCH_NAME -f
      ```
 
@@ -191,13 +191,13 @@ Steps:
 - Pull requests with titles not following [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) will **not** be merged. PR titles are automatically checked for compliance.
 - Please make meaningful commits, or squash them prior to opening a pull request.
   - Do not squash commits once people have begun reviewing your changes.
-- Always rebase your branch to the latest `develop` branch.
-- It is your responsibility to keep your branch up-to-date. Your work will **not** be merged unless it is rebased off the latest `develop` branch.
+- Always rebase your branch to the latest `main` branch.
+- It is your responsibility to keep your branch up-to-date. Your work will **not** be merged unless it is rebased off the latest `main` branch.
 - You can create a "draft" pull request early to get feedback on your work.
 - Your code **must** be formatted correctly, or the tests will fail.
   - We use Prettier to format our code base. It should automatically run with a Git hook, but it is recommended to have the Prettier extension installed in your editor and format on save.
-- If you have questions or need help, you can reach out via [Discussions](/../../discussions) or our [Discord server](https://discord.gg/seerr).
-- Only open pull requests to `develop`, never `master`! Any pull requests opened to `master` will be closed.
+- If you have questions or need help, you can reach out via [Discussions](/../../discussions) or our [Discord server](https://discord.gg/2N42G4RJCU).
+- Only open pull requests to `main`, never `master`! Any pull requests opened to `master` will be closed.
 
 ### UI Text Style
 
@@ -240,10 +240,10 @@ PGPASSWORD=postgres sudo docker exec -it postgres-seerr /usr/bin/psql -h 127.0.0
 PGPASSWORD=postgres sudo docker exec -it postgres-seerr /usr/bin/psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE seerr;"
 ```
 
-3. Switch to the `develop` branch and create the original database for SQLite and PostgreSQL so that TypeORM can automatically generate the migrations:
+3. Switch to the `main` branch and create the original database for SQLite and PostgreSQL so that TypeORM can automatically generate the migrations:
 
 ```bash
-git switch develop
+git switch main
 pnpm i
 rm -r .next dist; pnpm build
 pnpm start

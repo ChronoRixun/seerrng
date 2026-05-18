@@ -4,7 +4,7 @@ import path from 'path';
 
 const COMMIT_TAG_PATH = path.join(__dirname, '../../committag.json');
 let commitTag = 'local';
-let buildVersion = 'develop';
+let buildVersion = 'main';
 
 if (existsSync(COMMIT_TAG_PATH)) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports

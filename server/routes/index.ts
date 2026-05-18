@@ -98,7 +98,7 @@ router.get<Record<string, never>, StatusResponse>(
     let updateAvailable = false;
     let commitsBehind = 0;
 
-    const branchMatch = currentVersion.match(/^(main|develop)-/);
+    const branchMatch = currentVersion.match(/^main-/);
 
     if (branchMatch && commitTag !== 'local') {
       const commits = await githubApi.getSeerrCommits({

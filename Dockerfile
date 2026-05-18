@@ -38,7 +38,7 @@ RUN if [ -d node_modules/.pnpm ]; then \
 FROM base AS build
 
 ARG COMMIT_TAG
-ARG BUILD_VERSION=develop
+ARG BUILD_VERSION=main
 ENV COMMIT_TAG=${COMMIT_TAG}
 ENV BUILD_VERSION=${BUILD_VERSION}
 
@@ -51,7 +51,7 @@ RUN rm -rf .next/cache
 FROM public.ecr.aws/docker/library/node:22.22.2-alpine3.23
 ARG SOURCE_DATE_EPOCH
 ARG COMMIT_TAG
-ARG BUILD_VERSION=develop
+ARG BUILD_VERSION=main
 ENV NODE_ENV=production
 ENV COMMIT_TAG=${COMMIT_TAG}
 ENV BUILD_VERSION=${BUILD_VERSION}

@@ -36,7 +36,7 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           routeBasePath: '/',
           path: '../docs',
-          editUrl: 'https://github.com/snapetech/seerrng/edit/develop/docs/',
+          editUrl: 'https://github.com/snapetech/seerrng/edit/main/docs/',
           docItemComponent: '@theme/ApiItem',
         },
         pages: false,
@@ -61,7 +61,7 @@ const config: Config = {
               groupPathsBy: 'tag',
             },
             downloadUrl:
-              'https://raw.githubusercontent.com/snapetech/seerrng/refs/heads/develop/seerr-api.yml',
+              'https://raw.githubusercontent.com/snapetech/seerrng/refs/heads/main/seerr-api.yml',
             hideSendButton: true,
           } satisfies OpenApiPlugin.Options,
         },

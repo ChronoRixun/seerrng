@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Seerr CI
+name: SeerrNG CI
 
 on:
   pull_request:
@@ -8,7 +8,6 @@ on:
       - '*'
   push:
     branches:
-      - develop
       - main
   workflow_dispatch:
 
@@ -16,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  DOCKER_HUB: seerr/seerr
+  DOCKER_HUB: snapetech/seerrng
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -175,7 +174,7 @@ jobs:
 
   build:
     name: Build cache (${{ matrix.platform }})
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:

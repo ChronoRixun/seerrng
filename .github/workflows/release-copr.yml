@@ -81,15 +81,33 @@ jobs:
         run: |
           set -euo pipefail
           project="${COPR_PROJECT:-seerrng}"
-          copr-cli get "$project" >/dev/null 2>&1 || copr-cli create "$project" \
-            --chroot fedora-43-x86_64 \
-            --chroot fedora-rawhide-x86_64 \
+          chroots=(
+            fedora-43-x86_64
+            fedora-rawhide-x86_64
+          )
+          copr_args=()
+          for chroot in "${chroots[@]}"; do
+            copr_args+=(--chroot "$chroot")
+          done
+          if copr-cli get "$project" >/dev/null 2>&1; then
+            copr-cli modify "$project" \
+              "${copr_args[@]}" \
+              --description "SeerrNG RPM builds" \
+              --instructions "dnf copr enable keefshape/seerrng && dnf install seerrng"
+          else
+            copr-cli create "$project" \
+              "${copr_args[@]}" \
             --description "SeerrNG RPM builds" \
             --instructions "dnf copr enable keefshape/seerrng && dnf install seerrng"
+          fi
 
       - name: Upload to COPR
         env:
           COPR_PROJECT: ${{ secrets.COPR_PROJECT }}
         run: |
           srpm="$(find ~/rpmbuild/SRPMS -name '*.src.rpm' -print -quit)"
-          copr-cli build "${COPR_PROJECT:-seerrng}" "$srpm" --nowait
+          copr-cli build \
+            --chroot fedora-43-x86_64 \
+            --chroot fedora-rawhide-x86_64 \
+            --nowait \
+            "${COPR_PROJECT:-seerrng}" "$srpm"

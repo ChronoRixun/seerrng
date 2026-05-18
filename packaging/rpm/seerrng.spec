@@ -44,14 +44,19 @@ install -m0644 %{SOURCE4} %{buildroot}%{_tmpfilesdir}/seerrng.conf
 %sysusers_create_compat %{SOURCE3}
 
 %post
-%systemd_post seerrng.service
-%tmpfiles_create %{_tmpfilesdir}/seerrng.conf
+systemd-tmpfiles --create %{_tmpfilesdir}/seerrng.conf >/dev/null 2>&1 || :
+systemctl daemon-reload >/dev/null 2>&1 || :
 
 %preun
-%systemd_preun seerrng.service
+if [ "$1" -eq 0 ]; then
+  systemctl --no-reload disable --now seerrng.service >/dev/null 2>&1 || :
+fi
 
 %postun
-%systemd_postun_with_restart seerrng.service
+systemctl daemon-reload >/dev/null 2>&1 || :
+if [ "$1" -ge 1 ]; then
+  systemctl try-restart seerrng.service >/dev/null 2>&1 || :
+fi
 
 %files
 %license LICENSE

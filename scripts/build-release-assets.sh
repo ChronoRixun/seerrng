@@ -55,6 +55,14 @@ if "%CONFIG_DIRECTORY%"=="" set CONFIG_DIRECTORY=%CD%\config
 node dist\index.js %*
 EOF
 
+cat > "$stage/seerrng" <<'EOF'
+#!/usr/bin/env sh
+set -eu
+exec "$(dirname "$0")/start.sh" "$@"
+EOF
+chmod 0755 "$stage/seerrng"
+cp "$stage/start.cmd" "$stage/seerrng.cmd"
+
 if [[ "$os" == "windows" ]]; then
   (cd "$work_dir" && zip -qr "${dist_abs}/${asset}.zip" "$asset")
 else

@@ -24,7 +24,7 @@ class MusicBrainz extends ExternalAPI {
       {},
       {
         headers: {
-          'User-Agent': 'Seerr/1.0.0 (https://github.com/seerr-team/seerr)',
+          'User-Agent': 'SeerrNG/0.1.0 (https://github.com/snapetech/seerrng)',
           Accept: 'application/json',
         },
         nodeCache: cacheManager.getCache('musicbrainz').data,
@@ -242,7 +242,7 @@ class MusicBrainz extends ExternalAPI {
         headers: {
           Accept: 'application/json',
           'Accept-Language': language,
-          'User-Agent': 'Seerr/1.0.0 (https://github.com/seerr-team/seerr)',
+          'User-Agent': 'SeerrNG/0.1.0 (https://github.com/snapetech/seerrng)',
         },
       });
 

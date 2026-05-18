@@ -13,8 +13,8 @@ branch="${4:-master}"
 
 cd "$repo_dir"
 
-git config user.name "IPTV Tunerr CI"
-git config user.email "iptvtunerr@proton.me"
+git config user.name "SeerrNG CI"
+git config user.email "seerrng@proton.me"
 
 git commit -m "$commit_message" || echo "No AUR changes to commit for ${package_name}."
 
