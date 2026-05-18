@@ -594,6 +594,130 @@ describe('MediaRequestSubscriber service dispatch', () => {
     assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
   });
 
+  it('expands Bookshelf lookup to OpenLibrary edition ISBNs when canonical lookup misses', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 20,
+        name: 'Bookshelf',
+        hostname: 'bookshelf.local',
+        port: 8787,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Books',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/books',
+        tags: [4],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.OPENLIBRARY,
+            value: 'OL27448W',
+            canonical: true,
+          }),
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9780000000000',
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
+      key: '/works/OL27448W',
+      title: 'The Lord of the Rings',
+      authors: [{ author: { key: '/authors/OL26320A' } }],
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getAuthor', async () => ({
+      key: '/authors/OL26320A',
+      name: 'J.R.R. Tolkien',
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getWorkEditions', async () => ({
+      size: 1,
+      entries: [
+        {
+          key: '/books/OL1M',
+          title: 'The Lord of the Rings',
+          isbn_13: ['9780007124015'],
+        },
+      ],
+    }));
+
+    const lookupTerms: string[] = [];
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async (term: string) => {
+      lookupTerms.push(term);
+
+      if (term !== 'isbn:9780007124015') {
+        return [];
+      }
+
+      return [
+        {
+          title: 'The Lord of the Rings',
+          foreignBookId: 'readarr-expanded-id',
+          titleSlug: 'lord-of-the-rings',
+          editions: [
+            {
+              foreignEditionId: 'expanded-edition-id',
+              title: 'The Lord of the Rings',
+              isbn13: '9780007124015',
+              monitored: true,
+            },
+          ],
+        },
+      ] as ReadarrBookLookupResult[];
+    });
+    let addPayload: ReadarrBookOptions | undefined;
+    mock.method(
+      ReadarrAPI.prototype,
+      'addBook',
+      async (payload: ReadarrBookOptions) => {
+        addPayload = payload;
+
+        return {
+          ...payload,
+          id: 56,
+          titleSlug: 'lord-of-the-rings',
+        };
+      }
+    );
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    assert.deepStrictEqual(lookupTerms, [
+      '9780000000000',
+      'isbn:9780000000000',
+      'The Lord of the Rings',
+      '9780007124015',
+      'isbn:9780007124015',
+    ]);
+    assert.equal(addPayload?.foreignBookId, 'readarr-expanded-id');
+
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: request.id,
+    });
+    assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+  });
+
   it('retries transient Bookshelf lookup failures before dispatching a book request', async () => {
     const settings = getSettings();
     settings.readarr = [

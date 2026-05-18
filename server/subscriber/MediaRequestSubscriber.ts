@@ -1289,6 +1289,52 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         throw new Error('Book request is missing a Readarr lookup term');
       }
 
+      const getExpandedLookupTerms = async () => {
+        if (!openLibraryId) {
+          return [];
+        }
+
+        const [editions, author] = await Promise.all([
+          openLibrary.getWorkEditions(openLibraryId).catch(() => ({
+            size: 0,
+            entries: [],
+          })),
+          work?.authors?.[0]?.author.key
+            ? openLibrary
+                .getAuthor(
+                  work.authors[0].author.key.replace(/^\/?authors\//, '')
+                )
+                .catch(() => undefined)
+            : Promise.resolve(undefined),
+        ]);
+        const editionIsbns = editions.entries
+          .flatMap((edition) => [
+            ...(edition.isbn_13 ?? []),
+            ...(edition.isbn_10 ?? []),
+          ])
+          .map((editionIsbn) => normalizeValidIsbn(editionIsbn))
+          .filter((editionIsbn): editionIsbn is string => !!editionIsbn);
+        const expandedTerms = [
+          ...editionIsbns.flatMap((editionIsbn) => [
+            editionIsbn,
+            `isbn:${editionIsbn}`,
+          ]),
+          work?.title && author?.name
+            ? `${work.title} ${author.name}`
+            : undefined,
+          work?.title && author?.name
+            ? `${author.name} ${work.title}`
+            : undefined,
+        ];
+
+        return expandedTerms.filter(
+          (term, index, terms): term is string =>
+            !!term &&
+            !lookupTerms.includes(term) &&
+            terms.indexOf(term) === index
+        );
+      };
+
       const identifierRepository = getRepository(MediaIdentifier);
       const normalizedIsbn = normalizeValidIsbn(isbn);
       const existingIdentifierKeys = new Set(
@@ -1350,7 +1396,11 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         let searchResults: ReadarrBookLookupResult[] = [];
         let lookupTerm: string | undefined;
 
-        for (const term of lookupTerms) {
+        const termsToTry = [...lookupTerms];
+        let expandedLookupTermsAdded = false;
+
+        for (let index = 0; index < termsToTry.length; index++) {
+          const term = termsToTry[index];
           lookupTerm = term;
           searchResults = await lookupReadarrBookWithRetry(readarr, term, {
             mediaId: media.id,
@@ -1361,11 +1411,19 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           if (searchResults?.length) {
             break;
           }
+
+          if (index === termsToTry.length - 1 && !expandedLookupTermsAdded) {
+            expandedLookupTermsAdded = true;
+            const expandedTerms = await getExpandedLookupTerms();
+            termsToTry.push(
+              ...expandedTerms.filter((term) => !termsToTry.includes(term))
+            );
+          }
         }
 
         if (!searchResults?.length) {
           throw new Error(
-            `Book not found in Bookshelf search for ${lookupTerms.join(', ')}`
+            `Book not found in Bookshelf search for ${termsToTry.join(', ')}`
           );
         }
 

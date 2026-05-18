@@ -8,7 +8,11 @@ import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import { encodeApiPathSegment } from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
-import { MediaStatus, MediaType } from '@server/constants/media';
+import {
+  MediaRequestStatus,
+  MediaStatus,
+  MediaType,
+} from '@server/constants/media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { NonFunctionProperties } from '@server/interfaces/api/common';
 import type { ServiceCommonServer } from '@server/interfaces/api/serviceInterfaces';
@@ -34,6 +38,8 @@ const messages = defineMessages('components.RequestModal.Music', {
   pendingapproval: 'Your request is pending approval.',
   requestfrom: "{username}'s request is pending approval.",
   requesterror: 'Something went wrong while submitting the request.',
+  backendRequestFailed:
+    'The request was submitted, but Lidarr rejected it while processing.',
   editerror: 'Something went wrong while editing the request.',
   noLidarrServer:
     'No Lidarr service is configured. Music requests are unavailable.',
@@ -108,6 +114,14 @@ const MusicRequestModal = ({
       mutate('/api/v1/request/count');
 
       if (response.data) {
+        if (response.data.status === MediaRequestStatus.FAILED) {
+          addToast(intl.formatMessage(messages.backendRequestFailed), {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          return;
+        }
+
         onComplete?.(
           hasPermission(
             [Permission.AUTO_APPROVE, Permission.AUTO_APPROVE_MUSIC],

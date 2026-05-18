@@ -38,6 +38,8 @@ const messages = defineMessages('components.RequestModal.Book', {
   pendingapproval: 'Your request is pending approval.',
   requestfrom: "{username}'s request is pending approval.",
   requesterror: 'Something went wrong while submitting the request.',
+  backendRequestFailed:
+    'The request was submitted, but Bookshelf rejected it while processing.',
   editerror: 'Something went wrong while editing the request.',
   format: 'Format',
   bothDefaultInfo:
@@ -264,6 +266,14 @@ const BookRequestModal = ({
       mutate('/api/v1/request/count');
 
       if (response.data) {
+        if (response.data.status === MediaRequestStatus.FAILED) {
+          addToast(intl.formatMessage(messages.backendRequestFailed), {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          return;
+        }
+
         onComplete?.(
           hasAutoApprove ? MediaStatus.PROCESSING : MediaStatus.PENDING
         );
