@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it, mock } from 'node:test';
 
+import OpenLibraryAPI from '@server/api/openlibrary';
 import type { ReadarrBook } from '@server/api/servarr/readarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import { MediaStatus, MediaType } from '@server/constants/media';
@@ -99,6 +100,15 @@ async function seedBook(identifier: string, status = MediaStatus.PROCESSING) {
 
 describe('Readarr Scanner', () => {
   beforeEach(() => {
+    mock.restoreAll();
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
+      numFound: 0,
+      start: 0,
+      docs: [],
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getEdition', async () => {
+      throw new Error('Edition not found');
+    });
     getBooksImpl = async () => [];
     getBooksCallCount = 0;
   });
@@ -307,5 +317,50 @@ describe('Readarr Scanner', () => {
     assert.strictEqual(updated.audiobookServiceId, 21);
     assert.strictEqual(updated.audiobookExternalServiceId, 210);
     assert.strictEqual(updated.status, MediaStatus.AVAILABLE);
+  });
+
+  it('stores resolved Open Library work identifiers for Bookshelf imports matched by ISBN', async () => {
+    mock.restoreAll();
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
+      numFound: 1,
+      start: 0,
+      docs: [
+        {
+          key: '/works/OL45804W',
+          title: 'Test Book',
+          isbn: ['9780000000002'],
+        },
+      ],
+    }));
+    mock.method(OpenLibraryAPI.prototype, 'getEdition', async () => {
+      throw new Error('Edition not found');
+    });
+
+    configureReadarr([{ syncEnabled: true }]);
+    getBooksImpl = async () => [
+      fakeReadarrBook({
+        editions: [
+          {
+            foreignEditionId: 'edition-id',
+            title: 'Test Book',
+            isbn13: '9780000000002',
+            monitored: true,
+          },
+        ],
+      }),
+    ];
+
+    await readarrScanner.run();
+
+    const identifiers = await getRepository(MediaIdentifier).find({
+      where: {
+        provider: MediaIdentifierProvider.OPENLIBRARY,
+        value: 'OL45804W',
+      },
+      relations: { media: true },
+    });
+
+    assert.strictEqual(identifiers.length, 1);
+    assert.strictEqual(identifiers[0].media.mediaType, MediaType.BOOK);
   });
 });

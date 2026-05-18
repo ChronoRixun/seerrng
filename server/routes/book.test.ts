@@ -4,6 +4,7 @@ import { afterEach, before, describe, it, mock } from 'node:test';
 import OpenLibraryAPI from '@server/api/openlibrary';
 import {
   MediaRequestStatus,
+  MediaStatus,
   MediaType,
 } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
@@ -213,6 +214,33 @@ describe('GET /book/:id', () => {
     );
   });
 
+  it('matches book details to existing media by ISBN when no Open Library identifier is stored', async () => {
+    mockBookDetails();
+
+    const agent = await login();
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media,
+        provider: MediaIdentifierProvider.ISBN,
+        value: '9780000000002',
+        canonical: true,
+      })
+    );
+
+    const res = await agent.get('/book/OL45804W');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.mediaInfo.id, media.id);
+    assert.strictEqual(res.body.mediaInfo.status, MediaStatus.AVAILABLE);
+  });
+
   it('still returns book details when author lookup fails', async () => {
     mock.method(OpenLibraryAPI.prototype, 'getWork', async () => ({
       key: '/works/OL45804W',
@@ -234,6 +262,51 @@ describe('GET /book/:id', () => {
     assert.strictEqual(res.body.id, 'OL45804W');
     assert.strictEqual(res.body.authorId, 'OL1A');
     assert.strictEqual(res.body.author, undefined);
+  });
+});
+
+describe('GET /book/search', () => {
+  it('matches book search results to existing media by ISBN when no Open Library identifier is stored', async () => {
+    mock.method(OpenLibraryAPI.prototype, 'searchBooks', async () => ({
+      numFound: 1,
+      start: 0,
+      docs: [
+        {
+          key: '/works/OL45804W',
+          title: 'The Test Book',
+          author_name: ['Test Author'],
+          first_publish_year: 1999,
+          isbn: ['9780000000002'],
+        },
+      ],
+    }));
+
+    const agent = await login();
+    const media = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media,
+        provider: MediaIdentifierProvider.ISBN,
+        value: '9780000000002',
+        canonical: true,
+      })
+    );
+
+    const res = await agent.get('/book/search').query({ query: 'test book' });
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.results[0].id, 'OL45804W');
+    assert.strictEqual(res.body.results[0].mediaInfo.id, media.id);
+    assert.strictEqual(
+      res.body.results[0].mediaInfo.status,
+      MediaStatus.AVAILABLE
+    );
   });
 });
 

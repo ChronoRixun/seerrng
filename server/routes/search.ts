@@ -3,14 +3,14 @@ import OpenLibraryAPI from '@server/api/openlibrary';
 import TheAudioDb from '@server/api/theaudiodb';
 import TheMovieDb from '@server/api/themoviedb';
 import TmdbPersonMapper from '@server/api/themoviedb/personMapper';
-import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
-import MediaIdentifier, {
-  MediaIdentifierProvider,
-} from '@server/entity/MediaIdentifier';
 import MetadataAlbum from '@server/entity/MetadataAlbum';
 import MetadataArtist from '@server/entity/MetadataArtist';
+import {
+  findBookMediaForBookResults,
+  findBookMediaForSearchDocs,
+} from '@server/lib/bookMediaMatcher';
 import {
   findSearchProvider,
   type CombinedSearchResponse,
@@ -306,30 +306,9 @@ searchRoutes.get('/', async (req, res, next) => {
         Math.ceil(totalItems / 20)
       );
 
-      const bookIds = bookResults.docs.map((doc) =>
-        doc.key.replace('/works/', '')
-      );
-      const bookIdentifiers =
-        bookIds.length > 0
-          ? await getRepository(MediaIdentifier).find({
-              where: {
-                provider: MediaIdentifierProvider.OPENLIBRARY,
-                value: In(bookIds),
-              },
-              relations: { media: { requests: true, watchlists: true } },
-            })
-          : [];
-      const bookMediaMap = new Map(
-        bookIdentifiers
-          .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
-          .map((identifier) => {
-            identifier.media.watchlists =
-              identifier.media.watchlists?.filter(
-                (watchlist) => watchlist.requestedBy.id === req.user?.id
-              ) ?? [];
-
-            return [identifier.value, identifier.media];
-          })
+      const bookMediaMap = await findBookMediaForSearchDocs(
+        bookResults.docs,
+        req.user?.id
       );
       const mappedBookResults = bookResults.docs.map((doc) =>
         mapOpenLibrarySearchDoc(
@@ -368,43 +347,29 @@ searchRoutes.get('/', async (req, res, next) => {
       )
       .map((result) => result.id.toString());
 
-    const bookIds = results.results
-      .filter(
-        (result): result is ReturnType<typeof mapOpenLibrarySearchDoc> =>
-          'mediaType' in result && result.mediaType === 'book'
-      )
+    const bookResults = results.results.filter(
+      (result): result is ReturnType<typeof mapOpenLibrarySearchDoc> =>
+        'mediaType' in result && result.mediaType === 'book'
+    );
+    const bookIds = bookResults
+      .filter((result) => result.mediaInfo === undefined)
       .map((result) => result.id);
 
-    const [movieTvMedia, musicMedia, bookIdentifiers] = await Promise.all([
+    const [movieTvMedia, musicMedia, bookMediaMap] = await Promise.all([
       movieTvIds.length > 0 ? Media.getRelatedMedia(req.user, movieTvIds) : [],
       musicIds.length > 0 ? Media.getRelatedMedia(req.user, musicIds) : [],
       bookIds.length > 0
-        ? getRepository(MediaIdentifier).find({
-            where: {
-              provider: MediaIdentifierProvider.OPENLIBRARY,
-              value: In(bookIds),
-            },
-            relations: { media: { requests: true, watchlists: true } },
-          })
-        : [],
+        ? findBookMediaForBookResults(bookResults, req.user?.id)
+        : new Map<string, Media>(),
     ]);
 
     const media = [...movieTvMedia, ...musicMedia];
-    const bookMediaMap = new Map(
-      bookIdentifiers
-        .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
-        .map((identifier) => {
-          identifier.media.watchlists =
-            identifier.media.watchlists?.filter(
-              (watchlist) => watchlist.requestedBy.id === req.user?.id
-            ) ?? [];
-
-          return [identifier.value, identifier.media];
-        })
-    );
     results.results = results.results.map((result) =>
       'mediaType' in result && result.mediaType === 'book'
-        ? { ...result, mediaInfo: bookMediaMap.get(result.id) }
+        ? {
+            ...result,
+            mediaInfo: result.mediaInfo ?? bookMediaMap.get(result.id),
+          }
         : result
     );
 

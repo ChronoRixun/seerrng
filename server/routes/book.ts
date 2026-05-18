@@ -1,11 +1,11 @@
 import OpenLibraryAPI from '@server/api/openlibrary';
 import { MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
-import type Media from '@server/entity/Media';
-import MediaIdentifier, {
-  MediaIdentifierProvider,
-} from '@server/entity/MediaIdentifier';
 import { Watchlist } from '@server/entity/Watchlist';
+import {
+  findBookMediaForSearchDocs,
+  findBookMediaForWork,
+} from '@server/lib/bookMediaMatcher';
 import logger from '@server/logger';
 import {
   mapOpenLibrarySearchDoc,
@@ -15,7 +15,6 @@ import { filterEntityResponse } from '@server/utils/entityResponse';
 import { parsePositiveInt } from '@server/utils/pagination';
 import { parseBoundedString } from '@server/utils/validation';
 import { Router } from 'express';
-import { In } from 'typeorm';
 
 const bookRoutes = Router();
 const MAX_BOOK_SEARCH_QUERY_LENGTH = 256;
@@ -32,36 +31,6 @@ const parseOpenLibraryWorkId = (value: unknown) =>
     fieldName: 'Book ID',
     maxLength: MAX_OPENLIBRARY_WORK_ID_LENGTH,
   });
-
-const findBookMediaByOpenLibraryIds = async (
-  ids: string[],
-  userId?: number
-): Promise<Map<string, Media>> => {
-  if (!ids.length) {
-    return new Map();
-  }
-
-  const identifiers = await getRepository(MediaIdentifier).find({
-    where: {
-      provider: MediaIdentifierProvider.OPENLIBRARY,
-      value: In(ids),
-    },
-    relations: { media: { requests: true, watchlists: true } },
-  });
-
-  return new Map(
-    identifiers
-      .filter((identifier) => identifier.media.mediaType === MediaType.BOOK)
-      .map((identifier) => {
-        identifier.media.watchlists =
-          identifier.media.watchlists?.filter(
-            (watchlist) => watchlist.requestedBy.id === userId
-          ) ?? [];
-
-        return [identifier.value, identifier.media];
-      })
-  );
-};
 
 bookRoutes.get('/search', async (req, res, next) => {
   const parsedQuery = parseBookSearchQuery(req.query.query);
@@ -80,9 +49,8 @@ bookRoutes.get('/search', async (req, res, next) => {
       page,
       limit: 20,
     });
-    const ids = response.docs.map((doc) => doc.key.replace('/works/', ''));
-    const mediaByOpenLibraryId = await findBookMediaByOpenLibraryIds(
-      ids,
+    const mediaByOpenLibraryId = await findBookMediaForSearchDocs(
+      response.docs,
       req.user?.id
     );
 
@@ -117,33 +85,12 @@ bookRoutes.get('/:id', async (req, res, next) => {
 
   try {
     const openLibrary = new OpenLibraryAPI();
-    const [work, editions, identifiers, onUserWatchlist] = await Promise.all([
+    const [work, editions, onUserWatchlist] = await Promise.all([
       openLibrary.getWork(bookId),
       openLibrary.getWorkEditions(bookId).catch(() => ({
         size: 0,
         entries: [],
       })),
-      getRepository(MediaIdentifier).find({
-        where: {
-          provider: MediaIdentifierProvider.OPENLIBRARY,
-          value: bookId,
-        },
-        relations: {
-          media: {
-            requests: {
-              requestedBy: true,
-              modifiedBy: true,
-            },
-            issues: {
-              createdBy: true,
-              modifiedBy: true,
-              comments: {
-                user: true,
-              },
-            },
-          },
-        },
-      }),
       getRepository(Watchlist).exist({
         where: {
           externalId: bookId,
@@ -153,23 +100,29 @@ bookRoutes.get('/:id', async (req, res, next) => {
       }),
     ]);
 
-    const media = identifiers.find(
-      (identifier) => identifier.media.mediaType === MediaType.BOOK
-    )?.media;
+    const media = await findBookMediaForWork(
+      bookId,
+      editions.entries,
+      req.user?.id
+    );
     const authorId = work.authors?.[0]?.author.key.replace('/authors/', '');
     const author = authorId
       ? await openLibrary.getAuthor(authorId).catch(() => undefined)
       : undefined;
 
-    return res.status(200).json(
-      filterEntityResponse(mapOpenLibraryWork(
-        work,
-        media,
-        editions.entries,
-        onUserWatchlist,
-        author?.name
-      ))
-    );
+    return res
+      .status(200)
+      .json(
+        filterEntityResponse(
+          mapOpenLibraryWork(
+            work,
+            media,
+            editions.entries,
+            onUserWatchlist,
+            author?.name
+          )
+        )
+      );
   } catch (e) {
     logger.error('Failed to retrieve book details', {
       label: 'Book',

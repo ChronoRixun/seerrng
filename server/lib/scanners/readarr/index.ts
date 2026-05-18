@@ -4,6 +4,7 @@ import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
+import { resolveOpenLibraryIdentifiersForReadarrBook } from '@server/lib/bookIdentifierResolver';
 import type {
   RunnableScanner,
   StatusBase,
@@ -117,6 +118,9 @@ class ReadarrScanner
       )
         ? MediaIdentifierProvider.ISBN
         : MediaIdentifierProvider.READARR;
+      const resolvedOpenLibraryIdentifiers =
+        await resolveOpenLibraryIdentifiersForReadarrBook(readarrBook);
+
       const secondaryIdentifiers = [
         readarrBook.foreignBookId
           ? {
@@ -137,6 +141,7 @@ class ReadarrScanner
           provider: MediaIdentifierProvider;
           value: string;
         }[]),
+        ...resolvedOpenLibraryIdentifiers,
       ].filter(
         (
           item

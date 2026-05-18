@@ -222,6 +222,21 @@ describe('GET /search', () => {
         caaUrl: 'https://covers.example/album.jpg',
       })
     );
+    const bookMedia = await getRepository(Media).save(
+      new Media({
+        tmdbId: 0,
+        mediaType: MediaType.BOOK,
+        status: MediaStatus.AVAILABLE,
+      })
+    );
+    await getRepository(MediaIdentifier).save(
+      new MediaIdentifier({
+        media: bookMedia,
+        provider: MediaIdentifierProvider.ISBN,
+        value: '9780000000002',
+        canonical: true,
+      })
+    );
 
     const agent = await loginAs('friend@seerr.dev', 'test1234');
     const res = await agent.get('/search').query({ query: 'global' });
@@ -243,6 +258,8 @@ describe('GET /search', () => {
     );
     assert.equal(book.id, 'OL123W');
     assert.equal(book.isbn13, '9780000000002');
+    assert.equal(book.mediaInfo.id, bookMedia.id);
+    assert.equal(book.mediaInfo.status, MediaStatus.AVAILABLE);
   });
 
   it('keeps global book and music search active after the first page', async () => {
@@ -502,10 +519,7 @@ describe('GET /search', () => {
           throw new Error('not a release group');
         }
 
-        assert.equal(
-          releaseGroupId,
-          '44444444-4444-4444-4444-444444444444'
-        );
+        assert.equal(releaseGroupId, '44444444-4444-4444-4444-444444444444');
 
         return {
           id: releaseGroupId,
