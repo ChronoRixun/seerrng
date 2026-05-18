@@ -10,10 +10,7 @@ export const isBookInProgress = (title: BookMediaInfo) =>
   (title.mediaInfo?.audiobookDownloadStatus ?? []).length > 0;
 
 export const canRequestMissingBookFormat = (title: BookMediaInfo) => {
-  if (
-    !title.mediaInfo ||
-    title.mediaInfo.status === MediaStatus.BLOCKLISTED
-  ) {
+  if (!title.mediaInfo || title.mediaInfo.status === MediaStatus.BLOCKLISTED) {
     return false;
   }
 
@@ -31,6 +28,7 @@ export const canRequestMissingBookFormat = (title: BookMediaInfo) => {
     title.mediaInfo.requests?.filter(
       (request) =>
         request.status !== MediaRequestStatus.DECLINED &&
+        request.status !== MediaRequestStatus.FAILED &&
         request.status !== MediaRequestStatus.COMPLETED
     ) ?? [];
   const hasActiveEbookRequest = activeBookRequests.some(

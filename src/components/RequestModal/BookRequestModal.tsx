@@ -164,6 +164,7 @@ const BookRequestModal = ({
       data.mediaInfo.requests?.filter(
         (request) =>
           request.status !== MediaRequestStatus.DECLINED &&
+          request.status !== MediaRequestStatus.FAILED &&
           request.status !== MediaRequestStatus.COMPLETED
       ) ?? [];
     const hasActiveEbookRequest = activeRequests.some(

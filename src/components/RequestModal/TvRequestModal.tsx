@@ -250,6 +250,7 @@ const TvRequestModal = ({
         (request) =>
           request.is4k === is4k &&
           request.status !== MediaRequestStatus.DECLINED &&
+          request.status !== MediaRequestStatus.FAILED &&
           request.status !== MediaRequestStatus.COMPLETED
       )
       .reduce((requestedSeasons, request) => {
@@ -349,6 +350,7 @@ const TvRequestModal = ({
         (request) =>
           request.is4k === is4k &&
           request.status !== MediaRequestStatus.DECLINED &&
+          request.status !== MediaRequestStatus.FAILED &&
           request.status !== MediaRequestStatus.COMPLETED
       ).length > 0
     ) {
@@ -357,6 +359,7 @@ const TvRequestModal = ({
           (request) =>
             request.is4k === is4k &&
             request.status !== MediaRequestStatus.DECLINED &&
+            request.status !== MediaRequestStatus.FAILED &&
             request.status !== MediaRequestStatus.COMPLETED
         )
         .forEach((request) => {

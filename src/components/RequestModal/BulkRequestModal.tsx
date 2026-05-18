@@ -137,6 +137,7 @@ const mapBookWorkToBulkItem = (work: BookResult): BulkItem => ({
 const isActiveRequest = (requestStatus?: MediaRequestStatus) =>
   requestStatus !== undefined &&
   requestStatus !== MediaRequestStatus.DECLINED &&
+  requestStatus !== MediaRequestStatus.FAILED &&
   requestStatus !== MediaRequestStatus.COMPLETED;
 
 const chunkItems = <T,>(sourceItems: T[], chunkSize: number): T[][] => {

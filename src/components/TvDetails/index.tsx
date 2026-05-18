@@ -298,6 +298,7 @@ const TvDetails = ({ tv }: TvDetailsProps) => {
         (request) =>
           request.is4k === is4k &&
           request.status !== MediaRequestStatus.DECLINED &&
+          request.status !== MediaRequestStatus.FAILED &&
           request.status !== MediaRequestStatus.COMPLETED
       )
       .reduce((requestedSeasons, request) => {

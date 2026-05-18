@@ -82,6 +82,7 @@ const CollectionRequestModal = ({
               (request) =>
                 request.is4k === is4k &&
                 request.status !== MediaRequestStatus.DECLINED &&
+                request.status !== MediaRequestStatus.FAILED &&
                 request.status !== MediaRequestStatus.COMPLETED
             )
             .map((part) => part.id),
@@ -173,6 +174,7 @@ const CollectionRequestModal = ({
       (request) =>
         request.is4k === is4k &&
         request.status !== MediaRequestStatus.DECLINED &&
+        request.status !== MediaRequestStatus.FAILED &&
         request.status !== MediaRequestStatus.COMPLETED
     );
   };

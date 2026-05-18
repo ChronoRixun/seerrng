@@ -82,6 +82,7 @@ const hasActiveBookRequest = (
   return (mediaInfo.requests ?? []).some((request) => {
     if (
       request.status === MediaRequestStatus.DECLINED ||
+      request.status === MediaRequestStatus.FAILED ||
       request.status === MediaRequestStatus.COMPLETED
     ) {
       return false;
