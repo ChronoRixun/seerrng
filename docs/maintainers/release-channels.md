@@ -27,6 +27,20 @@ Local changes, local commits, and a local dev server do not affect
 `request.snape.tech`. A fix is live only after it is committed, pushed to the
 deploying remote, built into the image, and deployed by the workflow above.
 
+The image publish job retries transient base-image registry failures and retries
+the Docker build/push. If the workflow still fails before `Deploy main to
+seerr.home`, the live container remains on the last successful image.
+
+To verify the live host from a maintainer workstation:
+
+```bash
+scripts/verify-live-deployment.sh "$(git rev-parse HEAD)"
+```
+
+The script checks that the `seerr-host` container is running on `kspls0`, that
+`/api/v1/status` reports the expected commit, and that the running image has the
+same OCI revision label.
+
 ## Test Builds and GitLab CI
 
 GitLab CI (`.gitlab-ci.yml`) is available for internal test builds. It builds

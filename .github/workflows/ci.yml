@@ -268,22 +268,94 @@ jobs:
           labels: |
             org.opencontainers.image.created=${{ steps.ts.outputs.TIMESTAMP }}
 
+      - name: Resolve base images with retry
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t base_images < <(
+            awk '
+              toupper($1) == "FROM" {
+                image = ""
+                for (i = 2; i <= NF; i++) {
+                  if ($i ~ /^--/) {
+                    continue
+                  }
+                  image = $i
+                  break
+                }
+                if (image != "") {
+                  images[image] = 1
+                }
+                for (i = 2; i < NF; i++) {
+                  if (toupper($i) == "AS") {
+                    aliases[$(i + 1)] = 1
+                  }
+                }
+              }
+              END {
+                for (image in images) {
+                  if (!(image in aliases)) {
+                    print image
+                  }
+                }
+              }
+            ' Dockerfile | sort -u
+          )
+          for image in "${base_images[@]}"; do
+            for attempt in 1 2 3 4 5; do
+              echo "Resolving ${image} (attempt ${attempt}/5)"
+              if docker buildx imagetools inspect "$image" >/dev/null; then
+                break
+              fi
+              if [ "$attempt" -eq 5 ]; then
+                echo "Unable to resolve ${image} after ${attempt} attempts" >&2
+                exit 1
+              fi
+              sleep $((attempt * 15))
+            done
+          done
+
       - name: Build & Push (multi-arch, single tag)
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          push: true
-          build-args: |
-            COMMIT_TAG=${{ github.sha }}
-            BUILD_VERSION=${{ steps.channel.outputs.CHANNEL }}
-            SOURCE_DATE_EPOCH=${{ steps.ts.outputs.TIMESTAMP }}
-          labels: ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: |
-            type=gha,scope=linux/amd64
-          provenance: false
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_LABELS: ${{ steps.meta.outputs.labels }}
+          COMMIT_TAG: ${{ github.sha }}
+          BUILD_VERSION: ${{ steps.channel.outputs.CHANNEL }}
+          SOURCE_DATE_EPOCH: ${{ steps.ts.outputs.TIMESTAMP }}
+        run: |
+          set -euo pipefail
+
+          build_args=(
+            --file ./Dockerfile
+            --platform linux/amd64
+            --push
+            --build-arg "COMMIT_TAG=${COMMIT_TAG}"
+            --build-arg "BUILD_VERSION=${BUILD_VERSION}"
+            --build-arg "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
+            --cache-from type=gha,scope=linux/amd64
+            --provenance false
+          )
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && build_args+=(--tag "$tag")
+          done <<< "$IMAGE_TAGS"
+
+          while IFS= read -r label; do
+            [ -n "$label" ] && build_args+=(--label "$label")
+          done <<< "$IMAGE_LABELS"
+
+          for attempt in 1 2 3; do
+            echo "Building and pushing image (attempt ${attempt}/3)"
+            if docker buildx build "${build_args[@]}" .; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Image build/push failed after ${attempt} attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 30))
+          done
 
   deploy-main:
     name: Deploy main to seerr.home
