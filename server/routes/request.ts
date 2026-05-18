@@ -620,6 +620,7 @@ const isRequestAvailable = (mediaRequest: MediaRequest): boolean => {
 
 const isActiveMediaRequest = (request: MediaRequest): boolean =>
   request.status !== MediaRequestStatus.DECLINED &&
+  request.status !== MediaRequestStatus.FAILED &&
   request.status !== MediaRequestStatus.COMPLETED;
 
 const hasActiveOverlappingBookRequest = (

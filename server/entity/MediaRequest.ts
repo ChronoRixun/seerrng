@@ -59,6 +59,11 @@ const canUseAdvancedRequestOptions = (user: User): boolean =>
     }
   );
 
+const isActiveMediaRequest = (request: MediaRequest): boolean =>
+  request.status !== MediaRequestStatus.DECLINED &&
+  request.status !== MediaRequestStatus.FAILED &&
+  request.status !== MediaRequestStatus.COMPLETED;
+
 const resolveMusicReleaseGroupId = async (
   mediaId: string,
   listenbrainz: ListenBrainzAPI,
@@ -296,13 +301,7 @@ export class MediaRequest {
         })
         .getMany();
 
-      if (
-        existing.some(
-          (request) =>
-            request.status !== MediaRequestStatus.DECLINED &&
-            request.status !== MediaRequestStatus.COMPLETED
-        )
-      ) {
+      if (existing.some((request) => isActiveMediaRequest(request))) {
         throw new DuplicateMediaRequestError(
           'Request for this album already exists.'
         );
@@ -542,10 +541,7 @@ export class MediaRequest {
           : ([requestedBookFormat] as const);
       const hasActiveOverlappingBookRequest = media?.requests?.some(
         (request) => {
-          if (
-            request.status === MediaRequestStatus.DECLINED ||
-            request.status === MediaRequestStatus.COMPLETED
-          ) {
+          if (!isActiveMediaRequest(request)) {
             return false;
           }
 
@@ -759,11 +755,10 @@ export class MediaRequest {
       .getMany();
 
     if (existing && existing.length > 0) {
-      // If there is an existing movie request that isn't declined, don't allow a new one.
+      // If there is an existing active movie request, don't allow a new one.
       if (
         requestBody.mediaType === MediaType.MOVIE &&
-        existing[0].status !== MediaRequestStatus.DECLINED &&
-        existing[0].status !== MediaRequestStatus.COMPLETED
+        existing.some((request) => isActiveMediaRequest(request))
       ) {
         logger.warn('Duplicate request for media blocked', {
           tmdbId: tmdbMedia.id,
@@ -1002,9 +997,7 @@ export class MediaRequest {
         existingSeasons = media.requests
           .filter(
             (request) =>
-              request.is4k === requestBody.is4k &&
-              request.status !== MediaRequestStatus.DECLINED &&
-              request.status !== MediaRequestStatus.COMPLETED
+              request.is4k === requestBody.is4k && isActiveMediaRequest(request)
           )
           .reduce((seasons, request) => {
             const combinedSeasons = request.seasons.map(
