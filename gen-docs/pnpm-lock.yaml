@@ -3596,6 +3596,9 @@ packages:
   lodash@4.17.23:
     resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
+  lodash@4.18.1:
+    resolution: {integrity: sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q==}
+
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==}
 
@@ -7097,7 +7100,7 @@ snapshots:
       html-tags: 3.3.1
       html-webpack-plugin: 5.6.4(webpack@5.101.3)
       leven: 3.1.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       open: 8.4.2
       p-map: 4.0.0
       prompts: 2.4.2
@@ -7214,7 +7217,7 @@ snapshots:
       combine-promises: 1.2.0
       feed: 4.2.2
       fs-extra: 11.3.2
-      lodash: 4.17.23
+      lodash: 4.18.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       schema-dts: 1.1.5
@@ -7256,7 +7259,7 @@ snapshots:
       combine-promises: 1.2.0
       fs-extra: 11.3.2
       js-yaml: 4.1.1
-      lodash: 4.17.23
+      lodash: 4.18.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       schema-dts: 1.1.5
@@ -7570,7 +7573,7 @@ snapshots:
       clsx: 2.1.1
       copy-text-to-clipboard: 3.2.2
       infima: 0.2.0-alpha.45
-      lodash: 4.17.23
+      lodash: 4.18.1
       nprogress: 0.2.0
       postcss: 8.5.9
       prism-react-renderer: 2.4.1(react@18.3.1)
@@ -7639,7 +7642,7 @@ snapshots:
       clsx: 2.1.1
       eta: 2.2.0
       fs-extra: 11.3.2
-      lodash: 4.17.23
+      lodash: 4.18.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       tslib: 2.8.1
@@ -7714,7 +7717,7 @@ snapshots:
       fs-extra: 11.3.2
       joi: 17.13.3
       js-yaml: 4.1.1
-      lodash: 4.17.23
+      lodash: 4.18.1
       tslib: 2.8.1
     transitivePeerDependencies:
       - '@swc/core'
@@ -7739,7 +7742,7 @@ snapshots:
       gray-matter: 4.0.3
       jiti: 1.21.7
       js-yaml: 4.1.1
-      lodash: 4.17.23
+      lodash: 4.18.1
       micromatch: 4.0.8
       p-queue: 6.6.2
       prompts: 2.4.2
@@ -9326,7 +9329,7 @@ snapshots:
       fs-extra: 11.3.2
       json-pointer: 0.6.2
       json5: 2.2.3
-      lodash: 4.17.23
+      lodash: 4.18.1
       mustache: 4.2.0
       openapi-to-postmanv2: 6.0.1
       postman-collection: 5.3.0
@@ -9362,7 +9365,7 @@ snapshots:
       docusaurus-plugin-openapi-docs: 5.0.2(@docusaurus/plugin-content-docs@3.10.1(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@6.0.3))(@docusaurus/utils-validation@3.10.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@docusaurus/utils@3.10.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/json-schema@7.0.15)(react@18.3.1)
       docusaurus-plugin-sass: 0.2.6(@docusaurus/core@3.10.1(@mdx-js/react@3.1.1(@types/react@19.2.14)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@6.0.3))(sass@1.99.0)(webpack@5.101.3)
       file-saver: 2.0.5
-      lodash: 4.17.23
+      lodash: 4.18.1
       pako: 2.1.0
       path-browserify: 1.0.1
       postman-code-generators: 2.1.1
@@ -9852,7 +9855,7 @@ snapshots:
 
   graphlib@2.1.8:
     dependencies:
-      lodash: 4.17.23
+      lodash: 4.18.1
 
   gray-matter@4.0.3:
     dependencies:
@@ -10029,7 +10032,7 @@ snapshots:
     dependencies:
       '@types/html-minifier-terser': 6.1.0
       html-minifier-terser: 6.1.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       pretty-error: 4.0.0
       tapable: 2.2.3
     optionalDependencies:
@@ -10327,13 +10330,13 @@ snapshots:
 
   json-schema-compare@0.2.2:
     dependencies:
-      lodash: 4.17.23
+      lodash: 4.18.1
 
   json-schema-merge-allof@0.8.1:
     dependencies:
       compute-lcm: 1.1.2
       json-schema-compare: 0.2.2
-      lodash: 4.17.23
+      lodash: 4.18.1
 
   json-schema-to-ts@2.7.2:
     dependencies:
@@ -10403,6 +10406,8 @@ snapshots:
   lodash@4.17.21: {}
 
   lodash@4.17.23: {}
+
+  lodash@4.18.1: {}
 
   longest-streak@3.1.0: {}
 
@@ -11776,7 +11781,7 @@ snapshots:
     dependencies:
       async: 3.2.6
       detect-package-manager: 3.0.2
-      lodash: 4.17.23
+      lodash: 4.18.1
       postman-collection: 5.3.0
       shelljs: 0.8.5
 
@@ -11800,7 +11805,7 @@ snapshots:
 
   pretty-error@4.0.0:
     dependencies:
-      lodash: 4.17.23
+      lodash: 4.18.1
       renderkid: 3.0.0
 
   pretty-time@1.1.0: {}
@@ -12167,7 +12172,7 @@ snapshots:
       css-select: 4.3.0
       dom-converter: 0.2.0
       htmlparser2: 6.1.0
-      lodash: 4.17.23
+      lodash: 4.18.1
       strip-ansi: 6.0.1
 
   require-directory@2.1.1: {}
