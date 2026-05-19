@@ -1950,13 +1950,13 @@ const main = async () => {
         lookupTerm: `local:${entry.source.title} ${entry.source.author}`,
       });
     }
+
+    allMatched.push(...localEntries);
   }
 
-  const rebuildSources = allMatched.concat(localEntries);
+  await writeJson(path.join(migrationDir, 'matched-books.json'), allMatched);
 
-  const { rebuildPayload, rebuildBlocked } = buildRebuildArtifacts(
-    rebuildSources
-  );
+  const { rebuildPayload, rebuildBlocked } = buildRebuildArtifacts(allMatched);
   await writeJson(
     path.join(migrationDir, 'rebuild-payload.json'),
     rebuildPayload
