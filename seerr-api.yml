@@ -1773,6 +1773,16 @@ components:
               type: string
               enum: [ebook, audiobook]
               example: ebook
+            provider:
+              type: string
+              enum:
+                - hardcover
+                - softcover
+                - unknown
+            legacyWarning:
+              type: string
+            metadataSource:
+              type: string
     ServarrServiceDetails:
       type: object
       properties:
@@ -1803,6 +1813,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ServiceTag'
+        provider:
+          type: string
+          enum:
+            - hardcover
+            - softcover
+            - unknown
+        legacyWarning:
+          type: string
+        metadataSource:
+          type: string
     PageInfo:
       type: object
       properties:
@@ -5788,8 +5808,8 @@ paths:
                     type: number
   /search:
     get:
-      summary: Search for movies, TV shows, or people
-      description: Returns a list of movies, TV shows, or people a JSON object.
+      summary: Search for movies, TV shows, people, music, and books
+      description: Returns a list of movies, TV shows, people, music albums, artists, and books as a JSON object. Results are mixed from TMDB, MusicBrainz, ListenBrainz, and Open Library.
       tags:
         - search
       parameters:
@@ -5810,6 +5830,18 @@ paths:
           schema:
             type: string
             example: en
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - movie
+              - tv
+              - person
+              - album
+              - artist
+              - book
+            description: Filter results by media type. When omitted, all types are returned.
       responses:
         '200':
           description: Results
@@ -5834,6 +5866,9 @@ paths:
                         - $ref: '#/components/schemas/MovieResult'
                         - $ref: '#/components/schemas/TvResult'
                         - $ref: '#/components/schemas/PersonResult'
+                        - $ref: '#/components/schemas/MusicResult'
+                        - $ref: '#/components/schemas/ArtistResult'
+                        - $ref: '#/components/schemas/BookResult'
   /search/keyword:
     get:
       summary: Search for keywords
@@ -6586,7 +6621,7 @@ paths:
   /discover/trending:
     get:
       summary: Trending movies and TV
-      description: Returns a list of movies and TV shows in a JSON object.
+      description: Returns a list of trending movies, TV shows, and people from TMDB in a JSON object.
       tags:
         - search
       parameters:
@@ -7415,6 +7450,14 @@ paths:
                   message:
                     type: string
                   term:
+                    type: string
+                  provider:
+                    type: string
+                    enum:
+                      - hardcover
+                      - softcover
+                      - unknown
+                  legacyWarning:
                     type: string
                   metadataSource:
                     type: string

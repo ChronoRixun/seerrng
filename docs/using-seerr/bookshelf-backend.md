@@ -6,10 +6,252 @@ sidebar_position: 21
 
 # Bookshelf Backend
 
-SeerrNG sends book requests to a Readarr-compatible Bookshelf API. For reliable
-book requests, use Bookshelf's `softcover` image path with a Goodreads-compatible
-metadata proxy. This keeps the existing Readarr-style database/API shape while
-fixing lookup failures caused by incomplete Readarr metadata responses.
+SeerrNG sends book requests to a Readarr-compatible Bookshelf API. New
+deployments should use the Hardcover metadata backend. Existing Readarr or
+softcover deployments should be backed up and inventoried before cutover because
+Goodreads/softcover foreign IDs are provider-specific and cannot be safely
+reused as Hardcover IDs.
+
+## Proposed Plan
+
+### Readarr to Softcover to Hardcover Migration
+
+Make Hardcover the default Bookshelf backend for new installs. For existing
+Readarr or softcover users, provide an automatic in-place migration workflow
+whose final result keeps the same Seerr-facing service endpoints where possible,
+but rebuilds book metadata against Hardcover IDs instead of blindly reusing
+Goodreads or softcover IDs.
+
+Core policy:
+
+- New install with no existing Readarr or Bookshelf config: create Hardcover
+  ebook and audiobook instances.
+- Existing Readarr or softcover config: back up, inventory, migrate matched
+  books to Hardcover, then disable softcover after successful migration.
+- Matching: strict automatic migration only; fuzzy matches go to an optional
+  admin review report, not automatic cutover.
+- Softcover becomes a legacy or backup backend, not the default path.
+
+### Installer and Compose
+
+- Change the default image from `ghcr.io/snapetech/bookshelfng:softcover` to
+  `ghcr.io/snapetech/bookshelfng:hardcover`.
+- Add an installer backend mode:
+
+  ```env
+  BOOKSHELF_BACKEND=auto|hardcover|softcover
+  ```
+
+  The default mode should be `auto`.
+- In `auto` mode:
+  - if no existing config or database exists, create fresh Hardcover instances;
+  - if an existing Readarr or softcover config/database exists, run the
+    migration flow.
+- For fresh Hardcover installs:
+  - use `ghcr.io/snapetech/bookshelfng:hardcover`;
+  - use `https://hardcover.bookinfo.pro`;
+  - do not deploy `rreading-glasses` unless `BOOKSHELF_BACKEND=softcover`.
+- Installer reruns rewrite the generated `.env` to match the resolved backend
+  mode. Existing `.env` files are kept as timestamped `.env.bak-*` files, and
+  the existing `RREADING_GLASSES_POSTGRES_PASSWORD` is preserved when present.
+- Keep two instances:
+  - ebook on `8787`;
+  - audiobook on `8788`.
+
+### Migration Flow
+
+Add a migration command to the installer:
+
+```bash
+deploy/install-bookshelf-backend.sh --migrate-to-hardcover
+```
+
+`BOOKSHELF_BACKEND=auto` should invoke this automatically when an existing
+Readarr or softcover config is detected.
+
+Preflight:
+
+- verify Docker, compose, image pull, config paths, database readability, and
+  free disk space;
+- require `sqlite3` when an existing `nzbdrone.db` is present, so migration does
+  not silently produce an empty inventory;
+- require enough backup destination space for the existing ebook, audiobook, and
+  rreading-glasses data paths with a default 2x margin. Override with
+  `MIN_BACKUP_FREE_MULTIPLIER` when needed;
+- detect existing `config.xml`, API key, port, `nzbdrone.db`, root folders,
+  quality profiles, metadata profiles, monitored books, editions, tags, and
+  service type;
+- write a timestamped backup before stopping or changing containers.
+- write `backup-manifest.json` with source paths, resolved backend mode, image,
+  metadata URL, and backup archive names.
+
+Inventory:
+
+- export every monitored book with title, author, ISBN-13, ISBN-10, ASIN,
+  foreign IDs, selected edition, root folder, quality profile, metadata profile,
+  tags, monitor/search flags, and service type.
+
+Matching:
+
+- query a temporary Hardcover Bookshelf instance using ISBN/ASIN first;
+- accept exact title plus exact author only when ISBN/ASIN is missing;
+- reject ambiguous, missing, or fuzzy-only matches;
+- write:
+  - `migration-report.json`;
+  - `matched-books.json`;
+  - `unmatched-books.json`;
+  - `ambiguous-books.json`;
+  - `rebuild-payload.json`;
+  - `rebuild-blocked.json`.
+
+The installer writes inventory and report files by default. If a temporary
+Hardcover target is already running, set `HARDCOVER_EBOOK_API_KEY` and
+`HARDCOVER_AUDIOBOOK_API_KEY` before migration to let the helper populate strict
+match reports. Override `HARDCOVER_EBOOK_BASE_URL` and
+`HARDCOVER_AUDIOBOOK_BASE_URL` when the temporary target is not on
+`127.0.0.1:8787` and `127.0.0.1:8788`. Hardcover API calls time out after
+15 seconds by default; override with `HARDCOVER_API_TIMEOUT_MS`.
+Validation lookup uses `Foundation Isaac Asimov` by default; override with
+`HARDCOVER_VALIDATION_TERM` when a deployment has a better smoke-test title.
+For rehearsals, limit matching volume with `HARDCOVER_MIGRATION_MAX_BOOKS`.
+When API keys are missing or lookup cannot produce a strict match,
+`unmatched-books.json` still includes the source title, author, root folder,
+profile IDs/names, monitored state, tag labels, and identifiers for manual
+review.
+
+Applying the generated rebuild payload is opt-in. Set
+`APPLY_HARDCOVER_REBUILD=true` only after reviewing `matched-books.json`,
+`unmatched-books.json`, `ambiguous-books.json`, `rebuild-payload.json`, and
+`rebuild-blocked.json`.
+Applied and failed adds are written to `applied-books.json` and
+`apply-failures.json`. After apply, the helper writes `validation-report.json`
+and marks `migration-report.json` as `validation_complete` or
+`validation_failed` based on provider detection, lookup readiness, and whether
+applied book IDs are visible in the target instance.
+
+When applying matched books, source profile IDs are not treated as portable. The
+helper carries source quality/metadata profile names into the rebuild payload,
+remaps those names to target Hardcover profile IDs, and refuses an add when the
+target profile or root folder is missing. Source tag IDs are also treated as
+non-portable; the helper carries tag labels, resolves existing target tags by
+label, and creates missing target tags before adding matched books.
+
+Container cutover is gated by `cutover-decision.json`. Even when
+`ALLOW_INCOMPLETE_HARDCOVER_CUTOVER=true` is set for development, the installer
+refuses to continue unless validation completed successfully and no apply
+failures or blocked rebuild items remain.
+
+After report generation, the installer prints a concise migration summary with
+match counts, apply counts, validation state, and cutover readiness. To reprint
+that summary later:
+
+```bash
+node deploy/bookshelf-hardcover-migration.mjs --summary \
+  /opt/bookshelf-backend/backups/20260518-145258/hardcover-migration
+```
+
+Rebuild:
+
+- create a clean Hardcover config/database using the existing API key and port
+  where possible;
+- recreate root folders, profiles, metadata profiles, indexers, and download
+  clients if they are exportable through the API or can be copied safely from
+  database config tables;
+- add matched books through the Hardcover Bookshelf API, preserving monitored
+  state, root folder, quality profile, metadata profile, tags, and search
+  policy.
+
+Cutover:
+
+- start Hardcover ebook and audiobook containers on the original ports;
+- validate `/api/v1/config/development`, `/api/v1/book/lookup`, `/api/v1/book`,
+  quality profiles, root folders, and request add/remove smoke tests;
+- if validation passes, disable old softcover containers/configs but keep
+  backups;
+- if validation fails, restore the softcover backup and leave Seerr settings
+  unchanged.
+
+### SeerrNG Integration
+
+- Extend Bookshelf diagnostics to classify backend provider:
+  - `hardcover`;
+  - `softcover`;
+  - `unknown`.
+- Surface the provider in **Settings > Services** diagnostics.
+- Keep softcover hydration fallback for legacy users.
+- Treat Hardcover as the recommended backend in docs and install paths.
+- Keep Readarr-compatible API behavior in SeerrNG; do not require Seerr users
+  to know provider internals.
+- Add a warning when a Bookshelf service reports softcover/Goodreads metadata:
+  `Legacy metadata backend. Hardcover is recommended for new installs.`
+
+### Documentation Updates
+
+- Replace the current Bookshelf backend guide with:
+  - fresh Hardcover install path;
+  - existing Readarr/softcover migration path;
+  - softcover legacy fallback path;
+  - rollback instructions;
+  - matching policy and report interpretation.
+- Document that direct ID reuse is unsafe:
+  - `ForeignAuthorId`, `ForeignBookId`, and `ForeignEditionId` are
+    provider-specific;
+  - switching `METADATA_URL` alone is not migration.
+- Document unsupported v1 migration items:
+  - uncertain or fuzzy matches are not auto-applied;
+  - historical activity/queue data may not be preserved unless verified safe;
+  - Goodreads import lists are not guaranteed on Hardcover.
+
+### Test Plan
+
+Fresh install:
+
+- no existing config path creates Hardcover instances by default;
+- compose does not include `rreading-glasses` in Hardcover mode;
+- Seerr can add ebook, audiobook, and both-format requests.
+
+Legacy softcover install:
+
+- existing config triggers migration flow in `auto` mode;
+- backup is created before mutation;
+- matched books are recreated in Hardcover;
+- unmatched/ambiguous books are reported and not auto-migrated;
+- old softcover is disabled after successful validation.
+
+Rollback:
+
+- failed Hardcover validation restores original softcover config and ports;
+- Seerr service settings remain usable.
+
+Diagnostics:
+
+- reports Hardcover vs Softcover;
+- flags softcover as legacy;
+- confirms lookup/add readiness for Hardcover.
+
+Regression:
+
+- existing softcover users can still opt into `BOOKSHELF_BACKEND=softcover`;
+- existing Seerr book request tests continue passing;
+- zero-valued service/profile IDs remain covered.
+- migration helper pure logic is covered by
+  `node --test deploy/bookshelf-hardcover-migration.test.mjs`.
+- migration helper match, rebuild, apply, validation, and cutover readiness are
+  covered against a mocked Bookshelf-compatible API in the same test file.
+- live migration rehearsals can be run with
+  `deploy/bookshelf-migration-lab.sh`, which copies source configs into an
+  isolated lab, starts disposable Hardcover targets on ports `18787` and
+  `18788`, and only imports books when run in `apply` mode.
+
+### Assumptions
+
+- Hardcover is the default for new users.
+- Existing users get an automatic migration attempt, but only strict matches are
+  applied.
+- Fuzzy matches are report-only for v1 and can become an admin review UI later.
+- After successful migration, softcover is disabled but backups are retained.
+- The final user-facing service should continue to look like "Bookshelf" in
+  SeerrNG, with provider details available only in diagnostics and docs.
 
 ## Why Bookshelf
 
@@ -19,8 +261,10 @@ and a foreign book ID, but no author object and no editions. SeerrNG refuses to
 add those raw records because Bookshelf/Readarr can reject them or create broken
 library entries.
 
-Bookshelf with `softcover` and `rreading-glasses` returns enough metadata for
-SeerrNG to hydrate the missing author and edition fields before adding a book.
+Bookshelf with Hardcover should be the default path for new installs. Bookshelf
+with `softcover` and `rreading-glasses` remains available as a legacy fallback
+for existing deployments and environments that still need Goodreads-compatible
+metadata.
 
 ## Architecture
 
@@ -28,8 +272,10 @@ Run separate Bookshelf instances for ebooks and audiobooks:
 
 - `bookshelf-ebooks` on port `8787`
 - `bookshelf-audiobooks` on port `8788`
-- `rreading-glasses` on port `8790`
-- `rreading-glasses-postgres` on localhost-only port `15433`
+- `rreading-glasses` on port `8790`, only when
+  `BOOKSHELF_BACKEND=softcover`
+- `rreading-glasses-postgres` on localhost-only port `15433`, only when
+  `BOOKSHELF_BACKEND=softcover`
 
 Bookshelf supports only one type of a given book in a single instance. SeerrNG
 therefore expects one default Bookshelf service for ebooks and a separate default
@@ -46,13 +292,13 @@ https://github.com/snapetech/bookshelfng
 The deployment compose defaults to the Snapetech image:
 
 ```text
-ghcr.io/snapetech/bookshelfng:softcover
+ghcr.io/snapetech/bookshelfng:hardcover
 ```
 
-That image is built from the public `bookshelfng` fork and includes a lookup fix
-so `/api/v1/book/lookup` returns nested `author` and `editions` data for
-softcover results. To test against upstream Bookshelf instead, set
-`BOOKSHELF_IMAGE=ghcr.io/pennydreadful/bookshelf:softcover`.
+That image is built from the public `bookshelfng` fork and uses the Hardcover
+metadata backend. To force the legacy softcover path, set
+`BOOKSHELF_BACKEND=softcover`; this switches the image to
+`ghcr.io/snapetech/bookshelfng:softcover` and enables `rreading-glasses`.
 
 The image is published from GitHub Actions in the `snapetech/bookshelfng`
 repository:
@@ -329,7 +575,7 @@ Run these against the Docker host:
 
 ```bash
 curl -H "X-Api-Key: EBOOK_API_KEY" \
-  "http://127.0.0.1:8787/api/v1/book/lookup?term=isbn:9780547928227"
+  "http://127.0.0.1:8787/api/v1/book/lookup?term=Foundation%20Isaac%20Asimov"
 
 curl -H "X-Api-Key: AUDIOBOOK_API_KEY" \
   "http://127.0.0.1:8788/api/v1/book/lookup?term=Foundation%20Isaac%20Asimov"
@@ -376,9 +622,84 @@ After configuring both services:
 6. Confirm each item uses the expected root folder and quality profile.
 7. Confirm SeerrNG marks the request `COMPLETED`.
 
+## Migration Lab
+
+Use the lab runner to rehearse migration without writing to the source
+Bookshelf/Readarr config. It copies source config directories into
+`.bookshelf-migration-lab/source`, starts disposable Hardcover targets on
+`18787` and `18788`, and writes migration reports under
+`.bookshelf-migration-lab/backups`.
+
+Discover visible local candidates:
+
+```bash
+deploy/bookshelf-migration-lab.sh discover
+```
+
+Report-only rehearsal:
+
+```bash
+SOURCE_EBOOK_CONFIG_DIR=/path/to/readarr-or-bookshelf-config \
+HARDCOVER_MIGRATION_MAX_BOOKS=50 \
+  deploy/bookshelf-migration-lab.sh report
+```
+
+Optional audiobook source:
+
+```bash
+SOURCE_EBOOK_CONFIG_DIR=/path/to/ebook-config \
+SOURCE_AUDIOBOOK_CONFIG_DIR=/path/to/audiobook-config \
+  deploy/bookshelf-migration-lab.sh report
+```
+
+Import strict matches into the disposable lab target only:
+
+```bash
+SOURCE_EBOOK_CONFIG_DIR=/path/to/ebook-config \
+APPLY_IMPORT=true \
+  deploy/bookshelf-migration-lab.sh apply
+```
+
+Print the latest lab report counts:
+
+```bash
+deploy/bookshelf-migration-lab.sh summary
+```
+
+Stop or remove the lab:
+
+```bash
+deploy/bookshelf-migration-lab.sh down
+deploy/bookshelf-migration-lab.sh clean
+```
+
+If GHCR access is unavailable, the lab falls back to a local Bookshelf image
+when one is present. It can also build a local Hardcover image from
+`/home/keith/Documents/code/bookshelfng` when the base image is available.
+
 ## Rollback
 
 If the migration fails:
+
+1. Restore the generated backup:
+
+   ```bash
+   sudo BACKUP_DIR=/opt/bookshelf-backend/backups/20260518-145258 \
+     deploy/install-bookshelf-backend.sh --restore-backup
+   ```
+
+   The restore command stops the rendered compose stack if
+   `/opt/bookshelf-backend/compose.yml` exists, moves current config directories
+   aside with a `.pre-restore-YYYYMMDD-HHMMSS` suffix, restores any backup
+   tarballs present in `BACKUP_DIR`, and leaves Seerr settings unchanged. It can
+   restore tarballs even when Docker is unavailable; in that case it skips
+   compose shutdown and reports that explicitly.
+
+2. Start the old Readarr container with the original mounts.
+3. In SeerrNG, point the ebook service back to the old Readarr endpoint or
+   disable book requests until Bookshelf is corrected.
+
+Manual rollback is also possible:
 
 1. Stop the Bookshelf stack:
 
@@ -408,10 +729,6 @@ If the migration fails:
    tar -C /mnt/datapool_lvm_media/rreading-glasses-postgres \
      -xzf /path/to/rreading-glasses-postgres.tgz
    ```
-
-5. Start the old Readarr container with the original mounts.
-6. In SeerrNG, point the ebook service back to the old Readarr endpoint or
-   disable book requests until Bookshelf is corrected.
 
 Rollback does not require changing SeerrNG code. It only changes service
 settings and backend containers.

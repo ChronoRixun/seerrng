@@ -76,6 +76,7 @@ cypress/screenshots
 
 # Local artifacts
 artifacts/
+.bookshelf-migration-lab/
 
 # ESLint
 .eslintcache

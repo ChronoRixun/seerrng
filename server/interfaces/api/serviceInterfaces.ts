@@ -1,5 +1,6 @@
 import type { QualityProfile, RootFolder, Tag } from '@server/api/servarr/base';
 import type { LanguageProfile } from '@server/api/servarr/sonarr';
+import type { BookshelfProvider } from '@server/utils/bookshelfProvider';
 
 export interface ServiceCommonServer {
   id: number;
@@ -17,6 +18,9 @@ export interface ServiceCommonServer {
   activeTags?: number[];
   activeAnimeTags?: number[];
   serviceType?: 'ebook' | 'audiobook';
+  provider?: BookshelfProvider;
+  legacyWarning?: string;
+  metadataSource?: string;
 }
 
 export interface ServiceCommonServerWithDetails {

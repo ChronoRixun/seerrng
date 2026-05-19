@@ -1,8 +1,12 @@
-import ReadarrAPI from '@server/api/servarr/readarr';
 import type { ReadarrBookLookupResult } from '@server/api/servarr/readarr';
+import ReadarrAPI from '@server/api/servarr/readarr';
 import type { ReadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import {
+  classifyBookshelfProvider,
+  getBookshelfProviderWarning,
+} from '@server/utils/bookshelfProvider';
 import { parseNonNegativeRouteId } from '@server/utils/routeId';
 import { preserveRedactedSecrets, redactSecrets } from '@server/utils/security';
 import { parseReadarrSettings } from '@server/utils/servarrSettings';
@@ -10,9 +14,7 @@ import { Router } from 'express';
 
 const readarrRoutes = Router();
 
-const isAddableBookLookupResult = (
-  result: ReadarrBookLookupResult
-): boolean =>
+const isAddableBookLookupResult = (result: ReadarrBookLookupResult): boolean =>
   !!(
     result.foreignBookId &&
     result.title &&
@@ -144,14 +146,18 @@ readarrRoutes.post<
       url: ReadarrAPI.buildUrl(parsedReadarr.value, '/api/v1'),
     });
 
-    const urlBase = await readarr
-      .getSystemStatus()
-      .then((value) => value.urlBase)
-      .catch(() => parsedReadarr.value.baseUrl);
+    const [urlBase, development] = await Promise.all([
+      readarr
+        .getSystemStatus()
+        .then((value) => value.urlBase)
+        .catch(() => parsedReadarr.value.baseUrl),
+      readarr.getDevelopmentConfig().catch(() => undefined),
+    ]);
     const profiles = await readarr.getProfiles();
     const metadataProfiles = await readarr.getMetadataProfiles();
     const folders = await readarr.getRootFolders();
     const tags = await readarr.getTags();
+    const provider = classifyBookshelfProvider(development?.metadataSource);
 
     return res.status(200).json({
       profiles,
@@ -162,6 +168,9 @@ readarrRoutes.post<
       })),
       tags,
       urlBase,
+      provider,
+      legacyWarning: getBookshelfProviderWarning(provider),
+      metadataSource: development?.metadataSource,
     });
   } catch (e) {
     logger.error('Failed to test Readarr', {
@@ -209,6 +218,8 @@ readarrRoutes.post<
         readarr.getMetadataProfiles(),
         readarr.getRootFolders(),
       ]);
+    const provider = classifyBookshelfProvider(development?.metadataSource);
+    const legacyWarning = getBookshelfProviderWarning(provider);
     const lookup = await readarr.lookupBook(term);
 
     if (!lookup.length) {
@@ -222,6 +233,8 @@ readarrRoutes.post<
           version: status.version,
           urlBase: status.urlBase,
         },
+        provider,
+        legacyWarning,
         metadataSource: development?.metadataSource,
         profiles: profiles.map((profile) => ({
           id: profile.id,
@@ -252,6 +265,8 @@ readarrRoutes.post<
         message:
           'Bookshelf lookup returned results, but none had usable author and edition metadata.',
         term,
+        provider,
+        legacyWarning,
         metadataSource: development?.metadataSource,
         lookupCount: lookup.length,
         sample: lookup.slice(0, 3).map((result) => ({
@@ -314,6 +329,8 @@ readarrRoutes.post<
           category: 'backend_add_rejected',
           message: e instanceof Error ? e.message : String(e),
           term,
+          provider,
+          legacyWarning,
           lookupCount: lookup.length,
         });
       }
@@ -324,6 +341,8 @@ readarrRoutes.post<
       category: 'ok',
       message: 'Bookshelf lookup returned usable metadata.',
       term,
+      provider,
+      legacyWarning,
       metadataSource: development?.metadataSource,
       lookupCount: lookup.length,
       sample: {

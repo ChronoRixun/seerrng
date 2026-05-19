@@ -2,6 +2,8 @@ services:
   rreading-glasses-postgres:
     image: postgres:16-alpine
     container_name: ${RREADING_GLASSES_POSTGRES_CONTAINER_NAME:-rreading-glasses-postgres}
+    profiles:
+      - softcover
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${RREADING_GLASSES_POSTGRES_DB:-rreading-glasses}
@@ -15,6 +17,8 @@ services:
   rreading-glasses:
     image: blampe/rreading-glasses:latest
     container_name: ${RREADING_GLASSES_CONTAINER_NAME:-rreading-glasses}
+    profiles:
+      - softcover
     network_mode: host
     restart: unless-stopped
     depends_on:
@@ -35,17 +39,16 @@ services:
       ]
 
   bookshelf-ebooks:
-    image: ${BOOKSHELF_IMAGE:-ghcr.io/snapetech/bookshelfng:softcover}
+    image: ${BOOKSHELF_IMAGE:-ghcr.io/snapetech/bookshelfng:hardcover}
     container_name: ${BOOKSHELF_EBOOKS_CONTAINER_NAME:-bookshelf-ebooks}
     network_mode: host
     restart: unless-stopped
-    depends_on:
-      - rreading-glasses
     environment:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-953}
       TZ: ${TZ:-America/Regina}
-      METADATA_URL: ${BOOKSHELF_METADATA_URL:-http://127.0.0.1:8790}
+      METADATA_URL: ${BOOKSHELF_METADATA_URL:-https://hardcover.bookinfo.pro}
+      HARDCOVER: ${BOOKSHELF_HARDCOVER:-}
     volumes:
       - ${BOOKSHELF_EBOOKS_CONFIG_DIR:-/mnt/datapool_lvm_media/readarr-config}:/config
       - ${MEDIA_ROOT:-/mnt/datapool_lvm_media}:/data
@@ -55,17 +58,16 @@ services:
       - ${PLEX_ROOT:-/mnt/datapool_lvm_media/plex}:/media/plex
 
   bookshelf-audiobooks:
-    image: ${BOOKSHELF_IMAGE:-ghcr.io/snapetech/bookshelfng:softcover}
+    image: ${BOOKSHELF_IMAGE:-ghcr.io/snapetech/bookshelfng:hardcover}
     container_name: ${BOOKSHELF_AUDIOBOOKS_CONTAINER_NAME:-bookshelf-audiobooks}
     network_mode: host
     restart: unless-stopped
-    depends_on:
-      - rreading-glasses
     environment:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-953}
       TZ: ${TZ:-America/Regina}
-      METADATA_URL: ${BOOKSHELF_METADATA_URL:-http://127.0.0.1:8790}
+      METADATA_URL: ${BOOKSHELF_METADATA_URL:-https://hardcover.bookinfo.pro}
+      HARDCOVER: ${BOOKSHELF_HARDCOVER:-}
     volumes:
       - ${BOOKSHELF_AUDIOBOOKS_CONFIG_DIR:-/mnt/datapool_lvm_media/bookshelf-audiobooks-config}:/config
       - ${MEDIA_ROOT:-/mnt/datapool_lvm_media}:/data

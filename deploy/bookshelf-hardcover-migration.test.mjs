@@ -1,0 +1,632 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs/promises';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { describe, it } from 'node:test';
+
+import {
+  buildRebuildArtifacts,
+  buildSourceBook,
+  chooseStrictMatch,
+  parseTags,
+  parseRetryAfter,
+  addJitter,
+} from './bookshelf-hardcover-migration.mjs';
+
+const writeJson = async (filePath, value) => {
+  await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+};
+
+const readJson = async (filePath) =>
+  JSON.parse(await fs.readFile(filePath, 'utf8'));
+
+const runCli = async (args, env = {}) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(
+      'node',
+      ['deploy/bookshelf-hardcover-migration.mjs', ...args],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, ...env },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    );
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      resolve({ code, stdout, stderr });
+    });
+  });
+
+const withMockBookshelf = async (handler, testFn) => {
+  const server = http.createServer(handler);
+
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+  try {
+    const { port } = server.address();
+
+    return await testFn(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+};
+
+const createMigrationDir = async () => {
+  const migrationDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'bookshelf-hardcover-migration-')
+  );
+
+  await writeJson(path.join(migrationDir, 'migration-report.json'), {
+    status: 'inventory_ready',
+  });
+  await writeJson(path.join(migrationDir, 'ebook-inventory.json'), {
+    serviceType: 'ebook',
+    books: [
+      {
+        Id: 1,
+        Title: 'Example',
+        AuthorName: 'Jane Doe',
+        RootFolderPath: '/books',
+        QualityProfileId: 1,
+        MetadataProfileId: 2,
+        Monitored: 1,
+        Tags: '[7]',
+      },
+    ],
+    editions: [],
+    authors: [],
+    qualityProfiles: [{ Id: 1, Name: 'eBook' }],
+    metadataProfiles: [{ Id: 2, Name: 'Standard' }],
+    tags: [{ Id: 7, Label: 'requested' }],
+  });
+  await writeJson(path.join(migrationDir, 'audiobook-inventory.json'), {
+    serviceType: 'audiobook',
+    books: [],
+    editions: [],
+    authors: [],
+  });
+
+  return migrationDir;
+};
+
+describe('bookshelf-hardcover-migration helpers', () => {
+  it('builds source records with profile names and tag labels', () => {
+    const source = buildSourceBook({
+      inventory: {
+        serviceType: 'ebook',
+        qualityProfiles: [{ Id: 1, Name: 'eBook' }],
+        metadataProfiles: [{ Id: 2, Name: 'Standard' }],
+        tags: [{ Id: 7, Label: 'requested' }],
+        editions: [],
+        authors: [],
+      },
+      book: {
+        Id: 10,
+        Title: 'Example',
+        AuthorName: 'Jane Doe',
+        RootFolderPath: '/books',
+        QualityProfileId: 1,
+        MetadataProfileId: 2,
+        Tags: '[7]',
+      },
+    });
+
+    assert.deepEqual(source, {
+      serviceType: 'ebook',
+      id: 10,
+      title: 'Example',
+      author: 'Jane Doe',
+      rootFolderPath: '/books',
+      qualityProfileId: 1,
+      qualityProfileName: 'eBook',
+      metadataProfileId: 2,
+      metadataProfileName: 'Standard',
+      monitored: undefined,
+      tags: '[7]',
+      tagLabels: ['requested'],
+      identifiers: [],
+    });
+  });
+
+  it('builds source records from alternate Readarr export column names', () => {
+    const source = buildSourceBook({
+      inventory: {
+        serviceType: 'ebook',
+        qualityProfiles: [{ id: 3, name: 'Alternate Quality' }],
+        metadataProfiles: [{ id: 4, name: 'Alternate Metadata' }],
+        tags: [{ id: 8, label: 'object-tag' }],
+        editions: [],
+        authors: [{ id: 9, AuthorMetadataId: 10 }],
+        authorMetadata: [{ id: 10, title: 'Fallback Author' }],
+      },
+      book: {
+        id: 11,
+        name: 'Alternate Title',
+        AuthorId: 9,
+        Path: '/alternate-books',
+        quality_profile_id: 3,
+        metadata_profile_id: 4,
+        tags: '[{"id":8}]',
+      },
+    });
+
+    assert.equal(source.title, 'Alternate Title');
+    assert.equal(source.author, 'Fallback Author');
+    assert.equal(source.rootFolderPath, '/alternate-books');
+    assert.equal(source.qualityProfileId, 3);
+    assert.equal(source.qualityProfileName, 'Alternate Quality');
+    assert.equal(source.metadataProfileId, 4);
+    assert.equal(source.metadataProfileName, 'Alternate Metadata');
+    assert.deepEqual(source.tagLabels, ['object-tag']);
+  });
+
+  it('requires exact title and author for strict matches', () => {
+    const decision = chooseStrictMatch({
+      source: {
+        title: 'Example',
+        author: 'Jane Doe',
+      },
+      candidates: [
+        {
+          title: 'Example',
+          author: {
+            authorName: 'Jane Doe',
+          },
+        },
+      ],
+      identifier: '9780000000001',
+    });
+
+    assert.equal(decision.status, 'matched');
+    assert.equal(decision.reason, 'identifier_exact_title_author');
+  });
+
+  it('blocks rebuild payloads missing required source fields', () => {
+    const { rebuildPayload, rebuildBlocked } = buildRebuildArtifacts([
+      {
+        source: {
+          title: 'Example',
+          rootFolderPath: '',
+          qualityProfileId: 0,
+        },
+        hardcover: {
+          foreignBookId: 'book',
+          author: {
+            foreignAuthorId: 'author',
+          },
+          editions: [{ foreignEditionId: 'edition' }],
+        },
+      },
+    ]);
+
+    assert.equal(rebuildPayload.length, 0);
+    assert.equal(rebuildBlocked.length, 1);
+    assert.deepEqual(rebuildBlocked[0].missing, [
+      'rootFolderPath',
+      'qualityProfileId',
+    ]);
+  });
+
+  it('parses tag IDs from arrays, JSON, and comma lists', () => {
+    assert.deepEqual(parseTags([1, 2]), [1, 2]);
+    assert.deepEqual(parseTags(['1', { id: 2 }, { TagId: 3 }]), [1, 2, 3]);
+    assert.deepEqual(parseTags('[3,4]'), [3, 4]);
+    assert.deepEqual(parseTags('[{"id":7},{"TagId":8}]'), [7, 8]);
+    assert.deepEqual(parseTags('5, 6'), [5, 6]);
+  });
+
+  it('parses Retry-After header as seconds', () => {
+    assert.equal(parseRetryAfter('0'), 0);
+    assert.equal(parseRetryAfter('5'), 5000);
+    assert.equal(parseRetryAfter('30'), 30000);
+    assert.equal(parseRetryAfter('1'), 1000);
+    assert.equal(parseRetryAfter(null), 0);
+    assert.equal(parseRetryAfter(undefined), 0);
+    assert.equal(parseRetryAfter(''), 0);
+  });
+
+  it('parses Retry-After header as HTTP-date', () => {
+    const futureDate = new Date(Date.now() + 10000).toUTCString();
+    const ms = parseRetryAfter(futureDate);
+    assert.ok(ms > 0, `Expected positive ms for future HTTP-date, got ${ms}`);
+    // Should be roughly 10s (10000ms), allow ±5s tolerance for execution time
+    assert.ok(ms <= 15000, `Expected <= 15000ms, got ${ms}`);
+  });
+
+  it('adds ±25% jitter to a delay', () => {
+    const base = 10000;
+    const results = Array.from({ length: 100 }, () => addJitter(base));
+    const min = Math.min(...results);
+    const max = Math.max(...results);
+
+    // All results should be within 75%-125% of base (with rounding tolerance)
+    assert.ok(min >= 7000, `Jitter minimum ${min} is below expected 7500`);
+    assert.ok(max <= 13000, `Jitter maximum ${max} is above expected 12500`);
+
+    // Results should actually vary (not constant)
+    assert.ok(
+      max - min > 0,
+      `Jitter should produce variation: min=${min}, max=${max}`
+    );
+  });
+
+  it('clamps jitter to non-negative values', () => {
+    const base = 1;
+    for (let i = 0; i < 50; i++) {
+      const result = addJitter(base);
+      assert.ok(result >= 0, `Jitter result ${result} is negative for base=${base}`);
+    }
+  });
+});
+
+describe('bookshelf-hardcover-migration CLI pipeline', () => {
+  it('matches, rebuilds, applies, validates, and approves cutover with a Bookshelf-compatible API', async () => {
+    const migrationDir = await createMigrationDir();
+    const requests = [];
+    const books = [];
+    const tags = [];
+    const handler = async (req, res) => {
+      requests.push({ method: req.method, url: req.url });
+
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify([
+            {
+              title: 'Example',
+              foreignBookId: 'hardcover-book',
+              author: {
+                foreignAuthorId: 'hardcover-author',
+                authorName: 'Jane Doe',
+              },
+              editions: [
+                {
+                  foreignEditionId: 'hardcover-edition',
+                  title: 'Example',
+                  monitored: true,
+                },
+              ],
+            },
+          ])
+        );
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/qualityProfile') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([{ id: 11, name: 'eBook' }]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/metadataProfile') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([{ id: 22, name: 'Standard' }]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/rootfolder') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([{ id: 33, path: '/books' }]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/tag') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(tags));
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/v1/tag') {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += String(chunk);
+        });
+        req.on('end', () => {
+          const tag = { id: 44, ...JSON.parse(body) };
+          tags.push(tag);
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(tag));
+        });
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/v1/book') {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += String(chunk);
+        });
+        req.on('end', () => {
+          const addBook = JSON.parse(body);
+          const book = { id: 55, title: addBook.title };
+          books.push(book);
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(book));
+        });
+        return;
+      }
+
+      if (req.method === 'PUT' && req.url === '/api/v1/book/monitor') {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += String(chunk);
+        });
+        req.on('end', () => {
+          const monitorUpdate = JSON.parse(body);
+          const ids = new Set(monitorUpdate.bookIds ?? []);
+          for (const book of books) {
+            if (ids.has(book.id)) {
+              book.monitored = monitorUpdate.monitored;
+            }
+          }
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(books.filter((book) => ids.has(book.id))));
+        });
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/config/development') {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            id: 1,
+            metadataSource: 'https://hardcover.bookinfo.pro',
+          })
+        );
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/book') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(books));
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await withMockBookshelf(handler, async (baseUrl) => {
+      const env = {
+        HARDCOVER_EBOOK_API_KEY: 'key',
+        HARDCOVER_EBOOK_BASE_URL: baseUrl,
+        HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+        HARDCOVER_AUDIOBOOK_BASE_URL: baseUrl,
+        HARDCOVER_VALIDATION_TERM: 'Example Jane Doe',
+      };
+      let result = await runCli([migrationDir], env);
+      assert.equal(result.code, 0, result.stderr);
+
+      result = await runCli(['--apply', migrationDir], env);
+      assert.equal(result.code, 0, result.stderr);
+
+      result = await runCli(['--validate', migrationDir], env);
+      assert.equal(result.code, 0, result.stderr);
+
+      result = await runCli(['--cutover-check', migrationDir], env);
+      assert.equal(result.code, 0, result.stderr);
+    });
+
+    const rebuildPayload = await readJson(
+      path.join(migrationDir, 'rebuild-payload.json')
+    );
+    const report = await readJson(
+      path.join(migrationDir, 'migration-report.json')
+    );
+    const decision = await readJson(
+      path.join(migrationDir, 'cutover-decision.json')
+    );
+
+    assert.equal(rebuildPayload[0].addBook.qualityProfileId, 1);
+    assert.equal(rebuildPayload[0].addBook.tags.length, 0);
+    assert.equal(report.status, 'validation_complete');
+    assert.equal(report.applyCounts.applied, 1);
+    assert.equal(report.validation.services[0].lookupTerm, 'Example Jane Doe');
+    assert.equal(decision.ok, true);
+    assert.ok(requests.some((request) => request.url === '/api/v1/tag'));
+    assert.ok(
+      requests.some((request) =>
+        request.url.includes('/api/v1/book/lookup?term=Example+Jane+Doe')
+      )
+    );
+  });
+
+  it('blocks cutover when validation has not completed cleanly', async () => {
+    const migrationDir = await createMigrationDir();
+    await writeJson(path.join(migrationDir, 'migration-report.json'), {
+      status: 'apply_incomplete',
+      validation: { ok: false },
+      applyCounts: { applied: 0, failed: 1 },
+    });
+    await writeJson(path.join(migrationDir, 'apply-failures.json'), [
+      { reason: 'target missing root folder' },
+    ]);
+    await writeJson(path.join(migrationDir, 'rebuild-blocked.json'), []);
+    await writeJson(path.join(migrationDir, 'validation-report.json'), [
+      { serviceType: 'ebook', ok: false },
+    ]);
+
+    const result = await runCli(['--cutover-check', migrationDir]);
+    const decision = await readJson(
+      path.join(migrationDir, 'cutover-decision.json')
+    );
+
+    assert.notEqual(result.code, 0);
+    assert.equal(decision.ok, false);
+    assert.deepEqual(decision.reasons, [
+      'migration_status_apply_incomplete',
+      'validation_not_ok',
+      'apply_failures_present',
+      'failed_service_validation_present',
+    ]);
+  });
+});
+
+describe('bookshelf-hardcover-migration rate-limit handling', () => {
+  it('retries on 429 and succeeds after rate limit clears', async () => {
+    const migrationDir = await createMigrationDir();
+    let lookupCount = 0;
+    const handler = async (req, res) => {
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        lookupCount++;
+        // First 2 requests are rate limited, 3rd succeeds
+        if (lookupCount <= 2) {
+          res.statusCode = 429;
+          res.end('rate limited');
+          return;
+        }
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify([
+            {
+              title: 'Example',
+              foreignBookId: 'hardcover-book',
+              author: {
+                foreignAuthorId: 'hardcover-author',
+                authorName: 'Jane Doe',
+              },
+              editions: [
+                {
+                  foreignEditionId: 'hardcover-edition',
+                  title: 'Example',
+                  monitored: true,
+                },
+              ],
+            },
+          ])
+        );
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await withMockBookshelf(handler, async (baseUrl) => {
+      const env = {
+        HARDCOVER_EBOOK_API_KEY: 'key',
+        HARDCOVER_EBOOK_BASE_URL: baseUrl,
+        HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+        HARDCOVER_AUDIOBOOK_BASE_URL: baseUrl,
+        HARDCOVER_RATE_LIMIT_MAX_RETRIES: '5',
+        HARDCOVER_RATE_LIMIT_BACKOFF_BASE_MS: '100',
+      };
+      const result = await runCli([migrationDir], env);
+      assert.equal(result.code, 0, result.stderr);
+    });
+
+    const matched = await readJson(
+      path.join(migrationDir, 'matched-books.json')
+    );
+    assert.equal(matched.length, 1);
+    assert.equal(matched[0].hardcover.foreignBookId, 'hardcover-book');
+  });
+
+  it('fails after exhausting max retries on persistent 429', async () => {
+    const migrationDir = await createMigrationDir();
+    const handler = async (req, res) => {
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        res.statusCode = 429;
+        res.end('rate limited');
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await withMockBookshelf(handler, async (baseUrl) => {
+      const env = {
+        HARDCOVER_EBOOK_API_KEY: 'key',
+        HARDCOVER_EBOOK_BASE_URL: baseUrl,
+        HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+        HARDCOVER_AUDIOBOOK_BASE_URL: baseUrl,
+        HARDCOVER_RATE_LIMIT_MAX_RETRIES: '1',
+        HARDCOVER_RATE_LIMIT_BACKOFF_BASE_MS: '50',
+      };
+      const result = await runCli([migrationDir], env);
+      // Should exit 0 because unmatched books are not fatal
+      assert.equal(result.code, 0, result.stderr);
+    });
+
+    const unmatched = await readJson(
+      path.join(migrationDir, 'unmatched-books.json')
+    );
+    assert.equal(unmatched.length, 1);
+    assert.ok(
+      unmatched[0].reason === 'lookup_failed' ||
+        unmatched[0].reason === 'missing_identifier_or_author'
+    );
+  });
+
+  it('respects Retry-After header on 429 responses', async () => {
+    const migrationDir = await createMigrationDir();
+    let lookupCount = 0;
+    const retryAfterSent = [];
+    const handler = async (req, res) => {
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        lookupCount++;
+        if (lookupCount <= 1) {
+          res.statusCode = 429;
+          res.setHeader('Retry-After', '1');
+          retryAfterSent.push(true);
+          res.end('rate limited');
+          return;
+        }
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify([
+            {
+              title: 'Example',
+              foreignBookId: 'hardcover-book',
+              author: {
+                foreignAuthorId: 'hardcover-author',
+                authorName: 'Jane Doe',
+              },
+              editions: [
+                {
+                  foreignEditionId: 'hardcover-edition',
+                  title: 'Example',
+                  monitored: true,
+                },
+              ],
+            },
+          ])
+        );
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await withMockBookshelf(handler, async (baseUrl) => {
+      const env = {
+        HARDCOVER_EBOOK_API_KEY: 'key',
+        HARDCOVER_EBOOK_BASE_URL: baseUrl,
+        HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+        HARDCOVER_AUDIOBOOK_BASE_URL: baseUrl,
+        HARDCOVER_RATE_LIMIT_MAX_RETRIES: '3',
+        HARDCOVER_RATE_LIMIT_BACKOFF_BASE_MS: '50',
+      };
+      const result = await runCli([migrationDir], env);
+      assert.equal(result.code, 0, result.stderr);
+    });
+
+    const matched = await readJson(
+      path.join(migrationDir, 'matched-books.json')
+    );
+    assert.equal(matched.length, 1);
+    assert.ok(retryAfterSent.length > 0, 'Retry-After header should have been sent');
+  });
+});

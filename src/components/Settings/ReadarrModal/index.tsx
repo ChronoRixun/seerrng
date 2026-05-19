@@ -91,6 +91,9 @@ interface TestResponse {
     label: string;
   }[];
   urlBase?: string;
+  provider?: 'hardcover' | 'softcover' | 'unknown';
+  legacyWarning?: string;
+  metadataSource?: string;
 }
 
 interface DiagnosticResponse {
@@ -102,6 +105,8 @@ interface DiagnosticResponse {
     | 'lookup_incomplete'
     | 'backend_add_rejected';
   message: string;
+  provider?: 'hardcover' | 'softcover' | 'unknown';
+  legacyWarning?: string;
   metadataSource?: string;
   lookupCount?: number;
   sample?: {
@@ -209,7 +214,20 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
 
         setIsValidated(true);
         setTestResponse(response.data);
-        setDiagnosticResponse(null);
+        setDiagnosticResponse(
+          response.data.provider
+            ? {
+                ok: response.data.provider !== 'softcover',
+                category: 'ok',
+                message:
+                  response.data.legacyWarning ??
+                  'Bookshelf connection established successfully.',
+                provider: response.data.provider,
+                legacyWarning: response.data.legacyWarning,
+                metadataSource: response.data.metadataSource,
+              }
+            : null
+        );
         if (initialLoad.current) {
           addToast(intl.formatMessage(messages.toastReadarrTestSuccess), {
             appearance: 'success',
@@ -451,9 +469,16 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
                   </Button>
                   {diagnosticResponse && (
                     <p className="description mt-2">
-                      {diagnosticResponse.category}: {diagnosticResponse.message}
+                      {diagnosticResponse.category}:{' '}
+                      {diagnosticResponse.message}
+                      {diagnosticResponse.provider
+                        ? ` Provider: ${diagnosticResponse.provider}.`
+                        : ''}
                       {diagnosticResponse.metadataSource
                         ? ` Metadata: ${diagnosticResponse.metadataSource}.`
+                        : ''}
+                      {diagnosticResponse.legacyWarning
+                        ? ` ${diagnosticResponse.legacyWarning}`
                         : ''}
                     </p>
                   )}
@@ -709,10 +734,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
                 </div>
               </div>
               <div className="form-row">
-                <label
-                  htmlFor="activeMetadataProfileId"
-                  className="text-label"
-                >
+                <label htmlFor="activeMetadataProfileId" className="text-label">
                   {intl.formatMessage(messages.metadataprofile)}
                   <span className="label-required">*</span>
                 </label>
@@ -726,9 +748,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
                     >
                       <option value="">
                         {isTesting
-                          ? intl.formatMessage(
-                              messages.loadingmetadataprofiles
-                            )
+                          ? intl.formatMessage(messages.loadingmetadataprofiles)
                           : !isValidated
                             ? intl.formatMessage(
                                 messages.testFirstMetadataProfiles
@@ -782,11 +802,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
                   </span>
                 </label>
                 <div className="form-input-area">
-                  <Field
-                    type="checkbox"
-                    id="syncEnabled"
-                    name="syncEnabled"
-                  />
+                  <Field type="checkbox" id="syncEnabled" name="syncEnabled" />
                 </div>
               </div>
               <div className="form-row">

@@ -21,6 +21,7 @@ import { mapSearchResults } from '@server/models/Search';
 import { parsePositiveInt } from '@server/utils/pagination';
 import {
   parseBoundedString,
+  parseOptionalAllowedString,
   parseOptionalLanguage,
 } from '@server/utils/validation';
 import { Router } from 'express';
@@ -28,6 +29,16 @@ import { In } from 'typeorm';
 
 const searchRoutes = Router();
 const MAX_SEARCH_QUERY_LENGTH = 256;
+
+const searchTypes = [
+  'movie',
+  'tv',
+  'person',
+  'album',
+  'artist',
+  'book',
+] as const;
+type SearchType = (typeof searchTypes)[number];
 
 const parseSearchQuery = (value: unknown) =>
   parseBoundedString(value, {
@@ -48,6 +59,18 @@ searchRoutes.get('/', async (req, res, next) => {
     return res.status(400).json({ status: 400, message: parsedLanguage.error });
   }
   const language = parsedLanguage.value ?? req.locale;
+
+  const parsedType = req.query.type
+    ? parseOptionalAllowedString(req.query.type, {
+        fieldName: 'Type',
+        allowedValues: searchTypes,
+        maxLength: 16,
+      })
+    : ({ value: undefined } as { value?: SearchType });
+  if ('error' in parsedType) {
+    return res.status(400).json({ status: 400, message: parsedType.error });
+  }
+  const typeFilter = parsedType.value;
 
   try {
     const searchProvider = findSearchProvider(queryString.toLowerCase());
@@ -375,11 +398,17 @@ searchRoutes.get('/', async (req, res, next) => {
 
     const mappedResults = await mapSearchResults(results.results, media);
 
+    const filteredResults = typeFilter
+      ? mappedResults.filter(
+          (result) => 'mediaType' in result && result.mediaType === typeFilter
+        )
+      : mappedResults;
+
     return res.status(200).json({
       page: results.page,
       totalPages: results.total_pages,
-      totalResults: results.total_results,
-      results: mappedResults,
+      totalResults: typeFilter ? filteredResults.length : results.total_results,
+      results: filteredResults,
     });
   } catch (e) {
     logger.debug('Something went wrong retrieving search results', {

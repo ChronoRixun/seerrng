@@ -1,5 +1,5 @@
-import RadarrAPI from '@server/api/servarr/radarr';
 import LidarrAPI from '@server/api/servarr/lidarr';
+import RadarrAPI from '@server/api/servarr/radarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
@@ -11,6 +11,10 @@ import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
+import {
+  classifyBookshelfProvider,
+  getBookshelfProviderWarning,
+} from '@server/utils/bookshelfProvider';
 import {
   parseNonNegativeRouteId,
   parsePositiveRouteId,
@@ -27,8 +31,7 @@ const SERVICE_DETAILS_PERMISSIONS = [
 ];
 
 const canViewOperationalServiceDetails = (req: Request) =>
-  req.user?.hasPermission(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }) ??
-  false;
+  req.user?.hasPermission(SERVICE_DETAILS_PERMISSIONS, { type: 'or' }) ?? false;
 
 const parseServiceRouteId = (id: unknown): number | undefined =>
   parseNonNegativeRouteId(id, maxServiceRouteId);
@@ -301,10 +304,15 @@ serviceRoutes.get<{ readarrId: string }>(
     });
 
     try {
-      const profiles = await readarr.getProfiles();
-      const metadataProfiles = await readarr.getMetadataProfiles();
-      const rootFolders = await readarr.getRootFolders();
-      const tags = await readarr.getTags();
+      const [profiles, metadataProfiles, rootFolders, tags, development] =
+        await Promise.all([
+          readarr.getProfiles(),
+          readarr.getMetadataProfiles(),
+          readarr.getRootFolders(),
+          readarr.getTags(),
+          readarr.getDevelopmentConfig().catch(() => undefined),
+        ]);
+      const provider = classifyBookshelfProvider(development?.metadataSource);
 
       return res.status(200).json({
         server: {
@@ -317,6 +325,9 @@ serviceRoutes.get<{ readarrId: string }>(
           activeMetadataProfileId: readarrSettings.activeMetadataProfileId,
           activeTags: readarrSettings.tags,
           serviceType: readarrSettings.serviceType ?? 'ebook',
+          provider,
+          legacyWarning: getBookshelfProviderWarning(provider),
+          metadataSource: development?.metadataSource,
         },
         profiles: profiles.map((profile) => ({
           id: profile.id,
