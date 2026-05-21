@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 const getApiTimeoutMs = () => {
   const timeoutMs = Number(process.env.HARDCOVER_API_TIMEOUT_MS ?? 30000);
@@ -16,6 +20,38 @@ const getValidationLookupTerm = () =>
   normalizeText(
     process.env.HARDCOVER_VALIDATION_TERM ?? 'Foundation Isaac Asimov'
   );
+
+const getValidationLookupRetries = () => {
+  const rawValue = process.env.HARDCOVER_VALIDATION_LOOKUP_RETRIES;
+
+  if (rawValue === undefined || rawValue === '') {
+    return 3;
+  }
+
+  const retries = Number(rawValue);
+
+  if (!Number.isInteger(retries) || retries < 0) {
+    throw new Error('HARDCOVER_VALIDATION_LOOKUP_RETRIES must be a non-negative integer.');
+  }
+
+  return retries;
+};
+
+const getValidationLookupRetryDelayMs = () => {
+  const rawValue = process.env.HARDCOVER_VALIDATION_LOOKUP_RETRY_DELAY_MS;
+
+  if (rawValue === undefined || rawValue === '') {
+    return 10000;
+  }
+
+  const delayMs = Number(rawValue);
+
+  if (!Number.isInteger(delayMs) || delayMs < 0) {
+    throw new Error('HARDCOVER_VALIDATION_LOOKUP_RETRY_DELAY_MS must be a non-negative integer.');
+  }
+
+  return delayMs;
+};
 
 const getMigrationMaxBooks = () => {
   const rawValue = process.env.HARDCOVER_MIGRATION_MAX_BOOKS;
@@ -97,11 +133,89 @@ const getRateLimitBackoffBaseMs = () => {
   return baseMs;
 };
 
+const getRecoveryLookupLimit = () => {
+  const rawValue = process.env.HARDCOVER_RECOVERY_LOOKUP_LIMIT;
+
+  if (rawValue === undefined || rawValue === '') {
+    return 8;
+  }
+
+  const limit = Number(rawValue);
+
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new Error('HARDCOVER_RECOVERY_LOOKUP_LIMIT must be a positive integer.');
+  }
+
+  return limit;
+};
+
 const getLocalImportEnabled = () => {
   const rawValue = process.env.HARDCOVER_LOCAL_IMPORT;
 
   if (rawValue === undefined || rawValue === '') {
     return false;
+  }
+
+  return rawValue === 'true' || rawValue === '1' || rawValue === 'yes';
+};
+
+const getLocalDbImportEnabled = () => {
+  const rawValue = process.env.HARDCOVER_LOCAL_DB_IMPORT;
+
+  if (rawValue === undefined || rawValue === '') {
+    return false;
+  }
+
+  return rawValue === 'true' || rawValue === '1' || rawValue === 'yes';
+};
+
+const getIdentifierFallbackEnabled = () => {
+  const rawValue = process.env.HARDCOVER_IDENTIFIER_FALLBACK;
+
+  if (rawValue === undefined || rawValue === '') {
+    return true;
+  }
+
+  return rawValue === 'true' || rawValue === '1' || rawValue === 'yes';
+};
+
+const getMatchConcurrency = () => {
+  const rawValue = process.env.HARDCOVER_MATCH_CONCURRENCY;
+
+  if (rawValue === undefined || rawValue === '') {
+    return 1;
+  }
+
+  const concurrency = Number(rawValue);
+
+  if (!Number.isInteger(concurrency) || concurrency <= 0) {
+    throw new Error('HARDCOVER_MATCH_CONCURRENCY must be a positive integer.');
+  }
+
+  return concurrency;
+};
+
+const getCheckpointInterval = () => {
+  const rawValue = process.env.HARDCOVER_CHECKPOINT_INTERVAL;
+
+  if (rawValue === undefined || rawValue === '') {
+    return 1;
+  }
+
+  const interval = Number(rawValue);
+
+  if (!Number.isInteger(interval) || interval <= 0) {
+    throw new Error('HARDCOVER_CHECKPOINT_INTERVAL must be a positive integer.');
+  }
+
+  return interval;
+};
+
+const getCacheDedupeEnabled = () => {
+  const rawValue = process.env.HARDCOVER_DEDUPE_TARGET_CACHE;
+
+  if (rawValue === undefined || rawValue === '') {
+    return true;
   }
 
   return rawValue === 'true' || rawValue === '1' || rawValue === 'yes';
@@ -581,6 +695,127 @@ const lookupBook = async ({ baseUrl, apiKey, term }) => {
   return Array.isArray(body) ? body : [];
 };
 
+const lookupCacheKey = ({ serviceType, term }) =>
+  `${normalizeText(serviceType)}:${normalizeText(term)}`;
+
+const checkpointKeyForSource = (source) =>
+  `${source.serviceType}:${normalizeId(source.id) ?? normalizeComparableText(`${source.title}:${source.author}`)}`;
+
+const emptyMatchCheckpoint = () => ({
+  version: 1,
+  matched: [],
+  unmatched: [],
+  ambiguous: [],
+});
+
+const readJsonIfExists = async (filePath, fallback) =>
+  readJson(filePath).catch((error) => {
+    if (error?.code === 'ENOENT') {
+      return fallback;
+    }
+
+    throw error;
+  });
+
+const readLookupCache = async (migrationDir) =>
+  readJsonIfExists(path.join(migrationDir, 'lookup-cache.json'), {});
+
+const lookupCacheWrites = new Map();
+
+const writeLookupCache = async (migrationDir, lookupCache) => {
+  const previous = lookupCacheWrites.get(migrationDir) ?? Promise.resolve();
+  const next = previous.then(() =>
+    writeJson(path.join(migrationDir, 'lookup-cache.json'), lookupCache)
+  );
+
+  lookupCacheWrites.set(migrationDir, next.catch(() => {}));
+  await next;
+};
+
+const lookupBookCached = async ({
+  migrationDir,
+  lookupCache,
+  serviceType,
+  baseUrl,
+  apiKey,
+  term,
+}) => {
+  const key = lookupCacheKey({ serviceType, term });
+
+  if (Object.prototype.hasOwnProperty.call(lookupCache, key)) {
+    return lookupCache[key];
+  }
+
+  const candidates = await lookupBook({ baseUrl, apiKey, term });
+  lookupCache[key] = candidates;
+  await writeLookupCache(migrationDir, lookupCache);
+
+  return candidates;
+};
+
+const lookupBookCandidates = async ({
+  migrationDir,
+  lookupCache,
+  serviceType,
+  baseUrl,
+  apiKey,
+  source,
+  profiles = [],
+  includeSource = true,
+}) => {
+  const terms = [];
+  const profileSources = includeSource ? [source, ...profiles] : profiles;
+
+  for (const profile of profileSources) {
+    if (profile.title && profile.author) {
+      terms.push({ term: `${profile.title} ${profile.author}`, profile });
+      terms.push({ term: `${profile.author} ${profile.title}`, profile });
+    }
+
+    for (const identifier of profile.identifiers ?? []) {
+      for (const term of lookupTermVariants(identifier)) {
+        terms.push({ term, profile });
+      }
+    }
+  }
+
+  const candidates = [];
+  const seenTerms = new Set();
+  const seenBooks = new Set();
+
+  for (const entry of terms) {
+    const normalizedTerm = normalizeText(entry.term);
+    if (!normalizedTerm || seenTerms.has(normalizedTerm)) {
+      continue;
+    }
+    seenTerms.add(normalizedTerm);
+
+    const results = await lookupBookCached({
+      migrationDir,
+      lookupCache,
+      serviceType,
+      baseUrl,
+      apiKey,
+      term: normalizedTerm,
+    });
+
+    for (const candidate of results) {
+      const key = normalizeId(candidate.foreignBookId) ?? JSON.stringify(candidate);
+      if (seenBooks.has(key)) {
+        continue;
+      }
+      seenBooks.add(key);
+      candidates.push({
+        candidate,
+        lookupTerm: normalizedTerm,
+        profile: entry.profile,
+      });
+    }
+  }
+
+  return candidates;
+};
+
 const postJson = async ({ baseUrl, apiKey, endpoint, body }) => {
   const url = new URL(`/api/v1${endpoint}`, baseUrl);
   const response = await fetchWithRetry(url, {
@@ -601,6 +836,284 @@ const postJson = async ({ baseUrl, apiKey, endpoint, body }) => {
   }
 
   return response.json();
+};
+
+const sqliteAvailable = async () => {
+  try {
+    await execFileAsync('sqlite3', ['--version']);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const dedupeTargetCache = async (job) => {
+  if (!getCacheDedupeEnabled() || !job.configDir) {
+    return { ok: false, skipped: true };
+  }
+
+  const cacheDb = path.join(job.configDir, 'cache.db');
+
+  try {
+    await fs.access(cacheDb);
+  } catch {
+    return { ok: false, skipped: true };
+  }
+
+  if (!(await sqliteAvailable())) {
+    return { ok: false, skipped: true };
+  }
+
+  const sql = `
+    DELETE FROM HttpResponse
+    WHERE Id NOT IN (
+      SELECT MAX(Id)
+      FROM HttpResponse
+      GROUP BY Url
+    );
+    VACUUM;
+  `;
+
+  try {
+    await execFileAsync('sqlite3', [cacheDb, sql], { timeout: 30000 });
+    return { ok: true, cacheDb };
+  } catch (error) {
+    return {
+      ok: false,
+      cacheDb,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+};
+
+const classifyApplyFailure = (failure) => {
+  const reason = normalizeText(failure?.reason);
+
+  if (reason.includes('Sequence contains more than one element')) {
+    return 'target_duplicate_http_cache';
+  }
+
+  if (reason.includes('Unexpected response fetching book data')) {
+    return 'target_metadata_fetch_failed';
+  }
+
+  if (
+    reason.includes('GoodreadsId') &&
+    reason.includes('book with this ID was not found')
+  ) {
+    return 'target_book_id_not_found';
+  }
+
+  if (
+    reason.includes('ForeignAuthorId') &&
+    reason.includes('author with this ID was not found')
+  ) {
+    return 'target_author_id_not_found';
+  }
+
+  if (reason.includes('Object reference not set')) {
+    return 'target_null_reference';
+  }
+
+  if (reason.includes('Request timed out')) {
+    return 'target_timeout';
+  }
+
+  if (reason.includes('Local fallback failed')) {
+    return 'local_fallback_rejected';
+  }
+
+  return 'other';
+};
+
+const applyFailureAction = (category) => {
+  switch (category) {
+    case 'target_duplicate_http_cache':
+      return 'dedupe_target_cache_and_retry';
+    case 'target_metadata_fetch_failed':
+    case 'target_timeout':
+      return 'retry';
+    case 'target_author_id_not_found':
+      return 'precreate_author_or_relookup';
+    case 'target_book_id_not_found':
+      return 'metadata_source_book_gap';
+    case 'target_null_reference':
+      return 'target_manual_review';
+    case 'local_fallback_rejected':
+      return 'target_needs_local_import_support';
+    default:
+      return 'inspect_failure';
+  }
+};
+
+const extractAttemptedValue = (reason) => {
+  const match = String(reason ?? '').match(/"attemptedValue":\s*"([^"]+)"/);
+
+  return match?.[1];
+};
+
+const parseAuthorTitle = ({ title, authorTitle }) => {
+  const normalizedTitle = normalizeComparableText(title);
+  const rawAuthorTitle = normalizeText(authorTitle);
+
+  if (!rawAuthorTitle || !normalizedTitle) {
+    return undefined;
+  }
+
+  const titleIndex = normalizeComparableText(rawAuthorTitle).lastIndexOf(
+    normalizedTitle
+  );
+  const rawAuthorName =
+    titleIndex > 0 ? rawAuthorTitle.slice(0, titleIndex).trim() : rawAuthorTitle;
+  const [lastName, ...firstNameParts] = rawAuthorName
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!lastName) {
+    return undefined;
+  }
+
+  return firstNameParts.length
+    ? `${firstNameParts.join(' ')} ${lastName}`
+    : lastName;
+};
+
+const identifiersFromLookupResult = (result, source) => {
+  const identifiers = [
+    result.isbn13,
+    result.isbn10,
+    result.asin,
+    result.foreignEditionId,
+    ...(Array.isArray(result.editions)
+      ? result.editions.flatMap((edition) => [
+          edition.isbn13,
+          edition.isbn10,
+          edition.asin,
+          edition.foreignEditionId,
+        ])
+      : []),
+    ...(source.identifiers ?? []),
+  ]
+    .map((value) => normalizeText(String(value ?? '')))
+    .filter(Boolean);
+
+  return [...new Set(identifiers)];
+};
+
+const buildSoftcoverRecoveredProfiles = async ({ item, job }) => {
+  if (!job.softcoverBaseUrl || !job.softcoverApiKey) {
+    return [];
+  }
+
+  const terms = [];
+
+  if (item.source.title && item.source.author) {
+    terms.push(`${item.source.title} ${item.source.author}`);
+  }
+
+  for (const identifier of item.source.identifiers ?? []) {
+    terms.push(...lookupTermVariants(identifier));
+  }
+
+  const profiles = [];
+  const seenTerms = new Set();
+  const seenProfiles = new Set();
+  const lookupLimit = getRecoveryLookupLimit();
+
+  for (const term of terms) {
+    if (seenTerms.size >= lookupLimit) {
+      break;
+    }
+
+    const normalizedTerm = normalizeText(term);
+
+    if (!normalizedTerm || seenTerms.has(normalizedTerm)) {
+      continue;
+    }
+
+    seenTerms.add(normalizedTerm);
+
+    const results = await lookupBook({
+      baseUrl: job.softcoverBaseUrl,
+      apiKey: job.softcoverApiKey,
+      term: normalizedTerm,
+    }).catch(() => []);
+
+    for (const result of results) {
+      const title = normalizeText(result.title ?? item.source.title);
+      const author = normalizeText(
+        result.author?.authorName ??
+          result.authorName ??
+          parseAuthorTitle({
+            title,
+            authorTitle: result.authorTitle,
+          }) ??
+          item.source.author
+      );
+
+      if (!title || !author) {
+        continue;
+      }
+
+      const identifiers = identifiersFromLookupResult(result, item.source);
+      const key = `${normalizeComparableText(title)}:${normalizeComparableText(author)}:${identifiers.join(',')}`;
+
+      if (seenProfiles.has(key)) {
+        continue;
+      }
+
+      seenProfiles.add(key);
+      profiles.push({
+        title,
+        author,
+        identifiers,
+        recoveredFrom: 'softcover',
+        softcoverLookupTerm: normalizedTerm,
+      });
+    }
+  }
+
+  return profiles;
+};
+
+const buildApplyFailureSummary = (failed) => {
+  const byCategory = new Map();
+
+  for (const failure of failed) {
+    const category = classifyApplyFailure(failure);
+    const existing = byCategory.get(category) ?? {
+      category,
+      count: 0,
+      recommendedAction: applyFailureAction(category),
+      attemptedValues: [],
+      examples: [],
+    };
+    const attemptedValue = extractAttemptedValue(failure.reason);
+
+    existing.count++;
+
+    if (
+      attemptedValue &&
+      !existing.attemptedValues.includes(attemptedValue)
+    ) {
+      existing.attemptedValues.push(attemptedValue);
+    }
+
+    if (existing.examples.length < 10) {
+      existing.examples.push({
+        serviceType: failure.serviceType ?? failure.source?.serviceType,
+        sourceId: failure.source?.id,
+        title: failure.source?.title,
+        author: failure.source?.author,
+        attemptedValue,
+      });
+    }
+
+    byCategory.set(category, existing);
+  }
+
+  return [...byCategory.values()].sort((a, b) => b.count - a.count);
 };
 
 const putJson = async ({ baseUrl, apiKey, endpoint, body }) => {
@@ -926,10 +1439,60 @@ export const buildInventorySources = (inventory) => {
   return books.map((book) => buildSourceBook({ inventory, book }));
 };
 
-const matchInventory = async ({ inventory, baseUrl, apiKey }) => {
-  const matched = [];
-  const unmatched = [];
-  const ambiguous = [];
+const matchCheckpointPath = ({ migrationDir, serviceType }) =>
+  path.join(migrationDir, `${serviceType}-match-checkpoint.json`);
+
+const normalizeCheckpoint = (checkpoint) => ({
+  ...emptyMatchCheckpoint(),
+  ...(checkpoint && typeof checkpoint === 'object' ? checkpoint : {}),
+  matched: Array.isArray(checkpoint?.matched) ? checkpoint.matched : [],
+  unmatched: Array.isArray(checkpoint?.unmatched) ? checkpoint.unmatched : [],
+  ambiguous: Array.isArray(checkpoint?.ambiguous) ? checkpoint.ambiguous : [],
+});
+
+const checkpointProcessedKeys = (checkpoint) => {
+  const keys = new Set();
+
+  for (const bucket of [
+    checkpoint.matched,
+    checkpoint.unmatched,
+    checkpoint.ambiguous,
+  ]) {
+    for (const entry of bucket) {
+      if (entry?.source) {
+        keys.add(checkpointKeyForSource(entry.source));
+      }
+    }
+  }
+
+  return keys;
+};
+
+const writeMatchCheckpoint = async ({ migrationDir, serviceType, checkpoint }) => {
+  await writeJson(
+    matchCheckpointPath({ migrationDir, serviceType }),
+    checkpoint
+  );
+};
+
+const matchInventory = async ({
+  migrationDir,
+  inventory,
+  baseUrl,
+  apiKey,
+  lookupCache,
+}) => {
+  const serviceType = inventory.serviceType ?? 'unknown';
+  const checkpoint = normalizeCheckpoint(
+    await readJsonIfExists(
+      matchCheckpointPath({ migrationDir, serviceType }),
+      emptyMatchCheckpoint()
+    )
+  );
+  const matched = checkpoint.matched;
+  const unmatched = checkpoint.unmatched;
+  const ambiguous = checkpoint.ambiguous;
+  const processedKeys = checkpointProcessedKeys(checkpoint);
   const maxBooks = getMigrationMaxBooks();
   const books = (Array.isArray(inventory.books) ? inventory.books : []).slice(
     0,
@@ -937,8 +1500,13 @@ const matchInventory = async ({ inventory, baseUrl, apiKey }) => {
   );
   const batchSize = getRateLimitBatchSize();
   const delayMs = getRateLimitDelayMs();
+  const checkpointInterval = getCheckpointInterval();
+  const identifierFallback = getIdentifierFallbackEnabled();
+  const concurrency = getMatchConcurrency();
   let requestCount = 0;
-  let processedCount = 0;
+  let processedCount = processedKeys.size;
+  let checkpointDirtyCount = 0;
+  let checkpointWrite = Promise.resolve();
   const totalBooks = books.length;
 
   const throttleIfNeeded = async () => {
@@ -963,17 +1531,66 @@ const matchInventory = async ({ inventory, baseUrl, apiKey }) => {
     }
   };
 
-  for (const book of books) {
+  console.error(
+    `[match] ${serviceType}: ${processedKeys.size}/${totalBooks} books already checkpointed.`
+  );
+  console.error(`[match] ${serviceType}: concurrency=${concurrency}`);
+
+  const flushCheckpoint = async (force = false) => {
+    if (!force && checkpointDirtyCount < checkpointInterval) {
+      return;
+    }
+
+    checkpointDirtyCount = 0;
+    checkpointWrite = checkpointWrite.then(() =>
+      writeMatchCheckpoint({ migrationDir, serviceType, checkpoint })
+    );
+    await checkpointWrite;
+  };
+
+  const processBook = async (book) => {
     const source = buildSourceBook({ inventory, book });
+    const processedKey = checkpointKeyForSource(source);
+
+    if (processedKeys.has(processedKey)) {
+      return;
+    }
 
     if (!source.title) {
       unmatched.push({ source, reason: 'missing_source_title' });
+      processedKeys.add(processedKey);
       logProgress();
-      continue;
+      checkpointDirtyCount++;
+      await flushCheckpoint();
+      return;
     }
 
     let decision;
     let lookupTerm;
+
+    if (source.author) {
+      lookupTerm = `${source.title} ${source.author}`;
+
+      try {
+        await throttleIfNeeded();
+        requestCount++;
+        const titleAuthorCandidates = await lookupBookCached({
+          migrationDir,
+          lookupCache,
+          serviceType,
+          baseUrl,
+          apiKey,
+          term: lookupTerm,
+        });
+        decision = chooseStrictMatch({ source, candidates: titleAuthorCandidates });
+      } catch (error) {
+        decision = {
+          status: 'unmatched',
+          reason: 'lookup_failed',
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
 
     // Collect all identifier variants to try (ISBN-10, ISBN-13, both with/without
     // hyphens, with/without "isbn:" prefix, etc.).
@@ -984,14 +1601,21 @@ const matchInventory = async ({ inventory, baseUrl, apiKey }) => {
       }
     }
 
-    for (const term of allTerms) {
+    for (const term of identifierFallback ? allTerms : []) {
+      if (decision?.status === 'matched') {
+        break;
+      }
+
       lookupTerm = term;
       let candidates;
 
       try {
         await throttleIfNeeded();
         requestCount++;
-        candidates = await lookupBook({
+        candidates = await lookupBookCached({
+          migrationDir,
+          lookupCache,
+          serviceType,
           baseUrl,
           apiKey,
           term: lookupTerm,
@@ -1009,24 +1633,6 @@ const matchInventory = async ({ inventory, baseUrl, apiKey }) => {
 
       if (decision.status === 'matched') {
         break;
-      }
-    }
-
-    if (decision?.status !== 'matched' && source.author) {
-      lookupTerm = `${source.title} ${source.author}`;
-
-      try {
-        await throttleIfNeeded();
-        requestCount++;
-        const fallbackCandidates = await lookupBook({
-          baseUrl,
-          apiKey,
-          term: lookupTerm,
-        });
-        decision = chooseStrictMatch({ source, candidates: fallbackCandidates });
-      } catch (error) {
-        // Keep the existing decision from the identifier loop;
-        // the fallback just didn't work either.
       }
     }
 
@@ -1056,7 +1662,31 @@ const matchInventory = async ({ inventory, baseUrl, apiKey }) => {
       });
     }
 
+    processedKeys.add(processedKey);
     logProgress();
+    checkpointDirtyCount++;
+    await flushCheckpoint();
+  };
+
+  const pendingBooks = books.filter((book) => {
+    const source = buildSourceBook({ inventory, book });
+    return !processedKeys.has(checkpointKeyForSource(source));
+  });
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, pendingBooks.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < pendingBooks.length) {
+      const book = pendingBooks[nextIndex];
+      nextIndex++;
+      await processBook(book);
+    }
+  });
+
+  await Promise.all(workers);
+  await checkpointWrite;
+
+  if (checkpointDirtyCount > 0) {
+    await flushCheckpoint(true);
   }
 
   return { matched, unmatched, ambiguous };
@@ -1138,6 +1768,145 @@ const synthesizeLocalEntry = (source) => {
         monitored: boolFromSource(source.monitored, true),
       },
     ],
+  };
+};
+
+const sqliteQuote = (value) => {
+  if (value === null || value === undefined) {
+    return 'NULL';
+  }
+
+  return `'${String(value).replaceAll("'", "''")}'`;
+};
+
+const slugifyLocal = (value) =>
+  normalizeComparableText(value)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'unknown';
+
+const directInsertLocalBook = async ({ item, job, targetIds, tags }) => {
+  if (!job.configDir) {
+    throw new Error('HARDCOVER_LOCAL_DB_IMPORT requires target config dir.');
+  }
+
+  const dbPath = path.join(job.configDir, 'readarr.db');
+  await fs.access(dbPath);
+
+  const source = item.source;
+  const local = synthesizeLocalEntry(source);
+  const now = new Date().toISOString();
+  const authorName = normalizeText(source.author);
+  const title = normalizeText(source.title);
+  const authorSlug = `local-${slugifyLocal(authorName)}`;
+  const bookSlug = `local-${item.serviceType}-${normalizeId(source.id) ?? slugifyLocal(`${title}-${authorName}`)}`;
+  const authorForeignId = `local:${item.serviceType}:${slugifyLocal(authorName)}`;
+  const bookForeignId = `local:${item.serviceType}:${normalizeId(source.id) ?? slugifyLocal(`${title}-${authorName}`)}`;
+  const editionForeignId = `${bookForeignId}:edition`;
+  const isbn13 = source.identifiers?.find((id) => ISBN13_REGEX.test(stripIsbnHyphens(id)));
+  const authorPath = path.posix.join(
+    normalizeText(source.rootFolderPath) || '/data/books',
+    authorName.replace(/[\\/]+/g, ' ').trim()
+  );
+  const monitored = boolFromSource(source.monitored, true) ? 1 : 0;
+  const tagJson = JSON.stringify(tags ?? []);
+  const addOptions = JSON.stringify({ monitor: 'none', searchForMissingBooks: false });
+  const ratings = JSON.stringify({ votes: 0, value: 0, popularity: 0 });
+
+  const sql = `
+    BEGIN IMMEDIATE;
+
+    INSERT OR IGNORE INTO AuthorMetadata
+      (ForeignAuthorId, TitleSlug, Name, Overview, Disambiguation, Gender, Hometown, Born, Died, Status, Images, Links, Genres, Ratings, Aliases, SortName, NameLastFirst, SortNameLastFirst)
+    VALUES
+      (${sqliteQuote(authorForeignId)}, ${sqliteQuote(authorSlug)}, ${sqliteQuote(authorName)}, NULL, NULL, NULL, NULL, NULL, NULL, 0, '[]', '[]', '[]', ${sqliteQuote(ratings)}, '[]', ${sqliteQuote(normalizeComparableText(authorName))}, ${sqliteQuote(authorName)}, ${sqliteQuote(normalizeComparableText(authorName))});
+
+    INSERT OR IGNORE INTO Authors
+      (CleanName, Path, Monitored, LastInfoSync, QualityProfileId, Tags, Added, AddOptions, MetadataProfileId, AuthorMetadataId, MonitorNewItems)
+    SELECT
+      ${sqliteQuote(normalizeComparableText(authorName))},
+      ${sqliteQuote(authorPath)},
+      0,
+      ${sqliteQuote(now)},
+      ${Number(targetIds.qualityProfileId)},
+      ${sqliteQuote(tagJson)},
+      ${sqliteQuote(now)},
+      ${sqliteQuote(addOptions)},
+      ${Number(targetIds.metadataProfileId)},
+      Id,
+      0
+    FROM AuthorMetadata
+    WHERE ForeignAuthorId = ${sqliteQuote(authorForeignId)};
+
+    INSERT OR IGNORE INTO Books
+      (AuthorMetadataId, ForeignBookId, TitleSlug, Title, ReleaseDate, Links, Genres, Ratings, CleanTitle, Monitored, AnyEditionOk, LastInfoSync, Added, AddOptions, RelatedBooks, LastSearchTime)
+    SELECT
+      Id,
+      ${sqliteQuote(bookForeignId)},
+      ${sqliteQuote(bookSlug)},
+      ${sqliteQuote(title)},
+      NULL,
+      '[]',
+      '[]',
+      ${sqliteQuote(ratings)},
+      ${sqliteQuote(normalizeComparableText(title))},
+      ${monitored},
+      1,
+      ${sqliteQuote(now)},
+      ${sqliteQuote(now)},
+      ${sqliteQuote(addOptions)},
+      '[]',
+      NULL
+    FROM AuthorMetadata
+    WHERE ForeignAuthorId = ${sqliteQuote(authorForeignId)};
+
+    INSERT OR IGNORE INTO Editions
+      (BookId, ForeignEditionId, Isbn13, Asin, Title, TitleSlug, Language, Overview, Format, IsEbook, Disambiguation, Publisher, PageCount, ReleaseDate, Images, Links, Ratings, Monitored, ManualAdd)
+    SELECT
+      Id,
+      ${sqliteQuote(editionForeignId)},
+      ${sqliteQuote(isbn13 ? stripIsbnHyphens(isbn13) : null)},
+      NULL,
+      ${sqliteQuote(title)},
+      ${sqliteQuote(`${bookSlug}-edition`)},
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      '[]',
+      '[]',
+      ${sqliteQuote(ratings)},
+      ${monitored},
+      1
+    FROM Books
+    WHERE ForeignBookId = ${sqliteQuote(bookForeignId)};
+
+    COMMIT;
+  `;
+
+  await execFileAsync('sqlite3', [dbPath, sql], { timeout: 30000 });
+
+  const { stdout } = await execFileAsync(
+    'sqlite3',
+    [dbPath, `select Id from Books where ForeignBookId = ${sqliteQuote(bookForeignId)} limit 1;`],
+    { timeout: 30000 }
+  );
+  const id = Number(stdout.trim());
+
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`Local DB import did not create book: ${title}`);
+  }
+
+  return {
+    id,
+    title,
+    foreignBookId: bookForeignId,
+    foreignEditionId: editionForeignId,
+    localDbImport: true,
+    localEntry: local,
   };
 };
 
@@ -1235,10 +2004,20 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
   const rebuildPayload = await readJson(
     path.join(migrationDir, 'rebuild-payload.json')
   );
-  const applied = [];
+  const lookupCache = await readLookupCache(migrationDir);
+  const applied = await readJsonIfExists(
+    path.join(migrationDir, 'applied-books.json'),
+    []
+  );
   const failed = [];
+  const appliedKeys = new Set(
+    applied
+      .map((item) => (item?.source ? checkpointKeyForSource(item.source) : undefined))
+      .filter(Boolean)
+  );
   const monitorUpdates = new Map();
   const targetCache = new Map();
+  const authorCache = new Map();
   const batchSize = getRateLimitBatchSize();
   const delayMs = getRateLimitDelayMs();
   let requestCount = 0;
@@ -1265,6 +2044,14 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
         `applied=${applied.length}, failed=${failed.length}`
       );
     }
+  };
+
+  const logItemRetry = (index, item, message) => {
+    const processedCount = index + 1;
+    console.error(
+      `[apply] ${message}: ${processedCount}/${totalItems} ` +
+      `${item.serviceType} "${item.source.title}" by ${item.source.author}`
+    );
   };
 
   const getTargetConfig = async (job) => {
@@ -1416,8 +2203,240 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
     return tagIds;
   };
 
+  const isMissingForeignAuthorError = (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+
+    return (
+      message.includes('ForeignAuthorId') &&
+      message.includes('author with this ID was not found')
+    );
+  };
+
+  const isInvalidForeignBookError = (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+
+    return (
+      message.includes('GoodreadsId') &&
+      message.includes('book with this ID was not found')
+    );
+  };
+
+  const isInvalidForeignAuthorError = (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+
+    return (
+      message.includes('ForeignAuthorId') &&
+      message.includes('author with this ID was not found')
+    );
+  };
+
+  const isTargetMetadataFetchError = (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+
+    return (
+      message.includes('Unexpected response fetching book data') ||
+      message.includes('Sequence contains no matching element')
+    );
+  };
+
+  const isDuplicateCacheError = (err) => {
+    const message = err instanceof Error ? err.message : String(err);
+
+    return message.includes('Sequence contains more than one element');
+  };
+
+  const buildLocalFallbackAddBook = ({ item, targetIds, tags }) => {
+    const local = synthesizeLocalEntry(item.source);
+
+    return {
+      ...buildAddPayload({
+        source: item.source,
+        lookupTerm: `local:${item.source.title} ${item.source.author}`,
+        hardcover: local,
+      }).addBook,
+      qualityProfileId: targetIds.qualityProfileId,
+      metadataProfileId: targetIds.metadataProfileId,
+      tags,
+      author: {
+        ...local.author,
+        rootFolderPath: item.addBook.rootFolderPath,
+        qualityProfileId: targetIds.qualityProfileId,
+        metadataProfileId: targetIds.metadataProfileId,
+        monitored: false,
+        addOptions: {
+          monitor: 'none',
+          searchForMissingBooks: false,
+        },
+        manualAdd: true,
+      },
+    };
+  };
+
+  const getTargetAuthors = async (job) => {
+    if (authorCache.has(job.serviceType)) {
+      return authorCache.get(job.serviceType);
+    }
+
+    await throttleIfNeeded();
+    requestCount++;
+    const authors = await getJson({
+      baseUrl: job.baseUrl,
+      apiKey: job.apiKey,
+      endpoint: '/author',
+    });
+    const normalized = Array.isArray(authors) ? authors : [];
+    authorCache.set(job.serviceType, normalized);
+
+    return normalized;
+  };
+
+  const ensureTargetAuthor = async ({ item, job, targetIds }) => {
+    const foreignAuthorId = normalizeId(item.addBook.author?.foreignAuthorId);
+
+    if (!foreignAuthorId) {
+      return;
+    }
+
+    const authors = await getTargetAuthors(job);
+    const existing = authors.find(
+      (author) =>
+        normalizeId(author.foreignAuthorId ?? author.ForeignAuthorId) ===
+        foreignAuthorId
+    );
+
+    if (existing) {
+      return;
+    }
+
+    const authorName = normalizeText(
+      item.addBook.author?.authorName ?? item.source.author
+    );
+
+    await throttleIfNeeded();
+    requestCount++;
+    const lookupResults = await getJson({
+      baseUrl: job.baseUrl,
+      apiKey: job.apiKey,
+      endpoint: '/author/lookup',
+      searchParams: { term: authorName || foreignAuthorId },
+    });
+    const lookupAuthor = (Array.isArray(lookupResults) ? lookupResults : []).find(
+      (author) =>
+        normalizeId(author.foreignAuthorId ?? author.ForeignAuthorId) ===
+        foreignAuthorId
+    );
+
+    if (!lookupAuthor) {
+      return;
+    }
+
+    const authorPayload = {
+      ...lookupAuthor,
+      qualityProfileId: targetIds.qualityProfileId,
+      metadataProfileId: targetIds.metadataProfileId,
+      rootFolderPath: item.addBook.rootFolderPath,
+      monitored: false,
+      monitorNewItems: 'none',
+      tags: [],
+      addOptions: {
+        monitor: 'none',
+        searchForMissingBooks: false,
+      },
+      manualAdd: true,
+    };
+
+    await throttleIfNeeded();
+    requestCount++;
+    const created = await postJson({
+      baseUrl: job.baseUrl,
+      apiKey: job.apiKey,
+      endpoint: '/author',
+      body: authorPayload,
+    });
+    authors.push(created);
+  };
+
+  const buildRecoveredAddBook = async ({ item, job, targetIds, tags, rejectedIds }) => {
+    const softcoverProfiles = await buildSoftcoverRecoveredProfiles({
+      item,
+      job,
+    });
+    const candidates = await lookupBookCandidates({
+      migrationDir,
+      lookupCache,
+      serviceType: item.serviceType,
+      baseUrl: job.baseUrl,
+      apiKey: job.apiKey,
+      source: item.source,
+      profiles: softcoverProfiles,
+      includeSource: false,
+    });
+    const usableCandidates = candidates.filter(({ candidate }) => {
+      const foreignBookId = normalizeId(candidate.foreignBookId);
+
+      return foreignBookId && !rejectedIds.has(foreignBookId);
+    });
+
+    for (const { candidate, lookupTerm, profile } of usableCandidates) {
+      const matchSource = {
+        ...item.source,
+        title: profile?.title ?? item.source.title,
+        author: profile?.author ?? item.source.author,
+        identifiers: profile?.identifiers ?? item.source.identifiers,
+      };
+      const decision = chooseStrictMatch({
+        source: matchSource,
+        candidates: [candidate],
+        identifier: lookupTerm !== `${item.source.title} ${item.source.author}`,
+      });
+
+      if (decision.status !== 'matched') {
+        continue;
+      }
+
+      return {
+        lookupTerm,
+        addBook: {
+          ...buildAddPayload({
+            source: item.source,
+            lookupTerm,
+            hardcover: decision.result,
+          }).addBook,
+          qualityProfileId: targetIds.qualityProfileId,
+          metadataProfileId: targetIds.metadataProfileId,
+          tags,
+          author: {
+            ...decision.result.author,
+            rootFolderPath: item.addBook.rootFolderPath,
+            qualityProfileId: targetIds.qualityProfileId,
+            metadataProfileId: targetIds.metadataProfileId,
+            monitored: false,
+            addOptions: {
+              monitor: 'none',
+              searchForMissingBooks: false,
+            },
+            manualAdd: true,
+          },
+        },
+      };
+    }
+
+    return undefined;
+  };
+
+  for (const job of jobs) {
+    await dedupeTargetCache(job);
+  }
+
   for (let i = 0; i < rebuildPayload.length; i++) {
     const item = rebuildPayload[i];
+    const appliedKey = checkpointKeyForSource(item.source);
+
+    if (appliedKeys.has(appliedKey)) {
+      logProgress(i);
+      continue;
+    }
+
     const job = jobs.find(
       (candidate) => candidate.serviceType === item.serviceType
     );
@@ -1444,13 +2463,15 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
     let addBook;
     let postSucceeded = false;
     let result;
+    let targetIds;
+    let tags;
 
     try {
       await throttleIfNeeded();
       requestCount++;
       const targetConfig = await getTargetConfig(job);
-      const targetIds = await resolveTargetIds(item, job, targetConfig);
-      const tags = await resolveTargetTags(item, job, targetConfig);
+      targetIds = await resolveTargetIds(item, job, targetConfig);
+      tags = await resolveTargetTags(item, job, targetConfig);
       addBook = {
         ...item.addBook,
         qualityProfileId: targetIds.qualityProfileId,
@@ -1462,14 +2483,95 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
           metadataProfileId: targetIds.metadataProfileId,
         },
       };
-      await throttleIfNeeded();
-      requestCount++;
-      result = await postJson({
-        baseUrl: job.baseUrl,
-        apiKey: job.apiKey,
-        endpoint: '/book',
-        body: addBook,
-      });
+      const postBook = async () => {
+        await throttleIfNeeded();
+        requestCount++;
+        return postJson({
+          baseUrl: job.baseUrl,
+          apiKey: job.apiKey,
+          endpoint: '/book',
+          body: addBook,
+        });
+      };
+      const rejectedIds = new Set();
+      const recoverViaSoftcover = async () => {
+        const rejectedId = normalizeId(addBook.foreignBookId);
+        if (rejectedId) {
+          rejectedIds.add(rejectedId);
+        }
+        const recovered = await buildRecoveredAddBook({
+          item,
+          job,
+          targetIds,
+          tags,
+          rejectedIds,
+        });
+
+        if (!recovered) {
+          return false;
+        }
+
+        addBook = recovered.addBook;
+        result = await postBook();
+        return true;
+      };
+      try {
+        try {
+          result = await postBook();
+        } catch (postError) {
+        if (isDuplicateCacheError(postError)) {
+          await dedupeTargetCache(job);
+          result = await postBook();
+        } else if (isMissingForeignAuthorError(postError)) {
+          logItemRetry(i, item, 'recovering missing target author');
+          try {
+            await ensureTargetAuthor({ item, job, targetIds });
+            result = await postBook();
+          } catch (authorRecoveryError) {
+            if (
+              !isInvalidForeignAuthorError(authorRecoveryError) &&
+              !isTargetMetadataFetchError(authorRecoveryError)
+            ) {
+              throw authorRecoveryError;
+            }
+
+            logItemRetry(i, item, 'recovering missing target author via softcover remap');
+            if (!(await recoverViaSoftcover())) {
+              throw authorRecoveryError;
+            }
+          }
+          } else if (
+            isInvalidForeignBookError(postError) ||
+            isTargetMetadataFetchError(postError)
+          ) {
+            logItemRetry(i, item, 'recovering via softcover remap');
+            if (!(await recoverViaSoftcover())) {
+              throw postError;
+            }
+          } else {
+            throw postError;
+          }
+        }
+      } catch (recoveredPostError) {
+        if (!getLocalImportEnabled()) {
+          throw recoveredPostError;
+        }
+
+        const originalReason =
+          recoveredPostError instanceof Error
+            ? recoveredPostError.message
+            : String(recoveredPostError);
+        addBook = buildLocalFallbackAddBook({ item, targetIds, tags });
+        try {
+          result = await postBook();
+        } catch (localPostError) {
+          const localReason =
+            localPostError instanceof Error
+              ? localPostError.message
+              : String(localPostError);
+          throw new Error(`${originalReason}\nLocal fallback failed: ${localReason}`);
+        }
+      }
       postSucceeded = true;
     } catch (postError) {
       // 409 constraint on ForeignEditionId means the edition already exists in
@@ -1477,6 +2579,24 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
       // run, expanding the author into many unmonitored books). The book may
       // already be in the target; recover by looking it up post-facto.
       if (!isRecoverableConstraintError(postError)) {
+        if (getLocalDbImportEnabled() && targetIds && tags) {
+          try {
+            result = await directInsertLocalBook({ item, job, targetIds, tags });
+            postSucceeded = true;
+          } catch (localDbError) {
+            failed.push({
+              source: item.source,
+              serviceType: item.serviceType,
+              reason:
+                `${postError instanceof Error ? postError.message : String(postError)}\n` +
+                `Local DB import failed: ${
+                  localDbError instanceof Error ? localDbError.message : String(localDbError)
+                }`,
+            });
+            logProgress(i);
+            continue;
+          }
+        } else {
         failed.push({
           source: item.source,
           serviceType: item.serviceType,
@@ -1485,6 +2605,7 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
         });
         logProgress(i);
         continue;
+        }
       }
     }
 
@@ -1539,7 +2660,10 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
           serviceType: item.serviceType,
           hardcoverBookId: targetBookId,
           title: result?.title ?? item.addBook.title,
+          foreignBookId: result?.foreignBookId ?? result?.ForeignBookId ?? addBook?.foreignBookId,
+          localDbImport: result?.localDbImport === true,
         });
+        appliedKeys.add(appliedKey);
       } else {
         failed.push({
           source: item.source,
@@ -1612,6 +2736,10 @@ const applyRebuildPayload = async ({ migrationDir, jobs }) => {
 
   await writeJson(path.join(migrationDir, 'applied-books.json'), applied);
   await writeJson(path.join(migrationDir, 'apply-failures.json'), failed);
+  await writeJson(
+    path.join(migrationDir, 'apply-failure-summary.json'),
+    buildApplyFailureSummary(failed)
+  );
 
   const report = await readJson(
     path.join(migrationDir, 'migration-report.json')
@@ -1649,6 +2777,31 @@ const validateTarget = async ({ migrationDir, jobs }) => {
   ).catch(() => []);
   const validation = [];
   const validationLookupTerm = getValidationLookupTerm();
+  const validationLookupRetries = getValidationLookupRetries();
+  const validationLookupRetryDelayMs = getValidationLookupRetryDelayMs();
+
+  const getValidationLookup = async (job) => {
+    let lookup = [];
+
+    for (let attempt = 0; attempt <= validationLookupRetries; attempt++) {
+      lookup = await getJson({
+        baseUrl: job.baseUrl,
+        apiKey: job.apiKey,
+        endpoint: '/book/lookup',
+        searchParams: { term: validationLookupTerm },
+      }).catch(() => []);
+
+      if (Array.isArray(lookup) && lookup.length > 0) {
+        break;
+      }
+
+      if (attempt < validationLookupRetries) {
+        await sleep(validationLookupRetryDelayMs);
+      }
+    }
+
+    return lookup;
+  };
 
   for (const job of jobs) {
     if (!job.apiKey) {
@@ -1672,12 +2825,7 @@ const validateTarget = async ({ migrationDir, jobs }) => {
           apiKey: job.apiKey,
           endpoint: '/book',
         }),
-        getJson({
-          baseUrl: job.baseUrl,
-          apiKey: job.apiKey,
-          endpoint: '/book/lookup',
-          searchParams: { term: validationLookupTerm },
-        }).catch(() => []),
+        getValidationLookup(job),
       ]);
       const provider = classifyProvider(development?.metadataSource);
       const appliedForService = applied.filter(
@@ -1862,6 +3010,17 @@ const main = async () => {
         process.env.HARDCOVER_EBOOK_BASE_URL ??
         `http://127.0.0.1:${process.env.BOOKSHELF_EBOOKS_PORT ?? '8787'}`,
       apiKey: process.env.HARDCOVER_EBOOK_API_KEY ?? process.env.EBOOK_API_KEY,
+      configDir:
+        process.env.HARDCOVER_EBOOK_CONFIG_DIR ??
+        process.env.BOOKSHELF_EBOOKS_CONFIG_DIR,
+      softcoverBaseUrl:
+        process.env.HARDCOVER_SOFTCOVER_EBOOK_BASE_URL ??
+        process.env.SOFTCOVER_EBOOK_BASE_URL,
+      softcoverApiKey:
+        process.env.HARDCOVER_SOFTCOVER_EBOOK_API_KEY ??
+        process.env.SOFTCOVER_EBOOK_API_KEY ??
+        process.env.HARDCOVER_EBOOK_API_KEY ??
+        process.env.EBOOK_API_KEY,
     },
     {
       serviceType: 'audiobook',
@@ -1870,6 +3029,17 @@ const main = async () => {
         process.env.HARDCOVER_AUDIOBOOK_BASE_URL ??
         `http://127.0.0.1:${process.env.BOOKSHELF_AUDIOBOOKS_PORT ?? '8788'}`,
       apiKey:
+        process.env.HARDCOVER_AUDIOBOOK_API_KEY ??
+        process.env.AUDIOBOOK_API_KEY,
+      configDir:
+        process.env.HARDCOVER_AUDIOBOOK_CONFIG_DIR ??
+        process.env.BOOKSHELF_AUDIOBOOKS_CONFIG_DIR,
+      softcoverBaseUrl:
+        process.env.HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL ??
+        process.env.SOFTCOVER_AUDIOBOOK_BASE_URL,
+      softcoverApiKey:
+        process.env.HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY ??
+        process.env.SOFTCOVER_AUDIOBOOK_API_KEY ??
         process.env.HARDCOVER_AUDIOBOOK_API_KEY ??
         process.env.AUDIOBOOK_API_KEY,
     },
@@ -1898,26 +3068,41 @@ const main = async () => {
   const allMatched = [];
   const allUnmatched = [];
   const allAmbiguous = [];
+  const lookupCache = await readLookupCache(migrationDir);
 
   for (const job of jobs) {
     const inventory = await readJson(
       path.join(migrationDir, job.inventoryFile)
     );
+    const serviceType = inventory.serviceType ?? job.serviceType;
 
     if (!job.apiKey) {
-      allUnmatched.push(
+      const checkpoint = normalizeCheckpoint(
+        await readJsonIfExists(
+          matchCheckpointPath({ migrationDir, serviceType }),
+          emptyMatchCheckpoint()
+        )
+      );
+      const processedKeys = checkpointProcessedKeys(checkpoint);
+      checkpoint.unmatched.push(
         ...buildInventorySources(inventory).map((source) => ({
           source,
           reason: 'hardcover_api_key_not_provided',
-        }))
+        })).filter((entry) => !processedKeys.has(checkpointKeyForSource(entry.source)))
       );
+      await writeMatchCheckpoint({ migrationDir, serviceType, checkpoint });
+      allMatched.push(...checkpoint.matched);
+      allUnmatched.push(...checkpoint.unmatched);
+      allAmbiguous.push(...checkpoint.ambiguous);
       continue;
     }
 
     const result = await matchInventory({
+      migrationDir,
       inventory,
       baseUrl: job.baseUrl,
       apiKey: job.apiKey,
+      lookupCache,
     });
 
     allMatched.push(...result.matched);
@@ -1979,10 +3164,20 @@ const main = async () => {
     rebuildBlocked: rebuildBlocked.length,
   };
   report.matchingPolicy =
-    'ISBN/ASIN lookup first with ISBN-10⇔13 conversion; exact title and author; prefix/subtitle/colon/containment relaxed matching when author agrees. Title+author fallback when identifiers fail. Local synthesis for unmatched books when HARDCOVER_LOCAL_IMPORT is enabled.';
+    'Layered matching: exact title+author first; optional ISBN/ASIN fallback with ISBN-10/13 conversion; relaxed prefix/subtitle/colon/containment matching only when author agrees; resumable checkpoints and lookup cache are preserved across runs. Apply recovery preserves prior successes, retries transient target failures, pre-creates missing target authors, can synthesize local API entries for unmatched books when HARDCOVER_LOCAL_IMPORT is enabled, and can use deterministic direct DB local records as a final opt-in fallback when HARDCOVER_LOCAL_DB_IMPORT is enabled.';
   await writeJson(path.join(migrationDir, 'migration-report.json'), report);
-  await writeJson(path.join(migrationDir, 'applied-books.json'), []);
-  await writeJson(path.join(migrationDir, 'apply-failures.json'), []);
+  await readJsonIfExists(path.join(migrationDir, 'applied-books.json'), null)
+    .then((existing) =>
+      existing === null
+        ? writeJson(path.join(migrationDir, 'applied-books.json'), [])
+        : undefined
+    );
+  await readJsonIfExists(path.join(migrationDir, 'apply-failures.json'), null)
+    .then((existing) =>
+      existing === null
+        ? writeJson(path.join(migrationDir, 'apply-failures.json'), [])
+        : undefined
+    );
   await writeJson(path.join(migrationDir, 'validation-report.json'), []);
   await writeJson(path.join(migrationDir, 'cutover-decision.json'), {
     ok: false,

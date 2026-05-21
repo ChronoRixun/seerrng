@@ -85,8 +85,16 @@ Common environment overrides:
   HARDCOVER_AUDIOBOOK_API_KEY
   HARDCOVER_EBOOK_BASE_URL
   HARDCOVER_AUDIOBOOK_BASE_URL
+  HARDCOVER_DEDUPE_TARGET_CACHE=true
+  HARDCOVER_VALIDATION_LOOKUP_RETRIES=3
+  HARDCOVER_VALIDATION_LOOKUP_RETRY_DELAY_MS=10000
+  HARDCOVER_SOFTCOVER_EBOOK_BASE_URL
+  HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL
+  HARDCOVER_SOFTCOVER_EBOOK_API_KEY
+  HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY
   HARDCOVER_API_TIMEOUT_MS=15000
   HARDCOVER_MIGRATION_MAX_BOOKS
+  HARDCOVER_LOCAL_DB_IMPORT=true
   MIN_BACKUP_FREE_MULTIPLIER=2
   EBOOK_API_KEY
   AUDIOBOOK_API_KEY
@@ -644,6 +652,7 @@ migrate_to_hardcover() {
     "rebuildBlocked": "rebuild-blocked.json",
     "appliedBooks": "applied-books.json",
     "applyFailures": "apply-failures.json",
+    "applyFailureSummary": "apply-failure-summary.json",
     "validationReport": "validation-report.json",
     "cutoverDecision": "cutover-decision.json"
   }
@@ -656,20 +665,35 @@ EOF
   printf '[]\n' >"${migration_dir}/rebuild-blocked.json"
   printf '[]\n' >"${migration_dir}/applied-books.json"
   printf '[]\n' >"${migration_dir}/apply-failures.json"
+  printf '[]\n' >"${migration_dir}/apply-failure-summary.json"
   printf '[]\n' >"${migration_dir}/validation-report.json"
   printf '{"ok":false,"reasons":["validation_not_run"]}\n' >"${migration_dir}/cutover-decision.json"
 
   if command -v node >/dev/null 2>&1; then
-    BOOKSHELF_EBOOKS_PORT="$BOOKSHELF_EBOOKS_PORT" \
+      BOOKSHELF_EBOOKS_PORT="$BOOKSHELF_EBOOKS_PORT" \
       BOOKSHELF_AUDIOBOOKS_PORT="$BOOKSHELF_AUDIOBOOKS_PORT" \
+      BOOKSHELF_EBOOKS_CONFIG_DIR="$BOOKSHELF_EBOOKS_CONFIG_DIR" \
+      BOOKSHELF_AUDIOBOOKS_CONFIG_DIR="$BOOKSHELF_AUDIOBOOKS_CONFIG_DIR" \
+      HARDCOVER_SOFTCOVER_EBOOK_BASE_URL="${HARDCOVER_SOFTCOVER_EBOOK_BASE_URL:-}" \
+      HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL="${HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL:-}" \
+      HARDCOVER_SOFTCOVER_EBOOK_API_KEY="${HARDCOVER_SOFTCOVER_EBOOK_API_KEY:-}" \
+      HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY="${HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY:-}" \
       node "${SCRIPT_DIR}/bookshelf-hardcover-migration.mjs" "$migration_dir"
 
     if [ "$APPLY_HARDCOVER_REBUILD" = "true" ]; then
-      BOOKSHELF_EBOOKS_PORT="$BOOKSHELF_EBOOKS_PORT" \
+        BOOKSHELF_EBOOKS_PORT="$BOOKSHELF_EBOOKS_PORT" \
         BOOKSHELF_AUDIOBOOKS_PORT="$BOOKSHELF_AUDIOBOOKS_PORT" \
+        BOOKSHELF_EBOOKS_CONFIG_DIR="$BOOKSHELF_EBOOKS_CONFIG_DIR" \
+        BOOKSHELF_AUDIOBOOKS_CONFIG_DIR="$BOOKSHELF_AUDIOBOOKS_CONFIG_DIR" \
+        HARDCOVER_SOFTCOVER_EBOOK_BASE_URL="${HARDCOVER_SOFTCOVER_EBOOK_BASE_URL:-}" \
+        HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL="${HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL:-}" \
+        HARDCOVER_SOFTCOVER_EBOOK_API_KEY="${HARDCOVER_SOFTCOVER_EBOOK_API_KEY:-}" \
+        HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY="${HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY:-}" \
         node "${SCRIPT_DIR}/bookshelf-hardcover-migration.mjs" --apply "$migration_dir"
       BOOKSHELF_EBOOKS_PORT="$BOOKSHELF_EBOOKS_PORT" \
         BOOKSHELF_AUDIOBOOKS_PORT="$BOOKSHELF_AUDIOBOOKS_PORT" \
+        BOOKSHELF_EBOOKS_CONFIG_DIR="$BOOKSHELF_EBOOKS_CONFIG_DIR" \
+        BOOKSHELF_AUDIOBOOKS_CONFIG_DIR="$BOOKSHELF_AUDIOBOOKS_CONFIG_DIR" \
         node "${SCRIPT_DIR}/bookshelf-hardcover-migration.mjs" --validate "$migration_dir"
     fi
 

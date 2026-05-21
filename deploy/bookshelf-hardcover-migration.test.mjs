@@ -441,6 +441,393 @@ describe('bookshelf-hardcover-migration CLI pipeline', () => {
     );
   });
 
+  it('resumes matching from service checkpoints', async () => {
+    const migrationDir = await createMigrationDir();
+    const ebookInventoryPath = path.join(migrationDir, 'ebook-inventory.json');
+    const ebookInventory = await readJson(ebookInventoryPath);
+    ebookInventory.books.push({
+      Id: 2,
+      Title: 'Second Example',
+      AuthorName: 'Jane Doe',
+      RootFolderPath: '/books',
+      QualityProfileId: 1,
+      MetadataProfileId: 2,
+      Monitored: 1,
+    });
+    await writeJson(ebookInventoryPath, ebookInventory);
+    await writeJson(path.join(migrationDir, 'ebook-match-checkpoint.json'), {
+      version: 1,
+      matched: [
+        {
+          source: {
+            serviceType: 'ebook',
+            id: 1,
+            title: 'Example',
+            author: 'Jane Doe',
+            rootFolderPath: '/books',
+            qualityProfileId: 1,
+            metadataProfileId: 2,
+            monitored: 1,
+            identifiers: [],
+          },
+          lookupTerm: 'Example Jane Doe',
+          reason: 'title_author_exact',
+          hardcover: {
+            title: 'Example',
+            foreignBookId: 'hardcover-book-1',
+            author: {
+              foreignAuthorId: 'hardcover-author',
+              authorName: 'Jane Doe',
+            },
+            editions: [{ foreignEditionId: 'hardcover-edition-1' }],
+          },
+        },
+      ],
+      unmatched: [],
+      ambiguous: [],
+    });
+
+    const lookupTerms = [];
+    const handler = async (req, res) => {
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        const url = new URL(req.url, 'http://127.0.0.1');
+        lookupTerms.push(url.searchParams.get('term'));
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify([
+            {
+              title: 'Second Example',
+              foreignBookId: 'hardcover-book-2',
+              author: {
+                foreignAuthorId: 'hardcover-author',
+                authorName: 'Jane Doe',
+              },
+              editions: [{ foreignEditionId: 'hardcover-edition-2' }],
+            },
+          ])
+        );
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await withMockBookshelf(handler, async (baseUrl) => {
+      const result = await runCli([migrationDir], {
+        HARDCOVER_EBOOK_API_KEY: 'key',
+        HARDCOVER_EBOOK_BASE_URL: baseUrl,
+        HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+        HARDCOVER_AUDIOBOOK_BASE_URL: baseUrl,
+      });
+      assert.equal(result.code, 0, result.stderr);
+    });
+
+    const matched = await readJson(path.join(migrationDir, 'matched-books.json'));
+    assert.equal(matched.length, 2);
+    assert.deepEqual(lookupTerms, ['Second Example Jane Doe']);
+  });
+
+  it('preserves applied books when regenerating reports for resume', async () => {
+    const migrationDir = await createMigrationDir();
+    const appliedBook = {
+      source: { serviceType: 'ebook', id: 1 },
+      serviceType: 'ebook',
+      hardcoverBookId: 55,
+      title: 'Example',
+    };
+    await writeJson(path.join(migrationDir, 'applied-books.json'), [appliedBook]);
+    await writeJson(path.join(migrationDir, 'apply-failures.json'), [
+      { source: { serviceType: 'ebook', id: 2 }, reason: 'previous failure' },
+    ]);
+
+    const handler = async (req, res) => {
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify([
+            {
+              title: 'Example',
+              foreignBookId: 'hardcover-book',
+              author: {
+                foreignAuthorId: 'hardcover-author',
+                authorName: 'Jane Doe',
+              },
+              editions: [{ foreignEditionId: 'hardcover-edition' }],
+            },
+          ])
+        );
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await withMockBookshelf(handler, async (baseUrl) => {
+      const result = await runCli([migrationDir], {
+        HARDCOVER_EBOOK_API_KEY: 'key',
+        HARDCOVER_EBOOK_BASE_URL: baseUrl,
+        HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+        HARDCOVER_AUDIOBOOK_BASE_URL: baseUrl,
+      });
+      assert.equal(result.code, 0, result.stderr);
+    });
+
+    assert.deepEqual(
+      await readJson(path.join(migrationDir, 'applied-books.json')),
+      [appliedBook]
+    );
+    assert.equal(
+      (await readJson(path.join(migrationDir, 'apply-failures.json')))[0].reason,
+      'previous failure'
+    );
+  });
+
+  it('retries validation lookup before failing a Hardcover target', async () => {
+    const migrationDir = await createMigrationDir();
+    await writeJson(path.join(migrationDir, 'applied-books.json'), []);
+    let lookupCount = 0;
+    const handler = async (req, res) => {
+      if (req.method === 'GET' && req.url === '/api/v1/config/development') {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            id: 1,
+            metadataSource: 'https://hardcover.bookinfo.pro',
+          })
+        );
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/book') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        lookupCount++;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(lookupCount === 1 ? [] : [{ title: 'Example' }]));
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await withMockBookshelf(handler, async (baseUrl) => {
+      const result = await runCli(['--validate', migrationDir], {
+        HARDCOVER_EBOOK_API_KEY: 'key',
+        HARDCOVER_EBOOK_BASE_URL: baseUrl,
+        HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+        HARDCOVER_AUDIOBOOK_BASE_URL: baseUrl,
+        HARDCOVER_VALIDATION_LOOKUP_RETRIES: '1',
+        HARDCOVER_VALIDATION_LOOKUP_RETRY_DELAY_MS: '1',
+      });
+      assert.equal(result.code, 0, result.stderr);
+    });
+
+    const report = await readJson(
+      path.join(migrationDir, 'migration-report.json')
+    );
+    assert.equal(report.status, 'validation_complete');
+    assert.equal(report.validation.ok, true);
+    assert.ok(lookupCount >= 2);
+  });
+
+  it('uses softcover lookup metadata to recover a Hardcover add payload', async () => {
+    const migrationDir = await createMigrationDir();
+    const appliedBooks = [];
+    let hardcoverLookupTerms = [];
+
+    const hardcoverHandler = async (req, res) => {
+      if (req.method === 'GET' && req.url === '/api/v1/qualityProfile') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([{ id: 11, name: 'eBook' }]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/metadataProfile') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([{ id: 22, name: 'Standard' }]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/rootfolder') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([{ id: 33, path: '/books' }]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/tag') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        const url = new URL(req.url, 'http://127.0.0.1');
+        const term = url.searchParams.get('term') ?? '';
+        hardcoverLookupTerms.push(term);
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify(
+            term.includes('9780000000002')
+              ? [
+                  {
+                    title: 'Recovered Title',
+                    foreignBookId: 'hardcover-good',
+                    author: {
+                      foreignAuthorId: 'hardcover-author',
+                      authorName: 'Jane Doe',
+                    },
+                    editions: [
+                      {
+                        foreignEditionId: 'hardcover-edition-good',
+                        isbn13: '9780000000002',
+                        title: 'Recovered Title',
+                      },
+                    ],
+                  },
+                ]
+              : []
+          )
+        );
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/api/v1/book') {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += String(chunk);
+        });
+        req.on('end', () => {
+          const addBook = JSON.parse(body);
+
+          if (addBook.foreignBookId === 'hardcover-bad') {
+            res.statusCode = 400;
+            res.setHeader('content-type', 'application/json');
+            res.end(
+              JSON.stringify([
+                {
+                  propertyName: 'GoodreadsId',
+                  errorMessage: 'A book with this ID was not found',
+                  attemptedValue: 'hardcover-bad',
+                },
+              ])
+            );
+            return;
+          }
+
+          const book = {
+            id: 77,
+            title: addBook.title,
+            foreignBookId: addBook.foreignBookId,
+          };
+          appliedBooks.push(book);
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(book));
+        });
+        return;
+      }
+
+      if (req.method === 'PUT' && req.url === '/api/v1/book/monitor') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify([]));
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/api/v1/book') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify(appliedBooks));
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    const softcoverHandler = async (req, res) => {
+      if (req.method === 'GET' && req.url.startsWith('/api/v1/book/lookup')) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify([
+            {
+              title: 'Recovered Title',
+              authorTitle: 'doe, jane Recovered Title',
+              foreignBookId: 'softcover-book',
+              foreignEditionId: 'softcover-edition',
+              editions: [{ isbn13: '9780000000002' }],
+            },
+          ])
+        );
+        return;
+      }
+
+      res.statusCode = 404;
+      res.end('not found');
+    };
+
+    await writeJson(path.join(migrationDir, 'rebuild-payload.json'), [
+      {
+        serviceType: 'ebook',
+        source: {
+          serviceType: 'ebook',
+          id: 1,
+          title: 'Original Title',
+          author: 'Jane Doe',
+          rootFolderPath: '/books',
+          qualityProfileId: 1,
+          qualityProfileName: 'eBook',
+          metadataProfileId: 1,
+          metadataProfileName: 'Standard',
+          monitored: 1,
+          identifiers: ['9780000000001'],
+        },
+        lookupTerm: 'Original Title Jane Doe',
+        addBook: {
+          title: 'Original Title',
+          foreignBookId: 'hardcover-bad',
+          author: {
+            foreignAuthorId: 'hardcover-author',
+            authorName: 'Jane Doe',
+          },
+          editions: [{ foreignEditionId: 'hardcover-edition-bad' }],
+          qualityProfileId: 1,
+          metadataProfileId: 1,
+          rootFolderPath: '/books',
+          monitored: true,
+          tags: [],
+          addOptions: { searchForNewBook: false },
+        },
+      },
+    ]);
+
+    await withMockBookshelf(softcoverHandler, async (softcoverBaseUrl) => {
+      await withMockBookshelf(hardcoverHandler, async (hardcoverBaseUrl) => {
+        const result = await runCli(['--apply', migrationDir], {
+          HARDCOVER_EBOOK_API_KEY: 'key',
+          HARDCOVER_EBOOK_BASE_URL: hardcoverBaseUrl,
+          HARDCOVER_AUDIOBOOK_API_KEY: 'key',
+          HARDCOVER_AUDIOBOOK_BASE_URL: hardcoverBaseUrl,
+          HARDCOVER_SOFTCOVER_EBOOK_BASE_URL: softcoverBaseUrl,
+          HARDCOVER_RATE_LIMIT_BATCH_SIZE: '100',
+        });
+        assert.equal(result.code, 0, result.stderr);
+      });
+    });
+
+    const report = await readJson(
+      path.join(migrationDir, 'migration-report.json')
+    );
+    assert.equal(report.applyCounts.applied, 1);
+    assert.equal(report.applyCounts.failed, 0);
+    assert.equal(appliedBooks[0].foreignBookId, 'hardcover-good');
+    assert.ok(hardcoverLookupTerms.includes('isbn:9780000000002'));
+  });
+
   it('blocks cutover when validation has not completed cleanly', async () => {
     const migrationDir = await createMigrationDir();
     await writeJson(path.join(migrationDir, 'migration-report.json'), {

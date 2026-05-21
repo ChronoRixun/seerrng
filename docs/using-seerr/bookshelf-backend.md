@@ -367,6 +367,12 @@ The repository includes an installer helper:
 deploy/install-bookshelf-backend.sh
 ```
 
+For existing Readarr or softcover deployments, use the full migration runbook:
+
+```text
+docs/using-seerr/bookshelf-hardcover-migration.md
+```
+
 It does the following:
 
 - validates Docker, Docker Compose, the compose template, and the Bookshelf
