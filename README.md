@@ -22,6 +22,9 @@ This fork is maintained by snapetech. Upstream Seerr remains the base project fo
 - Music discovery and metadata through MusicBrainz, ListenBrainz, Cover Art Archive, TheAudioDB, and archive-backed artwork sources.
 - Book discovery and identity matching through Open Library, ISBN-10/ISBN-13 normalization, foreign book IDs, and edition IDs.
 - Separate ebook and audiobook service routing so both formats can be requested, approved, scanned, retried, and removed independently.
+- Bookshelf backend diagnostics that classify Hardcover, softcover/Goodreads, and unknown metadata providers.
+- Hardcover-first Bookshelf deployment and migration tooling for existing Readarr or softcover libraries.
+- Resumable, layered Readarr/softcover-to-Hardcover migration with strict matching, softcover metadata recovery, validation, cutover checks, and an opt-in deterministic local-record fallback for books Hardcover cannot import.
 - Watchlists, blocklists, request quotas, override rules, permissions, notifications, issue reporting, and request management.
 - Browser, service-worker, API, DNS, avatar, and image-proxy caching tuned for faster refreshes and tab restores.
 
@@ -33,6 +36,7 @@ Current focus:
 
 - Stabilizing Lidarr request, scan, retry, and removal flows.
 - Stabilizing Bookshelf ebook, audiobook, and both-format request flows.
+- Making the Bookshelf Hardcover migration path safe, repeatable, and visible to administrators.
 - Keeping image/API caching fast without blocking the visible page during refreshes.
 - Replacing upstream branding and docs with SeerrNG-owned assets and guidance.
 - Hardening request validation, notification settings, permission bounds, and service inputs.
@@ -112,10 +116,122 @@ Music:
 
 Books:
 
-- Bookshelf or another Readarr-compatible service configured in **Settings > Services**.
+- Bookshelf or another Readarr-compatible service configured in **Settings > Services**. New deployments should use the Hardcover-backed Bookshelf image.
 - One service marked as ebook-capable for ebook requests.
 - Optional second service marked as audiobook-capable for audiobook requests.
 - Separate defaults for ebook and audiobook if both-format requests should work cleanly.
+- Existing Readarr or softcover/Goodreads libraries should be migrated before switching to Hardcover metadata. The service settings modal links directly to the Bookshelf Hardcover migration runbook.
+
+## Bookshelf and Hardcover
+
+SeerrNG treats Bookshelf as the recommended backend for book requests. The
+default deployment path uses the Snapetech BookshelfNG fork with Hardcover
+metadata:
+
+```text
+ghcr.io/snapetech/bookshelfng:hardcover
+```
+
+Legacy softcover/Goodreads deployments remain supported for existing users:
+
+```text
+ghcr.io/snapetech/bookshelfng:softcover
+```
+
+Do not convert an existing Readarr or softcover database to Hardcover by only
+changing the image tag or `METADATA_URL`. Goodreads/softcover author, book, and
+edition IDs are not portable to Hardcover. Use the migration flow below.
+
+### Bookshelf Installer
+
+The deployment helper creates a two-instance Bookshelf stack for ebook and
+audiobook requests:
+
+```bash
+deploy/install-bookshelf-backend.sh
+```
+
+Useful modes:
+
+```bash
+deploy/install-bookshelf-backend.sh --dry-run
+deploy/install-bookshelf-backend.sh --validate-only
+deploy/install-bookshelf-backend.sh --validate-api
+deploy/install-bookshelf-backend.sh --migrate-to-hardcover
+deploy/install-bookshelf-backend.sh --restore-backup
+```
+
+Set `BOOKSHELF_BACKEND=auto|hardcover|softcover` to choose the backend policy.
+`auto` creates Hardcover instances for fresh installs and invokes the migration
+flow when an existing Readarr/softcover config is detected.
+
+### Hardcover Migration
+
+The migration toolchain is first-class for existing book libraries:
+
+```bash
+deploy/install-bookshelf-backend.sh --migrate-to-hardcover
+node deploy/bookshelf-hardcover-migration.mjs --summary /path/to/hardcover-migration
+node deploy/bookshelf-hardcover-migration.mjs --validate /path/to/hardcover-migration
+node deploy/bookshelf-hardcover-migration.mjs --cutover-check /path/to/hardcover-migration
+```
+
+The migration is layered:
+
+- inventory source Readarr/Bookshelf SQLite databases;
+- strictly match native Hardcover records by ISBN/ASIN/title/author;
+- preserve root folders, quality profiles, metadata profiles, tags, monitored state, and search policy;
+- resume from checkpoints and skip previously applied records;
+- retry transient target errors and de-duplicate bad target metadata cache rows;
+- pre-create missing authors where Hardcover can resolve them;
+- optionally query a softcover Bookshelf endpoint to recover title/author/edition metadata, then remap that profile back through Hardcover;
+- optionally create deterministic local Bookshelf records for the books Hardcover still cannot import.
+
+The final fallback is explicit:
+
+```bash
+APPLY_HARDCOVER_REBUILD=true \
+HARDCOVER_LOCAL_DB_IMPORT=true \
+deploy/install-bookshelf-backend.sh --migrate-to-hardcover
+```
+
+or:
+
+```bash
+node deploy/bookshelf-hardcover-migration.mjs --apply --local-db-import \
+  /path/to/hardcover-migration
+```
+
+Local fallback records use stable IDs such as `local:ebook:1076`. They are
+visible through the Bookshelf API and count toward validation, but they are not
+native Hardcover metadata records.
+
+See:
+
+- [Bookshelf backend guide](./docs/using-seerr/bookshelf-backend.md)
+- [Bookshelf Hardcover migration runbook](./docs/using-seerr/bookshelf-hardcover-migration.md)
+
+### Migration Lab
+
+Use the lab runner to rehearse a migration without touching production config:
+
+```bash
+SOURCE_EBOOK_CONFIG_DIR=/path/to/source/ebook \
+SOURCE_AUDIOBOOK_CONFIG_DIR=/path/to/source/audiobook \
+deploy/bookshelf-migration-lab.sh apply
+```
+
+To rehearse the full 100% completion path:
+
+```bash
+HARDCOVER_LOCAL_DB_IMPORT=true \
+SOURCE_EBOOK_CONFIG_DIR=/path/to/source/ebook \
+SOURCE_AUDIOBOOK_CONFIG_DIR=/path/to/source/audiobook \
+deploy/bookshelf-migration-lab.sh apply
+```
+
+The validated lab run imported `2115 / 2115` books with `0` failures using the
+full layered chain.
 
 ## Environment Variables
 
@@ -132,6 +248,21 @@ Common runtime variables:
 | `SEERR_ALLOW_PRODUCTION_EXTERNAL_READ_ONLY` | Allows `SEERR_EXTERNAL_READ_ONLY` in production for an intentional read-only clone. Do not set this on the writable request.snape.tech deployment. |
 
 Use deployment secrets, `.env` files, or container environment variables. Do not commit private TMDB, Plex, Jellyfin, Emby, Radarr, Sonarr, Lidarr, Bookshelf, SMTP, or notification credentials.
+
+Bookshelf deployment and migration variables live on the helper scripts rather
+than the SeerrNG runtime container. Common ones include:
+
+| Variable | Purpose |
+| --- | --- |
+| `BOOKSHELF_BACKEND` | `auto`, `hardcover`, or `softcover`. |
+| `BOOKSHELF_IMAGE` | Override the Bookshelf image. Defaults to `ghcr.io/snapetech/bookshelfng:hardcover` for Hardcover mode. |
+| `BOOKSHELF_EBOOKS_CONFIG_DIR` | Ebook Bookshelf/Readarr config directory. |
+| `BOOKSHELF_AUDIOBOOKS_CONFIG_DIR` | Audiobook Bookshelf/Readarr config directory. |
+| `HARDCOVER_EBOOK_API_KEY` / `HARDCOVER_AUDIOBOOK_API_KEY` | API keys for target Hardcover Bookshelf instances. |
+| `HARDCOVER_SOFTCOVER_EBOOK_BASE_URL` / `HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL` | Optional softcover recovery endpoints. |
+| `HARDCOVER_LOCAL_DB_IMPORT` | Enables deterministic local DB fallback after API and softcover recovery fail. |
+| `HARDCOVER_MATCH_CONCURRENCY` | Match report lookup concurrency. |
+| `HARDCOVER_API_TIMEOUT_MS` | Target API timeout for migration requests. |
 
 ### Cypress Runtime Config
 
@@ -185,6 +316,14 @@ pnpm build
 pnpm --dir gen-docs build
 ```
 
+Migration-specific checks:
+
+```bash
+node --test deploy/bookshelf-hardcover-migration.test.mjs
+bash -n deploy/bookshelf-migration-lab.sh deploy/install-bookshelf-backend.sh
+deploy/bookshelf-migration-lab.sh discover
+```
+
 API docs are served by a running local install at:
 
 ```text
@@ -198,6 +337,8 @@ For music and book changes, test against real services when possible:
 - Add a Lidarr server, set it as default, request an album, approve it, scan it, retry failure cases, and remove it.
 - Add a Bookshelf/Readarr-compatible ebook server, request a book by search result and specific edition/ISBN, approve it, scan it, retry it, and remove it.
 - Add a separate audiobook Bookshelf service and test audiobook-only plus both-format requests.
+- Run `deploy/bookshelf-migration-lab.sh apply` against a copied source Bookshelf/Readarr config before changing migration code.
+- Validate migration cutover with `node deploy/bookshelf-hardcover-migration.mjs --cutover-check <migration-dir>`.
 - Confirm request cards, request detail pages, notifications, and backend links point to the correct SeerrNG and service pages.
 
 See [docs/using-seerr/music-and-books-alpha.md](./docs/using-seerr/music-and-books-alpha.md) for the current hands-on test checklist.
