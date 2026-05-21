@@ -81,5 +81,12 @@ For ebook and audiobook requests, run separate Bookshelf instances and mark one
 service as the default for each book format.
 
 Use the [Bookshelf Backend](/using-seerr/bookshelf-backend) guide for the
-recommended Docker Compose deployment, migration steps, diagnostics, and
-rollback procedure.
+recommended Docker Compose deployment. Existing Readarr or softcover libraries
+should use the
+[Bookshelf Hardcover Migration](/using-seerr/bookshelf-hardcover-migration)
+runbook before switching a service to Hardcover metadata.
+
+The migration path can preserve native Hardcover matches, use softcover metadata
+as a recovery source, and optionally create deterministic local Bookshelf
+records for books Hardcover cannot import. Local records are visible through the
+Bookshelf API, but they are not native Hardcover metadata records.

@@ -147,9 +147,27 @@ HARDCOVER_AUDIOBOOK_API_KEY=... \
 deploy/install-bookshelf-backend.sh --migrate-to-hardcover
 ```
 
+The installer also accepts an explicit flag:
+
+```bash
+APPLY_HARDCOVER_REBUILD=true \
+HARDCOVER_EBOOK_CONFIG_DIR=/path/to/hardcover-ebook-config \
+HARDCOVER_AUDIOBOOK_CONFIG_DIR=/path/to/hardcover-audiobook-config \
+HARDCOVER_EBOOK_API_KEY=... \
+HARDCOVER_AUDIOBOOK_API_KEY=... \
+deploy/install-bookshelf-backend.sh --migrate-to-hardcover --allow-local-db-import
+```
+
 `HARDCOVER_LOCAL_DB_IMPORT=true` requires `sqlite3` and direct access to the
 target `readarr.db` files. It inserts only after the API path and softcover
 recovery path fail.
+
+To apply the final fallback directly to an existing migration directory:
+
+```bash
+node deploy/bookshelf-hardcover-migration.mjs --apply --local-db-import \
+  /opt/bookshelf-backend/backups/20260520-082024/hardcover-migration
+```
 
 ## Useful Tuning
 

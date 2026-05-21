@@ -57,6 +57,9 @@ const messages = defineMessages('components.Settings.ReadarrModal', {
   audiobook: 'Audiobook',
   compatibilityNote:
     'Bookshelf is the recommended book backend. Readarr-compatible servers can also be used.',
+  migrationNote:
+    'Existing Readarr or softcover libraries should be migrated before switching to Hardcover. The migration tool can preserve native Hardcover matches, recover metadata through softcover, and optionally create local Bookshelf records for books Hardcover cannot import.',
+  migrationGuide: 'Bookshelf Hardcover migration guide',
   apiKeyHelp:
     'Find it in Bookshelf or Readarr: Settings > General > Security > API Key.',
   baseUrlHelp:
@@ -393,6 +396,17 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
             <div className="mb-6">
               <p className="description">
                 {intl.formatMessage(messages.compatibilityNote)}
+              </p>
+              <p className="description mt-2">
+                {intl.formatMessage(messages.migrationNote)}{' '}
+                <a
+                  href="https://docs.seerr.dev/using-seerr/bookshelf-hardcover-migration"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-indigo-500 transition duration-300 hover:text-indigo-400"
+                >
+                  {intl.formatMessage(messages.migrationGuide)}
+                </a>
               </p>
               <div className="form-row">
                 <span className="text-label">

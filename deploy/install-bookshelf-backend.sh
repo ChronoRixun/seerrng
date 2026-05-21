@@ -13,6 +13,7 @@ MIGRATE_TO_HARDCOVER=false
 RESTORE_BACKUP=false
 ALLOW_INCOMPLETE_HARDCOVER_CUTOVER="${ALLOW_INCOMPLETE_HARDCOVER_CUTOVER:-false}"
 APPLY_HARDCOVER_REBUILD="${APPLY_HARDCOVER_REBUILD:-false}"
+HARDCOVER_LOCAL_DB_IMPORT="${HARDCOVER_LOCAL_DB_IMPORT:-false}"
 MIN_BACKUP_FREE_MULTIPLIER="${MIN_BACKUP_FREE_MULTIPLIER:-2}"
 
 INSTALL_DIR="${INSTALL_DIR:-/opt/bookshelf-backend}"
@@ -61,6 +62,9 @@ Options:
   --migrate-to-hardcover
                     Back up and inventory an existing Readarr/softcover config,
                     then write migration report files for Hardcover cutover.
+  --allow-local-db-import
+                    Permit the final deterministic local DB fallback for books
+                    Hardcover cannot import through the API.
   --restore-backup   Restore config directories from BACKUP_DIR tarballs and
                     stop the rendered compose stack if present.
   -h, --help         Show this help text.
@@ -121,6 +125,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     --migrate-to-hardcover)
       MIGRATE_TO_HARDCOVER=true
+      ;;
+    --allow-local-db-import)
+      HARDCOVER_LOCAL_DB_IMPORT=true
       ;;
     --restore-backup)
       RESTORE_BACKUP=true
@@ -689,6 +696,7 @@ EOF
         HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL="${HARDCOVER_SOFTCOVER_AUDIOBOOK_BASE_URL:-}" \
         HARDCOVER_SOFTCOVER_EBOOK_API_KEY="${HARDCOVER_SOFTCOVER_EBOOK_API_KEY:-}" \
         HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY="${HARDCOVER_SOFTCOVER_AUDIOBOOK_API_KEY:-}" \
+        HARDCOVER_LOCAL_DB_IMPORT="$HARDCOVER_LOCAL_DB_IMPORT" \
         node "${SCRIPT_DIR}/bookshelf-hardcover-migration.mjs" --apply "$migration_dir"
       BOOKSHELF_EBOOKS_PORT="$BOOKSHELF_EBOOKS_PORT" \
         BOOKSHELF_AUDIOBOOKS_PORT="$BOOKSHELF_AUDIOBOOKS_PORT" \

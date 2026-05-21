@@ -2986,18 +2986,24 @@ const main = async () => {
   const validate = args.includes('--validate');
   const cutoverCheck = args.includes('--cutover-check');
   const summary = args.includes('--summary');
+  const localDbImport = args.includes('--local-db-import');
   const migrationDir = args.find(
     (arg) =>
       arg !== '--apply' &&
       arg !== '--validate' &&
       arg !== '--cutover-check' &&
-      arg !== '--summary'
+      arg !== '--summary' &&
+      arg !== '--local-db-import'
   );
 
   if (!migrationDir) {
     throw new Error(
-      'Usage: bookshelf-hardcover-migration.mjs [--apply|--validate|--cutover-check|--summary] <migration-dir>'
+      'Usage: bookshelf-hardcover-migration.mjs [--apply|--validate|--cutover-check|--summary] [--local-db-import] <migration-dir>'
     );
+  }
+
+  if (localDbImport) {
+    process.env.HARDCOVER_LOCAL_DB_IMPORT = 'true';
   }
 
   getApiTimeoutMs();
