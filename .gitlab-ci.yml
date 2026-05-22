@@ -99,7 +99,7 @@ deploy:seerr.home:
         "$SEERRNG_DEPLOY_IMAGE"
     - |
       set -eu
-      for attempt in \$(seq 1 30); do
+      for attempt in $(seq 1 30); do
         if curl -fsS "$SEERRNG_DEPLOY_HEALTH_URL" | grep -F "$CI_COMMIT_SHORT_SHA"; then
           exit 0
         fi
