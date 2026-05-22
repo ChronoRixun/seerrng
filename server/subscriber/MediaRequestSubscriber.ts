@@ -269,6 +269,12 @@ const hydrateSoftcoverLookupResults = async (
   );
 };
 
+const normalizeOpenLibraryAuthorId = (authorKey: string): string =>
+  authorKey.replace(/^\/?authors\//i, '');
+
+const normalizeOpenLibraryBookId = (bookKey: string): string =>
+  bookKey.replace(/^\/?books\//i, '');
+
 @EventSubscriber()
 export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRequest> {
   private scheduleReadarrDispatchRetry(
@@ -1591,6 +1597,100 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           )
           .slice(0, READARR_MAX_EXPANDED_LOOKUP_TERMS);
       };
+      let openLibraryEditions:
+        | Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+        | undefined;
+      let openLibraryAuthor:
+        | Awaited<ReturnType<OpenLibraryAPI['getAuthor']>>
+        | undefined;
+      const getOpenLibraryEditionData = async () => {
+        if (!openLibraryId) {
+          return { editions: undefined, author: undefined };
+        }
+
+        if (!openLibraryEditions) {
+          openLibraryEditions = await openLibrary
+            .getWorkEditions(openLibraryId)
+            .catch(() => ({
+              size: 0,
+              entries: [],
+            }));
+        }
+
+        if (!openLibraryAuthor && work?.authors?.[0]?.author.key) {
+          openLibraryAuthor = await openLibrary
+            .getAuthor(normalizeOpenLibraryAuthorId(work.authors[0].author.key))
+            .catch(() => undefined);
+        }
+
+        return {
+          editions: openLibraryEditions,
+          author: openLibraryAuthor,
+        };
+      };
+      const createOpenLibraryFallbackBook = async (): Promise<
+        ReadarrBookLookupResult | undefined
+      > => {
+        if (!openLibraryId || !work?.title) {
+          return undefined;
+        }
+
+        const { editions, author } = await getOpenLibraryEditionData();
+        const authorKey = work.authors?.[0]?.author.key;
+        const normalizedAuthorId = authorKey
+          ? normalizeOpenLibraryAuthorId(authorKey)
+          : undefined;
+
+        if (!author?.name || !normalizedAuthorId) {
+          return undefined;
+        }
+
+        type ReadarrLookupEdition = NonNullable<
+          ReadarrBookLookupResult['editions']
+        >[number];
+        const editionCandidates: ReadarrLookupEdition[] =
+          editions?.entries
+            .map((edition): ReadarrLookupEdition | undefined => {
+              const foreignEditionId = edition.key
+                ? normalizeOpenLibraryBookId(edition.key)
+                : undefined;
+
+              if (!foreignEditionId) {
+                return undefined;
+              }
+
+              return {
+                foreignEditionId,
+                title: edition.title ?? work.title,
+                isbn13: edition.isbn_13
+                  ?.map((editionIsbn) => normalizeValidIsbn(editionIsbn))
+                  .find((editionIsbn): editionIsbn is string => !!editionIsbn),
+                monitored: true,
+              };
+            })
+            .filter((edition): edition is ReadarrLookupEdition => !!edition) ??
+          [];
+        const editionsToAdd = editionCandidates.length
+          ? editionCandidates
+          : [
+              {
+                foreignEditionId: openLibraryId,
+                title: work.title,
+                monitored: true,
+              },
+            ];
+
+        return {
+          title: work.title,
+          foreignBookId: openLibraryId,
+          authorTitle: `${author.name} - ${work.title}`,
+          author: {
+            foreignAuthorId: normalizedAuthorId,
+            authorName: author.name,
+          },
+          editions: editionsToAdd,
+        };
+      };
 
       const identifierRepository = getRepository(MediaIdentifier);
       const normalizedIsbn = normalizeValidIsbn(isbn);
@@ -1702,6 +1802,14 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             termsToTry.push(
               ...expandedTerms.filter((term) => !termsToTry.includes(term))
             );
+          }
+        }
+
+        if (!searchResults?.length) {
+          const fallbackBook = await createOpenLibraryFallbackBook();
+
+          if (fallbackBook) {
+            searchResults = [fallbackBook];
           }
         }
 
