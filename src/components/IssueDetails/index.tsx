@@ -13,7 +13,11 @@ import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { getSafeHref } from '@app/utils/safeUrl';
 import { Transition } from '@headlessui/react';
@@ -119,15 +123,21 @@ const IssueDetails = () => {
   const bookId = issueData?.media.identifiers?.find(
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
+  const normalizedMusicId = issueData?.media.mbId
+    ? normalizeMusicBrainzId(issueData.media.mbId)
+    : undefined;
+  const normalizedBookId = bookId
+    ? normalizeOpenLibraryWorkId(bookId)
+    : undefined;
   const detailUrl =
     issueData?.media.mediaType === MediaType.MOVIE
       ? `/api/v1/movie/${issueData.media.tmdbId}`
       : issueData?.media.mediaType === MediaType.TV
         ? `/api/v1/tv/${issueData.media.tmdbId}`
-        : issueData?.media.mediaType === MediaType.MUSIC && issueData.media.mbId
-          ? `/api/v1/music/${encodeApiPathSegment(issueData.media.mbId)}`
-          : issueData?.media.mediaType === MediaType.BOOK && bookId
-            ? `/api/v1/book/${encodeApiPathSegment(bookId)}`
+        : issueData?.media.mediaType === MediaType.MUSIC && normalizedMusicId
+          ? `/api/v1/music/${encodeApiPathSegment(normalizedMusicId)}`
+          : issueData?.media.mediaType === MediaType.BOOK && normalizedBookId
+            ? `/api/v1/book/${encodeApiPathSegment(normalizedBookId)}`
             : null;
   const { data, error } = useSWR<IssueMediaDetails>(detailUrl);
 
@@ -241,10 +251,10 @@ const IssueDetails = () => {
       ? `/movie/${issueData.media.tmdbId}`
       : issueData.media.mediaType === MediaType.TV
         ? `/tv/${issueData.media.tmdbId}`
-        : issueData.media.mediaType === MediaType.MUSIC && issueData.media.mbId
-          ? `/music/${encodeApiPathSegment(issueData.media.mbId)}`
-          : bookId
-            ? `/book/${encodeApiPathSegment(bookId)}`
+        : issueData.media.mediaType === MediaType.MUSIC && normalizedMusicId
+          ? `/music/${encodeApiPathSegment(normalizedMusicId)}`
+          : normalizedBookId
+            ? `/book/${encodeApiPathSegment(normalizedBookId)}`
             : '/';
   const posterPath =
     isMusic(data) || isBook(data)

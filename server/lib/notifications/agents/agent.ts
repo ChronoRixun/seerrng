@@ -3,6 +3,10 @@ import type IssueComment from '@server/entity/IssueComment';
 import type Media from '@server/entity/Media';
 import type { MediaRequest } from '@server/entity/MediaRequest';
 import type { User } from '@server/entity/User';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import type { NotificationAgentConfig } from '@server/lib/settings';
 import type { Notification } from '..';
 
@@ -50,7 +54,9 @@ export const getNotificationMediaUrl = (
   }
 
   if (payload.media.mediaType === 'music') {
-    return payload.media.mbId ? `/music/${payload.media.mbId}` : undefined;
+    return payload.media.mbId
+      ? `/music/${normalizeMusicBrainzId(payload.media.mbId)}`
+      : undefined;
   }
 
   if (payload.media.mediaType === 'book') {
@@ -58,7 +64,9 @@ export const getNotificationMediaUrl = (
       (identifier) => identifier.provider === 'openlibrary'
     )?.value;
 
-    return openLibraryId ? `/book/${openLibraryId}` : undefined;
+    return openLibraryId
+      ? `/book/${normalizeOpenLibraryWorkId(openLibraryId)}`
+      : undefined;
   }
 
   return `/${payload.media.mediaType}/${payload.media.tmdbId}`;

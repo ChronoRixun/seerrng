@@ -156,11 +156,13 @@ class LidarrScanner
     });
 
     for (const media of processingAlbums) {
-      if (media.mbId && !this.scannedMbIds.has(media.mbId)) {
+      const mbId = media.mbId ? normalizeMusicBrainzId(media.mbId) : undefined;
+
+      if (mbId && !this.scannedMbIds.has(mbId)) {
         media.status = MediaStatus.UNKNOWN;
         await mediaRepository.save(media);
         this.log(
-          `Album ${media.mbId} not found in any Lidarr server. Status reset to UNKNOWN.`,
+          `Album ${mbId} not found in any Lidarr server. Status reset to UNKNOWN.`,
           'info'
         );
       }

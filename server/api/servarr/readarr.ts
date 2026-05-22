@@ -1,3 +1,7 @@
+import {
+  normalizeOpenLibraryEditionId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import { normalizeIsbn } from '@server/lib/isbn';
 import logger from '@server/logger';
 import axios from 'axios';
@@ -196,9 +200,16 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
   ): Promise<ReadarrBookLookupResult> {
     try {
       const existingBooks = await this.get<ReadarrBook[]>('/book');
+      const normalizedForeignBookId = options.foreignBookId
+        ? normalizeOpenLibraryWorkId(options.foreignBookId)
+        : undefined;
       const optionEditionIds = new Set(
         options.editions
-          ?.map((edition) => edition.foreignEditionId)
+          ?.map((edition) =>
+            edition.foreignEditionId
+              ? normalizeOpenLibraryEditionId(edition.foreignEditionId)
+              : undefined
+          )
           .filter(Boolean)
       );
       const optionIsbns = new Set(
@@ -209,8 +220,9 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
       const existingBook = existingBooks.find((book) => {
         if (
           book.foreignBookId &&
-          options.foreignBookId &&
-          book.foreignBookId === options.foreignBookId
+          normalizedForeignBookId &&
+          normalizeOpenLibraryWorkId(book.foreignBookId) ===
+            normalizedForeignBookId
         ) {
           return true;
         }
@@ -220,7 +232,9 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
 
           return (
             (!!edition.foreignEditionId &&
-              optionEditionIds.has(edition.foreignEditionId)) ||
+              optionEditionIds.has(
+                normalizeOpenLibraryEditionId(edition.foreignEditionId)
+              )) ||
             (!!editionIsbn && optionIsbns.has(editionIsbn))
           );
         });

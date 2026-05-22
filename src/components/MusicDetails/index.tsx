@@ -14,7 +14,10 @@ import { getQueryParamString } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeMusicBrainzId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ArrowDownTrayIcon,
@@ -96,13 +99,18 @@ const MusicDetails = () => {
   const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
   const [toggleWatchlist, setToggleWatchlist] = useState(true);
   const musicId = getQueryParamString(router.query.musicId);
+  const normalizedRouteMusicId = musicId
+    ? normalizeMusicBrainzId(musicId)
+    : undefined;
 
   const {
     data,
     error,
     mutate: revalidate,
   } = useSWR<MusicDetailsType>(
-    musicId ? `/api/v1/music/${encodeApiPathSegment(musicId)}` : null
+    normalizedRouteMusicId
+      ? `/api/v1/music/${encodeApiPathSegment(normalizedRouteMusicId)}`
+      : null
   );
 
   useEffect(() => {
@@ -120,6 +128,10 @@ const MusicDetails = () => {
   if (!data) {
     return <ErrorPage statusCode={404} />;
   }
+
+  const musicBrainzId = normalizeMusicBrainzId(data.mbId);
+  const albumId = normalizeMusicBrainzId(data.id);
+  const artistId = normalizeMusicBrainzId(data.artist.id);
 
   const canRequest = hasPermission(
     [Permission.REQUEST, Permission.REQUEST_MUSIC],
@@ -176,7 +188,7 @@ const MusicDetails = () => {
 
     try {
       await axios.post('/api/v1/blocklist', {
-        externalId: data.mbId,
+        externalId: musicBrainzId,
         externalProvider: 'musicbrainz',
         mediaType: MediaType.MUSIC,
         title: data.title,
@@ -210,7 +222,7 @@ const MusicDetails = () => {
 
     try {
       const response = await axios.post('/api/v1/watchlist', {
-        mbId: data.mbId,
+        mbId: musicBrainzId,
         mediaType: MediaType.MUSIC,
         title: data.title,
       });
@@ -246,7 +258,7 @@ const MusicDetails = () => {
 
     try {
       await axios.delete(
-        `/api/v1/watchlist/${encodeApiPathSegment(data.mbId)}?mediaType=music`
+        `/api/v1/watchlist/${encodeApiPathSegment(musicBrainzId)}?mediaType=music`
       );
 
       addToast(
@@ -316,7 +328,7 @@ const MusicDetails = () => {
           editRequest={editRequest}
           show={showRequestModal}
           type="music"
-          mbId={data.id}
+          mbId={albumId}
           onCancel={() => {
             setEditRequest(undefined);
             setShowRequestModal(false);
@@ -332,7 +344,7 @@ const MusicDetails = () => {
         <BulkRequestModal
           show={showBulkRequestModal}
           mediaType="music"
-          artistId={data.artist.id}
+          artistId={artistId}
           title={data.artist.name}
           onCancel={() => setShowBulkRequestModal(false)}
           onComplete={() => revalidate()}
@@ -364,7 +376,7 @@ const MusicDetails = () => {
                   downloadItem={data.mediaInfo.downloadStatus}
                   inProgress={(data.mediaInfo.downloadStatus ?? []).length > 0}
                   mediaType="music"
-                  mbId={data.mbId}
+                  mbId={musicBrainzId}
                   serviceUrl={data.mediaInfo.serviceUrl}
                 />
               )}
@@ -379,14 +391,14 @@ const MusicDetails = () => {
             <div className="flex-shrink-0">
               <AssociationBadge
                 mediaType="album"
-                id={data.id}
+                id={albumId}
                 variant="inline"
               />
             </div>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <Link
-              href={`/artist/${encodeApiPathSegment(data.artist.id)}`}
+              href={`/artist/${encodeApiPathSegment(artistId)}`}
               className="font-medium text-gray-100 transition hover:text-white"
             >
               {data.artist.name}
@@ -446,7 +458,7 @@ const MusicDetails = () => {
                   <span>{intl.formatMessage(globalMessages.request)}</span>
                 </Button>
               )}
-              {canRequest && data.artist.id && (
+              {canRequest && artistId && (
                 <Button
                   buttonType="default"
                   onClick={() => setShowBulkRequestModal(true)}
@@ -517,7 +529,7 @@ const MusicDetails = () => {
             <div className="media-fact">
               <span>{intl.formatMessage(messages.artist)}</span>
               <span className="media-fact-value">
-                <Link href={`/artist/${encodeApiPathSegment(data.artist.id)}`}>
+                <Link href={`/artist/${encodeApiPathSegment(artistId)}`}>
                   {data.artist.name}
                 </Link>
               </span>
@@ -538,7 +550,7 @@ const MusicDetails = () => {
               <span>{intl.formatMessage(messages.identifiers)}</span>
               <span className="media-fact-value">
                 <a
-                  href={`https://musicbrainz.org/release-group/${data.mbId}`}
+                  href={`https://musicbrainz.org/release-group/${musicBrainzId}`}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -601,7 +613,7 @@ const MusicDetails = () => {
       <MediaSlider
         sliderKey="similar-artists"
         title={intl.formatMessage(messages.similarartists)}
-        url={`/api/v1/music/${encodeApiPathSegment(data.id)}/artist-similar`}
+        url={`/api/v1/music/${encodeApiPathSegment(albumId)}/artist-similar`}
         hideWhenEmpty
       />
     </>

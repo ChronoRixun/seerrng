@@ -282,7 +282,7 @@ artistRoutes.get('/:id', async (req, res, next) => {
       const coverArtUrl = metadata?.caaUrl || null;
 
       return {
-        id: releaseGroup.mbid,
+        id: releaseGroupId,
         mediaType: 'album',
         title: releaseGroup.name,
         'first-release-date': releaseGroup.date,

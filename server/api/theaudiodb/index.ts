@@ -2,6 +2,7 @@ import ExternalAPI from '@server/api/externalapi';
 import { getRepository } from '@server/datasource';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import cacheManager from '@server/lib/cache';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import logger from '@server/logger';
 import { In } from 'typeorm';
 import type { TadbArtistResponse } from './interfaces';
@@ -42,9 +43,11 @@ class TheAudioDb extends ExternalAPI {
     | null
     | undefined
   > {
+    const artistId = normalizeMusicBrainzId(id);
+
     try {
       const metadata = await getRepository(MetadataArtist).findOne({
-        where: { mbArtistId: id },
+        where: { mbArtistId: artistId },
         select: ['tadbThumb', 'tadbCover', 'tadbUpdatedAt'],
       });
 
@@ -58,7 +61,7 @@ class TheAudioDb extends ExternalAPI {
     } catch (error) {
       logger.error('Failed to fetch artist images from cache', {
         label: 'TheAudioDb',
-        id,
+        id: artistId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       return null;
@@ -68,9 +71,11 @@ class TheAudioDb extends ExternalAPI {
   public async getArtistImages(
     id: string
   ): Promise<{ artistThumb: string | null; artistBackground: string | null }> {
+    const artistId = normalizeMusicBrainzId(id);
+
     try {
       const metadata = await getRepository(MetadataArtist).findOne({
-        where: { mbArtistId: id },
+        where: { mbArtistId: artistId },
         select: ['tadbThumb', 'tadbCover', 'tadbUpdatedAt'],
       });
 
@@ -85,11 +90,11 @@ class TheAudioDb extends ExternalAPI {
         return this.createEmptyResponse();
       }
 
-      return await this.fetchArtistImages(id);
+      return await this.fetchArtistImages(artistId);
     } catch (error) {
       logger.error('Failed to get artist images', {
         label: 'TheAudioDb',
-        id,
+        id: artistId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       return this.createEmptyResponse();
@@ -100,10 +105,12 @@ class TheAudioDb extends ExternalAPI {
     artistThumb: string | null;
     artistBackground: string | null;
   }> {
+    const artistId = normalizeMusicBrainzId(id);
+
     try {
       const data = await this.get<TadbArtistResponse>(
         `/${this.apiKey}/artist-mb.php`,
-        { params: { i: id } },
+        { params: { i: artistId } },
         this.CACHE_TTL
       );
 
@@ -116,7 +123,7 @@ class TheAudioDb extends ExternalAPI {
       await metadataRepository
         .upsert(
           {
-            mbArtistId: id,
+            mbArtistId: artistId,
             tadbThumb: result.artistThumb,
             tadbCover: result.artistBackground,
             tadbUpdatedAt: new Date(),
@@ -136,7 +143,7 @@ class TheAudioDb extends ExternalAPI {
     } catch {
       await getRepository(MetadataArtist).upsert(
         {
-          mbArtistId: id,
+          mbArtistId: artistId,
           tadbThumb: null,
           tadbCover: null,
           tadbUpdatedAt: new Date(),
@@ -159,10 +166,11 @@ class TheAudioDb extends ExternalAPI {
     >
   > {
     if (!ids.length) return {};
+    const normalizedIds = [...new Set(ids.map(normalizeMusicBrainzId))];
 
     const metadataRepository = getRepository(MetadataArtist);
     const existingMetadata = await metadataRepository.find({
-      where: { mbArtistId: In(ids) },
+      where: { mbArtistId: In(normalizedIds) },
       select: ['mbArtistId', 'tadbThumb', 'tadbCover', 'tadbUpdatedAt'],
     });
 
@@ -175,8 +183,10 @@ class TheAudioDb extends ExternalAPI {
     > = {};
     const idsToFetch: string[] = [];
 
-    ids.forEach((id) => {
-      const metadata = existingMetadata.find((m) => m.mbArtistId === id);
+    normalizedIds.forEach((id) => {
+      const metadata = existingMetadata.find(
+        (m) => normalizeMusicBrainzId(m.mbArtistId) === id
+      );
 
       if (metadata?.tadbThumb || metadata?.tadbCover) {
         results[id] = {

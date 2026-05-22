@@ -5,7 +5,11 @@ import DownloadBlock from '@app/components/DownloadBlock';
 import useSettings from '@app/hooks/useSettings';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { MediaStatus } from '@server/constants/media';
 import { MediaServerType } from '@server/constants/server';
@@ -106,13 +110,15 @@ const StatusBadge = ({
   } else if (hasPermission(Permission.MANAGE_REQUESTS)) {
     if (mediaType === 'music' && (mbId || externalId)) {
       mediaLink = `/music/${encodeApiPathSegment(
-        mbId ?? externalId ?? ''
+        normalizeMusicBrainzId(mbId ?? externalId ?? '')
       )}?manage=1`;
       mediaLinkDescription = intl.formatMessage(messages.managemedia, {
         mediaType: 'Music',
       });
     } else if (mediaType === 'book' && externalId) {
-      mediaLink = `/book/${encodeApiPathSegment(externalId)}?manage=1`;
+      mediaLink = `/book/${encodeApiPathSegment(
+        normalizeOpenLibraryWorkId(externalId)
+      )}?manage=1`;
       mediaLinkDescription = intl.formatMessage(messages.managemedia, {
         mediaType: 'Book',
       });

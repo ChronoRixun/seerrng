@@ -2,6 +2,7 @@ import ExternalAPI from '@server/api/externalapi';
 import { getRepository } from '@server/datasource';
 import MetadataAlbum from '@server/entity/MetadataAlbum';
 import cacheManager from '@server/lib/cache';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import logger from '@server/logger';
 import { In } from 'typeorm';
 import type { CoverArtResponse } from './interfaces';
@@ -50,16 +51,18 @@ class CoverArtArchive extends ExternalAPI {
   public async getCoverArtFromCache(
     id: string
   ): Promise<string | null | undefined> {
+    const albumId = normalizeMusicBrainzId(id);
+
     try {
       const metadata = await getRepository(MetadataAlbum).findOne({
-        where: { mbAlbumId: id },
+        where: { mbAlbumId: albumId },
         select: ['caaUrl'],
       });
       return metadata?.caaUrl;
     } catch (error) {
       logger.error('Failed to fetch cover art from cache', {
         label: 'CoverArtArchive',
-        id,
+        id: albumId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       return null;
@@ -67,35 +70,39 @@ class CoverArtArchive extends ExternalAPI {
   }
 
   public async getCoverArt(id: string): Promise<CoverArtResponse> {
+    const albumId = normalizeMusicBrainzId(id);
+
     try {
       const metadata = await getRepository(MetadataAlbum).findOne({
-        where: { mbAlbumId: id },
+        where: { mbAlbumId: albumId },
         select: ['caaUrl', 'updatedAt'],
       });
 
       if (metadata?.caaUrl) {
-        return this.createCachedResponse(metadata.caaUrl, id);
+        return this.createCachedResponse(metadata.caaUrl, albumId);
       }
 
       if (metadata && !this.isMetadataStale(metadata)) {
-        return this.createEmptyResponse(id);
+        return this.createEmptyResponse(albumId);
       }
 
-      return await this.fetchCoverArt(id);
+      return await this.fetchCoverArt(albumId);
     } catch (error) {
       logger.error('Failed to get cover art', {
         label: 'CoverArtArchive',
-        id,
+        id: albumId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      return this.createEmptyResponse(id);
+      return this.createEmptyResponse(albumId);
     }
   }
 
   private async fetchCoverArt(id: string): Promise<CoverArtResponse> {
+    const albumId = normalizeMusicBrainzId(id);
+
     try {
       const data = await this.get<CoverArtResponse>(
-        `/release-group/${id}`,
+        `/release-group/${albumId}`,
         undefined,
         this.CACHE_TTL
       );
@@ -108,7 +115,7 @@ class CoverArtArchive extends ExternalAPI {
         if (image.front) {
           getRepository(MetadataAlbum)
             .upsert(
-              { mbAlbumId: id, caaUrl: fullUrl },
+              { mbAlbumId: albumId, caaUrl: fullUrl },
               { conflictPaths: ['mbAlbumId'] }
             )
             .catch((e) => {
@@ -130,10 +137,10 @@ class CoverArtArchive extends ExternalAPI {
       return data;
     } catch {
       await getRepository(MetadataAlbum).upsert(
-        { mbAlbumId: id, caaUrl: null },
+        { mbAlbumId: albumId, caaUrl: null },
         { conflictPaths: ['mbAlbumId'] }
       );
-      return this.createEmptyResponse(id);
+      return this.createEmptyResponse(albumId);
     }
   }
 
@@ -142,7 +149,7 @@ class CoverArtArchive extends ExternalAPI {
   ): Promise<Record<string, string | null>> {
     if (!ids.length) return {};
 
-    const validIds = ids.filter(
+    const validIds = [...new Set(ids.map(normalizeMusicBrainzId))].filter(
       (id) =>
         typeof id === 'string' &&
         /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
@@ -162,7 +169,10 @@ class CoverArtArchive extends ExternalAPI {
     });
 
     const metadataMap = new Map(
-      existingMetadata.map((metadata) => [metadata.mbAlbumId, metadata])
+      existingMetadata.map((metadata) => [
+        normalizeMusicBrainzId(metadata.mbAlbumId),
+        metadata,
+      ])
     );
 
     for (const id of validIds) {

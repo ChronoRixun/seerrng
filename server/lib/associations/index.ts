@@ -399,8 +399,9 @@ const buildArtistEdges = async (
   artistName: string,
   user: User | undefined
 ): Promise<AssociationEdge[]> => {
+  const normalizedArtistId = normalizeMusicBrainzId(mbArtistId);
   const listenbrainz = new ListenBrainzAPI();
-  const artist = await listenbrainz.getArtist(mbArtistId);
+  const artist = await listenbrainz.getArtist(normalizedArtistId);
 
   const similar = (artist.similarArtists?.artists ?? [])
     .filter((a) => a.artist_mbid)
@@ -454,11 +455,12 @@ const buildForArtist = async (
   opts: AssociationOptions
 ): Promise<AssociationGraph> => {
   const listenbrainz = new ListenBrainzAPI();
-  const artist = await listenbrainz.getArtist(mbArtistId);
+  const normalizedArtistId = normalizeMusicBrainzId(mbArtistId);
+  const artist = await listenbrainz.getArtist(normalizedArtistId);
   const name = artist.artist?.name ?? '';
-  const edges = await buildArtistEdges(mbArtistId, name, user);
+  const edges = await buildArtistEdges(normalizedArtistId, name, user);
   return finalize(
-    { mediaType: 'artist', id: mbArtistId, title: name },
+    { mediaType: 'artist', id: normalizedArtistId, title: name },
     opts.includeWeak ? edges : edges.filter((e) => e.type !== 'shared-genre'),
     opts
   );
@@ -470,14 +472,15 @@ const buildForAlbum = async (
   opts: AssociationOptions
 ): Promise<AssociationGraph> => {
   const listenbrainz = new ListenBrainzAPI();
-  const album = await listenbrainz.getAlbum(mbAlbumId);
+  const normalizedAlbumId = normalizeMusicBrainzId(mbAlbumId);
+  const album = await listenbrainz.getAlbum(normalizedAlbumId);
   const rootArtist = album.release_group_metadata?.artist?.artists?.[0];
   const rootTitle =
     album.release_group_metadata?.release_group?.name ?? 'Album';
 
   if (!rootArtist?.artist_mbid) {
     return finalize(
-      { mediaType: 'album', id: mbAlbumId, title: rootTitle },
+      { mediaType: 'album', id: normalizedAlbumId, title: rootTitle },
       [],
       opts
     );
@@ -489,7 +492,7 @@ const buildForAlbum = async (
     user
   );
   return finalize(
-    { mediaType: 'album', id: mbAlbumId, title: rootTitle },
+    { mediaType: 'album', id: normalizedAlbumId, title: rootTitle },
     opts.includeWeak ? edges : edges.filter((e) => e.type !== 'shared-genre'),
     opts
   );
@@ -501,8 +504,9 @@ const buildForBook = async (
   opts: AssociationOptions
 ): Promise<AssociationGraph> => {
   const openLibrary = new OpenLibraryAPI();
-  let work = await openLibrary.getWork(openLibraryId);
-  let workId = openLibraryId;
+  const normalizedOpenLibraryId = normalizeOpenLibraryWorkId(openLibraryId);
+  let work = await openLibrary.getWork(normalizedOpenLibraryId);
+  let workId = normalizedOpenLibraryId;
 
   if (!work.key || !/^\/works\//i.test(work.key)) {
     const edition = await openLibrary.getEdition(openLibraryId);

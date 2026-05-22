@@ -15,7 +15,10 @@ import {
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeExternalTitleId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ChevronLeftIcon,
@@ -304,26 +307,30 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
   });
   const intl = useIntl();
   const { hasPermission } = useUser();
+  const externalTitleId =
+    item.externalId && (item.mediaType === 'music' || item.mediaType === 'book')
+      ? normalizeExternalTitleId(item.mediaType, item.externalId)
+      : item.externalId;
 
   const url =
     item.mediaType === 'movie'
       ? `/api/v1/movie/${item.tmdbId}`
       : item.mediaType === 'tv'
         ? `/api/v1/tv/${item.tmdbId}`
-        : item.mediaType === 'music' && item.externalId
-          ? `/api/v1/music/${encodeApiPathSegment(item.externalId)}`
-          : item.mediaType === 'book' && item.externalId
-            ? `/api/v1/book/${encodeApiPathSegment(item.externalId)}`
+        : item.mediaType === 'music' && externalTitleId
+          ? `/api/v1/music/${encodeApiPathSegment(externalTitleId)}`
+          : item.mediaType === 'book' && externalTitleId
+            ? `/api/v1/book/${encodeApiPathSegment(externalTitleId)}`
             : null;
   const mediaHref =
     item.mediaType === 'movie'
       ? `/movie/${item.tmdbId}`
       : item.mediaType === 'tv'
         ? `/tv/${item.tmdbId}`
-        : item.mediaType === 'music' && item.externalId
-          ? `/music/${encodeApiPathSegment(item.externalId)}`
-          : item.mediaType === 'book' && item.externalId
-            ? `/book/${encodeApiPathSegment(item.externalId)}`
+        : item.mediaType === 'music' && externalTitleId
+          ? `/music/${encodeApiPathSegment(externalTitleId)}`
+          : item.mediaType === 'book' && externalTitleId
+            ? `/book/${encodeApiPathSegment(externalTitleId)}`
             : '/';
   const { data: title, error } = useSWR<BlocklistTitle>(inView ? url : null);
 
@@ -343,7 +350,7 @@ const BlocklistedItem = ({ item, revalidateList }: BlocklistedItemProps) => {
       await axios.delete(
         `/api/v1/blocklist/${
           item.mediaType === 'music' || item.mediaType === 'book'
-            ? encodeApiPathSegment(item.externalId ?? '')
+            ? encodeApiPathSegment(externalTitleId ?? '')
             : tmdbId
         }?mediaType=${item.mediaType}`
       );

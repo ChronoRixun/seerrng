@@ -1,6 +1,9 @@
 import TitleCard from '@app/components/TitleCard';
 import { Permission, useUser } from '@app/hooks/useUser';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeExternalTitleId,
+} from '@app/utils/apiPath';
 import {
   canRequestMissingBookFormat,
   isBookInProgress,
@@ -32,12 +35,13 @@ const LibraryTitleCard = ({
   const { ref, inView } = useInView({
     triggerOnce: true,
   });
+  const normalizedId = normalizeExternalTitleId(type, id).toString();
   const url = useMemo(
     () =>
       type === 'album'
-        ? `/api/v1/music/${encodeApiPathSegment(id)}`
-        : `/api/v1/book/${encodeApiPathSegment(id)}`,
-    [id, type]
+        ? `/api/v1/music/${encodeApiPathSegment(normalizedId)}`
+        : `/api/v1/book/${encodeApiPathSegment(normalizedId)}`,
+    [normalizedId, type]
   );
   const { data: title, error } = useSWR<MusicDetails | BookDetails>(
     inView ? url : null,
@@ -52,7 +56,7 @@ const LibraryTitleCard = ({
     return (
       <div ref={ref}>
         <TitleCard
-          id={id}
+          id={normalizedId}
           title={fallbackTitle}
           mediaType={type}
           isAddedToWatchlist={isAddedToWatchlist}
@@ -74,8 +78,8 @@ const LibraryTitleCard = ({
   if (!title) {
     return hasPermission(Permission.ADMIN) ? (
       <TitleCard
-        id={id}
-        title={fallbackTitle ?? id}
+        id={normalizedId}
+        title={fallbackTitle ?? normalizedId}
         mediaType={type}
         isAddedToWatchlist={isAddedToWatchlist}
         canExpand={canExpand}

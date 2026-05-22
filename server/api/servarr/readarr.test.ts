@@ -243,6 +243,49 @@ describe('ReadarrAPI.addBook', () => {
     assert.strictEqual(postMock.mock.calls.length, 0);
   });
 
+  it('matches existing books with canonicalized Open Library work and edition IDs', async () => {
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
+    mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'get',
+      async () => [
+        existingBook({
+          foreignBookId: '/works/ol123w',
+          editions: [
+            {
+              foreignEditionId: '/books/ol456m',
+              title: 'Test Book',
+              monitored: true,
+            },
+          ],
+        }),
+      ]
+    );
+    const postMock = mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'post',
+      async () => existingBook({ id: 10 })
+    );
+
+    const result = await api.addBook({
+      ...bookOptions,
+      foreignBookId: 'OL123W',
+      editions: [
+        {
+          foreignEditionId: 'OL456M',
+          title: 'Test Book',
+          monitored: true,
+        },
+      ],
+    });
+
+    assert.strictEqual(result.id, 9);
+    assert.strictEqual(postMock.mock.calls.length, 0);
+  });
+
   it('monitors and searches an existing unmonitored book', async () => {
     const api = new ReadarrAPI({
       url: 'http://localhost:8787/api/v1',

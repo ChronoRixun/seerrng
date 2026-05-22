@@ -5,7 +5,10 @@ import Media from '@server/entity/Media';
 import type { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import MediaIdentifier from '@server/entity/MediaIdentifier';
 import Season from '@server/entity/Season';
-import { normalizeMusicBrainzId } from '@server/lib/externalIds';
+import {
+  normalizeExternalBookId,
+  normalizeMusicBrainzId,
+} from '@server/lib/externalIds';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import AsyncLock from '@server/utils/asyncLock';
@@ -23,16 +26,21 @@ const dedupeIdentifierCandidates = (
 ) => {
   const seen = new Set<string>();
 
-  return identifiers.filter((identifier) => {
-    const key = `${identifier.provider}:${identifier.value}`;
+  return identifiers
+    .map((identifier) => ({
+      ...identifier,
+      value: normalizeExternalBookId(identifier.value, identifier.provider),
+    }))
+    .filter((identifier) => {
+      const key = `${identifier.provider}:${identifier.value}`;
 
-    if (seen.has(key)) {
-      return false;
-    }
+      if (seen.has(key)) {
+        return false;
+      }
 
-    seen.add(key);
-    return true;
-  });
+      seen.add(key);
+      return true;
+    });
 };
 
 export type StatusBase = {
@@ -400,11 +408,12 @@ class BaseScanner<T> {
   ): Promise<void> {
     const mediaRepository = getRepository(Media);
     const identifierRepository = getRepository(MediaIdentifier);
-    const lockKey = `${provider}:${value}`;
+    const normalizedValue = normalizeExternalBookId(value, provider);
+    const lockKey = `${provider}:${normalizedValue}`;
 
     await this.asyncLock.dispatch(lockKey, async () => {
       const identifierCandidates = dedupeIdentifierCandidates([
-        { provider, value },
+        { provider, value: normalizedValue },
         ...secondaryIdentifiers,
       ]);
       const candidateKeys = new Set(
@@ -424,7 +433,7 @@ class BaseScanner<T> {
         existingIdentifiers.find(
           (identifier) =>
             identifier.provider === provider &&
-            identifier.value === value &&
+            identifier.value === normalizedValue &&
             identifier.media.mediaType === MediaType.BOOK
         ) ??
         existingIdentifiers.find(

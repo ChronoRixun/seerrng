@@ -5,6 +5,10 @@ import Tooltip from '@app/components/Common/Tooltip';
 import useRequestOverride from '@app/hooks/useRequestOverride';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   CalendarIcon,
@@ -61,9 +65,13 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const { profile, metadataProfile, rootFolder, server, languageProfile } =
     useRequestOverride(request);
-  const bookId = request.media?.identifiers?.find(
+  const rawBookId = request.media?.identifiers?.find(
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
+  const bookId = rawBookId ? normalizeOpenLibraryWorkId(rawBookId) : undefined;
+  const musicId = request.media?.mbId
+    ? normalizeMusicBrainzId(request.media.mbId)
+    : undefined;
   const bookFormatMessage =
     request.bookFormat === 'audiobook'
       ? messages.audiobook
@@ -104,11 +112,7 @@ const RequestBlock = ({ request, onUpdate }: RequestBlockProps) => {
               ? undefined
               : request.media.tmdbId
           }
-          mbId={
-            request.type === 'music'
-              ? (request.media.mbId ?? undefined)
-              : undefined
-          }
+          mbId={request.type === 'music' ? musicId : undefined}
           bookId={request.type === 'book' ? bookId : undefined}
           type={
             request.type === 'music'

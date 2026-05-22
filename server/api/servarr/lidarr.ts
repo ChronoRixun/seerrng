@@ -1,3 +1,4 @@
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import logger from '@server/logger';
 import ServarrBase from './base';
 
@@ -323,10 +324,12 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
   }
 
   public async searchAlbum(mbid: string): Promise<LidarrAlbumResult[]> {
+    const normalizedMbid = normalizeMusicBrainzId(mbid);
+
     try {
       const data = await this.get<LidarrAlbumResult[]>('/search', {
         params: {
-          term: `lidarr:${mbid}`,
+          term: `lidarr:${normalizedMbid}`,
         },
       });
       return data;
@@ -337,9 +340,13 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
 
   public async addAlbum(options: LidarrAlbumOptions): Promise<LidarrAlbum> {
     try {
+      const normalizedOptions = {
+        ...options,
+        foreignAlbumId: normalizeMusicBrainzId(options.foreignAlbumId),
+      };
       const existingAlbums = await this.get<LidarrAlbum[]>('/album', {
         params: {
-          foreignAlbumId: options.foreignAlbumId,
+          foreignAlbumId: normalizedOptions.foreignAlbumId,
           includeAllArtistAlbums: 'false',
         },
       });
@@ -381,7 +388,7 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
       }
 
       const data = await this.post<LidarrAlbum>('/album', {
-        ...options,
+        ...normalizedOptions,
         monitored: true,
       });
       return data;
@@ -393,10 +400,12 @@ class LidarrAPI extends ServarrBase<{ albumId: number }> {
   public async searchAlbumByMusicBrainzId(
     mbid: string
   ): Promise<LidarrAlbumResult[]> {
+    const normalizedMbid = normalizeMusicBrainzId(mbid);
+
     try {
       const data = await this.get<LidarrAlbumResult[]>('/search', {
         params: {
-          term: `lidarr:${mbid}`,
+          term: `lidarr:${normalizedMbid}`,
         },
       });
       return data;

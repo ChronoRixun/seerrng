@@ -11,7 +11,10 @@ import {
   findBookMediaForBookResults,
   findBookMediaForSearchDocs,
 } from '@server/lib/bookMediaMatcher';
-import { normalizeOpenLibraryWorkId } from '@server/lib/externalIds';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import {
   findSearchProvider,
   type CombinedSearchResponse,
@@ -61,7 +64,7 @@ const dedupeAlbumSearchResults = <T extends { id: string }>(
   const seenIds = new Set<string>();
 
   return albums.filter((album) => {
-    const id = album.id.toLocaleLowerCase();
+    const id = normalizeMusicBrainzId(album.id);
 
     if (seenIds.has(id)) {
       return false;
@@ -189,8 +192,12 @@ searchRoutes.get('/', async (req, res, next) => {
       const dedupedAlbumResults = dedupeAlbumSearchResults(albumResults);
       const dedupedBookDocs = dedupeBookSearchDocs(bookResults.docs);
 
-      const albumIds = dedupedAlbumResults.map((album) => album.id);
-      const artistIds = artistResults.map((artist) => artist.id);
+      const albumIds = dedupedAlbumResults.map((album) =>
+        normalizeMusicBrainzId(album.id)
+      );
+      const artistIds = artistResults.map((artist) =>
+        normalizeMusicBrainzId(artist.id)
+      );
       const tmdbPersonIds = tmdbResults.results
         .filter((result) => result.media_type === 'person')
         .map((person) => person.id.toString());
@@ -237,15 +244,18 @@ searchRoutes.get('/', async (req, res, next) => {
       );
 
       const albumMetadataMap = new Map(
-        albumMetadata.map((m) => [m.mbAlbumId, m])
+        albumMetadata.map((m) => [normalizeMusicBrainzId(m.mbAlbumId), m])
       );
 
       const artistsMetadataMap = new Map(
-        artistsMetadata.map((m) => [m.mbArtistId, m])
+        artistsMetadata.map((m) => [normalizeMusicBrainzId(m.mbArtistId), m])
       );
 
       const existingMappingsMap = new Map(
-        existingMappings.map((m) => [m.mbArtistId, m.tmdbPersonId])
+        existingMappings.map((m) => [
+          normalizeMusicBrainzId(m.mbArtistId),
+          m.tmdbPersonId,
+        ])
       );
 
       const personsWithoutImages = tmdbResults.results.filter(
@@ -266,15 +276,16 @@ searchRoutes.get('/', async (req, res, next) => {
         .filter(
           (artist) =>
             artist.type === 'Person' &&
-            !artistsMetadataMap.get(artist.id)?.tmdbPersonId
+            !artistsMetadataMap.get(normalizeMusicBrainzId(artist.id))
+              ?.tmdbPersonId
         )
         .map((artist) => ({
-          artistId: artist.id,
+          artistId: normalizeMusicBrainzId(artist.id),
           artistName: artist.name,
         }));
 
       const artistsNeedingImages = artistIds.filter((id) => {
-        const metadata = artistsMetadataMap.get(id);
+        const metadata = artistsMetadataMap.get(normalizeMusicBrainzId(id));
         return !metadata?.tadbThumb && !metadata?.tadbCover;
       });
 
@@ -319,12 +330,15 @@ searchRoutes.get('/', async (req, res, next) => {
         );
 
         updatedArtistsMetadataMap = new Map(
-          updatedArtistsMetadata.map((m) => [m.mbArtistId, m])
+          updatedArtistsMetadata.map((m) => [
+            normalizeMusicBrainzId(m.mbArtistId),
+            m,
+          ])
         );
       }
 
       const albumsWithArt = dedupedAlbumResults.map((album) => {
-        const metadata = albumMetadataMap.get(album.id);
+        const metadata = albumMetadataMap.get(normalizeMusicBrainzId(album.id));
 
         return {
           ...album,
@@ -337,8 +351,9 @@ searchRoutes.get('/', async (req, res, next) => {
 
       const artistsWithArt = artistResults
         .map((artist) => {
-          const metadata = updatedArtistsMetadataMap.get(artist.id);
-          const personMapping = personMappingResults[artist.id];
+          const artistId = normalizeMusicBrainzId(artist.id);
+          const metadata = updatedArtistsMetadataMap.get(artistId);
+          const personMapping = personMappingResults[artistId];
           const hasTmdbPersonId =
             !!metadata?.tmdbPersonId ||
             (personMapping ? personMapping.personId !== null : false);
@@ -349,11 +364,11 @@ searchRoutes.get('/', async (req, res, next) => {
 
           const artistThumb =
             metadata?.tadbThumb ||
-            (artistImageResults[artist.id]?.artistThumb ?? null);
+            (artistImageResults[artistId]?.artistThumb ?? null);
 
           const artistBackdrop =
             metadata?.tadbCover ||
-            (artistImageResults[artist.id]?.artistBackground ?? null);
+            (artistImageResults[artistId]?.artistBackground ?? null);
 
           return {
             ...artist,
@@ -368,7 +383,9 @@ searchRoutes.get('/', async (req, res, next) => {
         );
 
       const filteredArtists = artistsWithArt.filter((artist) => {
-        const tmdbPersonId = existingMappingsMap.get(artist.id);
+        const tmdbPersonId = existingMappingsMap.get(
+          normalizeMusicBrainzId(artist.id)
+        );
         return !tmdbPersonId || !tmdbPersonIds.includes(tmdbPersonId);
       });
 
@@ -424,7 +441,7 @@ searchRoutes.get('/', async (req, res, next) => {
           'media_type' in result &&
           (result.media_type === 'album' || result.media_type === 'artist')
       )
-      .map((result) => result.id.toString());
+      .map((result) => normalizeMusicBrainzId(result.id.toString()));
 
     const bookResults = results.results.filter(
       (result): result is ReturnType<typeof mapOpenLibrarySearchDoc> =>
@@ -432,7 +449,7 @@ searchRoutes.get('/', async (req, res, next) => {
     );
     const bookIds = bookResults
       .filter((result) => result.mediaInfo === undefined)
-      .map((result) => result.id);
+      .map((result) => normalizeOpenLibraryWorkId(result.id));
 
     const [movieTvMedia, musicMedia, bookMediaMap] = await Promise.all([
       movieTvIds.length > 0 ? Media.getRelatedMedia(req.user, movieTvIds) : [],
@@ -447,7 +464,9 @@ searchRoutes.get('/', async (req, res, next) => {
       'mediaType' in result && result.mediaType === 'book'
         ? {
             ...result,
-            mediaInfo: result.mediaInfo ?? bookMediaMap.get(result.id),
+            mediaInfo:
+              result.mediaInfo ??
+              bookMediaMap.get(normalizeOpenLibraryWorkId(result.id)),
           }
         : result
     );

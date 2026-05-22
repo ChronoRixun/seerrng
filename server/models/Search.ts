@@ -13,6 +13,7 @@ import type {
 } from '@server/api/themoviedb/interfaces';
 import { MediaType as MainMediaType } from '@server/constants/media';
 import type Media from '@server/entity/Media';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import type { BookResult } from '@server/models/Book';
 export type { BookResult } from '@server/models/Book';
 export type MediaType =
@@ -205,7 +206,7 @@ export const mapPersonResult = (
 export const mapArtistResult = (
   artistResult: MbArtistResult
 ): ArtistResult => ({
-  id: artistResult.id,
+  id: normalizeMusicBrainzId(artistResult.id),
   score: artistResult.score,
   mediaType: 'artist',
   name: artistResult.name,
@@ -221,13 +222,19 @@ export const mapAlbumResult = (
   albumResult: MbAlbumResult,
   media?: Media
 ): AlbumResult => ({
-  id: albumResult.id,
+  id: normalizeMusicBrainzId(albumResult.id),
   score: albumResult.score,
   mediaType: 'album',
   title: albumResult.title,
   'primary-type': albumResult['primary-type'],
   'first-release-date': albumResult['first-release-date'],
-  'artist-credit': albumResult['artist-credit'],
+  'artist-credit': albumResult['artist-credit'].map((credit) => ({
+    ...credit,
+    artist: {
+      ...credit.artist,
+      id: normalizeMusicBrainzId(credit.artist.id),
+    },
+  })),
   posterPath: albumResult.posterPath,
   needsCoverArt: !albumResult.posterPath,
   mediaInfo: media,

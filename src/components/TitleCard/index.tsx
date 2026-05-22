@@ -10,7 +10,10 @@ import { useIsTouch } from '@app/hooks/useIsTouch';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, UserType, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeExternalTitleId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { withProperties } from '@app/utils/typeHelpers';
 import { Transition } from '@headlessui/react';
@@ -133,18 +136,19 @@ const TitleCard = ({
 
   const onClickWatchlistBtn = async (): Promise<void> => {
     setIsUpdating(true);
+    const actionId = normalizeExternalTitleId(mediaType, id);
     try {
       const response = await axios.post<Watchlist>(
         '/api/v1/watchlist',
         mediaType === 'album'
           ? {
-              mbId: id,
+              mbId: actionId,
               mediaType: 'music',
               title,
             }
           : mediaType === 'book'
             ? {
-                externalId: id,
+                externalId: actionId,
                 mediaType,
                 title,
               }
@@ -179,9 +183,10 @@ const TitleCard = ({
 
   const onClickDeleteWatchlistBtn = async (): Promise<void> => {
     setIsUpdating(true);
+    const actionId = normalizeExternalTitleId(mediaType, id);
     try {
       const response = await axios.delete<Watchlist>(
-        `/api/v1/watchlist/${encodeApiPathSegment(id)}?mediaType=${
+        `/api/v1/watchlist/${encodeApiPathSegment(actionId)}?mediaType=${
           mediaType === 'album' ? 'music' : mediaType
         }`
       );
@@ -215,6 +220,7 @@ const TitleCard = ({
   const onClickHideItemBtn = async (): Promise<void> => {
     setIsUpdating(true);
     const topNode = cardRef.current;
+    const actionId = normalizeExternalTitleId(mediaType, id);
 
     if (topNode) {
       try {
@@ -224,7 +230,7 @@ const TitleCard = ({
           );
         } else if (isAlbum || isBook) {
           await axios.post('/api/v1/blocklist', {
-            externalId: id,
+            externalId: actionId,
             externalProvider: isAlbum ? 'musicbrainz' : 'openlibrary',
             mediaType: isAlbum ? 'music' : 'book',
             title,
@@ -283,6 +289,7 @@ const TitleCard = ({
   const onClickShowBlocklistBtn = async (): Promise<void> => {
     setIsUpdating(true);
     const topNode = cardRef.current;
+    const actionId = normalizeExternalTitleId(mediaType, id);
 
     if (topNode) {
       try {
@@ -313,7 +320,7 @@ const TitleCard = ({
           }
         } else {
           const res = await axios.delete(
-            `/api/v1/blocklist/${encodeApiPathSegment(id)}?mediaType=${
+            `/api/v1/blocklist/${encodeApiPathSegment(actionId)}?mediaType=${
               isAlbum ? 'music' : mediaType
             }`
           );
@@ -360,6 +367,7 @@ const TitleCard = ({
   const isAlbum = mediaType === 'album';
   const isArtist = mediaType === 'artist';
   const isBook = mediaType === 'book';
+  const canonicalId = normalizeExternalTitleId(mediaType, id);
   const videoMediaType =
     mediaType === 'movie' || mediaType === 'collection' || mediaType === 'tv';
   const numericId = typeof id === 'number' ? id : Number(id);
@@ -374,10 +382,10 @@ const TitleCard = ({
         : mediaType === 'tv'
           ? `/tv/${id}`
           : mediaType === 'album'
-            ? `/music/${encodeApiPathSegment(id)}`
+            ? `/music/${encodeApiPathSegment(canonicalId)}`
             : mediaType === 'book'
-              ? `/book/${encodeApiPathSegment(id)}`
-              : `/artist/${encodeApiPathSegment(id)}`;
+              ? `/book/${encodeApiPathSegment(canonicalId)}`
+              : `/artist/${encodeApiPathSegment(canonicalId)}`;
   const displayImage = image?.startsWith('http')
     ? image
     : image
@@ -467,9 +475,9 @@ const TitleCard = ({
       )}
       {showRequestModal && (
         <>
-          {isAlbum && typeof id === 'string' && (
+          {isAlbum && typeof canonicalId === 'string' && (
             <RequestModal
-              mbId={id}
+              mbId={canonicalId}
               show={showRequestModal}
               type="music"
               onComplete={requestComplete}
@@ -477,9 +485,9 @@ const TitleCard = ({
               onCancel={closeModal}
             />
           )}
-          {isBook && typeof id === 'string' && (
+          {isBook && typeof canonicalId === 'string' && (
             <RequestModal
-              bookId={id}
+              bookId={canonicalId}
               show={showRequestModal}
               type="book"
               onComplete={requestComplete}

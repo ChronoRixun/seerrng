@@ -1,5 +1,9 @@
 import type { AssociationNode } from '@app/hooks/useAssociations';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 
 export const nodeHref = (node: AssociationNode): string => {
   switch (node.mediaType) {
@@ -8,11 +12,13 @@ export const nodeHref = (node: AssociationNode): string => {
     case 'tv':
       return `/tv/${node.id}`;
     case 'album':
-      return `/music/${encodeApiPathSegment(node.id)}`;
+      return `/music/${encodeApiPathSegment(normalizeMusicBrainzId(node.id))}`;
     case 'artist':
       return `/artist/${encodeApiPathSegment(node.id)}`;
     case 'book':
-      return `/book/${encodeApiPathSegment(node.id)}`;
+      return `/book/${encodeApiPathSegment(
+        normalizeOpenLibraryWorkId(node.id)
+      )}`;
     case 'person':
       return `/person/${node.id}`;
     default:

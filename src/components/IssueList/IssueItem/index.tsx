@@ -5,7 +5,11 @@ import Tooltip from '@app/components/Common/Tooltip';
 import { issueOptions } from '@app/components/IssueModal/constants';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { EyeIcon } from '@heroicons/react/24/solid';
 import { IssueStatus } from '@server/constants/issue';
@@ -65,25 +69,31 @@ const IssueItem = ({ issue }: IssueItemProps) => {
   const bookId = issue.media.identifiers?.find(
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
+  const normalizedMusicId = issue.media.mbId
+    ? normalizeMusicBrainzId(issue.media.mbId)
+    : undefined;
+  const normalizedBookId = bookId
+    ? normalizeOpenLibraryWorkId(bookId)
+    : undefined;
   const url =
     issue.media.mediaType === MediaType.MOVIE
       ? `/api/v1/movie/${issue.media.tmdbId}`
       : issue.media.mediaType === MediaType.TV
         ? `/api/v1/tv/${issue.media.tmdbId}`
-        : issue.media.mediaType === MediaType.MUSIC && issue.media.mbId
-          ? `/api/v1/music/${encodeApiPathSegment(issue.media.mbId)}`
-          : issue.media.mediaType === MediaType.BOOK && bookId
-            ? `/api/v1/book/${encodeApiPathSegment(bookId)}`
+        : issue.media.mediaType === MediaType.MUSIC && normalizedMusicId
+          ? `/api/v1/music/${encodeApiPathSegment(normalizedMusicId)}`
+          : issue.media.mediaType === MediaType.BOOK && normalizedBookId
+            ? `/api/v1/book/${encodeApiPathSegment(normalizedBookId)}`
             : null;
   const mediaHref =
     issue.media.mediaType === MediaType.MOVIE
       ? `/movie/${issue.media.tmdbId}`
       : issue.media.mediaType === MediaType.TV
         ? `/tv/${issue.media.tmdbId}`
-        : issue.media.mediaType === MediaType.MUSIC && issue.media.mbId
-          ? `/music/${encodeApiPathSegment(issue.media.mbId)}`
-          : bookId
-            ? `/book/${encodeApiPathSegment(bookId)}`
+        : issue.media.mediaType === MediaType.MUSIC && normalizedMusicId
+          ? `/music/${encodeApiPathSegment(normalizedMusicId)}`
+          : normalizedBookId
+            ? `/book/${encodeApiPathSegment(normalizedBookId)}`
             : '/';
   const { data: title, error } = useSWR<IssueTitle>(inView ? url : null);
 

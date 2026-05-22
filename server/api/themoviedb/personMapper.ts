@@ -3,6 +3,7 @@ import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import cacheManager from '@server/lib/cache';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import logger from '@server/logger';
 import { In } from 'typeorm';
 import { getTmdbAuthHeaders, getTmdbAuthParams } from './auth';
@@ -44,9 +45,11 @@ class TmdbPersonMapper extends ExternalAPI {
   public async getMappingFromCache(
     artistId: string
   ): Promise<{ personId: number | null; profilePath: string | null } | null> {
+    const normalizedArtistId = normalizeMusicBrainzId(artistId);
+
     try {
       const metadata = await getRepository(MetadataArtist).findOne({
-        where: { mbArtistId: artistId },
+        where: { mbArtistId: normalizedArtistId },
         select: ['tmdbPersonId', 'tmdbThumb', 'tmdbUpdatedAt'],
       });
 
@@ -65,7 +68,7 @@ class TmdbPersonMapper extends ExternalAPI {
     } catch (error) {
       logger.error('Failed to get person mapping from cache', {
         label: 'TmdbPersonMapper',
-        artistId,
+        artistId: normalizedArtistId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       return null;
@@ -76,9 +79,11 @@ class TmdbPersonMapper extends ExternalAPI {
     artistId: string,
     artistName: string
   ): Promise<{ personId: number | null; profilePath: string | null }> {
+    const normalizedArtistId = normalizeMusicBrainzId(artistId);
+
     try {
       const metadata = await getRepository(MetadataArtist).findOne({
-        where: { mbArtistId: artistId },
+        where: { mbArtistId: normalizedArtistId },
         select: ['tmdbPersonId', 'tmdbThumb', 'tmdbUpdatedAt'],
       });
 
@@ -95,11 +100,11 @@ class TmdbPersonMapper extends ExternalAPI {
         return this.createEmptyResponse();
       }
 
-      return await this.fetchMapping(artistId, artistName);
+      return await this.fetchMapping(normalizedArtistId, artistName);
     } catch (error) {
       logger.error('Failed to get person mapping', {
         label: 'TmdbPersonMapper',
-        artistId,
+        artistId: normalizedArtistId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       return this.createEmptyResponse();
@@ -110,9 +115,11 @@ class TmdbPersonMapper extends ExternalAPI {
     artistId: string,
     artistName: string
   ): Promise<{ personId: number | null; profilePath: string | null }> {
+    const normalizedArtistId = normalizeMusicBrainzId(artistId);
+
     try {
       const existingMetadata = await getRepository(MetadataArtist).findOne({
-        where: { mbArtistId: artistId },
+        where: { mbArtistId: normalizedArtistId },
         select: ['tmdbPersonId', 'tmdbThumb', 'tmdbUpdatedAt'],
       });
 
@@ -170,7 +177,8 @@ class TmdbPersonMapper extends ExternalAPI {
             !existingMappings.some(
               (mapping) =>
                 mapping.tmdbPersonId === match.id.toString() &&
-                mapping.mbArtistId !== artistId
+                normalizeMusicBrainzId(mapping.mbArtistId) !==
+                  normalizedArtistId
             )
         );
 
@@ -199,7 +207,7 @@ class TmdbPersonMapper extends ExternalAPI {
         await getRepository(MetadataArtist)
           .upsert(
             {
-              mbArtistId: artistId,
+              mbArtistId: normalizedArtistId,
               tmdbPersonId: mapping.personId?.toString() ?? null,
               tmdbThumb: mapping.profilePath,
               tmdbUpdatedAt: new Date(),
@@ -219,7 +227,7 @@ class TmdbPersonMapper extends ExternalAPI {
       } else {
         await getRepository(MetadataArtist).upsert(
           {
-            mbArtistId: artistId,
+            mbArtistId: normalizedArtistId,
             tmdbPersonId: null,
             tmdbThumb: null,
             tmdbUpdatedAt: new Date(),
@@ -233,7 +241,7 @@ class TmdbPersonMapper extends ExternalAPI {
     } catch {
       await getRepository(MetadataArtist).upsert(
         {
-          mbArtistId: artistId,
+          mbArtistId: normalizedArtistId,
           tmdbPersonId: null,
           tmdbThumb: null,
           tmdbUpdatedAt: new Date(),
@@ -254,7 +262,11 @@ class TmdbPersonMapper extends ExternalAPI {
     if (!artists.length) return {};
 
     const metadataRepository = getRepository(MetadataArtist);
-    const artistIds = artists.map((a) => a.artistId);
+    const normalizedArtists = artists.map((artist) => ({
+      ...artist,
+      artistId: normalizeMusicBrainzId(artist.artistId),
+    }));
+    const artistIds = [...new Set(normalizedArtists.map((a) => a.artistId))];
 
     const existingMetadata = await metadataRepository.find({
       where: { mbArtistId: In(artistIds) },
@@ -267,8 +279,10 @@ class TmdbPersonMapper extends ExternalAPI {
     > = {};
     const artistsToFetch: { artistId: string; artistName: string }[] = [];
 
-    artists.forEach(({ artistId, artistName }) => {
-      const metadata = existingMetadata.find((m) => m.mbArtistId === artistId);
+    normalizedArtists.forEach(({ artistId, artistName }) => {
+      const metadata = existingMetadata.find(
+        (m) => normalizeMusicBrainzId(m.mbArtistId) === artistId
+      );
 
       if (metadata?.tmdbPersonId || metadata?.tmdbThumb) {
         results[artistId] = {

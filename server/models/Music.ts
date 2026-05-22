@@ -1,5 +1,6 @@
 import type { LbAlbumDetails } from '@server/api/listenbrainz/interfaces';
 import type Media from '@server/entity/Media';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 
 export interface MusicDetails {
   id: string;
@@ -75,17 +76,20 @@ export const mapMusicDetails = (
   const artist = album.release_group_metadata?.artist;
   const primaryArtist = artist?.artists?.[0];
   const title = releaseGroup?.name ?? album.release_group_mbid;
+  const releaseGroupMbid = normalizeMusicBrainzId(album.release_group_mbid);
 
   return {
-    id: album.release_group_mbid,
-    mbId: album.release_group_mbid,
+    id: releaseGroupMbid,
+    mbId: releaseGroupMbid,
     title,
     titleSlug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     mediaType: 'album',
     type: album.type,
     releaseDate: releaseGroup?.date,
     artist: {
-      id: primaryArtist?.artist_mbid,
+      id: primaryArtist?.artist_mbid
+        ? normalizeMusicBrainzId(primaryArtist.artist_mbid)
+        : '',
       name: artist?.name ?? primaryArtist?.name,
       area: primaryArtist?.area,
       beginYear: primaryArtist?.begin_year,
@@ -96,18 +100,18 @@ export const mapMusicDetails = (
         name: track.name,
         position: track.position,
         length: track.length,
-        recordingMbid: track.recording_mbid,
+        recordingMbid: normalizeMusicBrainzId(track.recording_mbid),
         totalListenCount: track.total_listen_count,
         totalUserCount: track.total_user_count,
         artists: (track.artists ?? []).map((artist) => ({
           name: artist.artist_credit_name,
-          mbid: artist.artist_mbid,
+          mbid: normalizeMusicBrainzId(artist.artist_mbid),
         })),
       }))
     ),
     tags: {
       artist: (album.release_group_metadata?.tag?.artist ?? []).map((tag) => ({
-        artistMbid: tag.artist_mbid,
+        artistMbid: normalizeMusicBrainzId(tag.artist_mbid),
         count: tag.count,
         tag: tag.tag,
       })),
@@ -115,7 +119,7 @@ export const mapMusicDetails = (
         album.release_group_metadata?.tag?.release_group ?? []
       ).map((tag) => ({
         count: tag.count,
-        genreMbid: tag.genre_mbid,
+        genreMbid: normalizeMusicBrainzId(tag.genre_mbid),
         tag: tag.tag,
       })),
     },

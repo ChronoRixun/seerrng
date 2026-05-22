@@ -549,7 +549,7 @@ musicRoutes.get('/:id/artist-discography', async (req, res, next) => {
         const releaseGroupId = normalizeMusicBrainzId(releaseGroup.mbid);
         const metadata = albumMetadataMap.get(releaseGroupId);
         return {
-          id: releaseGroup.mbid,
+          id: releaseGroupId,
           mediaType: 'album',
           title: releaseGroup.name,
           'first-release-date': releaseGroup.date,

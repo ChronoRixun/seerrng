@@ -8,6 +8,10 @@ import RequestBlock from '@app/components/RequestBlock';
 import SelectableDownloadList from '@app/components/SelectableDownloadList';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { getSafeHref } from '@app/utils/safeUrl';
 import {
@@ -91,7 +95,9 @@ const ExternalMediaManageSlideOver = ({
   const mediaInfo = data.mediaInfo;
   const arrName = mediaType === MediaType.MUSIC ? 'Lidarr' : 'Bookshelf';
   const externalId =
-    mediaType === MediaType.MUSIC ? (data as MusicDetails).mbId : data.id;
+    mediaType === MediaType.MUSIC
+      ? normalizeMusicBrainzId((data as MusicDetails).mbId)
+      : normalizeOpenLibraryWorkId(data.id);
   const mediaLabel = intl.formatMessage(
     mediaType === MediaType.MUSIC ? messages.music : messages.book
   );

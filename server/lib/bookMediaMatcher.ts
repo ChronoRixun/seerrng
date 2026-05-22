@@ -178,23 +178,28 @@ export const findBookMediaForBookResults = async (
   books: BookMediaLookupResult[],
   userId?: number
 ): Promise<Map<string, Media>> => {
-  const lookups = books.flatMap((book) => [
-    { provider: MediaIdentifierProvider.OPENLIBRARY, value: book.id },
-    ...(book.isbn13
-      ? [{ provider: MediaIdentifierProvider.ISBN, value: book.isbn13 }]
-      : []),
-    ...(book.isbnCandidates ?? []).map((candidate) => ({
-      provider: MediaIdentifierProvider.ISBN,
-      value: candidate.isbn,
-    })),
-  ]);
+  const lookups = books.flatMap((book) => {
+    const workId = normalizeOpenLibraryWorkId(book.id);
+
+    return [
+      { provider: MediaIdentifierProvider.OPENLIBRARY, value: workId },
+      ...(book.isbn13
+        ? [{ provider: MediaIdentifierProvider.ISBN, value: book.isbn13 }]
+        : []),
+      ...(book.isbnCandidates ?? []).map((candidate) => ({
+        provider: MediaIdentifierProvider.ISBN,
+        value: candidate.isbn,
+      })),
+    ];
+  });
   const mediaByIdentifier = await findBookMediaByIdentifiers(lookups, userId);
   const mediaByWorkId = new Map<string, Media>();
 
   books.forEach((book) => {
+    const workId = normalizeOpenLibraryWorkId(book.id);
     const media =
       mediaByIdentifier.get(
-        `${MediaIdentifierProvider.OPENLIBRARY}:${book.id}`
+        `${MediaIdentifierProvider.OPENLIBRARY}:${workId}`
       ) ??
       [
         ...(book.isbn13 ? [book.isbn13] : []),
@@ -206,7 +211,7 @@ export const findBookMediaForBookResults = async (
         .find((matchedMedia): matchedMedia is Media => !!matchedMedia);
 
     if (media) {
-      mediaByWorkId.set(book.id, media);
+      mediaByWorkId.set(workId, media);
     }
   });
 

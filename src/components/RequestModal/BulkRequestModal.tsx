@@ -9,7 +9,10 @@ import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeExternalTitleId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { Transition } from '@headlessui/react';
 import { MediaRequestStatus, MediaStatus } from '@server/constants/media';
@@ -162,6 +165,9 @@ const getBulkItemDedupeKey = (item: BulkItem, mediaType: BulkMediaType) =>
         '|'
       );
 
+const normalizeBulkItemId = (id: string, mediaType: BulkMediaType): string =>
+  normalizeExternalTitleId(mediaType, id).toString();
+
 const dedupeBulkItems = (
   sourceItems: BulkItem[],
   mediaType: BulkMediaType
@@ -169,18 +175,23 @@ const dedupeBulkItems = (
   const seenIds = new Set<string>();
   const seenTitles = new Set<string>();
 
-  return sourceItems.filter((item) => {
-    const idKey = item.id;
-    const titleKey = getBulkItemDedupeKey(item, mediaType);
+  return sourceItems
+    .map((item) => ({
+      ...item,
+      id: normalizeBulkItemId(item.id, mediaType),
+    }))
+    .filter((item) => {
+      const idKey = normalizeBulkItemId(item.id, mediaType);
+      const titleKey = getBulkItemDedupeKey(item, mediaType);
 
-    if (seenIds.has(idKey) || seenTitles.has(titleKey)) {
-      return false;
-    }
+      if (seenIds.has(idKey) || seenTitles.has(titleKey)) {
+        return false;
+      }
 
-    seenIds.add(idKey);
-    seenTitles.add(titleKey);
-    return true;
-  });
+      seenIds.add(idKey);
+      seenTitles.add(titleKey);
+      return true;
+    });
 };
 
 const mapBookWorkToBulkItem = (work: BookResult): BulkItem => ({
@@ -370,7 +381,9 @@ const BulkRequestModal = ({
         } while (offset < totalItems && nextOffset > 0);
 
         const worksById = new Map<string, BookResult>();
-        works.forEach((work) => worksById.set(work.id, work));
+        works.forEach((work) =>
+          worksById.set(normalizeBulkItemId(work.id, 'book'), work)
+        );
 
         if (canceled) {
           return;
@@ -435,7 +448,7 @@ const BulkRequestModal = ({
           ArtistResponse['releaseGroups'][number]
         >();
         releaseGroups.forEach((album) =>
-          releaseGroupsById.set(album.id, album)
+          releaseGroupsById.set(normalizeBulkItemId(album.id, 'music'), album)
         );
 
         if (canceled) {

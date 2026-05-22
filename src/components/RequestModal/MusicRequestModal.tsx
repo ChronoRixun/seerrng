@@ -6,7 +6,10 @@ import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeMusicBrainzId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   MediaRequestStatus,
@@ -66,8 +69,9 @@ const MusicRequestModal = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
+  const normalizedMbId = normalizeMusicBrainzId(mbId);
   const { data, error } = useSWR<MusicDetails>(
-    `/api/v1/music/${encodeApiPathSegment(mbId)}`,
+    `/api/v1/music/${encodeApiPathSegment(normalizedMbId)}`,
     {
       revalidateOnMount: true,
     }
@@ -105,7 +109,9 @@ const MusicRequestModal = ({
           }
         : {};
       const response = await axios.post<MediaRequest>('/api/v1/request', {
-        mediaId: data?.mbId ?? mbId,
+        mediaId: data?.mbId
+          ? normalizeMusicBrainzId(data.mbId)
+          : normalizedMbId,
         mediaType: MediaType.MUSIC,
         ...overrideParams,
       });
@@ -156,7 +162,7 @@ const MusicRequestModal = ({
     data?.title,
     hasPermission,
     intl,
-    mbId,
+    normalizedMbId,
     onComplete,
     requestOverrides,
   ]);

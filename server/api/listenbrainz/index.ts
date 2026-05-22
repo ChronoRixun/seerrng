@@ -1,5 +1,6 @@
 import ExternalAPI from '@server/api/externalapi';
 import cacheManager from '@server/lib/cache';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import type {
   LbAlbumDetails,
   LbArtistDetails,
@@ -24,9 +25,11 @@ class ListenBrainzAPI extends ExternalAPI {
   }
 
   public async getAlbum(mbid: string): Promise<LbAlbumDetails> {
+    const normalizedMbid = normalizeMusicBrainzId(mbid);
+
     try {
       return await this.post<LbAlbumDetails>(
-        `/album/${mbid}/`,
+        `/album/${normalizedMbid}/`,
         {},
         {
           baseURL: 'https://listenbrainz.org',
@@ -43,9 +46,11 @@ class ListenBrainzAPI extends ExternalAPI {
   }
 
   public async getArtist(mbid: string): Promise<LbArtistDetails> {
+    const normalizedMbid = normalizeMusicBrainzId(mbid);
+
     try {
       return await this.post<LbArtistDetails>(
-        `/artist/${mbid}/`,
+        `/artist/${normalizedMbid}/`,
         {},
         {
           baseURL: 'https://listenbrainz.org',

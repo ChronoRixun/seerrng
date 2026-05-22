@@ -9,6 +9,7 @@ import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import MetadataArtist from '@server/entity/MetadataArtist';
 import type { User } from '@server/entity/User';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import logger from '@server/logger';
 import type {
   ArtistResult,
@@ -155,8 +156,9 @@ export const musicToScreen = async (
 ): Promise<AssociationEdge[]> => {
   const personMapper = new TmdbPersonMapper();
   const tmdb = new TheMovieDb();
+  const normalizedArtistId = normalizeMusicBrainzId(mbArtistId);
 
-  const mapping = await personMapper.getMapping(mbArtistId, artistName);
+  const mapping = await personMapper.getMapping(normalizedArtistId, artistName);
   if (!mapping.personId) {
     return [];
   }

@@ -1,5 +1,9 @@
 import ExternalAPI from '@server/api/externalapi';
 import cacheManager from '@server/lib/cache';
+import {
+  normalizeOpenLibraryEditionId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 
 export interface OpenLibrarySearchDoc {
   key: string;
@@ -122,9 +126,7 @@ class OpenLibraryAPI extends ExternalAPI {
   }
 
   public async getWork(workId: string): Promise<OpenLibraryWork> {
-    const normalizedWorkId = /^\/works\//i.test(workId)
-      ? workId
-      : `/works/${workId}`;
+    const normalizedWorkId = `/works/${normalizeOpenLibraryWorkId(workId)}`;
 
     return this.get<OpenLibraryWork>(
       `${normalizedWorkId}.json`,
@@ -134,9 +136,9 @@ class OpenLibraryAPI extends ExternalAPI {
   }
 
   public async getEdition(editionId: string): Promise<OpenLibraryEdition> {
-    const normalizedEditionId = /^\/books\//i.test(editionId)
-      ? editionId
-      : `/books/${editionId}`;
+    const normalizedEditionId = `/books/${normalizeOpenLibraryEditionId(
+      editionId
+    )}`;
 
     return this.get<OpenLibraryEdition>(
       `${normalizedEditionId}.json`,
@@ -187,9 +189,7 @@ class OpenLibraryAPI extends ExternalAPI {
     workId: string,
     limit = 100
   ): Promise<OpenLibraryEditionsResponse> {
-    const normalizedWorkId = /^\/works\//i.test(workId)
-      ? workId
-      : `/works/${workId}`;
+    const normalizedWorkId = `/works/${normalizeOpenLibraryWorkId(workId)}`;
 
     return this.get<OpenLibraryEditionsResponse>(
       `${normalizedWorkId}/editions.json`,

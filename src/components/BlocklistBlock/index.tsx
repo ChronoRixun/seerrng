@@ -6,7 +6,10 @@ import Tooltip from '@app/components/Common/Tooltip';
 import useToasts from '@app/hooks/useToasts';
 import { useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeExternalTitleId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { CalendarIcon, TrashIcon, UserIcon } from '@heroicons/react/24/solid';
 import type { MediaType } from '@server/constants/media';
@@ -42,7 +45,11 @@ const BlocklistBlock = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const { addToast } = useToasts();
   const blocklistId =
-    mediaType === 'music' || mediaType === 'book' ? externalId : tmdbId;
+    mediaType === 'music' || mediaType === 'book'
+      ? externalId
+        ? normalizeExternalTitleId(mediaType, externalId)
+        : externalId
+      : tmdbId;
   const { data } = useSWR<Blocklist>(
     blocklistId
       ? `/api/v1/blocklist/${encodeApiPathSegment(
@@ -53,10 +60,16 @@ const BlocklistBlock = ({
 
   const removeFromBlocklist = async (id: number | string, title?: string) => {
     setIsUpdating(true);
+    const normalizedId =
+      mediaType === 'music' || mediaType === 'book'
+        ? normalizeExternalTitleId(mediaType, id)
+        : id;
 
     try {
       await axios.delete(
-        `/api/v1/blocklist/${encodeApiPathSegment(id)}?mediaType=${mediaType}`
+        `/api/v1/blocklist/${encodeApiPathSegment(
+          normalizedId
+        )}?mediaType=${mediaType}`
       );
 
       addToast(

@@ -6,7 +6,10 @@ import QuotaDisplay from '@app/components/RequestModal/QuotaDisplay';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   MediaRequestStatus,
@@ -89,8 +92,9 @@ const BookRequestModal = ({
   const [selectedIsbn, setSelectedIsbn] = useState<string>('');
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
+  const normalizedBookId = normalizeOpenLibraryWorkId(bookId);
   const { data, error } = useSWR<BookDetails>(
-    `/api/v1/book/${encodeApiPathSegment(bookId)}`,
+    `/api/v1/book/${encodeApiPathSegment(normalizedBookId)}`,
     {
       revalidateOnMount: true,
     }
@@ -252,7 +256,9 @@ const BookRequestModal = ({
 
     try {
       const response = await axios.post<MediaRequest>('/api/v1/request', {
-        mediaId: data?.id ?? bookId,
+        mediaId: data?.id
+          ? normalizeOpenLibraryWorkId(data.id)
+          : normalizedBookId,
         mediaType: MediaType.BOOK,
         isbn13: selectedIsbn || data?.isbn13,
         editionId:
@@ -306,7 +312,6 @@ const BookRequestModal = ({
     }
   }, [
     addToast,
-    bookId,
     bookFormat,
     data?.authorId,
     data?.editionId,
@@ -316,6 +321,7 @@ const BookRequestModal = ({
     data?.title,
     hasAutoApprove,
     intl,
+    normalizedBookId,
     onComplete,
     getOverrideParams,
     selectedIsbn,

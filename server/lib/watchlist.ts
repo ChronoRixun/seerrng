@@ -16,8 +16,10 @@ const mapLocalWatchlistItem = (item: Watchlist): WatchlistItem => ({
   ratingKey:
     item.ratingKey || item.mbId || item.externalId || item.id.toString(),
   tmdbId: item.tmdbId,
-  mbId: item.mbId,
-  externalId: item.externalId,
+  mbId: item.mbId ? normalizeMusicBrainzId(item.mbId) : item.mbId,
+  externalId: item.externalId
+    ? normalizeOpenLibraryWorkId(item.externalId)
+    : item.externalId,
   mediaType: item.mediaType as 'movie' | 'tv' | 'music' | 'book',
   title: item.title,
 });

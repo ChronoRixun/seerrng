@@ -1925,10 +1925,11 @@ discoverRoutes.get('/music', async (req, res) => {
             result.status === 'fulfilled' ? result.value.releaseGroups : []
           )
           .forEach((album) => {
-            const existingAlbum = fallbackAlbumsById.get(album.id);
+            const albumId = normalizeMusicBrainzId(album.id);
+            const existingAlbum = fallbackAlbumsById.get(albumId);
 
             fallbackAlbumsById.set(
-              album.id,
+              albumId,
               existingAlbum
                 ? mergeMusicAlbumMetadata(existingAlbum, album)
                 : album
@@ -2000,10 +2001,11 @@ discoverRoutes.get('/music', async (req, res) => {
           )
           .map(mapFreshReleaseAlbum),
       ].forEach((album) => {
-        const existingAlbum = albumsById.get(album.id);
+        const albumId = normalizeMusicBrainzId(album.id);
+        const existingAlbum = albumsById.get(albumId);
 
         albumsById.set(
-          album.id,
+          albumId,
           existingAlbum ? mergeMusicAlbumMetadata(existingAlbum, album) : album
         );
       });

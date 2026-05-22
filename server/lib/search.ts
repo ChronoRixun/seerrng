@@ -16,6 +16,10 @@ import type {
   TmdbTvDetails,
   TmdbTvResult,
 } from '@server/api/themoviedb/interfaces';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import type { BookResult } from '@server/models/Book';
 import {
   mapOpenLibrarySearchDoc,
@@ -76,7 +80,7 @@ const dedupeProviderAlbums = (albums: MbAlbumResult[]): MbAlbumResult[] => {
   const seenTitles = new Set<string>();
 
   return albums.filter((album) => {
-    const idKey = album.id.toLocaleLowerCase();
+    const idKey = normalizeMusicBrainzId(album.id);
     const titleKey = [
       normalizeProviderSearchText(album.title),
       normalizeProviderSearchText(album['artist-credit']?.[0]?.name),
@@ -99,7 +103,7 @@ const dedupeProviderBooks = (books: BookResult[]): BookResult[] => {
   const seenTitles = new Set<string>();
 
   return books.filter((book) => {
-    const idKey = book.id.toLocaleLowerCase();
+    const idKey = normalizeOpenLibraryWorkId(book.id).toLocaleLowerCase();
     const titleKey = [
       normalizeProviderSearchText(book.title),
       normalizeProviderSearchText(book.author),
@@ -398,7 +402,7 @@ searchProviders.push({
     const openLibrary = new OpenLibraryAPI();
 
     try {
-      const workId = id.toUpperCase();
+      const workId = normalizeOpenLibraryWorkId(id);
       const [work, editions] = await Promise.all([
         openLibrary.getWork(workId),
         openLibrary.getWorkEditions(workId).catch(() => ({

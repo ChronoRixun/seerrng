@@ -13,7 +13,10 @@ import { getQueryParamString } from '@app/hooks/useUpdateQueryParams';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import ErrorPage from '@app/pages/_error';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import {
   ArrowDownTrayIcon,
@@ -94,13 +97,18 @@ const BookDetails = () => {
   const [isWatchlistUpdating, setIsWatchlistUpdating] = useState(false);
   const [toggleWatchlist, setToggleWatchlist] = useState(true);
   const bookId = getQueryParamString(router.query.bookId);
+  const normalizedRouteBookId = bookId
+    ? normalizeOpenLibraryWorkId(bookId)
+    : undefined;
 
   const {
     data,
     error,
     mutate: revalidate,
   } = useSWR<BookDetailsType>(
-    bookId ? `/api/v1/book/${encodeApiPathSegment(bookId)}` : null
+    normalizedRouteBookId
+      ? `/api/v1/book/${encodeApiPathSegment(normalizedRouteBookId)}`
+      : null
   );
 
   useEffect(() => {
@@ -118,6 +126,8 @@ const BookDetails = () => {
   if (!data) {
     return <ErrorPage statusCode={404} />;
   }
+
+  const openLibraryWorkId = normalizeOpenLibraryWorkId(data.id);
 
   const canRequest = hasPermission(
     [Permission.REQUEST, Permission.REQUEST_BOOK],
@@ -201,7 +211,7 @@ const BookDetails = () => {
 
     try {
       await axios.post('/api/v1/blocklist', {
-        externalId: data.id,
+        externalId: openLibraryWorkId,
         externalProvider: 'openlibrary',
         mediaType: MediaType.BOOK,
         title: data.title,
@@ -235,7 +245,7 @@ const BookDetails = () => {
 
     try {
       const response = await axios.post('/api/v1/watchlist', {
-        externalId: data.id,
+        externalId: openLibraryWorkId,
         mediaType: MediaType.BOOK,
         title: data.title,
       });
@@ -271,7 +281,7 @@ const BookDetails = () => {
 
     try {
       await axios.delete(
-        `/api/v1/watchlist/${encodeApiPathSegment(data.id)}?mediaType=book`
+        `/api/v1/watchlist/${encodeApiPathSegment(openLibraryWorkId)}?mediaType=book`
       );
 
       addToast(
@@ -338,7 +348,7 @@ const BookDetails = () => {
       )}
       {showRequestModal && (
         <RequestModal
-          bookId={data.id}
+          bookId={openLibraryWorkId}
           editRequest={editRequest}
           show={showRequestModal}
           type="book"
@@ -361,7 +371,7 @@ const BookDetails = () => {
           title={data.author ?? data.title}
           initialItems={[
             {
-              id: data.id,
+              id: openLibraryWorkId,
               title: data.title,
               year: data.firstPublishYear,
               image: data.posterPath,
@@ -402,7 +412,7 @@ const BookDetails = () => {
                   downloadItem={bookDownloadStatus}
                   inProgress={bookDownloadStatus.length > 0}
                   mediaType="book"
-                  externalId={data.id}
+                  externalId={openLibraryWorkId}
                   serviceUrl={
                     data.mediaInfo.serviceUrl ??
                     data.mediaInfo.audiobookServiceUrl
@@ -420,7 +430,7 @@ const BookDetails = () => {
             <div className="flex-shrink-0">
               <AssociationBadge
                 mediaType="book"
-                id={data.id}
+                id={openLibraryWorkId}
                 variant="inline"
               />
             </div>
@@ -479,7 +489,7 @@ const BookDetails = () => {
               <span>{intl.formatMessage(messages.identifiers)}</span>
               <span className="media-fact-value">
                 <a
-                  href={`https://openlibrary.org/works/${data.id}`}
+                  href={`https://openlibrary.org/works/${openLibraryWorkId}`}
                   target="_blank"
                   rel="noreferrer"
                 >

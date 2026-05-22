@@ -1433,14 +1433,15 @@ export class MediaRequest {
           ],
         });
       } else if (entity.type === MediaType.MUSIC && media.mbId) {
-        const album = await listenbrainz.getAlbum(media.mbId);
+        const musicMbId = normalizeMusicBrainzId(media.mbId);
+        const album = await listenbrainz.getAlbum(musicMbId);
         const releaseGroup = album.release_group_metadata.release_group;
         const artist = album.release_group_metadata.artist;
         const releaseYear = releaseGroup.date?.slice(0, 4);
 
         notificationManager.sendNotification(type, {
           media,
-          mediaUrl: `/music/${media.mbId}`,
+          mediaUrl: `/music/${musicMbId}`,
           request: entity,
           notifyAdmin,
           notifySystem,
@@ -1474,9 +1475,11 @@ export class MediaRequest {
           throw new Error('Missing Open Library identifier for book request.');
         }
 
+        const normalizedOpenLibraryId =
+          normalizeOpenLibraryWorkId(openLibraryId);
         const [work, editions] = await Promise.all([
-          openLibrary.getWork(openLibraryId),
-          openLibrary.getWorkEditions(openLibraryId).catch(() => ({
+          openLibrary.getWork(normalizedOpenLibraryId),
+          openLibrary.getWorkEditions(normalizedOpenLibraryId).catch(() => ({
             size: 0,
             entries: [],
           })),
@@ -1495,7 +1498,7 @@ export class MediaRequest {
 
         notificationManager.sendNotification(type, {
           media,
-          mediaUrl: `/book/${openLibraryId}`,
+          mediaUrl: `/book/${normalizedOpenLibraryId}`,
           request: entity,
           notifyAdmin,
           notifySystem,

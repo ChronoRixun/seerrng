@@ -1,5 +1,10 @@
 import { IssueStatus, IssueType } from '@server/constants/issue';
 import { MediaStatus } from '@server/constants/media';
+import {
+  normalizeExternalBookId,
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import type { NotificationAgentWebhook } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -37,21 +42,34 @@ const KeyMap: Record<string, string | KeyMapFunction> = {
   media_imdbid: 'media.imdbId',
   media_tmdbid: 'media.tmdbId',
   media_tvdbid: 'media.tvdbId',
-  media_mbid: 'media.mbId',
+  media_mbid: (payload) =>
+    payload.media?.mbId ? normalizeMusicBrainzId(payload.media.mbId) : '',
   media_externalid: (payload) => {
-    const externalId =
-      payload.media?.mbId ??
-      payload.media?.identifiers?.find((identifier) => identifier.canonical)
-        ?.value ??
-      payload.media?.externalServiceId ??
-      '';
+    if (payload.media?.mbId) {
+      return normalizeMusicBrainzId(payload.media.mbId);
+    }
+
+    const canonicalIdentifier = payload.media?.identifiers?.find(
+      (identifier) => identifier.canonical
+    );
+
+    if (canonicalIdentifier) {
+      return normalizeExternalBookId(
+        canonicalIdentifier.value,
+        canonicalIdentifier.provider
+      );
+    }
+
+    const externalId = payload.media?.externalServiceId ?? '';
 
     return String(externalId);
   },
   media_openlibraryid: (payload) =>
-    payload.media?.identifiers?.find(
-      (identifier) => identifier.provider === 'openlibrary'
-    )?.value ?? '',
+    normalizeOpenLibraryWorkId(
+      payload.media?.identifiers?.find(
+        (identifier) => identifier.provider === 'openlibrary'
+      )?.value ?? ''
+    ),
   media_isbn: (payload) =>
     payload.media?.identifiers?.find(
       (identifier) => identifier.provider === 'isbn'

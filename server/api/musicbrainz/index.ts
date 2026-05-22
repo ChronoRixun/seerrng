@@ -1,5 +1,6 @@
 import ExternalAPI from '@server/api/externalapi';
 import cacheManager from '@server/lib/cache';
+import { normalizeMusicBrainzId } from '@server/lib/externalIds';
 import axios from 'axios';
 import DOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
@@ -191,9 +192,11 @@ class MusicBrainz extends ExternalAPI {
   }: {
     releaseGroupId: string;
   }): Promise<MbAlbumDetails> {
+    const normalizedReleaseGroupId = normalizeMusicBrainzId(releaseGroupId);
+
     try {
       const data = await this.get<Omit<MbAlbumDetails, 'score' | 'media_type'>>(
-        `/release-group/${releaseGroupId}`,
+        `/release-group/${normalizedReleaseGroupId}`,
         {
           params: {
             inc: 'artist-credits+releases',
@@ -275,13 +278,15 @@ class MusicBrainz extends ExternalAPI {
   }: {
     releaseId: string;
   }): Promise<string | null> {
+    const normalizedReleaseId = normalizeMusicBrainzId(releaseId);
+
     try {
       const data = await this.get<{
         'release-group': {
           id: string;
         };
       }>(
-        `/release/${releaseId}`,
+        `/release/${normalizedReleaseId}`,
         {
           params: {
             inc: 'release-groups',

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, mock } from 'node:test';
 
+import type Media from '@server/entity/Media';
+import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import { Notification } from '@server/lib/notifications';
 import axios from 'axios';
-import { NOTIFICATION_HTTP_OPTIONS } from './agent';
+import { getNotificationMediaUrl, NOTIFICATION_HTTP_OPTIONS } from './agent';
 import WebhookAgent, { MAX_WEBHOOK_URL_LENGTH } from './webhook';
 
 afterEach(() => {
@@ -16,6 +18,35 @@ describe('NOTIFICATION_HTTP_OPTIONS', () => {
     assert.equal(NOTIFICATION_HTTP_OPTIONS.timeout, 10_000);
     assert.equal(NOTIFICATION_HTTP_OPTIONS.maxBodyLength, 128 * 1024);
     assert.equal(NOTIFICATION_HTTP_OPTIONS.maxContentLength, 128 * 1024);
+  });
+});
+
+describe('getNotificationMediaUrl', () => {
+  it('canonicalizes music and book media URLs', () => {
+    assert.equal(
+      getNotificationMediaUrl({
+        media: {
+          mediaType: 'music',
+          mbId: ' 550E8400-E29B-41D4-A716-446655440000 ',
+        } as Media,
+      }),
+      '/music/550e8400-e29b-41d4-a716-446655440000'
+    );
+
+    assert.equal(
+      getNotificationMediaUrl({
+        media: {
+          mediaType: 'book',
+          identifiers: [
+            {
+              provider: MediaIdentifierProvider.OPENLIBRARY,
+              value: '/works/ol123w',
+            },
+          ],
+        } as Media,
+      }),
+      '/book/OL123W'
+    );
   });
 });
 

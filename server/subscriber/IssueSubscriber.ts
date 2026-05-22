@@ -8,6 +8,10 @@ import Issue from '@server/entity/Issue';
 import MediaIdentifier, {
   MediaIdentifierProvider,
 } from '@server/entity/MediaIdentifier';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { Permission } from '@server/lib/permissions';
 import logger from '@server/logger';
@@ -59,7 +63,9 @@ export class IssueSubscriber implements EntitySubscriberInterface<Issue> {
 
     if (entity.media.mediaType === MediaType.MUSIC && entity.media.mbId) {
       const listenBrainz = new ListenBrainzAPI();
-      const album = await listenBrainz.getAlbum(entity.media.mbId);
+      const album = await listenBrainz.getAlbum(
+        normalizeMusicBrainzId(entity.media.mbId)
+      );
 
       return {
         title: `${album.release_group_metadata.release_group.name}${
@@ -86,7 +92,9 @@ export class IssueSubscriber implements EntitySubscriberInterface<Issue> {
 
       if (openLibraryId) {
         const openLibrary = new OpenLibraryAPI();
-        const work = await openLibrary.getWork(openLibraryId);
+        const work = await openLibrary.getWork(
+          normalizeOpenLibraryWorkId(openLibraryId)
+        );
         const coverId = work.covers?.[0];
         const releaseYear = work.first_publish_date?.match(/\d{4}/)?.[0];
 

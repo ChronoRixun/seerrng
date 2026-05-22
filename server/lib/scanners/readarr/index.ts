@@ -5,6 +5,7 @@ import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import { resolveOpenLibraryIdentifiersForReadarrBook } from '@server/lib/bookIdentifierResolver';
+import { normalizeExternalBookId } from '@server/lib/externalIds';
 import { normalizeIsbn, normalizeValidIsbn } from '@server/lib/isbn';
 import type {
   ProcessOptions,
@@ -23,6 +24,11 @@ type SyncStatus = StatusBase & {
 
 const normalizeReadarrIsbn = (isbn?: string): string | undefined =>
   normalizeValidIsbn(isbn) ?? normalizeIsbn(isbn);
+
+const getBookIdentifierKey = (
+  provider: MediaIdentifierProvider,
+  value: string
+): string => `${provider}:${normalizeExternalBookId(value, provider)}`;
 
 const SQLITE_BUSY_RETRY_ATTEMPTS = 3;
 const SQLITE_BUSY_RETRY_DELAY_MS = 750;
@@ -179,7 +185,9 @@ class ReadarrScanner
 
       [{ provider, value: identifier }, ...secondaryIdentifiers].forEach(
         (item) =>
-          this.scannedIdentifierKeys.add(`${item.provider}:${item.value}`)
+          this.scannedIdentifierKeys.add(
+            getBookIdentifierKey(item.provider, item.value)
+          )
       );
 
       const hasFile = (readarrBook.statistics?.bookFileCount ?? 0) > 0;
@@ -264,8 +272,8 @@ class ReadarrScanner
     });
 
     for (const media of processingBooks) {
-      const identifierKeys = (media.identifiers ?? []).map(
-        (identifier) => `${identifier.provider}:${identifier.value}`
+      const identifierKeys = (media.identifiers ?? []).map((identifier) =>
+        getBookIdentifierKey(identifier.provider, identifier.value)
       );
 
       if (

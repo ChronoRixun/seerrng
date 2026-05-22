@@ -8,7 +8,11 @@ import useDeepLinks from '@app/hooks/useDeepLinks';
 import useToasts from '@app/hooks/useToasts';
 import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
-import { encodeApiPathSegment } from '@app/utils/apiPath';
+import {
+  encodeApiPathSegment,
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@app/utils/apiPath';
 import defineMessages from '@app/utils/defineMessages';
 import { refreshIntervalHelper } from '@app/utils/refreshIntervalHelper';
 import { withProperties } from '@app/utils/typeHelpers';
@@ -84,15 +88,24 @@ const getBookId = (request: NonFunctionProperties<MediaRequest>) =>
     (identifier) => identifier.provider === 'openlibrary'
   )?.value;
 
+const getNormalizedBookId = (request: NonFunctionProperties<MediaRequest>) => {
+  const bookId = getBookId(request);
+  return bookId ? normalizeOpenLibraryWorkId(bookId) : undefined;
+};
+
+const getNormalizedMusicId = (request: NonFunctionProperties<MediaRequest>) =>
+  request.media.mbId ? normalizeMusicBrainzId(request.media.mbId) : undefined;
+
 const getRequestDetailHref = (
   request: NonFunctionProperties<MediaRequest>,
   manage = false
 ) => {
   const suffix = manage ? '?manage=1' : '';
-  const bookId = getBookId(request);
+  const bookId = getNormalizedBookId(request);
+  const musicId = getNormalizedMusicId(request);
 
-  if (request.type === 'music' && request.media.mbId) {
-    return `/music/${encodeApiPathSegment(request.media.mbId)}${suffix}`;
+  if (request.type === 'music' && musicId) {
+    return `/music/${encodeApiPathSegment(musicId)}${suffix}`;
   }
 
   if (request.type === 'book' && bookId) {
@@ -366,14 +379,17 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
     'approve' | 'decline' | null
   >(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const bookId = request.type === 'book' ? getBookId(request) : undefined;
+  const bookId =
+    request.type === 'book' ? getNormalizedBookId(request) : undefined;
+  const musicId =
+    request.type === 'music' ? getNormalizedMusicId(request) : undefined;
   const url =
     request.type === 'movie'
       ? `/api/v1/movie/${request.media.tmdbId}`
       : request.type === 'tv'
         ? `/api/v1/tv/${request.media.tmdbId}`
-        : request.type === 'music' && request.media.mbId
-          ? `/api/v1/music/${encodeApiPathSegment(request.media.mbId)}`
+        : request.type === 'music' && musicId
+          ? `/api/v1/music/${encodeApiPathSegment(musicId)}`
           : request.type === 'book' && bookId
             ? `/api/v1/book/${encodeApiPathSegment(bookId)}`
             : null;
@@ -487,12 +503,8 @@ const RequestCard = ({ request, onTitleData }: RequestCardProps) => {
               ? undefined
               : request.media.tmdbId
           }
-          mbId={
-            request.type === 'music'
-              ? (request.media.mbId ?? undefined)
-              : undefined
-          }
-          bookId={request.type === 'book' ? getBookId(request) : undefined}
+          mbId={request.type === 'music' ? musicId : undefined}
+          bookId={request.type === 'book' ? bookId : undefined}
           type={
             request.type === 'music'
               ? 'music'
