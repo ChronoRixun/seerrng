@@ -43,6 +43,10 @@ const normalizeParsedMusicBrainzId = (
 ) =>
   'error' in parsed ? parsed : { value: normalizeMusicBrainzId(parsed.value) };
 
+const normalizeMusicBrainzIds = (ids: string[]): string[] => [
+  ...new Set(ids.filter(Boolean).map(normalizeMusicBrainzId)),
+];
+
 const mapMusicBrainzReleaseGroupToListenBrainzAlbum = (
   album: MbAlbumDetails
 ): LbAlbumDetails => {
@@ -194,16 +198,22 @@ musicRoutes.get('/:id', async (req, res, next) => {
       }),
     ]);
 
-    const artistId =
-      albumDetails.release_group_metadata?.artist?.artists?.[0]?.artist_mbid;
+    const artistId = albumDetails.release_group_metadata?.artist?.artists?.[0]
+      ?.artist_mbid
+      ? normalizeMusicBrainzId(
+          albumDetails.release_group_metadata.artist.artists[0].artist_mbid
+        )
+      : undefined;
     const isPerson =
       albumDetails.release_group_metadata?.artist?.artists?.[0]?.type ===
       'Person';
-    const trackArtistIds = (albumDetails.mediums ?? [])
-      .flatMap((medium) => medium.tracks)
-      .flatMap((track) => track.artists ?? [])
-      .filter((artist) => artist.artist_mbid)
-      .map((artist) => artist.artist_mbid);
+    const trackArtistIds = normalizeMusicBrainzIds(
+      (albumDetails.mediums ?? [])
+        .flatMap((medium) => medium.tracks)
+        .flatMap((track) => track.artists ?? [])
+        .filter((artist) => artist.artist_mbid)
+        .map((artist) => artist.artist_mbid)
+    );
 
     const [
       metadataAlbum,
@@ -251,11 +261,13 @@ musicRoutes.get('/:id', async (req, res, next) => {
           .filter(
             (artist) =>
               !resolvedTrackArtistMetadata.some(
-                (m) => m.mbArtistId === artist.artist_mbid && m.tmdbPersonId
+                (m) =>
+                  normalizeMusicBrainzId(m.mbArtistId) ===
+                    normalizeMusicBrainzId(artist.artist_mbid) && m.tmdbPersonId
               )
           )
           .map((artist) => ({
-            artistId: artist.artist_mbid,
+            artistId: normalizeMusicBrainzId(artist.artist_mbid),
             artistName: artist.artist_credit_name,
           }))
       );
@@ -327,7 +339,9 @@ musicRoutes.get('/:id', async (req, res, next) => {
           ...track,
           artists: track.artists.map((artist) => {
             const metadata = finalTrackArtistMetadata.find(
-              (m) => m.mbArtistId === artist.mbid
+              (m) =>
+                normalizeMusicBrainzId(m.mbArtistId) ===
+                normalizeMusicBrainzId(artist.mbid)
             );
             return {
               ...artist,
@@ -379,9 +393,12 @@ musicRoutes.get('/:id/artist', async (req, res, next) => {
 
     const albumData = await listenbrainzApi.getAlbum(mbId);
     const artistData = albumData?.release_group_metadata?.artist?.artists?.[0];
+    const artistId = artistData?.artist_mbid
+      ? normalizeMusicBrainzId(artistData.artist_mbid)
+      : undefined;
     const artistType = artistData?.type;
 
-    if (!artistData?.artist_mbid || artistType === 'Other') {
+    if (!artistId || artistType === 'Other') {
       return res.status(404).json({
         status: 404,
         message: 'Artist details not available for this type',
@@ -389,10 +406,10 @@ musicRoutes.get('/:id/artist', async (req, res, next) => {
     }
 
     const responses = await Promise.allSettled([
-      listenbrainzApi.getArtist(artistData.artist_mbid),
-      theAudioDb.getArtistImagesFromCache(artistData.artist_mbid),
+      listenbrainzApi.getArtist(artistId),
+      theAudioDb.getArtistImagesFromCache(artistId),
       metadataArtistRepository.findOne({
-        where: { mbArtistId: artistData.artist_mbid },
+        where: { mbArtistId: artistId },
       }),
     ]);
 
@@ -411,7 +428,7 @@ musicRoutes.get('/:id/artist', async (req, res, next) => {
       !cachedTheAudioDb &&
       !metadataArtist?.tadbThumb &&
       !metadataArtist?.tadbCover
-        ? theAudioDb.getArtistImages(artistData.artist_mbid)
+        ? theAudioDb.getArtistImages(artistId)
         : Promise.resolve(null),
     ]);
 
@@ -469,18 +486,19 @@ musicRoutes.get('/:id/artist-discography', async (req, res, next) => {
 
     const albumData = await listenbrainzApi.getAlbum(mbId);
     const artistData = albumData?.release_group_metadata?.artist?.artists?.[0];
+    const artistId = artistData?.artist_mbid
+      ? normalizeMusicBrainzId(artistData.artist_mbid)
+      : undefined;
     const artistType = artistData?.type;
 
-    if (!artistData?.artist_mbid || artistType === 'Other') {
+    if (!artistId || artistType === 'Other') {
       return res.status(404).json({
         status: 404,
         message: 'Artist details not available for this type',
       });
     }
 
-    const artistDetails = await listenbrainzApi.getArtist(
-      artistData.artist_mbid
-    );
+    const artistDetails = await listenbrainzApi.getArtist(artistId);
 
     if (!artistDetails) {
       return res.status(404).json({ status: 404, message: 'Artist not found' });
@@ -584,18 +602,19 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
 
     const albumData = await listenbrainzApi.getAlbum(mbId);
     const artistData = albumData?.release_group_metadata?.artist?.artists?.[0];
+    const artistId = artistData?.artist_mbid
+      ? normalizeMusicBrainzId(artistData.artist_mbid)
+      : undefined;
     const artistType = artistData?.type;
 
-    if (!artistData?.artist_mbid || artistType === 'Other') {
+    if (!artistId || artistType === 'Other') {
       return res.status(404).json({
         status: 404,
         message: 'Artist details not available for this type',
       });
     }
 
-    const artistDetails = await listenbrainzApi.getArtist(
-      artistData.artist_mbid
-    );
+    const artistDetails = await listenbrainzApi.getArtist(artistId);
 
     if (!artistDetails) {
       return res.status(404).json({ status: 404, message: 'Artist not found' });
@@ -614,7 +633,9 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
       page * pageSize
     );
 
-    const similarArtistIds = paginatedSimilarArtists.map((a) => a.artist_mbid);
+    const similarArtistIds = normalizeMusicBrainzIds(
+      paginatedSimilarArtists.map((a) => a.artist_mbid)
+    );
 
     if (similarArtistIds.length === 0) {
       return res.status(200).json({
@@ -637,7 +658,10 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
         : [];
 
     const similarArtistMetadataMap = new Map(
-      similarArtistMetadata.map((metadata) => [metadata.mbArtistId, metadata])
+      similarArtistMetadata.map((metadata) => [
+        normalizeMusicBrainzId(metadata.mbArtistId),
+        metadata,
+      ])
     );
 
     const artistsNeedingImages = similarArtistIds.filter((id) => {
@@ -649,11 +673,13 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
       paginatedSimilarArtists
         .filter((artist) => artist.type === 'Person')
         .filter((artist) => {
-          const metadata = similarArtistMetadataMap.get(artist.artist_mbid);
+          const metadata = similarArtistMetadataMap.get(
+            normalizeMusicBrainzId(artist.artist_mbid)
+          );
           return !metadata?.tmdbPersonId;
         })
         .map((artist) => ({
-          artistId: artist.artist_mbid,
+          artistId: normalizeMusicBrainzId(artist.artist_mbid),
           artistName: artist.name,
         })) ?? [];
 
@@ -684,23 +710,21 @@ musicRoutes.get('/:id/artist-similar', async (req, res, next) => {
 
     const finalArtistMetadataMap = new Map(
       (updatedArtistMetadata || similarArtistMetadata).map((metadata) => [
-        metadata.mbArtistId,
+        normalizeMusicBrainzId(metadata.mbArtistId),
         metadata,
       ])
     );
 
     const transformedSimilarArtists = paginatedSimilarArtists.map((artist) => {
-      const metadata = finalArtistMetadataMap.get(artist.artist_mbid);
-      const artistImageResult =
-        artistImageResults[
-          artist.artist_mbid as keyof typeof artistImageResults
-        ];
+      const normalizedArtistId = normalizeMusicBrainzId(artist.artist_mbid);
+      const metadata = finalArtistMetadataMap.get(normalizedArtistId);
+      const artistImageResult = artistImageResults[normalizedArtistId];
 
       const artistThumb =
         metadata?.tadbThumb || (artistImageResult?.artistThumb ?? null);
 
       return {
-        id: artist.artist_mbid,
+        id: normalizedArtistId,
         mediaType: 'artist',
         name: artist.name,
         type: artist.type as 'Group' | 'Person',

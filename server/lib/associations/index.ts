@@ -14,7 +14,10 @@ import MediaIdentifier, {
 import MetadataArtist from '@server/entity/MetadataArtist';
 import type { User } from '@server/entity/User';
 import cacheManager from '@server/lib/cache';
-import { normalizeOpenLibraryWorkId } from '@server/lib/externalIds';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import { getSettings } from '@server/lib/settings';
 import { scoreTmdbResult } from '@server/lib/tmdbRank';
 import logger from '@server/logger';
@@ -212,14 +215,18 @@ const buildForScreen = async (
 const hydrateArtistThumbs = async (
   mbIds: string[]
 ): Promise<Map<string, MetadataArtist>> => {
-  if (mbIds.length === 0) {
+  const normalizedMbIds = [...new Set(mbIds.map(normalizeMusicBrainzId))];
+
+  if (normalizedMbIds.length === 0) {
     return new Map();
   }
   try {
     const rows = await getRepository(MetadataArtist).find({
-      where: { mbArtistId: In(mbIds) },
+      where: { mbArtistId: In(normalizedMbIds) },
     });
-    return new Map(rows.map((r) => [r.mbArtistId, r]));
+    return new Map(
+      rows.map((row) => [normalizeMusicBrainzId(row.mbArtistId), row])
+    );
   } catch {
     return new Map();
   }
@@ -234,7 +241,14 @@ const hydrateSimilarArtists = async (
     { artistThumb: string | null; artistBackground: string | null }
   >;
 }> => {
-  const mbIds = artists.map((artist) => artist.artist_mbid).filter(Boolean);
+  const mbIds = [
+    ...new Set(
+      artists
+        .map((artist) => artist.artist_mbid)
+        .filter(Boolean)
+        .map(normalizeMusicBrainzId)
+    ),
+  ];
   const metadataArtistRepository = getRepository(MetadataArtist);
   const theAudioDb = new TheAudioDb();
   const personMapper = new TmdbPersonMapper();
@@ -246,9 +260,13 @@ const hydrateSimilarArtists = async (
   });
   const personArtists = artists
     .filter((artist) => artist.type === 'Person')
-    .filter((artist) => !initialMetadata.get(artist.artist_mbid)?.tmdbPersonId)
+    .filter(
+      (artist) =>
+        !initialMetadata.get(normalizeMusicBrainzId(artist.artist_mbid))
+          ?.tmdbPersonId
+    )
     .map((artist) => ({
-      artistId: artist.artist_mbid,
+      artistId: normalizeMusicBrainzId(artist.artist_mbid),
       artistName: artist.name,
     }));
 
@@ -271,7 +289,9 @@ const hydrateSimilarArtists = async (
       : Array.from(initialMetadata.values());
 
   return {
-    metadata: new Map(metadataRows.map((row) => [row.mbArtistId, row])),
+    metadata: new Map(
+      metadataRows.map((row) => [normalizeMusicBrainzId(row.mbArtistId), row])
+    ),
     images: imageResult.status === 'fulfilled' ? imageResult.value : {},
   };
 };
@@ -391,11 +411,12 @@ const buildArtistEdges = async (
   const { metadata, images } = await hydrateSimilarArtists(similar);
 
   const edges: AssociationEdge[] = similar.map((a, idx) => {
-    const meta = metadata.get(a.artist_mbid);
-    const imageResult = images[a.artist_mbid];
+    const artistId = normalizeMusicBrainzId(a.artist_mbid);
+    const meta = metadata.get(artistId);
+    const imageResult = images[artistId];
     const artistThumb = meta?.tadbThumb ?? imageResult?.artistThumb ?? null;
     const node: ArtistResult = {
-      id: a.artist_mbid,
+      id: artistId,
       score: a.score,
       mediaType: 'artist',
       name: a.name,
