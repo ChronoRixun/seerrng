@@ -2363,6 +2363,54 @@ describe('POST /request/bulk', () => {
     assert.strictEqual(await getRepository(MediaRequest).count(), 2);
   });
 
+  it('creates music requests for processing albums without active requests', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(10)];
+    await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.MUSIC,
+        tmdbId: 0,
+        mbId: 'processing-album',
+        status: MediaStatus.PROCESSING,
+        status4k: MediaStatus.UNKNOWN,
+        serviceId: 10,
+        externalServiceId: 123,
+        externalServiceSlug: 'processing-album',
+      })
+    );
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async (releaseGroupId: string) =>
+        ({
+          release_group_mbid: releaseGroupId,
+          release_group_metadata: {
+            release_group: {
+              name: releaseGroupId,
+            },
+            artist: {
+              name: 'Bulk Artist',
+            },
+          },
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      items: [{ mediaId: 'processing-album', title: 'Processing Album' }],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.skipped.length, 0);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].media.mbId, 'processing-album');
+  });
+
   it('accepts zero-valued Lidarr service and profile overrides in bulk music requests', async (t) => {
     const settings = getSettings();
     settings.lidarr = [createLidarrSettings(0)];

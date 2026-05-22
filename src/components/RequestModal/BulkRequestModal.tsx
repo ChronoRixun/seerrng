@@ -238,8 +238,6 @@ const getMusicIneligibleReason = (item: BulkItem): string | undefined => {
   }
 
   if (
-    item.mediaInfo?.status === MediaStatus.PROCESSING ||
-    (item.mediaInfo?.downloadStatus ?? []).length > 0 ||
     (item.mediaInfo?.requests ?? []).some((request) =>
       isActiveRequest(request.status)
     )

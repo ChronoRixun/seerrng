@@ -60,8 +60,11 @@ const sleep = (delayMs: number): Promise<void> =>
 const isTransientExternalError = (error: unknown): boolean => {
   const message = error instanceof Error ? error.message : String(error);
 
-  return /status code (429|502|503|504)|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENOTFOUND|socket hang up/i.test(
-    message
+  return (
+    /(?:status code|status)\s*(429|502|503|504)|\b(429|502|503|504)\b|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENOTFOUND|socket hang up|timeout of \d+ms exceeded/i.test(
+      message
+    ) ||
+    /500\.InternalServerError|InternalServerError/i.test(message)
   );
 };
 
@@ -82,7 +85,11 @@ const lookupReadarrBookWithRetry = async (
         !isTransientExternalError(error) ||
         attempt >= READARR_LOOKUP_RETRY_DELAYS_MS.length
       ) {
-        throw error;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Bookshelf lookup failed for ${context.serviceType} term "${term}": ${errorMessage}`
+        );
       }
 
       const delayMs = READARR_LOOKUP_RETRY_DELAYS_MS[attempt];
@@ -1202,8 +1209,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
 
       const albumInfo = searchResults[0].album;
       const rootFolder = entity.rootFolder || lidarrSettings.activeDirectory;
-      const qualityProfile =
-        entity.profileId ?? lidarrSettings.activeProfileId;
+      const qualityProfile = entity.profileId ?? lidarrSettings.activeProfileId;
       const metadataProfile =
         entity.metadataProfileId ?? lidarrSettings.activeMetadataProfileId ?? 1;
       const tags = entity.tags

@@ -94,6 +94,21 @@ const getRequestLogBody = (body: Partial<MediaRequestBody> | undefined) => ({
   userId: body?.userId,
 });
 
+const getBulkRequestLogBody = (
+  body: Partial<BulkMediaRequestBody> | undefined
+) => ({
+  mediaType: body?.mediaType,
+  itemCount: Array.isArray(body?.items) ? body.items.length : undefined,
+  firstMediaIds: Array.isArray(body?.items)
+    ? body.items.slice(0, 5).map((item) => item.mediaId)
+    : undefined,
+  serverId: body?.serverId,
+  profileId: body?.profileId,
+  metadataProfileId: body?.metadataProfileId,
+  format: body?.format,
+  userId: body?.userId,
+});
+
 const logRequestServiceProfileFailure = (
   serviceType: string,
   serviceId: number,
@@ -689,11 +704,8 @@ const getBulkCoveredReason = async (
       return 'This album is blocklisted.';
     }
 
-    if (
-      media?.status === MediaStatus.AVAILABLE ||
-      media?.status === MediaStatus.PROCESSING
-    ) {
-      return 'This album is already available or processing.';
+    if (media?.status === MediaStatus.AVAILABLE) {
+      return 'This album is already available.';
     }
 
     if (media?.requests?.some(isActiveMediaRequest)) {
@@ -1390,6 +1402,12 @@ requestRoutes.post<never, BulkMediaRequestResponse, BulkMediaRequestBody>(
       }
       const body = sanitizedBody.value;
 
+      logger.info('Bulk request received', {
+        label: 'Request',
+        requestBody: getBulkRequestLogBody(body),
+        userId: req.user.id,
+      });
+
       let requestUser = req.user;
 
       if (body.userId) {
@@ -1556,6 +1574,18 @@ requestRoutes.post<never, BulkMediaRequestResponse, BulkMediaRequestBody>(
           });
         }
       }
+
+      logger.info('Bulk request completed', {
+        label: 'Request',
+        mediaType: body.mediaType,
+        itemCount: body.items.length,
+        requestableCount: requestableItems.length,
+        createdCount: created.length,
+        skippedCount: skipped.length,
+        failedCount: failed.length,
+        createdRequestIds: created.slice(0, 50).map((request) => request.id),
+        userId: req.user.id,
+      });
 
       return res.status(207).json({ created, skipped, failed });
     } catch (error) {
