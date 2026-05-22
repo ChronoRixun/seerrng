@@ -37,7 +37,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          persist-credentials: true
+          clean: false
 
       - name: Pnpm Setup
         uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
@@ -95,7 +96,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          persist-credentials: true
+          clean: false
 
       - name: Pnpm Setup
         uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
@@ -138,7 +140,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          persist-credentials: true
+          clean: false
 
       - name: Pnpm Setup
         uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6.0.3
@@ -186,7 +189,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          persist-credentials: true
+          clean: false
 
       - name: Commit timestamp
         id: ts
@@ -234,7 +238,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          persist-credentials: true
+          clean: false
 
       - name: Commit timestamp
         id: ts
@@ -373,7 +378,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          persist-credentials: false
+          persist-credentials: true
+          clean: false
 
       - name: Log in to GitHub Container Registry on seerr.home
         env:

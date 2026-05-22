@@ -749,8 +749,9 @@ const getBulkCoveredReason = async (
   format?: 'ebook' | 'audiobook' | 'both'
 ): Promise<string | undefined> => {
   if (mediaType === MediaType.MUSIC) {
+    const normalizedMediaId = normalizeMusicBrainzId(mediaId);
     const media = await getRepository(Media).findOne({
-      where: { mbId: mediaId, mediaType: MediaType.MUSIC },
+      where: { mbId: normalizedMediaId, mediaType: MediaType.MUSIC },
       relations: { requests: true },
     });
 
