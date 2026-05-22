@@ -564,10 +564,7 @@ const BulkRequestModal = ({
     setAuthorTotal(response.data.pagination.totalItems);
     setItems((current) => {
       return dedupeBulkItems(
-        [
-          ...current,
-          ...response.data.works.map(mapBookWorkToBulkItem),
-        ],
+        [...current, ...response.data.works.map(mapBookWorkToBulkItem)],
         mediaType
       );
     });

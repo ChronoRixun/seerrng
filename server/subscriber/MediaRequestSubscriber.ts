@@ -55,8 +55,9 @@ const READARR_LOOKUP_RETRY_DELAYS_MS =
 const READARR_DISPATCH_RETRY_DELAYS_MS =
   process.env.NODE_ENV === 'test'
     ? [1, 1, 1]
-    : [60_000, 300_000, 900_000, 3_600_000];
+    : [300_000, 900_000, 1_800_000, 3_600_000];
 const READARR_MAX_EXPANDED_LOOKUP_TERMS = 18;
+const READARR_APPROVED_RETRY_BATCH_SIZE = 1;
 const readarrDispatchRetryTimers = new Map<
   number,
   { attempts: number; timer: NodeJS.Timeout }
@@ -66,14 +67,57 @@ const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, delayMs));
 
 const isTransientExternalError = (error: unknown): boolean => {
-  const message = error instanceof Error ? error.message : String(error);
+  let current: unknown = error;
 
-  return (
-    /(?:status code|status)\s*(429|502|503|504)|\b(429|502|503|504)\b|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENOTFOUND|socket hang up|timeout of \d+ms exceeded/i.test(
-      message
-    ) ||
-    /500\.InternalServerError|InternalServerError/i.test(message)
-  );
+  while (current) {
+    const message =
+      current instanceof Error ? current.message : String(current);
+
+    if (
+      /(?:status code|status)\s*(429|502|503|504)|\b(429|502|503|504)\b|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|EAI_AGAIN|ENOTFOUND|socket hang up|timeout of \d+ms exceeded/i.test(
+        message
+      ) ||
+      /500\.InternalServerError|InternalServerError/i.test(message)
+    ) {
+      return true;
+    }
+
+    current = current instanceof Error ? current.cause : undefined;
+  }
+
+  return false;
+};
+
+const getRetryAfterMs = (error: unknown): number | undefined => {
+  let current: unknown = error;
+
+  while (current instanceof Error) {
+    const response = (
+      current as Error & {
+        response?: { headers?: Record<string, string | string[] | undefined> };
+      }
+    ).response;
+    const retryAfterHeader = response?.headers?.['retry-after'];
+    const retryAfter = Array.isArray(retryAfterHeader)
+      ? retryAfterHeader[0]
+      : retryAfterHeader;
+
+    if (retryAfter) {
+      const retryAfterSeconds = Number(retryAfter);
+      if (Number.isFinite(retryAfterSeconds)) {
+        return Math.max(retryAfterSeconds * 1000, 0);
+      }
+
+      const retryAfterDate = Date.parse(retryAfter);
+      if (!Number.isNaN(retryAfterDate)) {
+        return Math.max(retryAfterDate - Date.now(), 0);
+      }
+    }
+
+    current = current.cause;
+  }
+
+  return undefined;
 };
 
 const clearReadarrDispatchRetry = (requestId: number): void => {
@@ -105,7 +149,8 @@ const lookupReadarrBookWithRetry = async (
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         throw new Error(
-          `Bookshelf lookup failed for ${context.serviceType} term "${term}": ${errorMessage}`
+          `Bookshelf lookup failed for ${context.serviceType} term "${term}": ${errorMessage}`,
+          { cause: error }
         );
       }
 
@@ -233,6 +278,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     const existingRetry = readarrDispatchRetryTimers.get(entity.id);
     const attempts = existingRetry ? existingRetry.attempts + 1 : 1;
     const delayMs =
+      getRetryAfterMs(error) ??
       READARR_DISPATCH_RETRY_DELAYS_MS[
         Math.min(attempts - 1, READARR_DISPATCH_RETRY_DELAYS_MS.length - 1)
       ];
@@ -286,7 +332,9 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
     );
   }
 
-  public async retryApprovedReadarrRequests(limit = 10): Promise<void> {
+  public async retryApprovedReadarrRequests(
+    limit = READARR_APPROVED_RETRY_BATCH_SIZE
+  ): Promise<void> {
     const requestRepository = getRepository(MediaRequest);
     const requests = await requestRepository.find({
       where: {

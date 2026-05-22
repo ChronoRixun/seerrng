@@ -24,6 +24,42 @@ const isRenderableWatchlistItem = (item: Watchlist): boolean =>
   (item.mediaType === MediaType.MUSIC && !!item.mbId) ||
   (item.mediaType === MediaType.BOOK && !!item.externalId);
 
+const getWatchlistDedupeKey = (item: WatchlistItem) => {
+  if (
+    (item.mediaType === MediaType.MOVIE || item.mediaType === MediaType.TV) &&
+    item.tmdbId !== undefined
+  ) {
+    return `${item.mediaType}:tmdb:${item.tmdbId}`;
+  }
+
+  if (item.mediaType === MediaType.MUSIC && item.mbId) {
+    return `${item.mediaType}:mb:${item.mbId.toLocaleLowerCase()}`;
+  }
+
+  if (item.mediaType === MediaType.BOOK && item.externalId) {
+    return `${item.mediaType}:openlibrary:${item.externalId
+      .replace(/^\/?works\//, '')
+      .toLocaleLowerCase()}`;
+  }
+
+  return `${item.mediaType}:rating:${item.ratingKey}`;
+};
+
+const dedupeWatchlistItems = (items: WatchlistItem[]): WatchlistItem[] => {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = getWatchlistDedupeKey(item);
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+};
+
 export const getCombinedWatchlist = async ({
   userId,
   plexToken,
@@ -60,7 +96,9 @@ export const getCombinedWatchlist = async ({
     localSkip,
     localSkip + localTake
   );
-  const localItems = localResult.map(mapLocalWatchlistItem);
+  const localItems = dedupeWatchlistItems(
+    localResult.map(mapLocalWatchlistItem)
+  );
 
   if (!plexToken) {
     return {
@@ -84,12 +122,18 @@ export const getCombinedWatchlist = async ({
       mediaType: item.type === 'show' ? MediaType.TV : MediaType.MOVIE,
       tmdbId: item.tmdbId,
     }));
-  const totalResults = localTotal + plexWatchlist.totalSize;
+  const results = dedupeWatchlistItems([...localItems, ...plexItems]);
+  const visibleDuplicateCount =
+    localItems.length + plexItems.length - results.length;
+  const totalResults = Math.max(
+    localTotal + plexWatchlist.totalSize - visibleDuplicateCount,
+    results.length
+  );
 
   return {
     page,
     totalPages: Math.max(Math.ceil(totalResults / itemsPerPage), 1),
     totalResults,
-    results: [...localItems, ...plexItems],
+    results,
   };
 };

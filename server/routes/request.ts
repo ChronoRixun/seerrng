@@ -109,6 +109,39 @@ const getBulkRequestLogBody = (
   userId: body?.userId,
 });
 
+const normalizeBulkRequestText = (value?: string) =>
+  (value ?? '')
+    .toLocaleLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const normalizeBulkRequestMediaId = (mediaType: MediaType, mediaId: string) => {
+  if (mediaType === MediaType.BOOK) {
+    return mediaId.replace(/^\/?works\//, '').toLocaleLowerCase();
+  }
+
+  return mediaId.toLocaleLowerCase();
+};
+
+const getBulkRequestDedupeKey = (
+  mediaType: MediaType,
+  item: BulkMediaRequestBody['items'][number]
+) => {
+  if (mediaType === MediaType.BOOK) {
+    return [
+      normalizeBulkRequestMediaId(mediaType, item.mediaId),
+      normalizeBulkRequestText(item.title),
+      normalizeBulkRequestText(item.authorId),
+      normalizeBulkRequestText(item.isbn13),
+      normalizeBulkRequestText(item.editionId),
+    ].join('|');
+  }
+
+  return normalizeBulkRequestMediaId(mediaType, item.mediaId);
+};
+
 const logRequestServiceProfileFailure = (
   serviceType: string,
   serviceId: number,
@@ -439,6 +472,7 @@ const sanitizeBulkMediaRequestBody = (
   }
 
   const sanitizedItems: BulkMediaRequestBody['items'] = [];
+  const seenItems = new Set<string>();
 
   for (const item of body.items) {
     if (item === null || typeof item !== 'object' || Array.isArray(item)) {
@@ -507,13 +541,21 @@ const sanitizeBulkMediaRequestBody = (
       return authorId;
     }
 
-    sanitizedItems.push({
+    const sanitizedItem = {
       mediaId,
       title: title.value,
       isbn13: isbn13.value,
       editionId: editionId.value,
       authorId: authorId.value,
-    });
+    };
+    const dedupeKey = getBulkRequestDedupeKey(body.mediaType, sanitizedItem);
+
+    if (seenItems.has(dedupeKey)) {
+      continue;
+    }
+
+    seenItems.add(dedupeKey);
+    sanitizedItems.push(sanitizedItem);
   }
 
   return {

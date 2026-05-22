@@ -1054,6 +1054,9 @@ describe('MediaRequestSubscriber service dispatch', () => {
       })
     );
     const request = await createApprovedRequest(media, requestedBy);
+    await getRepository(MediaRequest).update(request.id, {
+      status: MediaRequestStatus.APPROVED,
+    });
 
     mock.method(OpenLibraryAPI.prototype, 'getWork', async () => undefined);
 
@@ -1157,6 +1160,9 @@ describe('MediaRequestSubscriber service dispatch', () => {
       })
     );
     const request = await createApprovedRequest(media, requestedBy);
+    await getRepository(MediaRequest).update(request.id, {
+      status: MediaRequestStatus.APPROVED,
+    });
 
     mock.method(OpenLibraryAPI.prototype, 'getWork', async () => undefined);
 
@@ -1210,6 +1216,142 @@ describe('MediaRequestSubscriber service dispatch', () => {
       id: request.id,
     });
     assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+  });
+
+  it('keeps Hardcover rate-limited book requests approved instead of failing hard', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 20,
+        name: 'Bookshelf',
+        hostname: 'bookshelf.local',
+        port: 8787,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Books',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/books',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9788427249530',
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+    await getRepository(MediaRequest).update(request.id, {
+      status: MediaRequestStatus.APPROVED,
+    });
+
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => undefined);
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => {
+      throw new Error(
+        '[Readarr] Failed to lookup book: HTTP request failed: [500:InternalServerError] [GET] at [https://hardcover.bookinfo.pro/search?q=9788427249530] looking up: returned error 429'
+      );
+    });
+    const sendNotification = mock.method(
+      notificationManager,
+      'sendNotification',
+      () => undefined
+    );
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: request.id,
+    });
+    assert.equal(savedRequest.status, MediaRequestStatus.APPROVED);
+    assert.equal(sendNotification.mock.callCount(), 0);
+  });
+
+  it('honors Retry-After headers for rate-limited book request dispatch retries', async () => {
+    const settings = getSettings();
+    settings.readarr = [
+      {
+        id: 20,
+        name: 'Bookshelf',
+        hostname: 'bookshelf.local',
+        port: 8787,
+        apiKey: 'test-key',
+        useSsl: false,
+        activeProfileId: 11,
+        activeProfileName: 'Books',
+        activeMetadataProfileId: 12,
+        activeMetadataProfileName: 'Standard',
+        activeDirectory: '/books',
+        tags: [],
+        is4k: false,
+        isDefault: true,
+        syncEnabled: true,
+        preventSearch: false,
+        tagRequests: false,
+        overrideRule: [],
+        serviceType: 'ebook',
+      },
+    ];
+
+    const requestedBy = await getRequester();
+    const media = await getRepository(Media).save(
+      new Media({
+        mediaType: MediaType.BOOK,
+        tmdbId: 0,
+        status: MediaStatus.PENDING,
+        status4k: MediaStatus.UNKNOWN,
+        identifiers: [
+          new MediaIdentifier({
+            provider: MediaIdentifierProvider.ISBN,
+            value: '9788427249530',
+          }),
+        ],
+      })
+    );
+    const request = await createApprovedRequest(media, requestedBy);
+    await getRepository(MediaRequest).update(request.id, {
+      status: MediaRequestStatus.APPROVED,
+    });
+
+    mock.method(OpenLibraryAPI.prototype, 'getWork', async () => undefined);
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => {
+      const axiosError = new Error(
+        'Request failed with status code 429'
+      ) as Error & {
+        response: { headers: Record<string, string> };
+      };
+      axiosError.response = { headers: { 'retry-after': '2' } };
+
+      throw new Error('[Readarr] Failed to lookup book: rate limited', {
+        cause: axiosError,
+      });
+    });
+    mock.method(notificationManager, 'sendNotification', () => undefined);
+
+    await new MediaRequestSubscriber().sendToReadarr(request);
+
+    const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
+      id: request.id,
+    });
+    assert.equal(savedRequest.status, MediaRequestStatus.APPROVED);
   });
 
   it('sends audiobook requests to the default audiobook Bookshelf server', async () => {

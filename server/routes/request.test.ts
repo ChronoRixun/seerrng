@@ -2363,6 +2363,49 @@ describe('POST /request/bulk', () => {
     assert.strictEqual(await getRepository(MediaRequest).count(), 2);
   });
 
+  it('dedupes repeated music bulk items before requesting metadata', async (t) => {
+    const settings = getSettings();
+    settings.lidarr = [createLidarrSettings(10)];
+    const getAlbumMock = mock.method(
+      ListenBrainzAPI.prototype,
+      'getAlbum',
+      async (releaseGroupId: string) =>
+        ({
+          release_group_mbid: releaseGroupId,
+          release_group_metadata: {
+            release_group: {
+              name: releaseGroupId,
+            },
+            artist: {
+              name: 'Bulk Artist',
+            },
+          },
+        }) as Awaited<ReturnType<ListenBrainzAPI['getAlbum']>>
+    );
+    t.after(() => {
+      getAlbumMock.mock.restore();
+      settings.lidarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.MUSIC,
+      items: [
+        { mediaId: 'duplicate-new-album', title: 'Duplicate New Album' },
+        { mediaId: 'duplicate-new-album', title: 'Duplicate New Album' },
+        { mediaId: 'DUPLICATE-NEW-ALBUM', title: 'Duplicate New Album' },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].media.mbId, 'duplicate-new-album');
+    assert.deepStrictEqual(res.body.skipped, []);
+    assert.deepStrictEqual(res.body.failed, []);
+    assert.strictEqual(getAlbumMock.mock.callCount(), 1);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 1);
+  });
+
   it('creates music requests for processing albums without active requests', async (t) => {
     const settings = getSettings();
     settings.lidarr = [createLidarrSettings(10)];
@@ -2528,6 +2571,59 @@ describe('POST /request/bulk', () => {
       },
     ]);
     assert.deepStrictEqual(res.body.failed, []);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 1);
+  });
+
+  it('dedupes repeated book bulk work IDs before resolving editions', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(10, 'ebook')];
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async (workId: string) =>
+        ({
+          key: `/works/${workId.replace(/^\/?works\//, '')}`,
+          title: workId,
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async (workId: string) =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: `/books/${workId.replace(/^\/?works\//, '')}-edition`,
+              isbn_13: ['9780441478125'],
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+      settings.readarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.BOOK,
+      format: 'ebook',
+      items: [
+        { mediaId: 'duplicate-book-work', title: 'Duplicate Book Work' },
+        { mediaId: '/works/duplicate-book-work', title: 'Duplicate Book Work' },
+        { mediaId: 'DUPLICATE-BOOK-WORK', title: 'Duplicate Book Work' },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
+    assert.strictEqual(res.body.created[0].type, MediaType.BOOK);
+    assert.deepStrictEqual(res.body.skipped, []);
+    assert.deepStrictEqual(res.body.failed, []);
+    assert.strictEqual(getWorkMock.mock.callCount(), 1);
+    assert.strictEqual(getWorkEditionsMock.mock.callCount(), 1);
     assert.strictEqual(await getRepository(MediaRequest).count(), 1);
   });
 
