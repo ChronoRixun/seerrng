@@ -64,7 +64,18 @@ chmod 0755 "$stage/seerrng"
 cp "$stage/start.cmd" "$stage/seerrng.cmd"
 
 if [[ "$os" == "windows" ]]; then
-  (cd "$work_dir" && zip -qr "${dist_abs}/${asset}.zip" "$asset")
+  if command -v zip >/dev/null 2>&1; then
+    (cd "$work_dir" && zip -qr "${dist_abs}/${asset}.zip" "$asset")
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command \
+      "Compress-Archive -Path '${work_dir}/${asset}' -DestinationPath '${dist_abs}/${asset}.zip' -Force"
+  elif command -v powershell >/dev/null 2>&1; then
+    powershell -NoProfile -Command \
+      "Compress-Archive -Path '${work_dir}/${asset}' -DestinationPath '${dist_abs}/${asset}.zip' -Force"
+  else
+    echo "zip or PowerShell Compress-Archive is required to build Windows assets" >&2
+    exit 1
+  fi
 else
   tar -C "$work_dir" -czf "${dist_abs}/${asset}.tar.gz" "$asset"
 fi

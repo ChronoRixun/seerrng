@@ -61,7 +61,15 @@ jobs:
           username="${COPR_USERNAME:-keefshape}"
           mkdir -p ~/.config
 
-          if [[ -n "${COPR_KERBEROS_PRINCIPAL:-}" && -n "${COPR_KERBEROS_KEYTAB_B64:-}" ]]; then
+          if [[ -n "${COPR_LOGIN:-}" && -n "${COPR_TOKEN:-}" ]]; then
+            cat > ~/.config/copr <<EOF
+          [copr-cli]
+          login = ${COPR_LOGIN}
+          username = ${username}
+          token = ${COPR_TOKEN}
+          copr_url = https://copr.fedorainfracloud.org
+          EOF
+          elif [[ -n "${COPR_KERBEROS_PRINCIPAL:-}" && -n "${COPR_KERBEROS_KEYTAB_B64:-}" ]]; then
             sudo install -d -m 0755 /etc/ipa
             curl -fsSL https://id.fedoraproject.org/ipa/config/ca.crt | sudo tee /etc/ipa/ca.crt >/dev/null
             sudo install -d -m 0755 /etc/krb5.conf.d
@@ -120,14 +128,6 @@ jobs:
           username = ${username}
           copr_url = https://copr.fedorainfracloud.org
           gssapi = true
-          EOF
-          elif [[ -n "${COPR_LOGIN:-}" && -n "${COPR_TOKEN:-}" ]]; then
-            cat > ~/.config/copr <<EOF
-          [copr-cli]
-          login = ${COPR_LOGIN}
-          username = ${username}
-          token = ${COPR_TOKEN}
-          copr_url = https://copr.fedorainfracloud.org
           EOF
           else
             echo "COPR credentials not configured." >&2
