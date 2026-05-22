@@ -26,6 +26,10 @@ import MediaIdentifier, {
 import { MediaRequest } from '@server/entity/MediaRequest';
 import Season from '@server/entity/Season';
 import SeasonRequest from '@server/entity/SeasonRequest';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import { normalizeValidIsbn } from '@server/lib/isbn';
 import notificationManager, { Notification } from '@server/lib/notifications';
 import { getSettings, type ReadarrSettings } from '@server/lib/settings';
@@ -272,9 +276,6 @@ const hydrateSoftcoverLookupResults = async (
 const normalizeOpenLibraryAuthorId = (authorKey: string): string =>
   authorKey.replace(/^\/?authors\//i, '');
 
-const normalizeOpenLibraryBookId = (bookKey: string): string =>
-  bookKey.replace(/^\/?books\//i, '');
-
 @EventSubscriber()
 export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRequest> {
   private scheduleReadarrDispatchRetry(
@@ -346,6 +347,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       where: {
         type: MediaType.BOOK,
         status: MediaRequestStatus.APPROVED,
+      },
+      relations: {
+        media: true,
+        requestedBy: true,
       },
       order: { updatedAt: 'ASC' },
       take: limit,
@@ -543,8 +548,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       return;
     }
 
+    const normalizedMbId = normalizeMusicBrainzId(mbId);
+
     try {
-      const album = await new ListenBrainzAPI().getAlbum(mbId);
+      const album = await new ListenBrainzAPI().getAlbum(normalizedMbId);
       const releaseGroup = album.release_group_metadata.release_group;
       const artistName = album.release_group_metadata.artist.name;
 
@@ -558,7 +565,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         }`,
         message: artistName,
         media: latestMedia,
-        mediaUrl: `/music/${mbId}`,
+        mediaUrl: `/music/${normalizedMbId}`,
         image: album.caa_release_mbid
           ? `https://coverartarchive.org/release/${album.caa_release_mbid}/front-500`
           : undefined,
@@ -604,8 +611,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       return;
     }
 
+    const normalizedOpenLibraryId = normalizeOpenLibraryWorkId(openLibraryId);
+
     try {
-      const work = await new OpenLibraryAPI().getWork(openLibraryId);
+      const work = await new OpenLibraryAPI().getWork(normalizedOpenLibraryId);
       const description =
         typeof work.description === 'string'
           ? work.description
@@ -630,7 +639,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             })
           : undefined,
         media: latestMedia,
-        mediaUrl: `/book/${openLibraryId}`,
+        mediaUrl: `/book/${normalizedOpenLibraryId}`,
         image: coverId
           ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
           : undefined,
@@ -1352,7 +1361,8 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         url: LidarrAPI.buildUrl(lidarrSettings, '/api/v1'),
       });
 
-      const searchResults = await lidarr.searchAlbumByMusicBrainzId(media.mbId);
+      const mediaMbId = normalizeMusicBrainzId(media.mbId);
+      const searchResults = await lidarr.searchAlbumByMusicBrainzId(mediaMbId);
 
       if (!searchResults?.length) {
         throw new Error('Album not found in Lidarr search');
@@ -1533,9 +1543,12 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         throw new Error('Book request is missing lookup identifiers');
       }
 
+      const normalizedOpenLibraryId = openLibraryId
+        ? normalizeOpenLibraryWorkId(openLibraryId)
+        : undefined;
       const openLibrary = new OpenLibraryAPI();
-      const work = openLibraryId
-        ? await openLibrary.getWork(openLibraryId)
+      const work = normalizedOpenLibraryId
+        ? await openLibrary.getWork(normalizedOpenLibraryId)
         : undefined;
       const lookupTerms = [
         isbn,
@@ -1551,19 +1564,19 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       }
 
       const getExpandedLookupTerms = async () => {
-        if (!openLibraryId) {
+        if (!normalizedOpenLibraryId) {
           return [];
         }
 
         const [editions, author] = await Promise.all([
-          openLibrary.getWorkEditions(openLibraryId).catch(() => ({
+          openLibrary.getWorkEditions(normalizedOpenLibraryId).catch(() => ({
             size: 0,
             entries: [],
           })),
           work?.authors?.[0]?.author.key
             ? openLibrary
                 .getAuthor(
-                  work.authors[0].author.key.replace(/^\/?authors\//, '')
+                  normalizeOpenLibraryAuthorId(work.authors[0].author.key)
                 )
                 .catch(() => undefined)
             : Promise.resolve(undefined),
@@ -1597,101 +1610,6 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           )
           .slice(0, READARR_MAX_EXPANDED_LOOKUP_TERMS);
       };
-      let openLibraryEditions:
-        | Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
-        | undefined;
-      let openLibraryAuthor:
-        | Awaited<ReturnType<OpenLibraryAPI['getAuthor']>>
-        | undefined;
-      const getOpenLibraryEditionData = async () => {
-        if (!openLibraryId) {
-          return { editions: undefined, author: undefined };
-        }
-
-        if (!openLibraryEditions) {
-          openLibraryEditions = await openLibrary
-            .getWorkEditions(openLibraryId)
-            .catch(() => ({
-              size: 0,
-              entries: [],
-            }));
-        }
-
-        if (!openLibraryAuthor && work?.authors?.[0]?.author.key) {
-          openLibraryAuthor = await openLibrary
-            .getAuthor(normalizeOpenLibraryAuthorId(work.authors[0].author.key))
-            .catch(() => undefined);
-        }
-
-        return {
-          editions: openLibraryEditions,
-          author: openLibraryAuthor,
-        };
-      };
-      const createOpenLibraryFallbackBook = async (): Promise<
-        ReadarrBookLookupResult | undefined
-      > => {
-        if (!openLibraryId || !work?.title) {
-          return undefined;
-        }
-
-        const { editions, author } = await getOpenLibraryEditionData();
-        const authorKey = work.authors?.[0]?.author.key;
-        const normalizedAuthorId = authorKey
-          ? normalizeOpenLibraryAuthorId(authorKey)
-          : undefined;
-
-        if (!author?.name || !normalizedAuthorId) {
-          return undefined;
-        }
-
-        type ReadarrLookupEdition = NonNullable<
-          ReadarrBookLookupResult['editions']
-        >[number];
-        const editionCandidates: ReadarrLookupEdition[] =
-          editions?.entries
-            .map((edition): ReadarrLookupEdition | undefined => {
-              const foreignEditionId = edition.key
-                ? normalizeOpenLibraryBookId(edition.key)
-                : undefined;
-
-              if (!foreignEditionId) {
-                return undefined;
-              }
-
-              return {
-                foreignEditionId,
-                title: edition.title ?? work.title,
-                isbn13: edition.isbn_13
-                  ?.map((editionIsbn) => normalizeValidIsbn(editionIsbn))
-                  .find((editionIsbn): editionIsbn is string => !!editionIsbn),
-                monitored: true,
-              };
-            })
-            .filter((edition): edition is ReadarrLookupEdition => !!edition) ??
-          [];
-        const editionsToAdd = editionCandidates.length
-          ? editionCandidates
-          : [
-              {
-                foreignEditionId: openLibraryId,
-                title: work.title,
-                monitored: true,
-              },
-            ];
-
-        return {
-          title: work.title,
-          foreignBookId: openLibraryId,
-          authorTitle: `${author.name} - ${work.title}`,
-          author: {
-            foreignAuthorId: normalizedAuthorId,
-            authorName: author.name,
-          },
-          editions: editionsToAdd,
-        };
-      };
-
       const identifierRepository = getRepository(MediaIdentifier);
       const normalizedIsbn = normalizeValidIsbn(isbn);
       const existingIdentifierKeys = new Set(
@@ -1806,14 +1724,20 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         }
 
         if (!searchResults?.length) {
-          const fallbackBook = await createOpenLibraryFallbackBook();
-
-          if (fallbackBook) {
-            searchResults = [fallbackBook];
+          if (normalizedOpenLibraryId) {
+            logger.warn(
+              'Bookshelf lookup did not return provider-backed metadata for OpenLibrary work; OpenLibrary ids cannot be used as Bookshelf foreign ids.',
+              {
+                label: 'Readarr',
+                mediaId: media.id,
+                requestId: entity.id,
+                serviceType,
+                openLibraryId: normalizedOpenLibraryId,
+                lookupTerms: termsToTry,
+              }
+            );
           }
-        }
 
-        if (!searchResults?.length) {
           if (sawIncompleteLookupResult) {
             throw new Error(
               `Bookshelf returned incomplete book metadata for ${termsToTry.length} lookup terms. The Bookshelf/Readarr metadata provider may be unavailable.`

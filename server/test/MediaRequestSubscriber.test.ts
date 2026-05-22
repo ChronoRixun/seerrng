@@ -937,7 +937,7 @@ describe('MediaRequestSubscriber service dispatch', () => {
     assert.equal(readarrIdentifiers[0].media.id, otherMedia.id);
   });
 
-  it('builds Bookshelf requests from OpenLibrary metadata when lookup has no addable result', async () => {
+  it('does not synthesize Bookshelf ids from OpenLibrary metadata when lookup has no addable result', async () => {
     const settings = getSettings();
     settings.readarr = [
       {
@@ -1021,23 +1021,18 @@ describe('MediaRequestSubscriber service dispatch', () => {
       })
     );
 
+    mock.method(notificationManager, 'sendNotification', () => undefined);
+
     await new MediaRequestSubscriber().sendToReadarr(request);
 
-    assert.equal(addBook.mock.callCount(), 1);
-    const addPayload = addBook.mock.calls[0].arguments[0] as ReadarrBookOptions;
-    assert.equal(addPayload.title, 'Foundation');
-    assert.equal(addPayload.foreignBookId, 'OL46125W');
-    assert.equal(addPayload.author?.foreignAuthorId, 'OL34221A');
-    assert.equal(addPayload.author?.authorName, 'Isaac Asimov');
-    assert.equal(addPayload.editions?.[0]?.foreignEditionId, 'OL1M');
-    assert.equal(addPayload.editions?.[0]?.isbn13, '9780007115877');
+    assert.equal(addBook.mock.callCount(), 0);
     const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
       id: request.id,
     });
-    assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+    assert.equal(savedRequest.status, MediaRequestStatus.FAILED);
   });
 
-  it('builds Bookshelf requests for no-ISBN translated OpenLibrary works', async () => {
+  it('fails no-ISBN translated OpenLibrary works when Bookshelf returns no provider-backed result', async () => {
     const settings = getSettings();
     settings.readarr = [
       {
@@ -1109,20 +1104,15 @@ describe('MediaRequestSubscriber service dispatch', () => {
       })
     );
 
+    mock.method(notificationManager, 'sendNotification', () => undefined);
+
     await new MediaRequestSubscriber().sendToReadarr(request);
 
-    assert.equal(addBook.mock.callCount(), 1);
-    const addPayload = addBook.mock.calls[0].arguments[0] as ReadarrBookOptions;
-    assert.equal(addPayload.title, 'Deník malého poseroutky: psí život');
-    assert.equal(addPayload.foreignBookId, 'OL44696722W');
-    assert.equal(addPayload.author?.foreignAuthorId, 'OL27122A');
-    assert.equal(addPayload.author?.authorName, 'Jeff Kinney');
-    assert.equal(addPayload.editions?.[0]?.foreignEditionId, 'OL44696722M');
-    assert.equal(addPayload.editions?.[0]?.isbn13, undefined);
+    assert.equal(addBook.mock.callCount(), 0);
     const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
       id: request.id,
     });
-    assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
+    assert.equal(savedRequest.status, MediaRequestStatus.FAILED);
   });
 
   it('hydrates Bookshelf softcover lookup records through author lookup before adding', async () => {
