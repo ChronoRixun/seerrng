@@ -29,6 +29,10 @@ import type {
   MediaRequestBody,
   RequestResultsResponse,
 } from '@server/interfaces/api/requestInterfaces';
+import {
+  normalizeMusicBrainzId,
+  normalizeOpenLibraryWorkId,
+} from '@server/lib/externalIds';
 import { Permission } from '@server/lib/permissions';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -119,10 +123,10 @@ const normalizeBulkRequestText = (value?: string) =>
 
 const normalizeBulkRequestMediaId = (mediaType: MediaType, mediaId: string) => {
   if (mediaType === MediaType.BOOK) {
-    return mediaId.replace(/^\/?works\//, '').toLocaleLowerCase();
+    return normalizeOpenLibraryWorkId(mediaId).toLocaleLowerCase();
   }
 
-  return mediaId.toLocaleLowerCase();
+  return normalizeMusicBrainzId(mediaId);
 };
 
 const getBulkRequestDedupeKey = (
@@ -130,6 +134,14 @@ const getBulkRequestDedupeKey = (
   item: BulkMediaRequestBody['items'][number]
 ) => {
   if (mediaType === MediaType.BOOK) {
+    if (!item.isbn13 && !item.editionId && item.title) {
+      return [
+        'book-title-author',
+        normalizeBulkRequestText(item.title),
+        normalizeBulkRequestText(item.authorId),
+      ].join('|');
+    }
+
     return [
       normalizeBulkRequestMediaId(mediaType, item.mediaId),
       normalizeBulkRequestText(item.title),
@@ -757,7 +769,7 @@ const getBulkCoveredReason = async (
     return undefined;
   }
 
-  const normalizedOpenLibraryId = mediaId.replace(/^\/?works\//, '');
+  const normalizedOpenLibraryId = normalizeOpenLibraryWorkId(mediaId);
   const identifier = await getRepository(MediaIdentifier).findOne({
     where: {
       provider: MediaIdentifierProvider.OPENLIBRARY,

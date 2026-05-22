@@ -7,6 +7,7 @@ workflow:
 stages:
   - build
   - scan
+  - deploy
   - promote
   - post_release_validate
 
@@ -56,6 +57,64 @@ container_scanning:
     CS_IMAGE: "$IMAGE_SHA_TAG"
   rules:
     - if: '$CI_COMMIT_BRANCH || $CI_COMMIT_TAG'
+
+deploy:seerr.home:
+  stage: deploy
+  image: alpine:3.21
+  needs: ["docker:seerrng"]
+  variables:
+    SEERRNG_DEPLOY_HOST: "kspls0"
+    SEERRNG_DEPLOY_CONTAINER: "seerr-host"
+    SEERRNG_DEPLOY_CONFIG_DIR: "/mnt/datapool_lvm_media/seerrng-config"
+    SEERRNG_DEPLOY_IMAGE: "seerrng:hardcover-current"
+    SEERRNG_DEPLOY_PORT: "5055"
+  before_script:
+    - apk add --no-cache docker-cli openssh-client curl
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - |
+      if [ -n "${SEERRNG_DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
+        eval "$(ssh-agent -s)"
+        printf '%s\n' "$SEERRNG_DEPLOY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+      fi
+    - ssh-keyscan "$SEERRNG_DEPLOY_HOST" >> ~/.ssh/known_hosts
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - docker pull "$IMAGE_SHA_TAG"
+    - docker tag "$IMAGE_SHA_TAG" "$SEERRNG_DEPLOY_IMAGE"
+    - docker save "$SEERRNG_DEPLOY_IMAGE" | ssh "$SEERRNG_DEPLOY_HOST" docker load
+    - |
+      ssh "$SEERRNG_DEPLOY_HOST" sh -s <<EOF
+      set -eu
+      docker rm -f "$SEERRNG_DEPLOY_CONTAINER" >/dev/null 2>&1 || true
+      docker run -d \
+        --name "$SEERRNG_DEPLOY_CONTAINER" \
+        --network host \
+        --restart unless-stopped \
+        -e CONFIG_DIRECTORY=/app/config \
+        -e LOG_LEVEL=info \
+        -e TZ=America/Regina \
+        -e PORT="$SEERRNG_DEPLOY_PORT" \
+        -v "$SEERRNG_DEPLOY_CONFIG_DIR":/app/config \
+        "$SEERRNG_DEPLOY_IMAGE"
+      EOF
+    - |
+      ssh "$SEERRNG_DEPLOY_HOST" sh -s <<EOF
+      set -eu
+      for attempt in \$(seq 1 30); do
+        if curl -fsS "http://127.0.0.1:$SEERRNG_DEPLOY_PORT/api/v1/status" | grep -F "$CI_COMMIT_SHORT_SHA"; then
+          exit 0
+        fi
+        sleep 2
+      done
+      docker logs --tail 100 "$SEERRNG_DEPLOY_CONTAINER" >&2 || true
+      exit 1
+      EOF
+  environment:
+    name: seerr.home
+    url: https://request.snape.tech
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 .github_publication_defaults:
   variables:

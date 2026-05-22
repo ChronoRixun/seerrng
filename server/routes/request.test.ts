@@ -722,7 +722,7 @@ describe('POST /request', () => {
     const agent = await loginAs('friend@seerr.dev', 'test1234');
     const res = await agent.post('/request').send({
       mediaType: MediaType.MUSIC,
-      mediaId: 'release-group-id',
+      mediaId: 'RELEASE-GROUP-ID',
     });
 
     assert.strictEqual(res.status, 201);
@@ -2620,6 +2620,69 @@ describe('POST /request/bulk', () => {
     assert.strictEqual(res.status, 207);
     assert.strictEqual(res.body.created.length, 1);
     assert.strictEqual(res.body.created[0].type, MediaType.BOOK);
+    assert.deepStrictEqual(res.body.skipped, []);
+    assert.deepStrictEqual(res.body.failed, []);
+    assert.strictEqual(getWorkMock.mock.callCount(), 1);
+    assert.strictEqual(getWorkEditionsMock.mock.callCount(), 1);
+    assert.strictEqual(await getRepository(MediaRequest).count(), 1);
+  });
+
+  it('dedupes no-ISBN book bulk items by title and author', async (t) => {
+    const settings = getSettings();
+    settings.readarr = [createReadarrSettings(10, 'ebook')];
+    const getWorkMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWork',
+      async (workId: string) =>
+        ({
+          key: `/works/${workId.replace(/^\/?works\//, '')}`,
+          title: 'Deník malého poseroutky: psí život',
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWork']>>
+    );
+    const getWorkEditionsMock = mock.method(
+      OpenLibraryAPI.prototype,
+      'getWorkEditions',
+      async (workId: string) =>
+        ({
+          size: 1,
+          entries: [
+            {
+              key: `/books/${workId.replace(/^\/?works\//, '')}-edition`,
+            },
+          ],
+        }) as Awaited<ReturnType<OpenLibraryAPI['getWorkEditions']>>
+    );
+    t.after(() => {
+      getWorkMock.mock.restore();
+      getWorkEditionsMock.mock.restore();
+      settings.readarr = [];
+    });
+
+    const agent = await loginAs('friend@seerr.dev', 'test1234');
+    const res = await agent.post('/request/bulk').send({
+      mediaType: MediaType.BOOK,
+      format: 'ebook',
+      items: [
+        {
+          mediaId: 'OL44696722W',
+          title: 'Deník malého poseroutky: psí život',
+          authorId: 'OL2832500A',
+        },
+        {
+          mediaId: 'OL44696721W',
+          title: 'Denik maleho poseroutky: psi zivot',
+          authorId: 'OL2832500A',
+        },
+        {
+          mediaId: 'OL44696720W',
+          title: 'Deník malého poseroutky: psí život',
+          authorId: 'OL2832500A',
+        },
+      ],
+    });
+
+    assert.strictEqual(res.status, 207);
+    assert.strictEqual(res.body.created.length, 1);
     assert.deepStrictEqual(res.body.skipped, []);
     assert.deepStrictEqual(res.body.failed, []);
     assert.strictEqual(getWorkMock.mock.callCount(), 1);
