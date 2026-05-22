@@ -65,18 +65,11 @@ deploy:seerr.home:
     SEERRNG_DEPLOY_HOST: "kspls0"
     SEERRNG_DEPLOY_CONTAINER: "seerr-host"
     SEERRNG_DEPLOY_CONFIG_DIR: "/mnt/datapool_lvm_media/seerrng-config"
+    SEERRNG_DEPLOY_HEALTH_URL: "http://192.168.50.85:5055/api/v1/status"
     SEERRNG_DEPLOY_IMAGE: "seerrng:hardcover-current"
     SEERRNG_DEPLOY_PORT: "5055"
   before_script:
-    - apk add --no-cache openssh-client curl
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - |
-      if [ -n "${SEERRNG_DEPLOY_SSH_PRIVATE_KEY:-}" ]; then
-        eval "$(ssh-agent -s)"
-        printf '%s\n' "$SEERRNG_DEPLOY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-      fi
-    - ssh-keyscan "$SEERRNG_DEPLOY_HOST" >> ~/.ssh/known_hosts
+    - apk add --no-cache curl
   script:
     - |
       if docker image inspect "$IMAGE_SHA_TAG" >/dev/null 2>&1; then
@@ -91,9 +84,7 @@ deploy:seerr.home:
           --load \
           .
       fi
-    - docker save "$SEERRNG_DEPLOY_IMAGE" | ssh "$SEERRNG_DEPLOY_HOST" docker load
     - |
-      ssh "$SEERRNG_DEPLOY_HOST" sh -s <<EOF
       set -eu
       docker rm -f "$SEERRNG_DEPLOY_CONTAINER" >/dev/null 2>&1 || true
       docker run -d \
@@ -106,19 +97,16 @@ deploy:seerr.home:
         -e PORT="$SEERRNG_DEPLOY_PORT" \
         -v "$SEERRNG_DEPLOY_CONFIG_DIR":/app/config \
         "$SEERRNG_DEPLOY_IMAGE"
-      EOF
     - |
-      ssh "$SEERRNG_DEPLOY_HOST" sh -s <<EOF
       set -eu
       for attempt in \$(seq 1 30); do
-        if curl -fsS "http://127.0.0.1:$SEERRNG_DEPLOY_PORT/api/v1/status" | grep -F "$CI_COMMIT_SHORT_SHA"; then
+        if curl -fsS "$SEERRNG_DEPLOY_HEALTH_URL" | grep -F "$CI_COMMIT_SHORT_SHA"; then
           exit 0
         fi
         sleep 2
       done
       docker logs --tail 100 "$SEERRNG_DEPLOY_CONTAINER" >&2 || true
       exit 1
-      EOF
   environment:
     name: seerr.home
     url: https://request.snape.tech
