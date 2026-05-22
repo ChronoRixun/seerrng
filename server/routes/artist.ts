@@ -30,6 +30,40 @@ const parseMusicBrainzId = (value: unknown, fieldName = 'Artist ID') =>
     maxLength: MAX_MUSICBRAINZ_ID_LENGTH,
   });
 
+const normalizeReleaseGroupTitle = (title: string) =>
+  title
+    .toLocaleLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const dedupeReleaseGroups = (releaseGroups: LbReleaseGroupExtended[]) => {
+  const seenIds = new Set<string>();
+  const seenTitles = new Set<string>();
+
+  return releaseGroups.filter((releaseGroup) => {
+    const idKey = releaseGroup.mbid;
+    const type = releaseGroup.secondary_types?.length
+      ? releaseGroup.secondary_types[0]
+      : releaseGroup.type || 'Other';
+    const titleKey = [
+      normalizeReleaseGroupTitle(releaseGroup.name),
+      releaseGroup.artist_credit_name.toLocaleLowerCase(),
+      releaseGroup.date?.slice(0, 4) ?? '',
+      type.toLocaleLowerCase(),
+    ].join('|');
+
+    if (seenIds.has(idKey) || seenTitles.has(titleKey)) {
+      return false;
+    }
+
+    seenIds.add(idKey);
+    seenTitles.add(titleKey);
+    return true;
+  });
+};
+
 artistRoutes.get('/:id/similar', async (req, res, next) => {
   const parsedArtistId = parseMusicBrainzId(req.params.id);
   if ('error' in parsedArtistId) {
@@ -122,7 +156,8 @@ artistRoutes.get('/:id', async (req, res, next) => {
       throw new Error('Artist not found');
     }
 
-    const groupedReleaseGroups = artistData.releaseGroups.reduce(
+    const releaseGroups = dedupeReleaseGroups(artistData.releaseGroups);
+    const groupedReleaseGroups = releaseGroups.reduce(
       (acc, rg) => {
         const type = rg.secondary_types?.length
           ? rg.secondary_types[0]

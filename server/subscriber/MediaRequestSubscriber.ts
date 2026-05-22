@@ -52,7 +52,15 @@ const sanitizeDisplayName = (displayName: string): string => {
 
 const READARR_LOOKUP_RETRY_DELAYS_MS =
   process.env.NODE_ENV === 'test' ? [1, 1, 1] : [500, 1500, 3000];
+const READARR_DISPATCH_RETRY_DELAYS_MS =
+  process.env.NODE_ENV === 'test'
+    ? [1, 1, 1]
+    : [60_000, 300_000, 900_000, 3_600_000];
 const READARR_MAX_EXPANDED_LOOKUP_TERMS = 18;
+const readarrDispatchRetryTimers = new Map<
+  number,
+  { attempts: number; timer: NodeJS.Timeout }
+>();
 
 const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -66,6 +74,15 @@ const isTransientExternalError = (error: unknown): boolean => {
     ) ||
     /500\.InternalServerError|InternalServerError/i.test(message)
   );
+};
+
+const clearReadarrDispatchRetry = (requestId: number): void => {
+  const pendingRetry = readarrDispatchRetryTimers.get(requestId);
+
+  if (pendingRetry) {
+    clearTimeout(pendingRetry.timer);
+    readarrDispatchRetryTimers.delete(requestId);
+  }
 };
 
 const lookupReadarrBookWithRetry = async (
@@ -209,6 +226,86 @@ const hydrateSoftcoverLookupResults = async (
 
 @EventSubscriber()
 export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRequest> {
+  private scheduleReadarrDispatchRetry(
+    entity: MediaRequest,
+    error: unknown
+  ): void {
+    const existingRetry = readarrDispatchRetryTimers.get(entity.id);
+    const attempts = existingRetry ? existingRetry.attempts + 1 : 1;
+    const delayMs =
+      READARR_DISPATCH_RETRY_DELAYS_MS[
+        Math.min(attempts - 1, READARR_DISPATCH_RETRY_DELAYS_MS.length - 1)
+      ];
+
+    if (existingRetry) {
+      clearTimeout(existingRetry.timer);
+    }
+
+    const timer = setTimeout(() => {
+      readarrDispatchRetryTimers.delete(entity.id);
+
+      getRepository(MediaRequest)
+        .findOne({
+          where: {
+            id: entity.id,
+            type: MediaType.BOOK,
+            status: MediaRequestStatus.APPROVED,
+          },
+        })
+        .then(async (request) => {
+          if (!request) {
+            return;
+          }
+
+          await this.sendToReadarr(request);
+        })
+        .catch((retryError) => {
+          logger.error('Error retrying Bookshelf request dispatch', {
+            label: 'Media Request',
+            requestId: entity.id,
+            errorMessage:
+              retryError instanceof Error
+                ? retryError.message
+                : String(retryError),
+          });
+        });
+    }, delayMs);
+
+    readarrDispatchRetryTimers.set(entity.id, { attempts, timer });
+
+    logger.warn(
+      'Bookshelf request hit a transient metadata limit; leaving request approved for retry.',
+      {
+        label: 'Media Request',
+        requestId: entity.id,
+        mediaId: entity.media.id,
+        attempt: attempts,
+        retryInMs: delayMs,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }
+    );
+  }
+
+  public async retryApprovedReadarrRequests(limit = 10): Promise<void> {
+    const requestRepository = getRepository(MediaRequest);
+    const requests = await requestRepository.find({
+      where: {
+        type: MediaType.BOOK,
+        status: MediaRequestStatus.APPROVED,
+      },
+      order: { updatedAt: 'ASC' },
+      take: limit,
+    });
+
+    for (const request of requests) {
+      if (readarrDispatchRetryTimers.has(request.id)) {
+        continue;
+      }
+
+      await this.sendToReadarr(request);
+    }
+  }
+
   private getBookStatusFromLinks(media: Media): MediaStatus {
     const hasEbook =
       media.serviceId !== null &&
@@ -1766,6 +1863,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
       }
 
       const requestRepository = getRepository(MediaRequest);
+      clearReadarrDispatchRetry(entity.id);
       entity.status = MediaRequestStatus.COMPLETED;
       await requestRepository.save(entity);
 
@@ -1777,12 +1875,18 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
         bookFormat: requestedBookFormat,
       });
     } catch (e) {
+      if (isTransientExternalError(e)) {
+        this.scheduleReadarrDispatchRetry(entity, e);
+        return;
+      }
+
       const requestRepository = getRepository(MediaRequest);
       const mediaRepository = getRepository(Media);
       const media = await mediaRepository.findOne({
         where: { id: entity.media.id },
       });
 
+      clearReadarrDispatchRetry(entity.id);
       entity.status = MediaRequestStatus.FAILED;
       await requestRepository.save(entity);
 
