@@ -19,6 +19,10 @@ variables:
 docker:seerrng:
   stage: build
   image: docker:27.5.1
+  tags:
+    - kspls0
+    - amd64
+    - docker
   before_script:
     - docker info
     - docker buildx use default
@@ -53,6 +57,10 @@ deploy:seerr.home:
   stage: deploy
   image: alpine:3.21
   needs: ["docker:seerrng"]
+  tags:
+    - kspls0
+    - amd64
+    - docker
   variables:
     SEERRNG_DEPLOY_HOST: "kspls0"
     SEERRNG_DEPLOY_CONTAINER: "seerr-host"
