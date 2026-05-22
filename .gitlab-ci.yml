@@ -21,7 +21,6 @@ docker:seerrng:
   image: docker:27.5.1
   before_script:
     - docker info
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - docker buildx use default
   script:
     - >
@@ -31,16 +30,8 @@ docker:seerrng:
       --build-arg BUILD_VERSION="${CI_COMMIT_TAG:-$CI_COMMIT_REF_SLUG}"
       --tag "$IMAGE_TAG"
       --tag "$IMAGE_SHA_TAG"
-      --push
+      --load
       .
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
-        docker buildx imagetools create --tag "$CI_REGISTRY_IMAGE:latest" "$IMAGE_SHA_TAG"
-      fi
-    - |
-      if [ -n "$CI_COMMIT_TAG" ]; then
-        docker buildx imagetools create --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" "$IMAGE_SHA_TAG"
-      fi
 
 .trivy_scan:
   stage: scan
@@ -56,7 +47,7 @@ container_scanning:
   variables:
     CS_IMAGE: "$IMAGE_SHA_TAG"
   rules:
-    - if: '$CI_COMMIT_BRANCH || $CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_TAG'
 
 deploy:seerr.home:
   stage: deploy
@@ -78,10 +69,14 @@ deploy:seerr.home:
         printf '%s\n' "$SEERRNG_DEPLOY_SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
       fi
     - ssh-keyscan "$SEERRNG_DEPLOY_HOST" >> ~/.ssh/known_hosts
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
-    - docker pull "$IMAGE_SHA_TAG"
-    - docker tag "$IMAGE_SHA_TAG" "$SEERRNG_DEPLOY_IMAGE"
+    - >
+      docker build --network host
+      --file Dockerfile
+      --build-arg COMMIT_TAG="${CI_COMMIT_TAG:-$CI_COMMIT_SHORT_SHA}"
+      --build-arg BUILD_VERSION="${CI_COMMIT_TAG:-$CI_COMMIT_REF_SLUG}"
+      --tag "$SEERRNG_DEPLOY_IMAGE"
+      .
     - docker save "$SEERRNG_DEPLOY_IMAGE" | ssh "$SEERRNG_DEPLOY_HOST" docker load
     - |
       ssh "$SEERRNG_DEPLOY_HOST" sh -s <<EOF
@@ -143,7 +138,7 @@ github:mirror:
         git push github-mirror "HEAD:$CI_COMMIT_REF_NAME"
       fi
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_TAG'
 
 github:release:
   extends: .github_publication_defaults
@@ -185,7 +180,7 @@ ghcr:promote:
         skopeo copy "docker://${IMAGE_SHA_TAG}" "docker://$GHCR_REPOSITORY:$CI_COMMIT_TAG"
       fi
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_TAG'
 
 dockerhub:promote:
   stage: promote
@@ -204,7 +199,7 @@ dockerhub:promote:
         skopeo copy "docker://${IMAGE_SHA_TAG}" "docker://docker.io/snapetech/seerrng:latest"
       fi
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_TAG'
 
 .package_smoke_defaults:
   stage: post_release_validate
