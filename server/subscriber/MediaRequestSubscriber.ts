@@ -13,6 +13,7 @@ import type {
 import SonarrAPI from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
 import { ANIME_KEYWORD_ID } from '@server/api/themoviedb/constants';
+import WikidataAPI from '@server/api/wikidata';
 import {
   MediaRequestStatus,
   MediaStatus,
@@ -1568,6 +1569,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           return [];
         }
 
+        const wikidata = new WikidataAPI();
         const [editions, author] = await Promise.all([
           openLibrary.getWorkEditions(normalizedOpenLibraryId).catch(() => ({
             size: 0,
@@ -1581,6 +1583,28 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
                 .catch(() => undefined)
             : Promise.resolve(undefined),
         ]);
+        const wikidataTerms = work?.title
+          ? await wikidata
+              .getCanonicalBookTerms({
+                title: work.title,
+                authorName: author?.name,
+              })
+              .catch((error) => {
+                logger.warn(
+                  'Wikidata canonical book lookup failed; continuing Bookshelf lookup without translated title terms.',
+                  {
+                    label: 'Readarr',
+                    mediaId: media.id,
+                    requestId: entity.id,
+                    openLibraryId: normalizedOpenLibraryId,
+                    errorMessage:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+
+                return [];
+              })
+          : [];
         const editionIsbns = editions.entries
           .flatMap((edition) => [
             ...(edition.isbn_13 ?? []),
@@ -1595,6 +1619,13 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           work?.title && author?.name
             ? `${author.name} ${work.title}`
             : undefined,
+          ...wikidataTerms.flatMap((term) => [
+            term.title,
+            term.authorName ? `${term.title} ${term.authorName}` : undefined,
+            term.authorName ? `${term.authorName} ${term.title}` : undefined,
+            term.isbn13 ? `isbn:${term.isbn13}` : undefined,
+            term.isbn13,
+          ]),
           ...editionIsbns.flatMap((editionIsbn) => [
             `isbn:${editionIsbn}`,
             editionIsbn,

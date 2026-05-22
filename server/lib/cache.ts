@@ -17,6 +17,7 @@ export type AvailableCacheIds =
   | 'listenbrainz'
   | 'coverartarchive'
   | 'openlibrary'
+  | 'wikidata'
   | 'tadb'
   | 'associations';
 
@@ -98,6 +99,10 @@ class CacheManager {
       checkPeriod: 60 * 30,
     }),
     openlibrary: new Cache('openlibrary', 'Open Library API', {
+      stdTtl: 43200,
+      checkPeriod: 60 * 30,
+    }),
+    wikidata: new Cache('wikidata', 'Wikidata API', {
       stdTtl: 43200,
       checkPeriod: 60 * 30,
     }),

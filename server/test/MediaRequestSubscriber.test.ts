@@ -10,6 +10,7 @@ import type {
   ReadarrBookOptions,
 } from '@server/api/servarr/readarr';
 import ReadarrAPI from '@server/api/servarr/readarr';
+import WikidataAPI from '@server/api/wikidata';
 import {
   MediaRequestStatus,
   MediaStatus,
@@ -1004,6 +1005,7 @@ describe('MediaRequestSubscriber service dispatch', () => {
         },
       ],
     }));
+    mock.method(WikidataAPI.prototype, 'getCanonicalBookTerms', async () => []);
     mock.method(ReadarrAPI.prototype, 'lookupBook', async () => [
       {
         title: 'Articles on Foundation Universe Books, Including',
@@ -1032,7 +1034,7 @@ describe('MediaRequestSubscriber service dispatch', () => {
     assert.equal(savedRequest.status, MediaRequestStatus.FAILED);
   });
 
-  it('fails no-ISBN translated OpenLibrary works when Bookshelf returns no provider-backed result', async () => {
+  it('resolves no-ISBN translated OpenLibrary works through Wikidata canonical title terms', async () => {
     const settings = getSettings();
     settings.readarr = [
       {
@@ -1094,7 +1096,33 @@ describe('MediaRequestSubscriber service dispatch', () => {
         },
       ],
     }));
-    mock.method(ReadarrAPI.prototype, 'lookupBook', async () => []);
+    mock.method(WikidataAPI.prototype, 'getCanonicalBookTerms', async () => [
+      {
+        title: 'Diary of a Wimpy Kid: Dog Days',
+        authorName: 'Jeff Kinney',
+      },
+    ]);
+    mock.method(ReadarrAPI.prototype, 'lookupBook', async (term: string) =>
+      term === 'Diary of a Wimpy Kid: Dog Days'
+        ? [
+            {
+              title: 'Diary of a Wimpy Kid: Dog Days',
+              foreignBookId: '126573',
+              author: {
+                foreignAuthorId: '94723',
+                authorName: 'Jeff Kinney',
+              },
+              editions: [
+                {
+                  foreignEditionId: '538151',
+                  title: 'Diary of a Wimpy Kid: Dog Days',
+                  monitored: true,
+                },
+              ],
+            },
+          ]
+        : []
+    );
     const addBook = mock.method(
       ReadarrAPI.prototype,
       'addBook',
@@ -1108,11 +1136,14 @@ describe('MediaRequestSubscriber service dispatch', () => {
 
     await new MediaRequestSubscriber().sendToReadarr(request);
 
-    assert.equal(addBook.mock.callCount(), 0);
+    assert.equal(addBook.mock.callCount(), 1);
+    const addPayload = addBook.mock.calls[0].arguments[0] as ReadarrBookOptions;
+    assert.equal(addPayload.title, 'Diary of a Wimpy Kid: Dog Days');
+    assert.equal(addPayload.foreignBookId, '126573');
     const savedRequest = await getRepository(MediaRequest).findOneByOrFail({
       id: request.id,
     });
-    assert.equal(savedRequest.status, MediaRequestStatus.FAILED);
+    assert.equal(savedRequest.status, MediaRequestStatus.COMPLETED);
   });
 
   it('hydrates Bookshelf softcover lookup records through author lookup before adding', async () => {
