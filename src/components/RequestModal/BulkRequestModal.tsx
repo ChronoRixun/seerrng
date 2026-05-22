@@ -95,6 +95,7 @@ type AuthorWorksResponse = {
     limit: number;
     offset: number;
     totalItems: number;
+    nextOffset?: number;
   };
 };
 
@@ -141,6 +142,47 @@ const releaseTypeOptions = [
 ];
 const EMPTY_BULK_ITEMS: BulkItem[] = [];
 const BULK_REQUEST_CHUNK_SIZE = 100;
+const normalizeBulkTitle = (value?: string) =>
+  (value ?? '')
+    .toLocaleLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const getBulkItemDedupeKey = (item: BulkItem, mediaType: BulkMediaType) =>
+  mediaType === 'music'
+    ? [
+        normalizeBulkTitle(item.title),
+        normalizeBulkTitle(item.artist),
+        item.year?.toString() ?? '',
+        normalizeBulkTitle(item.releaseType),
+      ].join('|')
+    : [normalizeBulkTitle(item.title), normalizeBulkTitle(item.artist)].join(
+        '|'
+      );
+
+const dedupeBulkItems = (
+  sourceItems: BulkItem[],
+  mediaType: BulkMediaType
+): BulkItem[] => {
+  const seenIds = new Set<string>();
+  const seenTitles = new Set<string>();
+
+  return sourceItems.filter((item) => {
+    const idKey = item.id;
+    const titleKey = getBulkItemDedupeKey(item, mediaType);
+
+    if (seenIds.has(idKey) || seenTitles.has(titleKey)) {
+      return false;
+    }
+
+    seenIds.add(idKey);
+    seenTitles.add(titleKey);
+    return true;
+  });
+};
+
 const mapBookWorkToBulkItem = (work: BookResult): BulkItem => ({
   id: work.id,
   title: work.title,
@@ -264,7 +306,9 @@ const BulkRequestModal = ({
   const { user, hasPermission } = useUser();
   const [format, setFormat] = useState<BulkBookFormat>('ebook');
   const [releaseType, setReleaseType] = useState('Album');
-  const [items, setItems] = useState<BulkItem[]>(initialItems);
+  const [items, setItems] = useState<BulkItem[]>(
+    dedupeBulkItems(initialItems, mediaType)
+  );
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [requestOverrides, setRequestOverrides] =
     useState<RequestOverrides | null>(null);
@@ -289,10 +333,10 @@ const BulkRequestModal = ({
   );
 
   useEffect(() => {
-    setItems(initialItems);
+    setItems(dedupeBulkItems(initialItems, mediaType));
     setAuthorOffset(initialItems.length);
     setAuthorTotal(initialTotalItems);
-  }, [initialItems, initialTotalItems]);
+  }, [initialItems, initialTotalItems, mediaType]);
 
   useEffect(() => {
     let canceled = false;
@@ -309,7 +353,7 @@ const BulkRequestModal = ({
         const limit = 100;
         let offset = 0;
         let totalItems = 0;
-        let lastPageCount = 0;
+        let nextOffset = 0;
 
         do {
           const response = await axios.get<AuthorWorksResponse>(
@@ -317,11 +361,13 @@ const BulkRequestModal = ({
             { params: { limit, offset } }
           );
 
-          lastPageCount = response.data.works.length;
           works.push(...response.data.works);
           totalItems = response.data.pagination.totalItems;
-          offset += lastPageCount;
-        } while (offset < totalItems && lastPageCount > 0);
+          nextOffset =
+            response.data.pagination.nextOffset ??
+            offset + response.data.pagination.limit;
+          offset = nextOffset;
+        } while (offset < totalItems && nextOffset > 0);
 
         const worksById = new Map<string, BookResult>();
         works.forEach((work) => worksById.set(work.id, work));
@@ -332,10 +378,15 @@ const BulkRequestModal = ({
 
         setAuthorOffset(totalItems);
         setAuthorTotal(totalItems);
-        setItems([...worksById.values()].map(mapBookWorkToBulkItem));
+        setItems(
+          dedupeBulkItems(
+            [...worksById.values()].map(mapBookWorkToBulkItem),
+            mediaType
+          )
+        );
       } catch {
         if (!canceled) {
-          setItems(initialItems);
+          setItems(dedupeBulkItems(initialItems, mediaType));
         }
       } finally {
         if (!canceled) {
@@ -349,7 +400,7 @@ const BulkRequestModal = ({
     return () => {
       canceled = true;
     };
-  }, [authorId, initialItems, initialTotalItems, mediaType, show]);
+  }, [authorId, initialItems, mediaType, show]);
 
   useEffect(() => {
     let canceled = false;
@@ -392,20 +443,23 @@ const BulkRequestModal = ({
         }
 
         setItems(
-          [...releaseGroupsById.values()].map((album) => ({
-            id: album.id,
-            title: album.title ?? 'Unknown Album',
-            year: album['first-release-date']?.slice(0, 4),
-            image: album.posterPath,
-            artist: album['artist-credit']?.[0]?.name,
-            mediaInfo: album.mediaInfo,
-            releaseType:
-              album.secondary_types?.[0] ?? album['primary-type'] ?? 'Other',
-          }))
+          dedupeBulkItems(
+            [...releaseGroupsById.values()].map((album) => ({
+              id: album.id,
+              title: album.title ?? 'Unknown Album',
+              year: album['first-release-date']?.slice(0, 4),
+              image: album.posterPath,
+              artist: album['artist-credit']?.[0]?.name,
+              mediaInfo: album.mediaInfo,
+              releaseType:
+                album.secondary_types?.[0] ?? album['primary-type'] ?? 'Other',
+            })),
+            mediaType
+          )
         );
       } catch {
         if (!canceled) {
-          setItems(initialItems);
+          setItems(dedupeBulkItems(initialItems, mediaType));
         }
       } finally {
         if (!canceled) {
@@ -503,18 +557,19 @@ const BulkRequestModal = ({
       { params: { limit: 20, offset: authorOffset } }
     );
 
-    const nextOffset = authorOffset + response.data.works.length;
+    const nextOffset =
+      response.data.pagination.nextOffset ??
+      authorOffset + response.data.pagination.limit;
     setAuthorOffset(nextOffset);
     setAuthorTotal(response.data.pagination.totalItems);
     setItems((current) => {
-      const existingIds = new Set(current.map((item) => item.id));
-
-      return [
-        ...current,
-        ...response.data.works
-          .filter((work) => !existingIds.has(work.id))
-          .map(mapBookWorkToBulkItem),
-      ];
+      return dedupeBulkItems(
+        [
+          ...current,
+          ...response.data.works.map(mapBookWorkToBulkItem),
+        ],
+        mediaType
+      );
     });
   };
 
@@ -640,7 +695,7 @@ const BulkRequestModal = ({
       show={show}
     >
       <Modal
-        loading={!quota || isLoadingItems}
+        loading={!quota}
         title={intl.formatMessage(
           mediaType === 'book'
             ? messages.requestbibliography

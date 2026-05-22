@@ -51,6 +51,7 @@ export interface OpenLibraryAuthorWork {
   covers?: number[];
   first_publish_date?: string;
   authors?: OpenLibraryWork['authors'];
+  languages?: { key: string }[];
 }
 
 export interface OpenLibraryEdition {
