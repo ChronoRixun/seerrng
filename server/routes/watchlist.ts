@@ -34,7 +34,7 @@ const parseWatchlistExternalId = (id: unknown): string | undefined => {
 const normalizeWatchlistMusicId = (id: string): string => id.toLowerCase();
 
 const normalizeWatchlistBookId = (id: string): string =>
-  id.replace(/^\/?works\//i, '');
+  id.replace(/^\/?works\//i, '').replace(/^ol(\d+)w$/i, 'OL$1W');
 
 watchlistRoutes.post<never, Watchlist, Watchlist>(
   '/',
