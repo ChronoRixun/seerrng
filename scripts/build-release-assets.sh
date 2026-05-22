@@ -67,11 +67,20 @@ if [[ "$os" == "windows" ]]; then
   if command -v zip >/dev/null 2>&1; then
     (cd "$work_dir" && zip -qr "${dist_abs}/${asset}.zip" "$asset")
   elif command -v powershell.exe >/dev/null 2>&1; then
+    archive_path="${dist_abs}/${asset}.zip"
+    if command -v cygpath >/dev/null 2>&1; then
+      powershell_source="$(cygpath -w "${work_dir}/${asset}")"
+      powershell_archive="$(cygpath -w "$archive_path")"
+    else
+      powershell_source="${work_dir}/${asset}"
+      powershell_archive="$archive_path"
+    fi
     powershell.exe -NoProfile -Command \
-      "Compress-Archive -Path '${work_dir}/${asset}' -DestinationPath '${dist_abs}/${asset}.zip' -Force"
+      "Compress-Archive -Path '${powershell_source}' -DestinationPath '${powershell_archive}' -Force"
   elif command -v powershell >/dev/null 2>&1; then
+    archive_path="${dist_abs}/${asset}.zip"
     powershell -NoProfile -Command \
-      "Compress-Archive -Path '${work_dir}/${asset}' -DestinationPath '${dist_abs}/${asset}.zip' -Force"
+      "Compress-Archive -Path '${work_dir}/${asset}' -DestinationPath '${archive_path}' -Force"
   else
     echo "zip or PowerShell Compress-Archive is required to build Windows assets" >&2
     exit 1

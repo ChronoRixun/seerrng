@@ -46,12 +46,16 @@ jobs:
           exit 1
 
       - name: Import GPG key
+        id: gpg
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           test -n "$GPG_PRIVATE_KEY"
           printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          fingerprint="$(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          test -n "$fingerprint"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
 
       - name: Prepare source package
         run: |
@@ -85,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "seerrng-${{ steps.version.outputs.version }}"
-          debuild -S -sa
+          debuild -S -sa -k"${{ steps.gpg.outputs.fingerprint }}"
 
       - name: Upload to Launchpad
         env:
