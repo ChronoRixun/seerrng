@@ -61,7 +61,7 @@
     "country-flag-icons": "1.6.16",
     "cronstrue": "3.14.0",
     "dns-caching": "^0.2.9",
-    "dompurify": "^3.2.4",
+    "dompurify": "^3.4.10",
     "email-templates": "13.0.1",
     "express": "5.2.1",
     "express-openapi-validator": "5.6.2",
@@ -72,7 +72,7 @@
     "http-proxy-agent": "^7.0.2",
     "https-proxy-agent": "^7.0.6",
     "humanize-duration": "^3.33.2",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.2.0",
     "jsdom": "^26.0.0",
     "lodash": "4.18.1",
     "mime": "^4.1.0",
@@ -81,7 +81,7 @@
     "node-cache": "5.1.2",
     "node-gyp": "12.2.0",
     "node-schedule": "2.1.1",
-    "nodemailer": "8.0.5",
+    "nodemailer": "8.0.9",
     "openpgp": "6.3.0",
     "pg": "8.20.0",
     "pug": "3.0.4",
@@ -108,7 +108,7 @@
     "swr": "2.4.1",
     "tailwind-merge": "^2.6.1",
     "typeorm": "0.3.28",
-    "ua-parser-js": "^2.0.9",
+    "ua-parser-js": "^2.0.10",
     "undici": "^8.1.0",
     "validator": "^13.15.35",
     "web-push": "3.6.7",
@@ -211,44 +211,6 @@
     "extends": [
       "@commitlint/config-conventional"
     ]
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@swc/core",
-      "bcrypt",
-      "cypress",
-      "sharp",
-      "sqlite3"
-    ],
-    "overrides": {
-      "axios": "1.16.1",
-      "@babel/plugin-transform-modules-systemjs": "7.29.4",
-      "@tootallnate/once": "3.0.1",
-      "bn.js": "4.12.3",
-      "brace-expansion": "5.0.6",
-      "fast-uri": "3.1.2",
-      "flatted": "3.4.2",
-      "handlebars": "4.7.9",
-      "ip-address": "10.2.0",
-      "lodash": "4.18.1",
-      "lodash-es": "4.18.1",
-      "mailparser": "3.9.8",
-      "minimatch": "9.0.7",
-      "nodemailer": "8.0.5",
-      "picomatch": "2.3.2",
-      "postcss": "8.5.10",
-      "qs": "6.15.2",
-      "systeminformation": "5.31.6",
-      "tar": "7.5.15",
-      "tmp": "0.2.4",
-      "underscore": "1.13.8",
-      "uuid": "11.1.1",
-      "yaml": "1.10.3",
-      "sqlite3>node-gyp": "8.4.1",
-      "@types/express-session": "1.18.2",
-      "@types/react": "19.2.14",
-      "@types/react-dom": "19.2.3"
-    }
   },
   "scarfSettings": {
     "enabled": false

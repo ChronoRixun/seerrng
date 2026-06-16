@@ -17,6 +17,31 @@ export const normalizeUrlBase = (value?: string): string => {
   return prefixed.replace(/\/+$/, '');
 };
 
+export const normalizeServiceHostname = (value?: string): string => {
+  const trimmed = value?.trim() ?? '';
+
+  if (
+    !trimmed ||
+    trimmed.startsWith('//') ||
+    /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ||
+    /[\s/@?#\\]/.test(trimmed)
+  ) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(`http://${trimmed}`);
+    return parsed.hostname &&
+      parsed.pathname === '/' &&
+      !parsed.username &&
+      !parsed.password
+      ? trimmed
+      : '';
+  } catch {
+    return '';
+  }
+};
+
 export const buildServiceUrl = ({
   useSsl,
   hostname,
@@ -30,6 +55,6 @@ export const buildServiceUrl = ({
   urlBase?: string;
   path?: string;
 }): string =>
-  `${useSsl ? 'https' : 'http'}://${hostname ?? ''}:${port ?? ''}${normalizeUrlBase(
-    urlBase
-  )}${path}`;
+  `${useSsl ? 'https' : 'http'}://${normalizeServiceHostname(hostname)}:${
+    port ?? ''
+  }${normalizeUrlBase(urlBase)}${path}`;

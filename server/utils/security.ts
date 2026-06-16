@@ -213,3 +213,19 @@ export const isSafeHttpUrl = async (
     return false;
   }
 };
+
+export const createSafeHttpUrl = async (
+  value: unknown,
+  options: { allowTemplates?: boolean; allowPrivateAddresses?: boolean } = {}
+): Promise<URL | undefined> => {
+  if (!(await isSafeHttpUrl(value, options))) {
+    return undefined;
+  }
+
+  const candidate =
+    typeof value === 'string' && options.allowTemplates
+      ? value.replace(/\{\{[A-Za-z0-9_]+\}\}/g, 'template')
+      : value;
+
+  return typeof candidate === 'string' ? new URL(candidate) : undefined;
+};

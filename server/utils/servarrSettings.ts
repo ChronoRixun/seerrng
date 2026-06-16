@@ -5,7 +5,10 @@ import type {
   ReadarrSettings,
   SonarrSettings,
 } from '@server/lib/settings';
-import { normalizeUrlBase } from '@server/utils/serviceUrl';
+import {
+  normalizeServiceHostname,
+  normalizeUrlBase,
+} from '@server/utils/serviceUrl';
 import {
   parseBoundedString,
   parseOptionalBoolean,
@@ -111,6 +114,10 @@ const parseDvrSettings = (
 
   const hostname = parseRequiredServiceString(settings.hostname, 'hostname');
   if ('error' in hostname) return hostname;
+  const normalizedHostname = normalizeServiceHostname(hostname.value);
+  if (!normalizedHostname) {
+    return { error: 'hostname is invalid.' };
+  }
 
   const apiKey = parseRequiredServiceString(settings.apiKey, 'apiKey');
   if ('error' in apiKey) return apiKey;
@@ -158,7 +165,7 @@ const parseDvrSettings = (
     value: {
       id: current?.id ?? 0,
       name: name.value,
-      hostname: hostname.value,
+      hostname: normalizedHostname,
       port,
       apiKey: apiKey.value,
       useSsl: parseOptionalBoolean(settings.useSsl) ?? false,

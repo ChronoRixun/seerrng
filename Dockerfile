@@ -1,4 +1,5 @@
 FROM public.ecr.aws/docker/library/node:22.22.2-alpine3.23 AS base
+ARG NPM_VERSION=11.17.0
 ARG SOURCE_DATE_EPOCH
 ARG TARGETPLATFORM
 ENV TARGETPLATFORM=${TARGETPLATFORM:-linux/amd64}
@@ -10,7 +11,7 @@ RUN apk add --no-cache python3 py3-setuptools make g++ gcc libc6-compat bash && 
   npm config set fetch-retries 5 && \
   npm config set fetch-retry-mintimeout 20000 && \
   npm config set fetch-retry-maxtimeout 120000 && \
-  npm install --global node-gyp pnpm@10.24.0
+  npm install --global npm@${NPM_VERSION} node-gyp pnpm@10.24.0
 
 COPY . ./app
 WORKDIR /app
@@ -49,6 +50,7 @@ RUN pnpm build
 RUN rm -rf .next/cache
 
 FROM public.ecr.aws/docker/library/node:22.22.2-alpine3.23
+ARG NPM_VERSION=11.17.0
 ARG SOURCE_DATE_EPOCH
 ARG COMMIT_TAG
 ARG BUILD_VERSION=main
@@ -56,7 +58,8 @@ ENV NODE_ENV=production
 ENV COMMIT_TAG=${COMMIT_TAG}
 ENV BUILD_VERSION=${BUILD_VERSION}
 
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata && \
+  npm install --global npm@${NPM_VERSION}
 
 USER node:node
 

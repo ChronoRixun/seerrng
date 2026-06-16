@@ -86,6 +86,23 @@ const EXTERNAL_READ_ONLY =
   process.env.SEERR_EXTERNAL_READ_ONLY?.toLowerCase() === 'true' ||
   process.env.SEERR_EXTERNAL_READ_ONLY === '1';
 
+const normalizeConfiguredServiceUrl = (value: string, apiName: string) => {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+      throw new Error('Service URL must be HTTP or HTTPS.');
+    }
+
+    url.username = '';
+    url.password = '';
+    return url.toString().replace(/\/+$/, '');
+  } catch (e) {
+    throw new Error(`[${apiName}] Invalid configured service URL`, {
+      cause: e,
+    });
+  }
+};
+
 class ServarrBase<QueueItemAppendT> extends ExternalAPI {
   static buildUrl(settings: DVRSettings, path?: string): string {
     return buildServiceUrl({
@@ -111,9 +128,10 @@ class ServarrBase<QueueItemAppendT> extends ExternalAPI {
     apiName: string;
   }) {
     const timeout = getSettings().network.apiRequestTimeout;
+    const normalizedUrl = normalizeConfiguredServiceUrl(url, apiName);
 
     super(
-      url,
+      normalizedUrl,
       {
         apikey: apiKey,
       },

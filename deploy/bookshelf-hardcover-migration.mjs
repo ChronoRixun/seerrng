@@ -3523,9 +3523,26 @@ const checkCutoverReadiness = async ({ migrationDir }) => {
 const readJson = async (filePath) =>
   JSON.parse(await fs.readFile(filePath, 'utf8'));
 
+const resolveJsonOutputPath = (filePath) => {
+  const resolvedPath = path.resolve(filePath);
+
+  if (!resolvedPath.endsWith('.json')) {
+    throw new Error(
+      `Refusing to write non-JSON migration artifact: ${filePath}`
+    );
+  }
+
+  return resolvedPath;
+};
+
 const writeJson = async (filePath, value) => {
-  await fs.writeFile(`${filePath}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
-  await fs.rename(`${filePath}.tmp`, filePath);
+  const outputPath = resolveJsonOutputPath(filePath);
+  const tmpPath = `${outputPath}.tmp`;
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  // lgtm[js/http-to-file-access] Migration writes are restricted to resolved JSON artifact paths.
+  await fs.writeFile(tmpPath, `${JSON.stringify(value, null, 2)}\n`);
+  await fs.rename(tmpPath, outputPath);
 };
 
 const printSummary = async ({ migrationDir }) => {
@@ -3569,7 +3586,7 @@ const main = async () => {
   const summary = args.includes('--summary');
   const reconcileLocal = args.includes('--reconcile-local');
   const localDbImport = args.includes('--local-db-import');
-  const migrationDir = args.find(
+  const rawMigrationDir = args.find(
     (arg) =>
       arg !== '--apply' &&
       arg !== '--validate' &&
@@ -3579,11 +3596,13 @@ const main = async () => {
       arg !== '--local-db-import'
   );
 
-  if (!migrationDir) {
+  if (!rawMigrationDir) {
     throw new Error(
       'Usage: bookshelf-hardcover-migration.mjs [--apply|--validate|--cutover-check|--summary|--reconcile-local] [--local-db-import] <migration-dir>'
     );
   }
+
+  const migrationDir = path.resolve(rawMigrationDir);
 
   if (localDbImport) {
     process.env.HARDCOVER_LOCAL_DB_IMPORT = 'true';

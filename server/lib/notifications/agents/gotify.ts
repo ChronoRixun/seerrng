@@ -4,7 +4,7 @@ import globalMessages from '@server/i18n/globalMessages';
 import type { NotificationAgentGotify } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { isSafeHttpUrl, redactSecrets } from '@server/utils/security';
+import { createSafeHttpUrl, redactSecrets } from '@server/utils/security';
 import axios from 'axios';
 import { Notification, hasNotificationType } from '..';
 import type { NotificationAgent, NotificationPayload } from './agent';
@@ -146,12 +146,12 @@ class GotifyAgent
       subject: payload.subject,
     });
 
-    if (
-      !(await isSafeHttpUrl(settings.options.url, {
-        allowPrivateAddresses:
-          process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS === 'true',
-      }))
-    ) {
+    const gotifyBaseUrl = await createSafeHttpUrl(settings.options.url, {
+      allowPrivateAddresses:
+        process.env.SEERR_ALLOW_PRIVATE_NOTIFICATION_URLS === 'true',
+    });
+
+    if (!gotifyBaseUrl) {
       logger.error('Invalid Gotify URL', {
         label: 'Notifications',
         type: Notification[type],
@@ -161,11 +161,14 @@ class GotifyAgent
     }
 
     try {
-      const endpoint = `${settings.options.url}/message?token=${settings.options.token}`;
+      const endpoint = new URL(gotifyBaseUrl.toString());
+      endpoint.pathname = `${endpoint.pathname.replace(/\/+$/, '')}/message`;
+      endpoint.searchParams.set('token', settings.options.token);
       const notificationPayload = this.getNotificationPayload(type, payload);
 
+      // lgtm[js/request-forgery] Gotify URLs are validated with createSafeHttpUrl before dispatch.
       await axios.post(
-        endpoint,
+        endpoint.toString(),
         notificationPayload,
         NOTIFICATION_HTTP_OPTIONS
       );

@@ -18,12 +18,24 @@ import {
   parseNonNegativeInt,
   parsePositiveInt,
 } from '@server/utils/pagination';
+import { getRateLimitKey } from '@server/utils/security';
 import { parseBoundedString } from '@server/utils/validation';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { In } from 'typeorm';
 
 const authorRoutes = Router();
 const MAX_OPENLIBRARY_AUTHOR_ID_LENGTH = 128;
+const authorRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  skip: () => process.env.NODE_ENV === 'test',
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: getRateLimitKey,
+});
+
+authorRoutes.use(authorRateLimit);
 
 const ISO_639_1_TO_OPENLIBRARY: Record<string, string> = {
   ar: 'ara',

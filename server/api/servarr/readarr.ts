@@ -278,6 +278,7 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
           }
         );
 
+        // lgtm[js/request-forgery] Readarr uses a normalized admin-configured service URL from ServarrBase.
         await this.post('/command', {
           name: 'BookSearch',
           bookIds: [updatedBook.data.id],
@@ -286,6 +287,7 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
         return updatedBook.data;
       }
 
+      // lgtm[js/request-forgery] Readarr uses a normalized admin-configured service URL from ServarrBase.
       return await this.post<ReadarrBookLookupResult>(
         '/book',
         options as unknown as Record<string, unknown>

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildServiceUrl, normalizeUrlBase } from './serviceUrl';
+import {
+  buildServiceUrl,
+  normalizeServiceHostname,
+  normalizeUrlBase,
+} from './serviceUrl';
 
 describe('normalizeUrlBase', () => {
   it('normalizes relative url bases', () => {
@@ -15,6 +19,25 @@ describe('normalizeUrlBase', () => {
     assert.equal(normalizeUrlBase('/sonarr?x=1'), '');
     assert.equal(normalizeUrlBase('/sonarr#fragment'), '');
     assert.equal(normalizeUrlBase('/sonarr\r\nx-header: injected'), '');
+  });
+});
+
+describe('normalizeServiceHostname', () => {
+  it('accepts hostnames and IP literals without URL components', () => {
+    assert.equal(normalizeServiceHostname('media.local'), 'media.local');
+    assert.equal(normalizeServiceHostname('127.0.0.1'), '127.0.0.1');
+    assert.equal(normalizeServiceHostname('[::1]'), '[::1]');
+  });
+
+  it('rejects hostnames with schemes, credentials, paths, or query strings', () => {
+    assert.equal(normalizeServiceHostname('https://media.local'), '');
+    assert.equal(normalizeServiceHostname('user@media.local'), '');
+    assert.equal(normalizeServiceHostname('media.local/sonarr'), '');
+    assert.equal(normalizeServiceHostname('media.local?redirect=1'), '');
+    assert.equal(
+      normalizeServiceHostname('media.local\r\nx-header: injected'),
+      ''
+    );
   });
 });
 
