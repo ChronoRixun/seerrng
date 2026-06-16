@@ -89,9 +89,97 @@ jobs:
           [domain_realm]
            .fedoraproject.org = FEDORAPROJECT.ORG
            fedoraproject.org = FEDORAPROJECT.ORG
+           .fedorainfracloud.org = FEDORAPROJECT.ORG
+           fedorainfracloud.org = FEDORAPROJECT.ORG
           EOF
             export KRB5_CONFIG="$krb5_config"
             echo "KRB5_CONFIG=$krb5_config" >> "$GITHUB_ENV"
+          }
+
+          configure_gssapi_client() {
+            cat > ~/.config/copr <<EOF
+          [copr-cli]
+          username = ${username}
+          copr_url = https://copr.fedorainfracloud.org
+          gssapi = true
+          EOF
+          }
+
+          cache_copr_gssapi_session() {
+            response="$RUNNER_TEMP/copr-gssapi-login.json"
+            cookie_jar="$RUNNER_TEMP/copr-gssapi-login.cookies"
+            status="$(curl --silent --show-error --negotiate -u : \
+              --cookie-jar "$cookie_jar" \
+              --output "$response" \
+              --write-out '%{http_code}' \
+              https://copr.fedorainfracloud.org/api_3/gssapi_login/)" || return 1
+            if [[ "$status" != "200" ]]; then
+              echo "COPR GSSAPI login failed with HTTP ${status}." >&2
+              sed -n '1,20p' "$response" >&2 || true
+              return 1
+            fi
+            "$RUNNER_TEMP/copr/bin/python" - "$response" "$cookie_jar" <<'PY'
+          import json
+          import sys
+          import time
+          from pathlib import Path
+
+          response_path = Path(sys.argv[1])
+          cookie_path = Path(sys.argv[2])
+          data = json.loads(response_path.read_text())
+          username = data.get("name")
+          session = None
+
+          for line in cookie_path.read_text().splitlines():
+              if not line or line.startswith("#"):
+                  continue
+              fields = line.split("\t")
+              if len(fields) >= 7 and fields[5] == "session":
+                  session = fields[6]
+                  break
+
+          if not username or not session:
+              raise SystemExit("COPR GSSAPI login did not return a usable session.")
+
+          cache_dir = Path.home() / ".cache" / "copr"
+          cache_dir.mkdir(parents=True, exist_ok=True)
+          cache_path = cache_dir / "copr.fedorainfracloud.org-session"
+          cache_path.write_text(json.dumps({
+              "name": username,
+              "session": session,
+              "expiration": time.time() + 10 * 3600,
+          }, indent=4) + "\n")
+          print(f"COPR GSSAPI session cached for {username}.")
+          PY
+          }
+
+          validate_copr_auth() {
+            "$RUNNER_TEMP/copr/bin/python" <<'PY'
+          import sys
+          from copr.v3 import Client
+
+          client = Client.create_from_config_file()
+          client.config["connection_attempts"] = 3
+
+          try:
+              username = client.base_proxy.auth_username()
+              client.base_proxy.auth_check()
+          except Exception as exc:
+              response = getattr(exc, "response", None)
+              if response is not None:
+                  body = response.text[:500].replace("\n", " ")
+                  content_type = response.headers.get("content-type", "unknown")
+                  print(
+                      f"COPR API authentication failed: HTTP {response.status_code}; "
+                      f"content-type={content_type}; body={body}",
+                      file=sys.stderr,
+                  )
+              else:
+                  print(f"COPR API authentication failed: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+
+          print(f"COPR API authentication validated for {username}.")
+          PY
           }
 
           configure_kerberos_keytab() {
@@ -104,12 +192,8 @@ jobs:
             rm -f "$keytab"
             export KRB5CCNAME="FILE:$ccache"
             echo "KRB5CCNAME=$KRB5CCNAME" >> "$GITHUB_ENV"
-            cat > ~/.config/copr <<EOF
-          [copr-cli]
-          username = ${username}
-          copr_url = https://copr.fedorainfracloud.org
-          gssapi = true
-          EOF
+            configure_gssapi_client
+            cache_copr_gssapi_session || return 1
           }
 
           configure_fedora_password() {
@@ -123,19 +207,16 @@ jobs:
             KRB5CCNAME="FILE:$armor" kdestroy || true
             export KRB5CCNAME="FILE:$ccache"
             echo "KRB5CCNAME=$KRB5CCNAME" >> "$GITHUB_ENV"
-            cat > ~/.config/copr <<EOF
-          [copr-cli]
-          username = ${username}
-          copr_url = https://copr.fedorainfracloud.org
-          gssapi = true
-          EOF
+            configure_gssapi_client
+            cache_copr_gssapi_session || return 1
           }
 
           try_copr_auth() {
             label="$1"
             shift
             rm -f ~/.config/copr
-            if "$@" && copr-cli list "$username" >/dev/null 2>&1; then
+            rm -rf ~/.cache/copr
+            if "$@" && validate_copr_auth; then
               echo "COPR authentication configured with ${label}."
               return 0
             fi
