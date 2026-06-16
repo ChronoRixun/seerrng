@@ -393,7 +393,7 @@ jobs:
 
       - name: Prepare config directory
         run: |
-          ssh kspls0 "sudo install -d -m 0755 '$SEERRNG_CONFIG_DIR' && sudo chown -R 1000:1000 '$SEERRNG_CONFIG_DIR'"
+          ssh kspls0 "sudo install -d -o 1000 -g 1000 -m 0755 '$SEERRNG_CONFIG_DIR'"
 
       - name: Deploy seerr.home
         run: |
