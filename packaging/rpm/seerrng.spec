@@ -13,6 +13,11 @@ BuildArch:      x86_64
 Requires:       nodejs >= 22
 %{?systemd_requires}
 
+# The release archive bundles native Node modules for multiple platforms.
+# Fedora's debuginfo/build-id helpers cannot rewrite those vendored artifacts.
+%global debug_package %{nil}
+%global _build_id_links none
+%global _missing_build_ids_terminate_build 0
 %{!?_unitdir:%global _unitdir /usr/lib/systemd/system}
 %{!?_sysusersdir:%global _sysusersdir /usr/lib/sysusers.d}
 %{!?_tmpfilesdir:%global _tmpfilesdir /usr/lib/tmpfiles.d}

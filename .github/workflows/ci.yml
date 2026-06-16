@@ -437,5 +437,6 @@ jobs:
             sleep 2
           done
           test "$status_ready" = true
-          grep -q "\"commitTag\":\"${GITHUB_SHA}\"" status.json
+          short_sha="${GITHUB_SHA::8}"
+          grep -Eq "\"commitTag\":\"(${GITHUB_SHA}|${short_sha})\"" status.json
           EOF
