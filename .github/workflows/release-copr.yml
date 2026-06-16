@@ -131,7 +131,11 @@ jobs:
           session = None
 
           for line in cookie_path.read_text().splitlines():
-              if not line or line.startswith("#"):
+              if not line:
+                  continue
+              if line.startswith("#HttpOnly_"):
+                  line = line.removeprefix("#HttpOnly_")
+              elif line.startswith("#"):
                   continue
               fields = line.split("\t")
               if len(fields) >= 7 and fields[5] == "session":
