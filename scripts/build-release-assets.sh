@@ -33,7 +33,7 @@ CI=true CYPRESS_INSTALL_BINARY=0 pnpm install --frozen-lockfile
 pnpm build
 
 cp -R .next dist server public bin "$stage"/
-cp package.json pnpm-lock.yaml next.config.ts seerr-api.yml LICENSE "$stage"/
+cp package.json pnpm-lock.yaml pnpm-workspace.yaml next.config.ts seerr-api.yml LICENSE "$stage"/
 (cd "$stage" && CI=true CYPRESS_INSTALL_BINARY=0 pnpm install --prod --frozen-lockfile)
 rm -rf "$stage/.next/cache" "$stage/.next/dev" "$stage/cache"
 mkdir -p "$stage/config"
