@@ -56,7 +56,7 @@ ENV NODE_ENV=production
 ENV COMMIT_TAG=${COMMIT_TAG}
 ENV BUILD_VERSION=${BUILD_VERSION}
 
-RUN apk add --no-cache tzdata && \
+RUN apk add --no-cache --upgrade libcrypto3 libssl3 tzdata && \
   rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
 USER node:node
