@@ -78,7 +78,7 @@ jobs:
            default_realm = FEDORAPROJECT.ORG
            dns_lookup_realm = false
            rdns = false
-           dns_canonicalize_hostname = false
+           dns_canonicalize_hostname = fallback
 
           [realms]
            FEDORAPROJECT.ORG = {
@@ -193,6 +193,7 @@ jobs:
             export KRB5CCNAME="FILE:$ccache"
             echo "KRB5CCNAME=$KRB5CCNAME" >> "$GITHUB_ENV"
             configure_gssapi_client
+            kvno -S HTTP copr.fedorainfracloud.org >/dev/null || return 1
             cache_copr_gssapi_session || return 1
           }
 
@@ -208,6 +209,7 @@ jobs:
             export KRB5CCNAME="FILE:$ccache"
             echo "KRB5CCNAME=$KRB5CCNAME" >> "$GITHUB_ENV"
             configure_gssapi_client
+            kvno -S HTTP copr.fedorainfracloud.org >/dev/null || return 1
             cache_copr_gssapi_session || return 1
           }
 
