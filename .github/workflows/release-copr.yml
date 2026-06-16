@@ -126,7 +126,7 @@ jobs:
             label="$1"
             shift
             rm -f ~/.config/copr
-            if "$@" && copr-cli whoami >/dev/null 2>&1; then
+            if "$@" && copr-cli list "$username" >/dev/null 2>&1; then
               echo "COPR authentication configured with ${label}."
               return 0
             fi
@@ -135,14 +135,14 @@ jobs:
           }
 
           configured=0
-          if [[ -n "${COPR_LOGIN:-}" && -n "${COPR_TOKEN:-}" ]]; then
-            try_copr_auth "API token" configure_token && configured=1
-          fi
-          if [[ "$configured" -eq 0 && -n "${COPR_KERBEROS_PRINCIPAL:-}" && -n "${COPR_KERBEROS_KEYTAB_B64:-}" ]]; then
+          if [[ -n "${COPR_KERBEROS_PRINCIPAL:-}" && -n "${COPR_KERBEROS_KEYTAB_B64:-}" ]]; then
             try_copr_auth "Kerberos keytab" configure_kerberos_keytab && configured=1
           fi
           if [[ "$configured" -eq 0 && -n "${COPR_FEDORA_USERNAME:-}" && -n "${COPR_FEDORA_PASSWORD:-}" && -n "${COPR_FEDORA_OTP_SECRET:-}" ]]; then
             try_copr_auth "Fedora password and OTP" configure_fedora_password && configured=1
+          fi
+          if [[ "$configured" -eq 0 && -n "${COPR_LOGIN:-}" && -n "${COPR_TOKEN:-}" ]]; then
+            try_copr_auth "API token" configure_token && configured=1
           fi
           if [[ "$configured" -eq 0 ]]; then
             echo "No configured COPR authentication method succeeded." >&2
