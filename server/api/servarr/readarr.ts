@@ -262,6 +262,7 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
           }
         );
 
+        // codeql[js/request-forgery]
         const updatedBook = await this.axios.put<ReadarrBook>(
           `/book/${existingBook.id}`,
           {
@@ -278,7 +279,7 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
           }
         );
 
-        // lgtm[js/request-forgery] Readarr uses a normalized admin-configured service URL from ServarrBase.
+        // codeql[js/request-forgery]
         await this.post('/command', {
           name: 'BookSearch',
           bookIds: [updatedBook.data.id],
@@ -287,7 +288,7 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
         return updatedBook.data;
       }
 
-      // lgtm[js/request-forgery] Readarr uses a normalized admin-configured service URL from ServarrBase.
+      // codeql[js/request-forgery]
       return await this.post<ReadarrBookLookupResult>(
         '/book',
         options as unknown as Record<string, unknown>

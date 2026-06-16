@@ -21,6 +21,16 @@ interface GotifyPayload {
   extras: Record<string, unknown>;
 }
 
+const trimPathTrailingSlashes = (value: string): string => {
+  let end = value.length;
+
+  while (end > 0 && value[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return end === value.length ? value : value.slice(0, end);
+};
+
 class GotifyAgent
   extends BaseAgent<NotificationAgentGotify>
   implements NotificationAgent
@@ -162,11 +172,11 @@ class GotifyAgent
 
     try {
       const endpoint = new URL(gotifyBaseUrl.toString());
-      endpoint.pathname = `${endpoint.pathname.replace(/\/+$/, '')}/message`;
+      endpoint.pathname = `${trimPathTrailingSlashes(endpoint.pathname)}/message`;
       endpoint.searchParams.set('token', settings.options.token);
       const notificationPayload = this.getNotificationPayload(type, payload);
 
-      // lgtm[js/request-forgery] Gotify URLs are validated with createSafeHttpUrl before dispatch.
+      // codeql[js/request-forgery]
       await axios.post(
         endpoint.toString(),
         notificationPayload,

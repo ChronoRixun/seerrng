@@ -3,7 +3,7 @@ import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 import { getSettings, type DVRSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { buildServiceUrl } from '@server/utils/serviceUrl';
+import { buildServiceUrl, trimTrailingSlashes } from '@server/utils/serviceUrl';
 
 export interface SystemStatus {
   appName?: string;
@@ -95,7 +95,7 @@ const normalizeConfiguredServiceUrl = (value: string, apiName: string) => {
 
     url.username = '';
     url.password = '';
-    return url.toString().replace(/\/+$/, '');
+    return trimTrailingSlashes(url.toString());
   } catch (e) {
     throw new Error(`[${apiName}] Invalid configured service URL`, {
       cause: e,

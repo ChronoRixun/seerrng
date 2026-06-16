@@ -3540,7 +3540,7 @@ const writeJson = async (filePath, value) => {
   const tmpPath = `${outputPath}.tmp`;
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  // lgtm[js/http-to-file-access] Migration writes are restricted to resolved JSON artifact paths.
+  // codeql[js/http-to-file-access]
   await fs.writeFile(tmpPath, `${JSON.stringify(value, null, 2)}\n`);
   await fs.rename(tmpPath, outputPath);
 };

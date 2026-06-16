@@ -4,7 +4,15 @@ import {
   buildServiceUrl,
   normalizeServiceHostname,
   normalizeUrlBase,
+  trimTrailingSlashes,
 } from './serviceUrl';
+
+describe('trimTrailingSlashes', () => {
+  it('removes only trailing slashes', () => {
+    assert.equal(trimTrailingSlashes('/sonarr///'), '/sonarr');
+    assert.equal(trimTrailingSlashes('/sonarr/api'), '/sonarr/api');
+  });
+});
 
 describe('normalizeUrlBase', () => {
   it('normalizes relative url bases', () => {

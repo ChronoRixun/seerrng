@@ -1,3 +1,13 @@
+export const trimTrailingSlashes = (value: string): string => {
+  let end = value.length;
+
+  while (end > 0 && value[end - 1] === '/') {
+    end -= 1;
+  }
+
+  return end === value.length ? value : value.slice(0, end);
+};
+
 export const normalizeUrlBase = (value?: string): string => {
   if (!value) {
     return '';
@@ -14,7 +24,7 @@ export const normalizeUrlBase = (value?: string): string => {
   }
 
   const prefixed = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  return prefixed.replace(/\/+$/, '');
+  return trimTrailingSlashes(prefixed);
 };
 
 export const normalizeServiceHostname = (value?: string): string => {
