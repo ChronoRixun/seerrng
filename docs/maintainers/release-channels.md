@@ -97,3 +97,26 @@ Generate a `seerrng`-scoped credential with:
 ```
 
 Do not write exported Snapcraft credentials into tracked files.
+
+## Launchpad PPA Target
+
+The PPA workflow requires `LAUNCHPAD_PPA` as a GitHub secret or repository
+variable. Use one of these forms:
+
+```bash
+ppa:keefshape/seerrng
+~keefshape/ubuntu/seerrng
+ftp://ppa.launchpad.net/~keefshape/ubuntu/seerrng/
+```
+
+Launchpad must already have that PPA. If the archive does not exist, Launchpad
+rejects the upload with a message like `Could not find a PPA owned by ...`.
+Create the archive in Launchpad first, or point `LAUNCHPAD_PPA` at an existing
+archive. As of 2026-06-16, the active target archive is
+`ppa:keefshape/seerrng`.
+
+For package smoke tests against a non-default PPA:
+
+```bash
+PPA=ppa:keefshape/seerrng packaging/smoke/package-smoke seerrng ppa v3.2.7 --arch amd64
+```

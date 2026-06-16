@@ -91,26 +91,72 @@ jobs:
 
       - name: Upload to Launchpad
         env:
-          LAUNCHPAD_PPA: ${{ secrets.LAUNCHPAD_PPA }}
+          LAUNCHPAD_PPA: ${{ secrets.LAUNCHPAD_PPA || vars.LAUNCHPAD_PPA }}
         run: |
           set -euo pipefail
-          incoming="${LAUNCHPAD_PPA:-ftp://ppa.launchpad.net/~keefshape/ubuntu/seerrng/}"
-          if [[ "$incoming" != ftp://* ]]; then
-            echo "LAUNCHPAD_PPA must be an ftp:// URL." >&2
+
+          raw_target="${LAUNCHPAD_PPA:-}"
+          if [[ -z "$raw_target" ]]; then
+            echo "Set LAUNCHPAD_PPA to ppa:<owner>/<archive>, ~<owner>/ubuntu/<archive>, or ftp://ppa.launchpad.net/~<owner>/ubuntu/<archive>/." >&2
             exit 1
           fi
-          incoming="${incoming%/}/"
-          target="${incoming#ftp://}"
-          fqdn="${target%%/*}"
-          path="${target#*/}"
+
+          raw_target="${raw_target%/}"
+          case "$raw_target" in
+            ppa:*)
+              shorthand="${raw_target#ppa:}"
+              owner="${shorthand%%/*}"
+              archive="${shorthand#*/}"
+              if [[ -z "$owner" || -z "$archive" || "$owner" == "$archive" ]]; then
+                echo "Invalid LAUNCHPAD_PPA shorthand: $raw_target" >&2
+                exit 1
+              fi
+              path="~${owner#\~}/ubuntu/${archive}"
+              ;;
+            ftp://ppa.launchpad.net/*)
+              path="${raw_target#ftp://ppa.launchpad.net/}"
+              ;;
+            \~*/ubuntu/*)
+              path="$raw_target"
+              ;;
+            *)
+              echo "Invalid LAUNCHPAD_PPA target: $raw_target" >&2
+              echo "Expected ppa:<owner>/<archive>, ~<owner>/ubuntu/<archive>, or ftp://ppa.launchpad.net/~<owner>/ubuntu/<archive>/." >&2
+              exit 1
+              ;;
+          esac
+
+          path="${path%/}"
+          if [[ ! "$path" =~ ^~[^/]+/ubuntu/[^/]+$ ]]; then
+            echo "Invalid Launchpad upload path after normalization: $path" >&2
+            exit 1
+          fi
+
+          owner="${path%%/ubuntu/*}"
+          archive="${path##*/ubuntu/}"
+          owner_name="${owner#\~}"
+          archive_api="https://api.launchpad.net/1.0/~${owner_name}/+archive/ubuntu/${archive}"
+          archive_web="https://launchpad.net/~${owner_name}/+archive/ubuntu/${archive}"
+
+          if ! curl --fail --silent --show-error "$archive_api" >/dev/null; then
+            echo "Launchpad PPA does not exist or is not public: $archive_web" >&2
+            echo "Create that PPA, or set LAUNCHPAD_PPA to an existing archive owned by ${owner}." >&2
+            echo "Public PPAs currently visible for ${owner}:" >&2
+            curl --fail --silent "https://api.launchpad.net/1.0/${owner}/ppas" \
+              | python3 -c 'import json, sys; data=json.load(sys.stdin); [print("  {} ({})".format(entry["reference"], entry["web_link"])) for entry in data.get("entries", [])]' >&2 \
+              || true
+            exit 1
+          fi
+
           changes="$(find . -maxdepth 1 -name '*.changes' -print -quit)"
           test -n "$changes"
-          cat > ~/.dput.cf <<EOF
-          [seerrng-ppa]
-          fqdn = ${fqdn}
-          method = ftp
-          incoming = ${path}
-          login = anonymous
-          allow_unsigned_uploads = 0
-          EOF
+          {
+            printf '[seerrng-ppa]\n'
+            printf 'fqdn = ppa.launchpad.net\n'
+            printf 'method = ftp\n'
+            printf 'incoming = %s\n' "$path"
+            printf 'login = anonymous\n'
+            printf 'allow_unsigned_uploads = 0\n'
+          } > ~/.dput.cf
+          echo "Uploading $changes to $archive_web"
           dput -f seerrng-ppa "$changes"
