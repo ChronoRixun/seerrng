@@ -41,7 +41,7 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates krb5-k5tls krb5-pkinit krb5-user oathtool rpm python3-pip python3-venv
           python3 -m venv "$RUNNER_TEMP/copr"
-          "$RUNNER_TEMP/copr/bin/python" -m pip install --upgrade pip copr-cli rich
+          "$RUNNER_TEMP/copr/bin/python" -m pip install --upgrade pip copr-cli requests-gssapi rich
           echo "$RUNNER_TEMP/copr/bin" >> "$GITHUB_PATH"
 
       - name: Configure COPR
@@ -135,7 +135,7 @@ jobs:
             label="$1"
             shift
             rm -f ~/.config/copr
-            if "$@" && copr-cli whoami >/dev/null 2>&1; then
+            if "$@" && copr-cli list "$username" >/dev/null 2>&1; then
               echo "COPR authentication configured with ${label}."
               return 0
             fi
