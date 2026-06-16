@@ -39,7 +39,7 @@ jobs:
       - name: Install RPM/COPR tooling
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates krb5-k5tls krb5-pkinit krb5-user oathtool rpm python3-pip python3-venv
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates krb5-k5tls krb5-pkinit krb5-user libkrb5-dev oathtool rpm python3-pip python3-venv
           python3 -m venv "$RUNNER_TEMP/copr"
           "$RUNNER_TEMP/copr/bin/python" -m pip install --upgrade pip copr-cli requests-gssapi rich
           echo "$RUNNER_TEMP/copr/bin" >> "$GITHUB_PATH"
