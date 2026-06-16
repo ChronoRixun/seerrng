@@ -26,8 +26,6 @@ jobs:
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ steps.version.outputs.tag }}
 
       - name: Install packaging tools
         run: sudo apt-get update && sudo apt-get install -y build-essential debhelper devscripts dpkg-dev gnupg curl
@@ -97,9 +95,22 @@ jobs:
         run: |
           set -euo pipefail
           incoming="${LAUNCHPAD_PPA:-ftp://ppa.launchpad.net/~keefshape/ubuntu/seerrng/}"
+          if [[ "$incoming" != ftp://* ]]; then
+            echo "LAUNCHPAD_PPA must be an ftp:// URL." >&2
+            exit 1
+          fi
+          incoming="${incoming%/}/"
+          target="${incoming#ftp://}"
+          fqdn="${target%%/*}"
+          path="${target#*/}"
           changes="$(find . -maxdepth 1 -name '*.changes' -print -quit)"
           test -n "$changes"
-          awk '/^Files:/{files=1; next} files && NF >= 5 {print $5}' "$changes" | while read -r file; do
-            curl --fail --show-error --ftp-create-dirs --user anonymous: --upload-file "$file" "${incoming}${file}"
-          done
-          curl --fail --show-error --ftp-create-dirs --user anonymous: --upload-file "$changes" "${incoming}$(basename "$changes")"
+          cat > ~/.dput.cf <<EOF
+          [seerrng-ppa]
+          fqdn = ${fqdn}
+          method = ftp
+          incoming = ${path}
+          login = anonymous
+          allow_unsigned_uploads = 0
+          EOF
+          dput -f seerrng-ppa "$changes"
