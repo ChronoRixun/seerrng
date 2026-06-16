@@ -262,6 +262,12 @@ jobs:
         run: |
           set -euo pipefail
           project="${COPR_PROJECT:-seerrng}"
+          if [[ "$project" == */* ]]; then
+            copr_full_name="$project"
+          else
+            copr_full_name="$(copr-cli whoami)/$project"
+          fi
+          instructions="dnf copr enable ${copr_full_name} && dnf install seerrng"
           chroots=(
             fedora-43-x86_64
             fedora-rawhide-x86_64
@@ -274,12 +280,12 @@ jobs:
             copr-cli modify "$project" \
               "${copr_args[@]}" \
               --description "SeerrNG RPM builds" \
-              --instructions "dnf copr enable keefshape/seerrng && dnf install seerrng"
+              --instructions "$instructions"
           else
             copr-cli create "$project" \
               "${copr_args[@]}" \
             --description "SeerrNG RPM builds" \
-            --instructions "dnf copr enable keefshape/seerrng && dnf install seerrng"
+            --instructions "$instructions"
           fi
 
       - name: Upload to COPR
