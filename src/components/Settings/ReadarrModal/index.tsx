@@ -195,12 +195,14 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
       apiKey,
       baseUrl,
       useSsl = false,
+      serviceType,
     }: {
       hostname: string;
       port: number;
-      apiKey: string;
+      apiKey: ***
       baseUrl?: string;
       useSsl?: boolean;
+      serviceType: 'ebook' | 'audiobook';
     }) => {
       setIsTesting(true);
       try {
@@ -212,6 +214,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
             port: Number(port),
             baseUrl,
             useSsl,
+            serviceType,
           }
         );
 
@@ -262,6 +265,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
         port: readarr.port,
         baseUrl: readarr.baseUrl,
         useSsl: readarr.useSsl,
+        serviceType: readarr.serviceType ?? 'ebook',
       });
     }
   }, [readarr, testConnection]);
@@ -372,6 +376,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
                   hostname: values.hostname,
                   port: values.port,
                   useSsl: values.ssl,
+                  serviceType: values.serviceType,
                 });
                 if (!values.baseUrl || values.baseUrl === '/') {
                   setFieldValue('baseUrl', testResponse.urlBase);
@@ -440,6 +445,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
                             activeMetadataProfileId: Number(
                               values.activeMetadataProfileId
                             ),
+                            serviceType: values.serviceType,
                             term: 'isbn:9780547928227',
                           }
                         );
