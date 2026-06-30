@@ -611,7 +611,10 @@ const filteredMainSettings = (
     return omit(main, 'apiKey');
   }
 
-  return redactSecrets(main);
+  // The application's own API key is intended to be readable and copyable by
+  // admins (Settings → General) so they can authenticate API requests. Redact
+  // every other secret in the main settings, but preserve apiKey for admins.
+  return { ...redactSecrets(main), apiKey: main.apiKey };
 };
 
 settingsRoutes.get('/main', (req, res, next) => {
