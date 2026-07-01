@@ -2,8 +2,8 @@ import { MediaType } from '@server/constants/media';
 import { MediaIdentifierProvider } from '@server/entity/MediaIdentifier';
 import { normalizeValidIsbn } from '@server/lib/isbn';
 
-export const normalizeMusicBrainzId = (id: string): string =>
-  id.trim().toLowerCase();
+export const normalizeMusicBrainzId = (id: string | null | undefined): string =>
+  id ? id.trim().toLowerCase() : '';
 
 export const normalizeOpenLibraryWorkId = (id: string): string =>
   id
