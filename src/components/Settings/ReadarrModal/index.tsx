@@ -199,7 +199,7 @@ const ReadarrModal = ({ onClose, readarr, onSave }: ReadarrModalProps) => {
     }: {
       hostname: string;
       port: number;
-      apiKey: ***
+      apiKey: string;
       baseUrl?: string;
       useSsl?: boolean;
       serviceType: 'ebook' | 'audiobook';
