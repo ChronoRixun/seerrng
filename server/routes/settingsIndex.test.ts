@@ -832,3 +832,38 @@ describe('Settings route input validation', () => {
     assert.match(res.body.message, /Cache not found/);
   });
 });
+
+describe('Main settings API key exposure', () => {
+  const appWithUser = (isAdmin: boolean) => {
+    const scoped = express();
+    scoped.use(express.json());
+    scoped.use((req, _res, next) => {
+      (req as unknown as { user: unknown }).user = {
+        hasPermission: () => isAdmin,
+      };
+      next();
+    });
+    scoped.use('/settings', settingsRoutes);
+    return scoped;
+  };
+
+  it('returns the real application API key to admins (not [REDACTED])', async () => {
+    const settings = getSettings();
+    settings.main.apiKey = 'real-application-key';
+
+    const res = await request(appWithUser(true)).get('/settings/main');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.apiKey, 'real-application-key');
+  });
+
+  it('omits the application API key entirely for non-admin users', async () => {
+    const settings = getSettings();
+    settings.main.apiKey = 'real-application-key';
+
+    const res = await request(appWithUser(false)).get('/settings/main');
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.apiKey, undefined);
+  });
+});
