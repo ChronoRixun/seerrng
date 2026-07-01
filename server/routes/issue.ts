@@ -26,7 +26,7 @@ import { Router } from 'express';
 
 const issueRoutes = Router();
 const MAX_ISSUE_ROUTE_ID = 1_000_000_000;
-const issueSortFields = ['modified'] as const;
+const issueSortFields = ['added', 'modified'] as const;
 const issueStatusFilters = ['open', 'resolved'] as const;
 
 const parseIssueStatusAction = (status: unknown): IssueStatus | undefined => {
