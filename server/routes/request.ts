@@ -67,6 +67,7 @@ const requestMediaTypeFilters = [
   'book',
 ] as const;
 const requestStatusFilters = [
+  'all',
   'approved',
   'processing',
   'pending',
