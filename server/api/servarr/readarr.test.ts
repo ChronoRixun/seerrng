@@ -320,6 +320,41 @@ describe('ReadarrAPI.addBook', () => {
     });
   });
 
+  it('skips the search command when searchForNewBook is disabled', async () => {
+    const api = new ReadarrAPI({
+      url: 'http://localhost:8787/api/v1',
+      apiKey: 'key',
+    });
+    const updatedBook = existingBook({ monitored: true });
+    mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'get',
+      async () => [existingBook({ monitored: false })]
+    );
+    const postMock = mock.method(
+      ReadarrAPI.prototype as unknown as MockableReadarr,
+      'post',
+      async () => updatedBook
+    );
+    const putMock = mock.fn(async () => ({ data: updatedBook }));
+    (
+      api as unknown as {
+        axios: { put: typeof putMock };
+      }
+    ).axios.put = putMock;
+
+    const result = await api.addBook({
+      ...bookOptions,
+      addOptions: {
+        searchForNewBook: false,
+      },
+    });
+
+    assert.strictEqual(result.id, 9);
+    assert.strictEqual(putMock.mock.calls.length, 1);
+    assert.strictEqual(postMock.mock.calls.length, 0);
+  });
+
   it('sends an empty editions array when monitoring an existing book without editions', async () => {
     const api = new ReadarrAPI({
       url: 'http://localhost:8787/api/v1',
