@@ -62,7 +62,7 @@ const READARR_DISPATCH_RETRY_DELAYS_MS =
     ? [1, 1, 1]
     : [300_000, 900_000, 1_800_000, 3_600_000];
 const READARR_MAX_EXPANDED_LOOKUP_TERMS = 18;
-const READARR_APPROVED_RETRY_BATCH_SIZE = 1;
+const READARR_APPROVED_RETRY_BATCH_SIZE = 5;
 const readarrDispatchRetryTimers = new Map<
   number,
   { attempts: number; timer: NodeJS.Timeout }
@@ -1796,12 +1796,38 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           entity.profileId !== undefined
             ? entity.profileId
             : readarrSettings.activeProfileId;
-        const metadataProfile =
+        let metadataProfile =
           allowServerOverride &&
           entity.metadataProfileId !== null &&
           entity.metadataProfileId !== undefined
             ? entity.metadataProfileId
-            : (readarrSettings.activeMetadataProfileId ?? 1);
+            : readarrSettings.activeMetadataProfileId;
+
+        if (metadataProfile === null || metadataProfile === undefined) {
+          // No metadata profile configured for this server — ask Readarr for
+          // its profiles rather than guessing an id that may not exist.
+          const metadataProfiles = await readarr.getMetadataProfiles();
+
+          metadataProfile = metadataProfiles[0]?.id;
+
+          if (metadataProfile === undefined) {
+            throw new Error(
+              `Bookshelf server for ${serviceType} has no metadata profiles configured`
+            );
+          }
+
+          logger.warn(
+            'No metadata profile configured for Bookshelf server; using the first available profile.',
+            {
+              label: 'Media Request',
+              requestId: entity.id,
+              mediaId: entity.media.id,
+              serviceType,
+              metadataProfileId: metadataProfile,
+              metadataProfileName: metadataProfiles[0]?.name,
+            }
+          );
+        }
         const tags =
           allowServerOverride && entity.tags
             ? [...entity.tags]
@@ -1872,7 +1898,7 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             : bookInfo.author,
           editions: bookInfo.editions ?? [],
           addOptions: {
-            searchForNewBook: true,
+            searchForNewBook: !readarrSettings.preventSearch,
           },
         });
 
@@ -1965,6 +1991,10 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
             ? (['audiobook'] as const)
             : (['ebook'] as const);
       let lookupTerm: string | undefined;
+      const formatErrors: {
+        serviceType: 'ebook' | 'audiobook';
+        error: unknown;
+      }[] = [];
 
       for (const serviceType of targetFormats) {
         if (
@@ -1983,10 +2013,41 @@ export class MediaRequestSubscriber implements EntitySubscriberInterface<MediaRe
           continue;
         }
 
-        lookupTerm = await dispatchFormat(
-          serviceType,
-          requestedBookFormat !== 'both' || serviceType === 'ebook'
+        // Attempt every requested format even if an earlier one failed so a
+        // failing ebook leg cannot block the audiobook leg (or vice versa).
+        // Successful legs persist their service links immediately, so retries
+        // skip them via the guards above.
+        try {
+          lookupTerm = await dispatchFormat(
+            serviceType,
+            requestedBookFormat !== 'both' || serviceType === 'ebook'
+          );
+        } catch (dispatchError) {
+          formatErrors.push({ serviceType, error: dispatchError });
+
+          logger.warn('Failed to dispatch book format to Bookshelf', {
+            label: 'Media Request',
+            requestId: entity.id,
+            mediaId: entity.media.id,
+            serviceType,
+            bookFormat: requestedBookFormat,
+            errorMessage:
+              dispatchError instanceof Error
+                ? dispatchError.message
+                : String(dispatchError),
+          });
+        }
+      }
+
+      if (formatErrors.length) {
+        // Surface a transient error preferentially so the outer handler
+        // schedules a retry (request stays APPROVED) instead of marking the
+        // whole request FAILED when part of it may just need another attempt.
+        const transientFailure = formatErrors.find(({ error }) =>
+          isTransientExternalError(error)
         );
+
+        throw (transientFailure ?? formatErrors[0]).error;
       }
 
       const requestRepository = getRepository(MediaRequest);

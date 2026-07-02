@@ -279,11 +279,13 @@ class ReadarrAPI extends ServarrBase<ReadarrQueueItem> {
           }
         );
 
-        // codeql[js/request-forgery]
-        await this.post('/command', {
-          name: 'BookSearch',
-          bookIds: [updatedBook.data.id],
-        });
+        if (options.addOptions?.searchForNewBook !== false) {
+          // codeql[js/request-forgery]
+          await this.post('/command', {
+            name: 'BookSearch',
+            bookIds: [updatedBook.data.id],
+          });
+        }
 
         return updatedBook.data;
       }

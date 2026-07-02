@@ -2,6 +2,7 @@ import CachedImage from '@app/components/Common/CachedImage';
 import MiniQuotaDisplay from '@app/components/Layout/UserDropdown/MiniQuotaDisplay';
 import { Permission, useUser } from '@app/hooks/useUser';
 import defineMessages from '@app/utils/defineMessages';
+import { clearPersistentCache } from '@app/utils/swrCache';
 import { Menu, Transition } from '@headlessui/react';
 import {
   ArrowRightOnRectangleIcon,
@@ -42,7 +43,12 @@ const UserDropdown = () => {
     const response = await axios.post('/api/v1/auth/logout');
 
     if (response.data?.status === 'ok') {
-      revalidate();
+      // Purge all cached user data before navigating, otherwise the login
+      // page can rehydrate a stale user and bounce back and forth between
+      // / and /login.
+      clearPersistentCache();
+      await revalidate(undefined, false);
+      window.location.assign('/login');
     }
   };
 

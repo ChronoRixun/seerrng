@@ -13,8 +13,12 @@ type CacheRecord<T> = {
 const canUseStorage = () =>
   typeof window !== 'undefined' && !!window.localStorage;
 
+// Auth/session state must never be persisted: a stale cached user on the
+// login page causes redirect loops after the server session is destroyed.
 const isCacheableKey = (key: unknown): key is string =>
-  typeof key === 'string' && key.startsWith('/api/v1/');
+  typeof key === 'string' &&
+  key.startsWith('/api/v1/') &&
+  !key.startsWith('/api/v1/auth/');
 
 const readJson = <T>(key: string): T | undefined => {
   if (!canUseStorage()) {
@@ -71,6 +75,30 @@ export const setPersistentResponse = <T>(key: string, data: T | undefined) => {
   });
 };
 
+let clearActiveCache: (() => void) | undefined;
+
+/**
+ * Wipes the persistent SWR/response caches (localStorage) and the active
+ * in-memory SWR cache. Used on logout so no user-specific data survives
+ * into the next session.
+ */
+export const clearPersistentCache = () => {
+  clearActiveCache?.();
+
+  if (!canUseStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(SWR_CACHE_KEY);
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith(RESPONSE_CACHE_PREFIX))
+      .forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // ignore storage failures
+  }
+};
+
 export const createPersistentSWRCache = (): Cache => {
   const entries = readJson<[string, unknown][]>(SWR_CACHE_KEY) ?? [];
   const cache = new Map<string, unknown>(
@@ -117,6 +145,15 @@ export const createPersistentSWRCache = (): Cache => {
     }
 
     return deleted;
+  };
+
+  clearActiveCache = () => {
+    if (persistTimer !== undefined && typeof window !== 'undefined') {
+      window.clearTimeout(persistTimer);
+      persistTimer = undefined;
+    }
+
+    cache.clear();
   };
 
   return cache as Cache;

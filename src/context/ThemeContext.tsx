@@ -457,80 +457,6 @@ const themeScales = {
 
 type ThemeScaleName = keyof typeof themeScales;
 
-const applyScale = (
-  root: HTMLElement,
-  target: 'gray' | 'indigo' | 'purple',
-  scale: readonly string[]
-) => {
-  shades.forEach((shade, index) => {
-    root.style.setProperty(`--color-${target}-${shade}`, scale[index]);
-  });
-};
-
-const applyThemeChrome = (
-  root: HTMLElement,
-  surfaceScale: readonly string[],
-  primaryScale: readonly string[],
-  secondaryScale: readonly string[],
-  mode: ThemeMode
-) => {
-  if (mode === 'dark') {
-    root.style.setProperty('--theme-page-bg', surfaceScale[9]);
-    root.style.setProperty(
-      '--theme-page-glow-start',
-      mixRgb(surfaceScale[8], primaryScale[7], 0.56)
-    );
-    root.style.setProperty('--theme-page-glow-end', surfaceScale[9]);
-    root.style.setProperty(
-      '--theme-searchbar-scrolled',
-      mixRgb(surfaceScale[8], primaryScale[7], 0.44)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-start',
-      mixRgb(surfaceScale[8], primaryScale[8], 0.58)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-end',
-      mixRgb(surfaceScale[10], primaryScale[9], 0.52)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-border',
-      mixRgb(surfaceScale[7], secondaryScale[6], 0.48)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-hover',
-      mixRgb(surfaceScale[7], primaryScale[7], 0.52)
-    );
-  } else {
-    root.style.setProperty('--theme-page-bg', surfaceScale[9]);
-    root.style.setProperty(
-      '--theme-page-glow-start',
-      mixRgb(surfaceScale[8], primaryScale[3], 0.44)
-    );
-    root.style.setProperty('--theme-page-glow-end', surfaceScale[9]);
-    root.style.setProperty(
-      '--theme-searchbar-scrolled',
-      mixRgb(surfaceScale[8], primaryScale[2], 0.38)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-start',
-      mixRgb(primaryScale[7], surfaceScale[2], 0.24)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-end',
-      mixRgb(primaryScale[9], surfaceScale[1], 0.18)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-border',
-      mixRgb(primaryScale[6], secondaryScale[6], 0.42)
-    );
-    root.style.setProperty(
-      '--theme-sidebar-hover',
-      mixRgb(primaryScale[6], secondaryScale[5], 0.32)
-    );
-  }
-};
-
 const parseRgb = (value: string): [number, number, number] =>
   value.split(' ').map((part) => Number(part)) as [number, number, number];
 
@@ -596,6 +522,8 @@ type ThemeContextValue = {
 
 const THEME_MODE_KEY = 'seerr-theme-mode';
 const THEME_PALETTE_KEY = 'seerr-theme-palette';
+export const THEME_COOKIE_KEY = 'seerr-theme';
+export const THEME_VARS_KEY = 'seerr-theme-vars-v1';
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
@@ -668,29 +596,58 @@ export const getThemeTokens = (mode: ThemeMode, palette: string) => {
   };
 };
 
+export const getThemeCssVars = (
+  mode: ThemeMode,
+  palette: string
+): { activePaletteId: string; vars: Record<string, string> } => {
+  const themeTokens = getThemeTokens(mode, palette);
+  const vars: Record<string, string> = {};
+
+  shades.forEach((shade, index) => {
+    vars[`--color-indigo-${shade}`] = themeTokens.primaryScale[index];
+    vars[`--color-purple-${shade}`] = themeTokens.secondaryScale[index];
+    vars[`--color-gray-${shade}`] = themeTokens.surfaceScale[index];
+  });
+
+  vars['--theme-page-bg'] = themeTokens.pageBg;
+  vars['--theme-page-glow-start'] = themeTokens.pageGlowStart;
+  vars['--theme-page-glow-end'] = themeTokens.surfaceScale[9];
+  vars['--theme-searchbar-scrolled'] = themeTokens.searchbarScrolled;
+  vars['--theme-sidebar-start'] = themeTokens.sidebarStart;
+  vars['--theme-sidebar-end'] = themeTokens.sidebarEnd;
+  vars['--theme-sidebar-border'] = themeTokens.sidebarBorder;
+  vars['--theme-sidebar-hover'] = themeTokens.sidebarHover;
+
+  return { activePaletteId: themeTokens.activePaletteId, vars };
+};
+
 const applyTheme = (mode: ThemeMode, palette: string) => {
   if (typeof window === 'undefined') {
     return;
   }
 
-  const themeTokens = getThemeTokens(mode, palette);
+  const { activePaletteId, vars } = getThemeCssVars(mode, palette);
 
   document.documentElement.dataset.themeMode = mode;
-  document.documentElement.dataset.themePalette = themeTokens.activePaletteId;
+  document.documentElement.dataset.themePalette = activePaletteId;
   document.documentElement.classList.toggle('dark', mode === 'dark');
 
-  applyScale(document.documentElement, 'indigo', themeTokens.primaryScale);
-  applyScale(document.documentElement, 'purple', themeTokens.secondaryScale);
-  applyScale(document.documentElement, 'gray', themeTokens.surfaceScale);
-  applyThemeChrome(
-    document.documentElement,
-    themeTokens.surfaceScale,
-    themeTokens.primaryScale,
-    themeTokens.secondaryScale,
-    mode
-  );
+  Object.entries(vars).forEach(([name, value]) => {
+    document.documentElement.style.setProperty(name, value);
+  });
+
   window.localStorage.setItem(THEME_MODE_KEY, mode);
-  window.localStorage.setItem(THEME_PALETTE_KEY, themeTokens.activePaletteId);
+  window.localStorage.setItem(THEME_PALETTE_KEY, activePaletteId);
+  // Mirror the theme so full page loads can paint with the right theme
+  // instead of flashing the default: the cookie lets _document server-render
+  // theme attributes/variables on SSR pages, and the stored vars let the
+  // inline bootstrap script in _document restore them on static pages
+  // before first paint.
+  document.cookie = `${THEME_COOKIE_KEY}=${mode}:${activePaletteId}; path=/; max-age=31536000; samesite=lax`;
+  window.localStorage.setItem(
+    THEME_VARS_KEY,
+    JSON.stringify({ mode, palette: activePaletteId, vars })
+  );
 };
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {

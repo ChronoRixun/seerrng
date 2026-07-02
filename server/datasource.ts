@@ -5,6 +5,14 @@ import { DataSource } from 'typeorm';
 
 const DB_SSL_PREFIX = 'DB_SSL_';
 
+// Exclude *.test.ts from the source globs — TypeORM require()s every matched
+// file when the data source initializes, and loading test files as entities/
+// migrations executes their node:test suites as a side effect.
+const tsEntities = ['server/entity/**/!(*.test).ts'];
+const tsSubscribers = ['server/subscriber/**/!(*.test).ts'];
+const tsSqliteMigrations = ['server/migration/sqlite/**/!(*.test).ts'];
+const tsPostgresMigrations = ['server/migration/postgres/**/!(*.test).ts'];
+
 function boolFromEnv(envVar: string, defaultVal = false) {
   if (process.env[envVar]) {
     return process.env[envVar]?.toLowerCase() === 'true';
@@ -53,9 +61,9 @@ const testConfig: DataSourceOptions = {
   synchronize: true,
   dropSchema: true,
   logging: boolFromEnv('DB_LOG_QUERIES'),
-  entities: ['server/entity/**/*.ts'],
-  migrations: ['server/migration/sqlite/**/*.ts'],
-  subscribers: ['server/subscriber/**/*.ts'],
+  entities: tsEntities,
+  migrations: tsSqliteMigrations,
+  subscribers: tsSubscribers,
 };
 
 const devConfig: DataSourceOptions = {
@@ -67,9 +75,9 @@ const devConfig: DataSourceOptions = {
   migrationsRun: false,
   logging: boolFromEnv('DB_LOG_QUERIES'),
   enableWAL: true,
-  entities: ['server/entity/**/*.ts'],
-  migrations: ['server/migration/sqlite/**/*.ts'],
-  subscribers: ['server/subscriber/**/*.ts'],
+  entities: tsEntities,
+  migrations: tsSqliteMigrations,
+  subscribers: tsSubscribers,
 };
 
 const prodConfig: DataSourceOptions = {
@@ -100,9 +108,9 @@ const postgresDevConfig: DataSourceOptions = {
   synchronize: false,
   migrationsRun: true,
   logging: boolFromEnv('DB_LOG_QUERIES'),
-  entities: ['server/entity/**/*.ts'],
-  migrations: ['server/migration/postgres/**/*.ts'],
-  subscribers: ['server/subscriber/**/*.ts'],
+  entities: tsEntities,
+  migrations: tsPostgresMigrations,
+  subscribers: tsSubscribers,
 };
 
 const postgresProdConfig: DataSourceOptions = {
