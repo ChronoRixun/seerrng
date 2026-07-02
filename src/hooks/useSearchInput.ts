@@ -27,6 +27,10 @@ const useSearchInput = (): SearchObject => {
   // below must not run — it would erase pending keystrokes and jump the
   // cursor.
   const pendingSelfNavigations = useRef(0);
+  // The router query as of the last sync pass. The input is only synced
+  // from the URL when this actually changes — otherwise clearing the input
+  // would resurrect the stale query still sitting in the URL.
+  const lastRouterQuery = useRef(router.query.query);
 
   const trackSelfNavigation = useCallback((navigation: Promise<unknown>) => {
     pendingSelfNavigations.current += 1;
@@ -47,6 +51,14 @@ const useSearchInput = (): SearchObject => {
   useEffect(() => {
     if (debouncedValue !== '' && searchOpen) {
       if (router.pathname.startsWith('/search')) {
+        // Skip when the URL already matches: this effect re-runs on every
+        // route change (router identity changes), and replacing
+        // unconditionally creates an endless replace loop that starves
+        // other navigations.
+        if (router.query.query === debouncedValue) {
+          return;
+        }
+
         // Shallow: the search page fetches results client-side from the
         // query, so a server round-trip per keystroke is pure latency.
         trackSelfNavigation(
@@ -73,6 +85,31 @@ const useSearchInput = (): SearchObject => {
             .then(() => window.scrollTo(0, 0))
         );
       }
+    } else if (
+      debouncedValue === '' &&
+      searchOpen &&
+      router.pathname.startsWith('/search') &&
+      router.query.query &&
+      // Never while another of our navigations is in flight — a shallow
+      // replace here would cancel e.g. the navigate-back-on-close.
+      pendingSelfNavigations.current === 0
+    ) {
+      // The input was cleared while staying on the search page: drop the
+      // stale query from the URL too, so a page refresh (or any later
+      // URL→input sync) cannot resurrect it.
+      const remainingQuery = { ...router.query };
+      delete remainingQuery.query;
+
+      trackSelfNavigation(
+        router.replace(
+          {
+            pathname: router.pathname,
+            query: remainingQuery,
+          },
+          undefined,
+          { shallow: true }
+        )
+      );
     }
   }, [debouncedValue, router, searchOpen, trackSelfNavigation]);
 
@@ -112,16 +149,20 @@ const useSearchInput = (): SearchObject => {
    * We also want the search to always be open while the user is on /search.
    */
   useEffect(() => {
+    const routerQuery = router.query.query;
+    const routerQueryChanged = routerQuery !== lastRouterQuery.current;
+    lastRouterQuery.current = routerQuery;
     const inputIsSettled = searchValue === debouncedValue;
 
     if (
+      routerQueryChanged &&
       inputIsSettled &&
       pendingSelfNavigations.current === 0 &&
-      router.query.query !== debouncedValue
+      routerQuery !== debouncedValue
     ) {
-      setSearchValue((router.query.query as string) ?? '');
+      setSearchValue((routerQuery as string) ?? '');
 
-      if (!router.pathname.startsWith('/search') && !router.query.query) {
+      if (!router.pathname.startsWith('/search') && !routerQuery) {
         setIsOpen(false);
       }
     }
@@ -131,8 +172,10 @@ const useSearchInput = (): SearchObject => {
     }
   }, [debouncedValue, router, searchValue, setSearchValue]);
 
+  // Clearing empties the input but keeps the search open so the user can
+  // immediately type a new query; navigating back to the previous route
+  // still happens when the empty input is closed (blurred).
   const clear = useCallback(() => {
-    setIsOpen(false);
     setSearchValue('');
   }, [setSearchValue]);
 
