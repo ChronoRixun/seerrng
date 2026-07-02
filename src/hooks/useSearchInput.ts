@@ -1,7 +1,7 @@
 import type { Nullable } from '@app/utils/typeHelpers';
 import { useRouter } from 'next/router';
 import type { Dispatch, SetStateAction } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { UrlObject } from 'url';
 import useDebouncedState from './useDebouncedState';
 
@@ -22,6 +22,20 @@ const useSearchInput = (): SearchObject => {
   const [searchValue, debouncedValue, setSearchValue] = useDebouncedState(
     (router.query.query as string) ?? ''
   );
+  // Navigations initiated by this hook. While one is in flight the router
+  // query is stale relative to what the user typed, so the URL→input sync
+  // below must not run — it would erase pending keystrokes and jump the
+  // cursor.
+  const pendingSelfNavigations = useRef(0);
+
+  const trackSelfNavigation = useCallback((navigation: Promise<unknown>) => {
+    pendingSelfNavigations.current += 1;
+    navigation
+      .catch(() => undefined)
+      .finally(() => {
+        pendingSelfNavigations.current -= 1;
+      });
+  }, []);
 
   /**
    * This effect handles routing when the debounced search input
@@ -33,24 +47,34 @@ const useSearchInput = (): SearchObject => {
   useEffect(() => {
     if (debouncedValue !== '' && searchOpen) {
       if (router.pathname.startsWith('/search')) {
-        router.replace({
-          pathname: router.pathname,
-          query: {
-            ...router.query,
-            query: debouncedValue,
-          },
-        });
+        // Shallow: the search page fetches results client-side from the
+        // query, so a server round-trip per keystroke is pure latency.
+        trackSelfNavigation(
+          router.replace(
+            {
+              pathname: router.pathname,
+              query: {
+                ...router.query,
+                query: debouncedValue,
+              },
+            },
+            undefined,
+            { shallow: true }
+          )
+        );
       } else {
         setLastRoute(router.asPath);
-        router
-          .push({
-            pathname: '/search',
-            query: { query: debouncedValue },
-          })
-          .then(() => window.scrollTo(0, 0));
+        trackSelfNavigation(
+          router
+            .push({
+              pathname: '/search',
+              query: { query: debouncedValue },
+            })
+            .then(() => window.scrollTo(0, 0))
+        );
       }
     }
-  }, [debouncedValue, router, searchOpen]);
+  }, [debouncedValue, router, searchOpen, trackSelfNavigation]);
 
   /**
    * This effect is handling behavior when the search input is closed.
@@ -65,35 +89,37 @@ const useSearchInput = (): SearchObject => {
       !searchOpen
     ) {
       if (lastRoute) {
-        router.push(lastRoute).then(() => window.scrollTo(0, 0));
+        trackSelfNavigation(
+          router.push(lastRoute).then(() => window.scrollTo(0, 0))
+        );
       } else {
-        router.replace('/').then(() => window.scrollTo(0, 0));
+        trackSelfNavigation(
+          router.replace('/').then(() => window.scrollTo(0, 0))
+        );
       }
     }
-  }, [lastRoute, router, searchOpen, searchValue]);
+  }, [lastRoute, router, searchOpen, searchValue, trackSelfNavigation]);
 
   /**
-   * This effect handles behavior for when the route is changed.
+   * This effect syncs the searchbox with external URL changes (browser
+   * back/forward, deeplinks to /search).
    *
-   * If after a route change, the new debounced value is not the same
-   * as the query value then we will update the searchValue to either the
-   * new query or to an empty string (in the case of null). This makes sure
-   * that the value in the searchbox is whatever the user last entered regardless
-   * of routing to something like a detail page.
+   * The sync is skipped while one of our own navigations is still in
+   * flight or while the user has typed something newer than the debounced
+   * value — in both cases the router query is stale and overwriting the
+   * input from it would drop the user's keystrokes.
    *
-   * If the new route is not /search and query is null, then we will close the
-   * search if it is open.
-   *
-   * In the final case, we want the search to always be open in the case the user
-   * is on /search
+   * We also want the search to always be open while the user is on /search.
    */
   useEffect(() => {
-    if (router.query.query !== debouncedValue) {
-      setSearchValue(
-        router.query.query
-          ? decodeURIComponent(router.query.query as string)
-          : ''
-      );
+    const inputIsSettled = searchValue === debouncedValue;
+
+    if (
+      inputIsSettled &&
+      pendingSelfNavigations.current === 0 &&
+      router.query.query !== debouncedValue
+    ) {
+      setSearchValue((router.query.query as string) ?? '');
 
       if (!router.pathname.startsWith('/search') && !router.query.query) {
         setIsOpen(false);
@@ -103,7 +129,7 @@ const useSearchInput = (): SearchObject => {
     if (router.pathname.startsWith('/search')) {
       setIsOpen(true);
     }
-  }, [debouncedValue, router, setSearchValue]);
+  }, [debouncedValue, router, searchValue, setSearchValue]);
 
   const clear = useCallback(() => {
     setIsOpen(false);
