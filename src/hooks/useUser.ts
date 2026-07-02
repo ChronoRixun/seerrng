@@ -82,7 +82,10 @@ export const useUser = ({
     refreshInterval: !isAuthPage ? 120000 : 0,
     dedupingInterval: 60000,
     revalidateOnFocus: false,
-    revalidateOnMount: !initialData && !isAuthPage,
+    // Always revalidate when we have no server-provided user, including on
+    // auth pages — otherwise a stale cached user is trusted on /login and
+    // can trigger bogus redirects to /.
+    revalidateOnMount: !initialData,
     revalidateOnReconnect: !isAuthPage,
     errorRetryInterval: 60000,
     shouldRetryOnError: false,

@@ -135,7 +135,17 @@ const CoreApp = ({ Component, pageProps, router }: AppProps) => {
   );
   const [currentLocale, setLocale] = useState<AvailableLocale>('en');
   const loadedLocale = useRef<AvailableLocale>('en');
-  const swrCache = useRef(createPersistentSWRCache());
+  // Lazily initialize so the cache is created exactly once — an inline
+  // useRef(createPersistentSWRCache()) argument would run on every render,
+  // re-reading localStorage and breaking clearPersistentCache's reference
+  // to the active cache.
+  const swrCache = useRef<ReturnType<typeof createPersistentSWRCache>>(null);
+
+  if (!swrCache.current) {
+    swrCache.current = createPersistentSWRCache();
+  }
+
+  const activeSwrCache = swrCache.current;
 
   useEffect(() => {
     polyfillIntl();
@@ -169,7 +179,7 @@ const CoreApp = ({ Component, pageProps, router }: AppProps) => {
   return (
     <SWRConfig
       value={{
-        provider: () => swrCache.current,
+        provider: () => activeSwrCache,
         fetcher: (url) => axios.get(url).then((res) => res.data),
         revalidateOnFocus: false,
         focusThrottleInterval: 30000,

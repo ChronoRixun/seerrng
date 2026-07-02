@@ -36,7 +36,7 @@ const Login = () => {
   const intl = useIntl();
   const router = useRouter();
   const settings = useSettings();
-  const { user, revalidate } = useUser();
+  const { user, error: userError, revalidate } = useUser();
 
   const [error, setError] = useState('');
   const [isProcessing, setProcessing] = useState(false);
@@ -70,11 +70,13 @@ const Login = () => {
 
   // Effect that is triggered whenever `useUser`'s user changes. If we get a new
   // valid user, we redirect the user to the home page as the login was successful.
+  // A user paired with a fetch error is stale cache (e.g. right after logout);
+  // redirecting on it would loop between /login and /.
   useEffect(() => {
-    if (user) {
+    if (user && !userError) {
       router.push('/');
     }
-  }, [user, router]);
+  }, [user, userError, router]);
 
   const { data: backdrops } = useSWR<string[]>('/api/v1/backdrops', {
     refreshInterval: 0,
