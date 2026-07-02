@@ -3,7 +3,7 @@ import defineMessages from '@app/utils/defineMessages';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/solid';
 import type { KeyboardEvent } from 'react';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useIntl } from 'react-intl';
 
 const messages = defineMessages('components.Layout.SearchInput', {
@@ -13,6 +13,7 @@ const messages = defineMessages('components.Layout.SearchInput', {
 const SearchInput = () => {
   const intl = useIntl();
   const { searchValue, setSearchValue, setIsOpen, clear } = useSearchInput();
+  const inputRef = useRef<HTMLInputElement>(null);
   const hasSearchValue = searchValue.length > 0;
   const handleBlur = useCallback(() => {
     if (searchValue === '') {
@@ -37,6 +38,7 @@ const SearchInput = () => {
             <MagnifyingGlassIcon className="h-5 w-5" />
           </div>
           <input
+            ref={inputRef}
             id="search_field"
             className={`block w-full rounded-full border border-gray-600 bg-gray-900/80 py-2 pl-10 text-white placeholder-gray-300 hover:border-gray-500 focus:border-gray-500 focus:bg-gray-900 focus:placeholder-gray-400 focus:outline-none focus:ring-0 sm:text-base ${
               hasSearchValue ? 'pr-7' : ''
@@ -53,7 +55,10 @@ const SearchInput = () => {
           {hasSearchValue && (
             <button
               className="absolute inset-y-0 right-2 m-auto h-7 w-7 border-none p-1 text-gray-400 outline-none transition hover:text-white focus:border-none focus:outline-none"
-              onClick={() => clear()}
+              onClick={() => {
+                clear();
+                inputRef.current?.focus();
+              }}
             >
               <XCircleIcon className="h-5 w-5" />
             </button>
