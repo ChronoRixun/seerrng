@@ -85,6 +85,31 @@ const useSearchInput = (): SearchObject => {
             .then(() => window.scrollTo(0, 0))
         );
       }
+    } else if (
+      debouncedValue === '' &&
+      searchOpen &&
+      router.pathname.startsWith('/search') &&
+      router.query.query &&
+      // Never while another of our navigations is in flight — a shallow
+      // replace here would cancel e.g. the navigate-back-on-close.
+      pendingSelfNavigations.current === 0
+    ) {
+      // The input was cleared while staying on the search page: drop the
+      // stale query from the URL too, so a page refresh (or any later
+      // URL→input sync) cannot resurrect it.
+      const remainingQuery = { ...router.query };
+      delete remainingQuery.query;
+
+      trackSelfNavigation(
+        router.replace(
+          {
+            pathname: router.pathname,
+            query: remainingQuery,
+          },
+          undefined,
+          { shallow: true }
+        )
+      );
     }
   }, [debouncedValue, router, searchOpen, trackSelfNavigation]);
 
