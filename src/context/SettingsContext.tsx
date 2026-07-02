@@ -55,14 +55,15 @@ export const SettingsProvider = ({
     }
   );
 
-  let newSettings = defaultSettings;
-
-  if (data && !error) {
-    newSettings = data;
-  }
+  // Memoize so consumers only re-render when the settings payload actually
+  // changes, not on every provider render.
+  const value = React.useMemo(
+    () => ({ currentSettings: data && !error ? data : defaultSettings }),
+    [data, error]
+  );
 
   return (
-    <SettingsContext.Provider value={{ currentSettings: newSettings }}>
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

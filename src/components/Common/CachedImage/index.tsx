@@ -3,7 +3,7 @@ import type { CacheableImageType } from '@app/utils/imageCache';
 import { getImageCacheUrl } from '@app/utils/imageCache';
 import type { ImageLoader, ImageProps } from 'next/image';
 import Image from 'next/image';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 
 const imageLoader: ImageLoader = ({ src }) => src;
 
@@ -23,9 +23,13 @@ const CachedImage = memo(
     decoding = 'async',
     loading,
     priority,
+    className,
+    onLoad,
+    onError,
     ...props
   }: CachedImageProps) => {
     const { currentSettings } = useSettings();
+    const [isLoaded, setIsLoaded] = useState(false);
 
     const imageUrl = useMemo(
       () =>
@@ -45,6 +49,20 @@ const CachedImage = memo(
         decoding={decoding}
         loading={priority ? undefined : (loading ?? 'lazy')}
         priority={priority}
+        className={`${
+          className ?? ''
+        } transition-opacity duration-300 ease-out ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        onLoad={(e) => {
+          setIsLoaded(true);
+          onLoad?.(e);
+        }}
+        onError={(e) => {
+          // Reveal the broken/alt state instead of leaving an invisible slot.
+          setIsLoaded(true);
+          onError?.(e);
+        }}
         {...props}
       />
     );
